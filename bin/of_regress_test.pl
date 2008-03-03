@@ -34,6 +34,8 @@ my $_NF2_ROOT       = $ENV{'NF2_ROOT'};
 my $_NF2_DESIGN_DIR = $ENV{'NF2_DESIGN_DIR'};
 my $_NF2_WORK_DIR   = $ENV{'NF2_WORK_DIR'};
 
+my $_OFT_ROOT	    = $ENV{'OFT_ROOT'};
+
 use constant REQUIRED	=> 1;
 use constant OPTIONAL	=> 0;
 
@@ -70,8 +72,8 @@ $SIG{INT} = \&INT_Handler;
 # Check stuff
 #
 
-unless ( -w "$_NF2_ROOT/$projectFile" ) {
-  die ("Unable to locate regression test project file $_NF2_ROOT/$projectFile")
+unless ( -w "$_OFT_ROOT/$projectFile" ) {
+  die ("Unable to locate regression test project file $_OFT_ROOT/$projectFile")
 }
 
 #
@@ -380,8 +382,8 @@ HERE
 sub readProjects {
 	local $_;
 
-	open PROJFILE, "$_NF2_ROOT/$projectFile"
-		or die "Unable to open '$_NF2_ROOT/$projectFile' for reading";
+	open PROJFILE, "$_OFT_ROOT/$projectFile"
+		or die "Unable to open '$_OFT_ROOT/$projectFile' for reading";
 
 	# Process each line in the project file
 	while (<PROJFILE>) {
@@ -409,13 +411,13 @@ sub readProjects {
 sub verifyProjects {
 	foreach my $project (@projects) {
 		# Verify that the project exists
-		if (! -d "$_NF2_ROOT/$projectRoot/$project" ) {
+		if (! -d "$_OFT_ROOT/$projectRoot/$project" ) {
 			die "Cannot locate project '$project'";
 		}
 
 		# Verify that the project has a valid regression test description
-		if (! -f "$_NF2_ROOT/$projectRoot/$project/$regressFile" ) {
-			die "Cannot locate regression test file '$_NF2_ROOT/$projectRoot/$project/$regressFile' for project '$project'";
+		if (! -f "$_OFT_ROOT/$projectRoot/$project/$regressFile" ) {
+			die "Cannot locate regression test file '$_OFT_ROOT/$projectRoot/$project/$regressFile' for project '$project'";
 		}
 	}
 }
@@ -437,8 +439,8 @@ sub runRegressionSuite {
 	print "Running tests on project '$project'...\n" unless $quiet;
 
 	# Read the tests
-	open REGRESSFILE, "$_NF2_ROOT/$projectRoot/$project/$regressFile"
-		or die "Unable to open '$_NF2_ROOT/$projectRoot/$project/$regressFile' for reading";
+	open REGRESSFILE, "$_OFT_ROOT/$projectRoot/$project/$regressFile"
+		or die "Unable to open '$_OFT_ROOT/$projectRoot/$project/$regressFile' for reading";
 
 	while (<REGRESSFILE>) {
 		chomp;
@@ -553,7 +555,7 @@ sub runTest {
 	my $project = shift;
 	my $test = shift;
 
-	if (-d "$_NF2_ROOT/$projectRoot/$project/$regressRoot/$test") {
+	if (-d "$_OFT_ROOT/$projectRoot/$project/$regressRoot/$test") {
 		return runScript($project, $test, $run, REQUIRED);
 	} else {
 		if ($test =~ /(.*)\/([^\/]*)/) {
@@ -643,7 +645,7 @@ sub runScript {
 	my $args = '';
 
 	# Verify that the test exists
-	unless (-x "$_NF2_ROOT/$projectRoot/$project/$regressRoot/$dir/$script") {
+	unless (-x "$_OFT_ROOT/$projectRoot/$project/$regressRoot/$dir/$script") {
 		if ($required == REQUIRED) {
 			die "Unable to run test '$dir' for project '$project'";
 		}
@@ -661,7 +663,7 @@ sub runScript {
 
 	# Change to the test directory
 	my $origDir = getcwd;
-	my $testDir = "$_NF2_ROOT/$projectRoot/$project/$regressRoot/$dir";
+	my $testDir = "$_OFT_ROOT/$projectRoot/$project/$regressRoot/$dir";
 	chdir($testDir)
 		or die "Unable to change directory to '$regressRoot/$dir'";
 
