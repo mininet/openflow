@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+
+sub setup {        
+	# check that we're root?        
+	#      if ($EUID == 0) {        
+	# eventually should add byte counters        
+	# verify kernel module not loaded        
+	my $of_kmod_loaded = `lsmod | grep openflow_mod`;        
+	if ($of_kmod_loaded eq "") {                
+		print "loading kernel module\n";        
+	}
+        else {                
+		print "openflow kernel module already loaded... please fix!\n";
+		exit 1;
+        }        
+	
+	# verify controller not already running
+        my $controller_loaded = `ps -A | grep controller`;        
+	if ($controller_loaded eq "") 
+	{
+                # controller not loaded, good
+        }        
+	else {                
+		print "controller already loaded... please remove and try again!\n";
+                exit 1;
+        }
+
+	my $openflow_dir=$ENV{OF_ROOT};
+
+        # create openflow switch on four ports
+        `insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
+        `dpctl adddp 0`;
+        `dpctl addif 0 eth2`;
+        `dpctl addif 0 eth3`;
+        `dpctl addif 0 eth4`;
+        `dpctl addif 0 eth5`;
+}
+
+setup();
+
+exit(0);
+

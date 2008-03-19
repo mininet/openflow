@@ -10,6 +10,7 @@
 use Getopt::Long;
 use NF2::Base;
 use NF2::RegAccess;
+use OF::Base;
 use Cwd;
 use File::Spec;
 use strict;
@@ -30,11 +31,14 @@ my $teardown = 'teardown';
 # check vars are set.
 check_NF2_vars_set();
 
+check_OF_vars_set();
+
 my $_NF2_ROOT       = $ENV{'NF2_ROOT'};
 my $_NF2_DESIGN_DIR = $ENV{'NF2_DESIGN_DIR'};
 my $_NF2_WORK_DIR   = $ENV{'NF2_WORK_DIR'};
 
 my $_OFT_ROOT	    = $ENV{'OFT_ROOT'};
+my $_OF_ROOT	    = $ENV{'OF_ROOT'};
 
 use constant REQUIRED	=> 1;
 use constant OPTIONAL	=> 0;
@@ -165,12 +169,12 @@ if ($quiet && !$pass) {
 sub INT_Handler {
     	my $signame = shift;
 
-	nf_regwrite('nf2c0', MDIO_0_CONTROL_REG(), 0x8000);
-	nf_regwrite('nf2c0', MDIO_1_CONTROL_REG(), 0x8000);
-	nf_regwrite('nf2c0', MDIO_2_CONTROL_REG(), 0x8000);
-	nf_regwrite('nf2c0', MDIO_3_CONTROL_REG(), 0x8000);
+#	nf_regwrite('nf2c0', MDIO_0_CONTROL_REG(), 0x8000);
+#	nf_regwrite('nf2c0', MDIO_1_CONTROL_REG(), 0x8000);
+#	nf_regwrite('nf2c0', MDIO_2_CONTROL_REG(), 0x8000);
+#	nf_regwrite('nf2c0', MDIO_3_CONTROL_REG(), 0x8000);
 
-    	print "\nResetting interfaces...\n";
+#   	print "\nResetting interfaces...\n";
 	sleep 5;
     	print "\nExited with SIG$signame\n";
 

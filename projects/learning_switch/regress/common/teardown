@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+
+use OF::Base;
+use OF::OFUtil;
+
+sub teardown {
+        # Remove OF kernel module
+        `killof.pl`;
+
+        my $of_kmod_loaded = `lsmod | grep openflow_mod`;
+        if (trim($of_kmod_loaded) eq "") {
+                # print "successfully removed kernel module\n";
+        }
+        else {
+                die "failed to remove kernel module... please fix!\n";
+	}
+}
+
+teardown();
+
+exit(0);
