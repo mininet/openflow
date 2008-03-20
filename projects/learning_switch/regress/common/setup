@@ -1,10 +1,13 @@
 #!/usr/bin/perl
 
 sub setup {        
-	# check that we're root?        
-	#      if ($EUID == 0) {        
-	# eventually should add byte counters        
-	# verify kernel module not loaded        
+	# ensure all interfaces use an address
+	for (my $i = 1; $i <= 8; $i++) {	
+		`/sbin/ifconfig eth$i 192.168.$i.1`;
+	}
+
+	# verify kernel module not loaded
+        
 	my $of_kmod_loaded = `lsmod | grep openflow_mod`;        
 	if ($of_kmod_loaded eq "") {                
 		print "loading kernel module\n";        
@@ -30,10 +33,10 @@ sub setup {
         # create openflow switch on four ports
         `insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
         `dpctl adddp 0`;
+        `dpctl addif 0 eth1`;
         `dpctl addif 0 eth2`;
         `dpctl addif 0 eth3`;
         `dpctl addif 0 eth4`;
-        `dpctl addif 0 eth5`;
 }
 
 setup();

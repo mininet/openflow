@@ -2,8 +2,6 @@
 
 use strict;
 
-my $OPENFLOW_DIR='~/openflow-v0.1.7';
-
 sub trim($)
 {
 	my $string = shift;
@@ -24,10 +22,10 @@ print "tearing down interfaces and datapaths\n";
 
 # cleanup by deleting data paths, removing kmod, and killing controller
 # should really make this smarter, but ah well
+`dpctl delif 0 eth1`;
 `dpctl delif 0 eth2`;
 `dpctl delif 0 eth3`;
 `dpctl delif 0 eth4`;
-`dpctl delif 0 eth5`;
 `dpctl deldp 0`;
 
 my $of_kmod_removed = `rmmod openflow_mod`;

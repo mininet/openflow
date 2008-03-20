@@ -8,7 +8,7 @@ use IO::Socket;
 use strict;
 
 # sending/receiving interfaces - NOT OpenFlow ones
-my @interfaces = ("eth6", "eth7", "eth8", "eth9");
+my @interfaces = ("eth5", "eth6", "eth7", "eth8");
 
 my (%init_counters, %final_counters, %delta);
 
@@ -49,10 +49,10 @@ else {
 		# send one packet; controller should learn MAC, add a flow 
 		#  entry, and send this packet out the other interfaces
 		print "Sending now: \n";
-		send_and_count('eth6', $pkt->packed, \%delta);
+		send_and_count('eth5', $pkt->packed, \%delta);
+                expect_and_count('eth6', $pkt->packed, \%delta);
                 expect_and_count('eth7', $pkt->packed, \%delta);
                 expect_and_count('eth8', $pkt->packed, \%delta);
-                expect_and_count('eth9', $pkt->packed, \%delta);
 
 		# sleep as long as needed for the test to finish
 		sleep 0.5;
