@@ -27,7 +27,7 @@ else {
 		# Run control from this process
 		print "added controller...\n";
 		
-		# Wait for contorller to load
+		# Wait for controller to load
 		sleep(1);		
 
 		# launch PCAP listenting interface

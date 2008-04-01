@@ -12,7 +12,7 @@ use NF2::TestLib;
 use Exporter;
 @ISA = ('Exporter');
 @EXPORT = qw( &trim &send_and_count &expect_and_count 
-	&save_counters &verify_counters
+	&save_counters &verify_counters &setup_kmod &teardown_kmod
             );
 
 ##############################################################
@@ -71,6 +71,58 @@ sub verify_counters {
                 }
         }
         return $errors;
+}
+
+sub setup_kmod {
+        # ensure all interfaces use an address
+        for (my $i = 1; $i <= 8; $i++) {
+                `/sbin/ifconfig eth$i 192.168.$i.1`;
+        }
+
+        # verify kernel module not loaded
+
+        my $of_kmod_loaded = `lsmod | grep openflow_mod`;
+        if ($of_kmod_loaded eq "") {
+                print "loading kernel module\n";
+        }
+        else {
+                print "openflow kernel module already loaded... please fix!\n";
+                exit 1;
+        }
+
+        # verify controller not already running
+        my $controller_loaded = `ps -A | grep controller`;
+        if ($controller_loaded eq "")
+        {
+                # controller not loaded, good
+        }
+        else {
+                print "controller already loaded... please remove and try again!\n";
+                exit 1;
+        }
+
+        my $openflow_dir=$ENV{OF_ROOT};
+
+        # create openflow switch on four ports
+        `insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
+        `dpctl adddp 0`;
+        `dpctl addif 0 eth1`;
+        `dpctl addif 0 eth2`;
+        `dpctl addif 0 eth3`;
+        `dpctl addif 0 eth4`;
+}
+
+sub teardown_kmod {
+        # Remove OF kernel module
+        `killof.pl`;
+
+        my $of_kmod_loaded = `lsmod | grep openflow_mod`;
+        if (trim($of_kmod_loaded) eq "") {
+                # print "successfully removed kernel module\n";
+        }
+        else {
+                die "failed to remove kernel module... please fix!\n";
+        }
 }
 
 # Always end library in 1
