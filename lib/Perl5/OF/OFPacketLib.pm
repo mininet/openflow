@@ -10,18 +10,23 @@
 #
 #####################################
 
+package OF::OFPacketLib;
+
+use strict;
+use Exporter;
 use Convert::Binary::C;
 use Data::Dumper;
 use Data::HexDump;
 use OF::Base;
 
-require Exporter;
+use vars qw(@ISA @EXPORT);  # needed cos strict is on
 
-our @ISA = qw(Exporter);
+@ISA = qw(Exporter);
+@EXPORT = qw($ofp);#&ofp_pack $ofp &packed);
 
-our @EXPORT = qw(&ofp &ofp_pack $ofp &packed);
+our $ofp = Convert::Binary::C->new;
 
-my $ofp = Convert::Binary::C->new;
+print "test";
 
 # Convert::Binary::C config generated with `ccconfig`
 # should run this during make to customize to a machine
@@ -155,150 +160,6 @@ print "$of_file\n";
 
 eval { $ofp->parse_file($of_file) };
 if ($@) { die "error in parse_file $@\n"; }
-
-#print "finished parsing\n";
-#sub ofp_pack 
-#  {
-#    my ($template, $list) = @_;
-#    return $ofp->pack($template, $list);
-#  }
-
-# there has to be some way to just export the ofp var... but I can't find it!
-sub ofp
-  {
-    return $ofp;
-  }
-
-################################################################################
-# UDP packet
-################################################################################
-
-package OF::UDP_pkt;
-
-use Carp;
-use strict;
-use vars qw(@ISA);
-@ISA = qw(NF2::IP_pkt);
-
-use constant PROTO_UDP => 17;
-use constant DEFAULT_DATA_LEN => 20;
-use constant UDP_HDR_LEN => 8;
-
-sub new   # Ethernet_hdr
-  {
-    my ($class, %arg) = @_;
-
-    my $force = defined($arg{'force'}) && $arg{'force'};
-
-    # Set various arguments
-    $arg{'proto'} = PROTO_UDP if (!$force || !defined($arg{'proto'}));
-
-    # Create either payload or the udp_len if the other is defined
-    if (!defined($arg{'udp_len'}) && !defined($arg{'data'}) && defined($arg{'len'})) {
-      $arg{'udp_len'} = $arg{'len'} - NF2::IP_pkt::MIN_LEN();
-    }
-
-    if (defined($arg{'udp_len'}) && $arg{'udp_len'} < UDP_HDR_LEN) {
-      $arg{'udp_len'} = UDP_HDR_LEN;
-    }
-    if (defined($arg{'udp_len'}) && !defined($arg{'data'}) &&
-        $arg{'udp_len'} > UDP_HDR_LEN) {
-      $arg{'data'} = [ map {int(rand(256))} (1..($arg{'udp_len'} - UDP_HDR_LEN)) ];
-    }
-    
-    # Create the UDP PDU
-    my $UDP_pdu = new NF2::UDP(%arg);
-
-    # Update the UDP length if necessary
-    if (!defined($arg{'udp_len'})) {
-      $UDP_pdu->Length($UDP_pdu->length_in_bytes());
-    }
-
-    # Calculate the length of the packet
-    $arg{'len'} = NF2::IP_pkt::MIN_LEN() + $UDP_pdu->length_in_bytes() if 
-        (!$force || !defined($arg{'len'}));
-
-    $arg{'frag'} = 0x4000 if (!$force && !defined($arg{'frag'}));
-    $arg{'ttl'} = 64 if (!$force || !defined($arg{'ttl'}));
-
-    # Create the packet
-    my $Pkt = $class->NF2::IP_pkt::new(%arg);
-
-    # Create the parts list that says what PDUs are inside the packet
-    my @parts = ('Ethernet_hdr', 'IP_hdr', 'UDP_pdu');
-
-    # Replace the parts array and stuff the new PDU
-    $Pkt->{'UDP_pdu'} = \$UDP_pdu;
-    $Pkt->{'Parts'} = \@parts;
-    delete($Pkt->{'payload'});
-
-    # Update the IP_hdr in the UDP PDU
-    $UDP_pdu->IP_hdr($Pkt->{'IP_hdr'});
-    $UDP_pdu->Checksum($arg{'udp_checksum'}) if (defined($arg{'udp_checksum'}));
-
-    return $Pkt;
-  }
-
-# Change both headers
-sub set {
-  my ($self, %arg) = @_;
-
-  # Update the various UDP fields if appropriate
-  ${$self->{UDP_pdu}}->SrcPort($arg{'src_port'}) if (defined $arg{'src_port'});
-  ${$self->{UDP_pdu}}->DstPort($arg{'dst_port'}) if (defined $arg{'dst_port'});
-  ${$self->{UDP_pdu}}->Length($arg{'udp_len'}) if (defined $arg{'udp_len'});     
-  ${$self->{UDP_pdu}}->Data($arg{'data'}) if (defined $arg{'data'});  
-  # Update the UDP length if necessary
-  if (!defined($arg{'udp_len'}) && defined($arg{'data'})) {
-    ${$self->{UDP_pdu}}->Length(${$self->{UDP_pdu}}->length_in_bytes());
-  }
-  ${$self->{UDP_pdu}}->IP_hdr($arg{'ip_hdr'}) if (defined $arg{'ip_hdr'});  
-  ${$self->{UDP_pdu}}->Checksum($arg{'udp_checksum'}) if (defined($arg{'udp_checksum'}));
-
-  # Change the DA or SA (but not the Ethertype since this is IP)
-  ${$self->{Ethernet_hdr}}->DA($arg{'DA'}) if (defined $arg{'DA'});
-  ${$self->{Ethernet_hdr}}->SA($arg{'SA'}) if (defined $arg{'SA'});
-
-  # Update the length if the data has changed
-  if (defined $arg{'data'}) {
-    # Calculate the length of the packet
-    $arg{'len'} = NF2::IP_pkt::MIN_LEN() + ${$self->{UDP_pdu}}->length_in_bytes();
-    $arg{'dgram_len'} = $arg{'len'} - NF2::IP_pkt::ETH_HDR_LEN;
-  }
-
-  # Change allowable IP header options
-  ${$self->{IP_hdr}}->tos($arg{'tos'}) if (defined $arg{'tos'});
-  ${$self->{IP_hdr}}->dgram_len($arg{'dgram_len'}) if (defined $arg{'dgram_len'});
-  ${$self->{IP_hdr}}->dgram_id($arg{'dgram_id'}) if (defined $arg{'dgram_id'});
-  ${$self->{IP_hdr}}->frag($arg{'frag'}) if (defined $arg{'frag'});
-  ${$self->{IP_hdr}}->ttl($arg{'ttl'}) if (defined $arg{'ttl'});
-  ${$self->{IP_hdr}}->src_ip($arg{'src_ip'}) if (defined $arg{'src_ip'});
-  ${$self->{IP_hdr}}->dst_ip($arg{'dst_ip'}) if (defined $arg{'dst_ip'});
-  ${$self->{IP_hdr}}->checksum($arg{'checksum'}) if (defined $arg{'checksum'});
-}
-
-# Get values from the various headers
-sub get {
-  my ($self, $field) = @_;
-
-  # UDP header fields
-  return ${$self->{UDP_pdu}}->SrcPort if ($field eq'src_port');
-  return ${$self->{UDP_pdu}}->DstPort if ($field eq'dst_port');
-  return ${$self->{UDP_pdu}}->Length if ($field eq'udp_len');     
-  return ${$self->{UDP_pdu}}->Data if ($field eq'data');
-  return ${$self->{UDP_pdu}}->IP_hdr if ($field eq'ip_hdr');  
-  return ${$self->{UDP_pdu}}->Checksum if ($field eq 'udp_checksum');
-
-  # If we get to here then we must be dealing with an IP packet field (hopefully)
-  return $self->NF2::IP_pkt::get($field);
-}
-
-# Decrement the TTL
-sub decrement_ttl {
-  my ($self, %arg) = @_;
-
-  ${$self->{IP_hdr}}->ttl(${$self->{IP_hdr}}->ttl - 1);
-}
 
 ################################################################################
 # OFP Header
@@ -438,7 +299,3 @@ sub Data
 1;
 
 __END__
-
-
-
--

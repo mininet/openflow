@@ -1,5 +1,5 @@
 #############################################################
-# $Id: OFUtil.pm 3161 2007-12-13 21:08:05Z grg $
+# $Id: OFUtil.pm 3161 2007-12-13 21:08:05Z bdh $
 #
 # Module provides basic functions for use by OF Perl scripts.
 #
@@ -11,9 +11,16 @@ package OF::OFUtil;
 use NF2::TestLib;
 use Exporter;
 @ISA = ('Exporter');
-@EXPORT = qw( &trim &send_and_count &expect_and_count 
-	&save_counters &verify_counters &setup_kmod &teardown_kmod
-            );
+@EXPORT = qw( 
+	&trim 
+	&send_and_count 
+	&expect_and_count 
+	&save_counters 
+	&verify_counters 
+	&setup_kmod 
+	&teardown_kmod
+	&expect
+);
 
 ##############################################################
 #
@@ -122,6 +129,13 @@ sub teardown_kmod {
         }
         else {
                 die "failed to remove kernel module... please fix!\n";
+        }
+}
+
+sub expect {
+	my ($test, $val, $expected) = @_;
+        if ($val != $expected) {
+                die "$test: $val, expected $expected\n";
         }
 }
 
