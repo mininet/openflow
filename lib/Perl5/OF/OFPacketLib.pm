@@ -22,7 +22,7 @@ use OF::Base;
 use vars qw(@ISA @EXPORT);  # needed cos strict is on
 
 @ISA = qw(Exporter);
-@EXPORT = qw($ofp);#&ofp_pack $ofp &packed);
+@EXPORT = qw($ofp %enums);
 
 our $ofp = Convert::Binary::C->new;
 
@@ -160,6 +160,16 @@ print "$of_file\n";
 
 eval { $ofp->parse_file($of_file) };
 if ($@) { die "error in parse_file $@\n"; }
+
+my @enum_list = $ofp->enum;
+our %enums; # "global" enum hash
+#print Dumper(@enum_list);
+foreach my $enum_hash_ref (@enum_list) {
+	my %enum_hash = %{$enum_hash_ref->{'enumerators'}};
+	while( my($key, $val) = each(%enum_hash) ) {
+		$enums{$key} = $val;
+	}
+}
 
 ################################################################################
 # OFP Header

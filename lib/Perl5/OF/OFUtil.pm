@@ -19,7 +19,8 @@ use Exporter;
 	&verify_counters 
 	&setup_kmod 
 	&teardown_kmod
-	&expect
+	&compare
+	&createControllerSocket
 );
 
 ##############################################################
@@ -132,11 +133,23 @@ sub teardown_kmod {
         }
 }
 
-sub expect {
-	my ($test, $val, $expected) = @_;
-        if ($val != $expected) {
-                die "$test: $val, expected $expected\n";
-        }
+sub compare {
+	my ($test, $val, $op, $expected) = @_;
+	my $success = eval "$val $op $expected" ? 1 : 0;
+	if (!$success) { die "$test: error $val not $op $expected\n"; }
+}
+
+sub createControllerSocket {
+	my ($host) = @_;
+	my $sock = new IO::Socket::INET ( 
+ 		LocalHost => $host,
+        	LocalPort => '975',
+        	Proto => 'tcp',
+        	Listen => 1,
+        	Reuse => 1
+	);
+	die "Could not create socket: $!\n" unless $sock;
+	return $sock;
 }
 
 # Always end library in 1

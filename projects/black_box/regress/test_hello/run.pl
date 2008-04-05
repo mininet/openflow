@@ -11,16 +11,10 @@ use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
 
-# REMOVE and replace with read-in constants from C code
-use constant OFPFC_ADD => 0;
-use constant OFPAT_OUTPUT => 0;
-use constant OFPT_CONTROL_HELLO => 0;
-use constant OFPT_DATA_HELLO => 1;
-
 my $hdr_args = {
         version => 1,
-        type => OFPT_CONTROL_HELLO,
-        length => 16, # need to replace later
+        type => $enums{'OFPT_CONTROL_HELLO'},
+        length => 16, # should generate automatically!
         xid => 0x0000abcd
 };
 
@@ -32,14 +26,7 @@ my $control_hello_args = {
 };
 my $control_hello = $ofp->pack('ofp_control_hello', $control_hello_args);
 
-my $sock = new IO::Socket::INET (
-        LocalHost => 'localhost',
-        LocalPort => '975',
-        Proto => 'tcp',
-        Listen => 1,
-        Reuse => 1
-);
-die "Could not create socket: $!\n" unless $sock;
+my $sock = OF::OFUtil::createControllerSocket('localhost');
 
 my $pid;
 # Fork off the "controller" server
@@ -67,19 +54,18 @@ else {
 
 	# Inspect  message
 	my $msg_size = length($recvd_mesg);
-	my $expected_size = $ofp->sizeof('ofp_data_hello');
-	if ($msg_size < $expected_size) {
-		die "Wrong mesg size: $msg_size, expected $expected_size\n";
-	}
+	my $expected_size = $ofp->sizeof('ofp_data_hello') + 4 * $ofp->sizeof('ofp_phy_port');
+	# should probably account for the expected 4 ports' info
+	compare ("msg size", length($recvd_mesg), '==', $expected_size);
 
 	my $msg = $ofp->unpack('ofp_data_hello', $recvd_mesg);
 	#print HexDump ($recvd_mesg);
 	print Dumper($msg);
 
 	# Verify fields
-	expect("header version", $$msg{'header'}{'version'}, 1);
-	expect("header type", $$msg{'header'}{'type'}, OFPT_DATA_HELLO);
-	expect("header length", $$msg{'header'}{'length'}, $msg_size);
+	compare("header version", $$msg{'header'}{'version'}, '==', 1);
+	compare("header type", $$msg{'header'}{'type'}, '==', $enums{'OFPT_DATA_HELLO'});
+	compare("header length", $$msg{'header'}{'length'}, '==', $msg_size);
 
 	close($sock);
 
