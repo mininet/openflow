@@ -1,1 +1,3 @@
 test_hello/run.pl
+test_send/run.pl
+test_receive/run.pl

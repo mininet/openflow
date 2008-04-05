@@ -26,14 +26,14 @@ my $control_hello_args = {
 };
 my $control_hello = $ofp->pack('ofp_control_hello', $control_hello_args);
 
-my $sock = OF::OFUtil::createControllerSocket('localhost');
+my $sock = createControllerSocket('localhost');
 
 my $pid;
 # Fork off the "controller" server
 if ( !( $pid = fork ) ) {
 
 	# Wait for controller to setup socket 
-	sleep 1;
+	sleep .1;
 
 	# Spawn secchan process
 	exec "secchan", "nl:0", "tcp:127.0.0.1";
