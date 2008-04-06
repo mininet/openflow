@@ -91,5 +91,4 @@ else {
 
         # Exit with the resulting exit code
         exit($exitCode);
-
 }
