@@ -11,30 +11,44 @@ use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
 
+my $hdr_args_control = {
+        version => 1,
+        type => $enums{'OFPT_CONTROL_HELLO'},
+        length => 16, # should generate automatically!
+        xid => 0x00000000
+};
+my $control_hello_args = {
+        header => $hdr_args_control,
+        version => 1, # arbitrary, not sure what this should be
+        flags => 1, # ensure flow expiration sent!
+        miss_send_len => 0x0080
+};
+my $control_hello = $ofp->pack('ofp_control_hello', $control_hello_args);
+
 my $hdr_args = {
         version => 1,
         type => $enums{'OFPT_FLOW_MOD'},
-        length => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action'), # need to replace later
-        xid => 0x0000abcd
+        length => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action') + 4, # need to replace later
+        xid => 0x0000000
 };
 
 my $match_args = {
         wildcards => 0,
-        in_port => 0,
-        dl_src => [ 0, 0, 0, 0, 0, 1 ],
-        dl_dst => [ 0, 0, 0, 0, 0, 2 ],
-        dl_vlan => 0,
+        in_port => 1,
+        dl_src => [ 0, 0, 0, 0, 0, 2 ],
+        dl_dst => [ 0, 0, 0, 0, 0, 1 ],
+        dl_vlan => 0xffff,
         dl_type => 0x800,
-        nw_src => 0xc0a80028, #192.168.0.40
-        nw_dst => 0xc0a80029, #192.168.0.41
-        nw_proto => 17, #tcp
-        tp_src => 0x12,
-        tp_dst => 0x34
+        nw_src => 0xc0a80128, #192.168.1.40
+        nw_dst => 0xc0a80028, #192.168.0.40
+        nw_proto => 0xff, #tcp
+        tp_src => 0,
+        tp_dst => 0
 };
 
 my $action_output_args = {
         max_len => 0, # send entire packet
-        port => 1
+        port => 0
 };
 
 my $action_args = {
@@ -43,17 +57,18 @@ my $action_args = {
 };
 my $action = $ofp->pack('ofp_action', $action_args);
 
+# not sure why either two actions are being sent or structure packing is off.
 my $flow_mod_args = {
         header => $hdr_args,
         match => $match_args,
         command => $enums{'OFPFC_ADD'},
-        max_idle => 1,
-        buffer_id => -1,
+        max_idle => 0x1, 
+        buffer_id => 0x0102,
         group_id => 0
 };
 my $flow_mod = $ofp->pack('ofp_flow_mod', $flow_mod_args);
 
-my $pkt = $flow_mod . $action;
+my $pkt = $flow_mod . $action . "\0\0\0\0";
 
 print HexDump($pkt);
 
@@ -71,11 +86,21 @@ if ( !( $pid = fork ) ) {
 	die "Failed to launch secchan: $!";
 }
 else {
+	
 	# Wait for secchan to connect
 	my $new_sock = $sock->accept();
+
+        # Send 'control_hello' message
+        print $new_sock $control_hello;
+
+        my $recvd_mesg;
+        sysread($new_sock, $recvd_mesg, 1512) || die "Failed to receive message: $!";
+	print "received message after control hello\n";
 	
-	# Send 'control_hello' message
+	# Send 'flow_mod' message
 	print $new_sock $pkt;
+
+	print "sent second message\n";
 
 	my $recvd_mesg;
 	sysread($new_sock, $recvd_mesg, 1512) || die "Failed to receive message: $!";
