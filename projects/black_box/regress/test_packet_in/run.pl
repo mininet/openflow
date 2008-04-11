@@ -55,12 +55,13 @@ else {
 
 	# Inspect  message
 	my $msg_size = length($recvd_mesg);
+	
+	print "sizeof ofp packet in: " . $ofp->sizeof('ofp_packet_in') . "\n";
 	my $expected_size = $ofp->sizeof('ofp_packet_in') + length($pkt->packed);
-	# should probably account for the expected 4 ports' info
 	compare ("msg size", $msg_size, '==', $expected_size);
 
 	my $msg = $ofp->unpack('ofp_packet_in', $recvd_mesg);
-	print HexDump ($recvd_mesg);
+	#print HexDump ($recvd_mesg);
 	print Dumper($msg);
 
 	# Verify fields

@@ -28,7 +28,7 @@ my $control_hello = $ofp->pack('ofp_control_hello', $control_hello_args);
 my $hdr_args = {
         version => 1,
         type => $enums{'OFPT_FLOW_MOD'},
-        length => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action') + 4, # need to replace later
+        length => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action'),
         xid => 0x0000000
 };
 
@@ -68,7 +68,8 @@ my $flow_mod_args = {
 };
 my $flow_mod = $ofp->pack('ofp_flow_mod', $flow_mod_args);
 
-my $pkt = $flow_mod . $action . "\0\0\0\0";
+my $pkt = $flow_mod . $action;
+# removed ."\0\0\0\0";
 
 print HexDump($pkt);
 
@@ -102,7 +103,7 @@ else {
 
 	print "sent second message\n";
 
-	my $recvd_mesg;
+	#my $recvd_mesg;
 	sysread($new_sock, $recvd_mesg, 1512) || die "Failed to receive message: $!";
 	
 	# Kill secchan process

@@ -1,4 +1,4 @@
-#####################################
+####################################
 # vim:set shiftwidth=2 softtabstop=2 expandtab:
 #
 # $Id: PacketLib.pm 3074 2007-12-06 03:01:04Z grg $
@@ -149,7 +149,7 @@ $ofp->configure(%config);
 
 # set to big endian for network order, regardless of machine endianness
 $ofp->configure(ByteOrder => 'BigEndian');
-$ofp->configure(Alignment => 1);
+$ofp->configure(Alignment => 2);
 
 # ensure environment variables set before reading C file
 check_OF_vars_set();
