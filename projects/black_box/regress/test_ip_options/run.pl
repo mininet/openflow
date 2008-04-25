@@ -5,11 +5,23 @@ use IO::Socket;
 use Error qw(:try);
 use Data::HexDump;
 use Data::Dumper;
+use Getopt::Long;
 
 use NF2::TestLib;
 use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
+
+my $mapFile;
+# Process command line options
+unless ( GetOptions ("map=s" => \$mapFile,)) { 
+	usage(); 
+	exit 1;
+}
+
+if (defined($mapFile)) {
+        nftest_process_iface_map($mapFile);
+}
 
 my $hdr_args = {
         version => 1,
@@ -20,7 +32,7 @@ my $hdr_args = {
 
 my $match_args = {
         wildcards => 0,
-        in_port => 2, # '2' means 'eth7'
+        in_port => 2, # '2' means 'eth3'
         dl_src => [ 1, 1, 1, 1, 1, 1 ],
         dl_dst => [ 2, 2, 2, 2, 2, 2 ],
         dl_vlan => 0xffff, # not used unless dl_type is 0x8100.
@@ -37,7 +49,7 @@ my $action_output_args = {
 #        port => $enums{'OFPP_LOCAL'} 
 #        port => $enums{'OFPP_NONE'} 
 #        port => $enums{'OFPP_CONTROLLER'} 
-        port => 3  #'3' means eth8 
+        port => 3  #'3' means eth4 
 };
 
 my $action_args = {
@@ -136,13 +148,13 @@ else {
 	sleep(1);
 	
 	# sending/receiving interfaces - NOT OpenFlow ones
-	my @interfaces = ("eth5", "eth6", "eth7", "eth8");
+	my @interfaces = ("eth1", "eth2", "eth3", "eth4");
 	nftest_init(\@ARGV,\@interfaces,);
 	nftest_start(\@interfaces,);
 
 
-	nftest_expect('eth8', $test_pkt->packed);
-	nftest_send('eth7', $test_pkt->packed);
+	nftest_expect(nftest_get_iface('eth4'), $test_pkt->packed);
+	nftest_send(nftest_get_iface('eth3'), $test_pkt->packed);
 
 	sleep(1);
 

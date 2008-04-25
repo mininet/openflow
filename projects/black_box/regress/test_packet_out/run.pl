@@ -5,14 +5,26 @@ use IO::Socket;
 use Error qw(:try);
 use Data::HexDump;
 use Data::Dumper;
+use Getopt::Long;
 
 use NF2::TestLib;
 use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
 
+my $mapFile;
+# Process command line options
+unless ( GetOptions ("map=s" => \$mapFile,)) { 
+	usage(); 
+	exit 1;
+}
+
+if (defined($mapFile)) {
+        nftest_process_iface_map($mapFile);
+}
+
 # sending/receiving interfaces - NOT OpenFlow ones
-my @interfaces = ("eth5", "eth6", "eth7", "eth8");
+my @interfaces = ("eth1", "eth2", "eth3", "eth4");
 
 my $pkt_args = {
 	DA => "00:00:00:00:00:02",
@@ -34,7 +46,7 @@ my $packet_out_args = {
         header => $hdr_args,
 	buffer_id => -1, # data included in this packet
 	in_port => $enums{'OFPP_NONE'},
-	out_port => 0 # send out eth5        
+	out_port => 0 # send out eth1        
 };
 my $packet_out = $ofp->pack('ofp_packet_out', $packet_out_args);
 
@@ -64,7 +76,7 @@ else {
         # Send 'packet_out' message
         print $new_sock $pkt_sent;
 
-	nftest_expect('eth5', $pkt->packed);
+	nftest_expect(nftest_get_iface('eth5'), $pkt->packed);
 
 	# Wait for test to finish
 	sleep(1);

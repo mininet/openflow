@@ -16,6 +16,6 @@ if (defined($mapFile)) {
         nftest_process_iface_map($mapFile);
 }
 
-setup_kmod();
+setup_kmod("true");
 
 exit(0);

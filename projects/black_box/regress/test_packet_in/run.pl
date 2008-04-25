@@ -5,14 +5,25 @@ use IO::Socket;
 use Error qw(:try);
 use Data::HexDump;
 use Data::Dumper;
+use Getopt::Long;
 
 use NF2::TestLib;
 use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
 
+my $mapFile;
+# Process command line options
+unless ( GetOptions ("map=s" => \$mapFile,)) { 
+	usage(); 
+	exit 1;
+}
+
+if (defined($mapFile)) {
+        nftest_process_iface_map($mapFile);
+}
 # sending/receiving interfaces - NOT OpenFlow ones
-my @interfaces = ("eth5", "eth6", "eth7", "eth8");
+my @interfaces = ("eth1", "eth2", "eth3", "eth4");
 
 my $sock = createControllerSocket('localhost');
 
@@ -45,7 +56,7 @@ else {
 	};
 	my $pkt = new NF2::IP_pkt(%$pkt_args);
 
-	nftest_send('eth5', $pkt->packed);
+	nftest_send(nftest_get_iface('eth1'), $pkt->packed);
 
 	my $recvd_mesg;
 	sysread($new_sock, $recvd_mesg, 1512) || die "Failed to receive message: $!";
