@@ -8,6 +8,9 @@
 ##############################################################
 
 package OF::OFUtil;
+
+use Getopt::Long;
+
 use NF2::TestLib;
 use Exporter;
 @ISA = ('Exporter');
@@ -22,6 +25,9 @@ use Exporter;
 	&compare
 	&createControllerSocket
 );
+
+my $nf2_kernel_module_path = 'datapath_nf2/linux-2.6'; 
+my $nf2_kernel_module_name = 'openflow_hw_nf2.ko';
 
 ##############################################################
 #
@@ -82,55 +88,84 @@ sub verify_counters {
 }
 
 sub setup_kmod {
+	my $isNF2 = shift;
+	
         # ensure all interfaces use an address
-        for (my $i = 1; $i <= 8; $i++) {
-                `/sbin/ifconfig eth$i 192.168.$i.1`;
+        for (my $i = 1; $i <= 4; $i++) {
+        	my $iface = nftest_get_iface("eth$i");
+                `/sbin/ifconfig $iface 192.168.$i.1`;
         }
 
         # verify kernel module not loaded
-
-        my $of_kmod_loaded = `lsmod | grep openflow_mod`;
-        if ($of_kmod_loaded eq "") {
-                print "loading kernel module\n";
+        my $of_kmod_loaded = `lsmod | grep openflow`;
+        if ($of_kmod_loaded ne "") {
+        	print "$of_kmod_loaded\n";
+            print "openflow kernel module already loaded... please fix!\n";
+            exit 1;
         }
-        else {
-                print "openflow kernel module already loaded... please fix!\n";
-                exit 1;
-        }
-
+        
         # verify controller not already running
         my $controller_loaded = `ps -A | grep controller`;
-        if ($controller_loaded eq "")
-        {
-                # controller not loaded, good
-        }
-        else {
-                print "controller already loaded... please remove and try again!\n";
-                exit 1;
+        if ($controller_loaded ne "") {
+            print "controller already loaded... please remove and try again!\n";
+            exit 1;
         }
 
         my $openflow_dir=$ENV{OF_ROOT};
 
         # create openflow switch on four ports
         `insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
+		
+		# If we are using the NetFPGA add the hardware kernel module
+		if ($isNF2) {
+	        `insmod ${openflow_dir}/${nf2_kernel_module_path}/${nf2_kernel_module_name}`;
+		}
         `dpctl adddp 0`;
-        `dpctl addif 0 eth1`;
-        `dpctl addif 0 eth2`;
-        `dpctl addif 0 eth3`;
-        `dpctl addif 0 eth4`;
+
+        for (my $i = 5; $i <= 8; $i++) {
+        	my $iface = nftest_get_iface("eth$i");
+            `dpctl addif 0 $iface`;
+        }
 }
 
 sub teardown_kmod {
-        # Remove OF kernel module
-        `killof.pl`;
+	my $isNF2 = shift;
 
-        my $of_kmod_loaded = `lsmod | grep openflow_mod`;
-        if (trim($of_kmod_loaded) eq "") {
-                # print "successfully removed kernel module\n";
-        }
-        else {
-                die "failed to remove kernel module... please fix!\n";
-        }
+	# check that we're root?
+	my $who = `whoami`;
+	if (trim($who) ne 'root') { die "must be root\n"; }
+	
+	# check if openflow kernel module loaded
+	my $of_kmod_loaded = `lsmod | grep openflow_mod`;
+	if ($of_kmod_loaded eq "") { die "nothing to do, exiting\n"; } 
+	
+	print "tearing down interfaces and datapaths\n";
+	
+	# remove interfaces from openflow
+	for (my $i = 5; $i <= 8; $i++) {
+		my $iface = nftest_get_iface("eth$i");
+		`dpctl delif 0 $iface`;
+	}
+
+	`dpctl deldp 0`;
+	
+	# tear down the NF2 module if necessary
+	if ($isNF2) {
+		my $of_hw_kmod_removed = `rmmod ${nf2_kernel_module_name}`;
+		if ($of_hw_kmod_removed ne "") {
+			die "failed to remove hardware kernel module... please fix!\n";
+		}
+	}
+
+	my $of_kmod_removed = `rmmod openflow_mod`;
+	if ($of_kmod_removed ne "") {
+		die "failed to remove kernel module... please fix!\n";
+	}
+	
+	$of_kmod_loaded = `lsmod | grep openflow_mod`;
+	if ($of_kmod_loaded ne "") {
+		die "failed to remove kernel module... please fix!\n";
+	}
 }
 
 sub compare {
