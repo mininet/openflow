@@ -102,14 +102,14 @@ sub my_generic_test {
 	print "sent second message\n";
 
 	# Set up sending/receiving interfaces - NOT OpenFlow ones
-	my @interfaces = ( "eth5", "eth6", "eth7", "eth8" );
+	my @interfaces = ( "eth1", "eth2", "eth3", "eth4" );
 	nftest_init( \@ARGV, \@interfaces, );
 	nftest_start( \@interfaces, );
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( 'eth6', $test_pkt->packed );
-	nftest_expect( 'eth5', $test_pkt->packed );
-
+	nftest_send(nftest_get_iface('eth2'), $test_pkt->packed );
+	nftest_expect(nftest_get_iface('eth1'), $test_pkt->packed );
+	
 	# Wait for flow_expired reply
 	my $recvd_mesg;
 	sysread( $sock, $recvd_mesg, 1512 )
@@ -123,7 +123,7 @@ sub my_generic_test {
 	my $msg = $ofp->unpack( 'ofp_flow_expired', $recvd_mesg );
 
 	#print HexDump ($recvd_mesg);
-	#print Dumper($msg);
+	print Dumper($msg);
 
 	# Verify fields
 	compare( "header version", $$msg{'header'}{'version'}, '==', 1 );
@@ -198,6 +198,8 @@ sub run_generic_test {
 				print "FAIL: $total_errors errors\n";
 				$exitCode = 1;
 			}
+			
+			exit($exitCode);
 		};
 	}
 }

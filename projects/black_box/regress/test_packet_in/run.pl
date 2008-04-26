@@ -66,14 +66,12 @@ else {
 
 	# Inspect  message
 	my $msg_size = length($recvd_mesg);
-	
-	print "sizeof ofp packet in: " . $ofp->sizeof('ofp_packet_in') . "\n";
-	my $expected_size = $ofp->sizeof('ofp_packet_in') + length($pkt->packed);
+	my $expected_size = $ofp->offsetof('ofp_packet_in', 'data') + length($pkt->packed);
 	compare ("msg size", $msg_size, '==', $expected_size);
 
 	my $msg = $ofp->unpack('ofp_packet_in', $recvd_mesg);
 	#print HexDump ($recvd_mesg);
-	print Dumper($msg);
+	#print Dumper($msg);
 
 	# Verify fields
 	compare("header version", $$msg{'header'}{'version'}, '==', 1);
@@ -85,7 +83,7 @@ else {
 	compare("reason", $$msg{'reason'}, '==', $enums{'OFPR_NO_MATCH'});
 
 	# verify packet was unchanged!
-	my $recvd_pkt_data = substr ($recvd_mesg, $ofp->sizeof('ofp_packet_in'));
+	my $recvd_pkt_data = substr ($recvd_mesg, $ofp->offsetof('ofp_packet_in', 'data'));
 	if ($recvd_pkt_data ne $pkt->packed) {
 		die "ERROR: received packet data didn't match packet sent\n";
 	}
