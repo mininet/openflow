@@ -197,7 +197,20 @@ sub createControllerSocket {
 	return $sock;
 }
 
+sub process_command_line() {
+	my %options = ();
+	GetOptions(\%options);
+	
+	# Process the mappings if specified
+	if (defined($options{'map'})) {
+		nftest_process_iface_map($options{'map'});
+	}
+	
+	return %options;
+}
+
 sub run_learning_switch_test {
+	my %options = process_command_line();
 
 	# test is a function pointer
 	my ($test) = @_;
@@ -328,6 +341,7 @@ sub do_hello_sequence {
 }
 
 sub run_black_box_test {
+	my %options = process_command_line();
 	
 	# test is a function pointer
 	my ($test) = @_;
@@ -362,7 +376,7 @@ sub run_black_box_test {
 			#if ($ofp) { print "ofp not null\n"; } else { print "ofp null\n"; }
 			do_hello_sequence($ofp, $new_sock);
 	
-			&$test($new_sock);
+			&$test($new_sock, %options);
 		}
 		catch Error with {
 	
