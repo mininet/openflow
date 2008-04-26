@@ -149,7 +149,6 @@ $ofp->configure(%config);
 
 # set to big endian for network order, regardless of machine endianness
 $ofp->configure(ByteOrder => 'BigEndian');
-$ofp->configure(Alignment => 2);
 
 # ensure environment variables set before reading C file
 check_OF_vars_set();
