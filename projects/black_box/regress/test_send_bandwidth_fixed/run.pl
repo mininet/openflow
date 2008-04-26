@@ -12,7 +12,7 @@ use OF::OFUtil;
 use OF::OFPacketLib;
 
 # sending/receiving interfaces - NOT OpenFlow ones
-my @interfaces = ("eth5", "eth6", "eth7", "eth8");
+my @interfaces = ("eth1", "eth2", "eth3", "eth4");
 
 my $pkt_args = {
 	DA => "00:00:00:00:00:02",
@@ -34,7 +34,7 @@ my $packet_out_args = {
         header => $hdr_args,
 	buffer_id => -1, # data included in this packet
 	in_port => $enums{'OFPP_NONE'},
-	out_port => 0 # send out eth5        
+	out_port => 0 # send out eth1        
 };
 my $packet_out = $ofp->pack('ofp_packet_out', $packet_out_args);
 
@@ -118,7 +118,7 @@ sub send_fixed_bandwidth_unique
     for ($count = 0; $count < $num_packets;$count++){
 	# Send 'packet_out' message
 	print $new_sock $pkt_sent;
-	nftest_expect('eth5', $pkt->packed);
+	nftest_expect('eth1', $pkt->packed);
 	sleep($inter_time);
     }
 }

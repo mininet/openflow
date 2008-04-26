@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# test_unicast_known
+# test_unicast_move
 
 use NF2::TestLib;
 use NF2::PacketLib;
@@ -7,6 +7,10 @@ use OF::OFUtil;
 use strict;
 
 sub my_test {
+
+	my %delta;
+
+	# host A's MAC address is 00:00:00:00:00:01
 
 	my $pkt_args = {
 		DA     => "00:00:00:00:00:02",
@@ -18,8 +22,6 @@ sub my_test {
 	};
 	my $pkt = new NF2::IP_pkt(%$pkt_args);
 
-	my %delta;
-
 	# send one packet; controller should learn MAC, add a flow
 	#  entry, and send this packet out the other interfaces
 	print "Sending now: \n";
@@ -28,6 +30,7 @@ sub my_test {
 	expect_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
 	expect_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
 
+	# sleep as long as needed for the test to finish
 	sleep 0.5;
 
 	$pkt_args = {
@@ -43,31 +46,37 @@ sub my_test {
 	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
 	sleep 0.5;
 
+	#Now Host A Has Changed Location and Attached to p2
+	#It will send a packet to p1 form its new location
+
 	$pkt_args = {
-		DA     => "00:00:00:00:00:01",
-		SA     => "00:00:00:00:00:03",
+		DA     => "00:00:00:00:00:02",
+		SA     => "00:00:00:00:00:01",
 		src_ip => "192.168.2.40",
-		dst_ip => "192.168.0.40",
+		dst_ip => "192.168.1.40",
 		ttl    => 64,
 		len    => 64
 	};
 	$pkt = new NF2::IP_pkt(%$pkt_args);
 	send_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+	expect_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
 	sleep 0.5;
+
+	# Now p1 sends something to Host A which is now attached to p2
+	# we expect the switch to already updated its entry for Host A
 
 	$pkt_args = {
 		DA     => "00:00:00:00:00:01",
-		SA     => "00:00:00:00:00:04",
-		src_ip => "192.168.3.40",
-		dst_ip => "192.168.0.40",
+		SA     => "00:00:00:00:00:02",
+		src_ip => "192.168.1.40",
+		dst_ip => "192.168.2.40",
 		ttl    => 64,
 		len    => 64
 	};
 	$pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-	
+	send_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
+	expect_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
+
 	return %delta;
 }
 

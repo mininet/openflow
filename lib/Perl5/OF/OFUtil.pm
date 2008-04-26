@@ -6,13 +6,15 @@
 # Revisions:
 #
 ##############################################################
-
-package OF::OFUtil;
+ 
+package OF::OFUtil; 
 
 use Getopt::Long;
-
 use NF2::TestLib;
+use Error qw(:try);
+
 use Exporter;
+
 @ISA = ('Exporter');
 @EXPORT = qw( 
 	&trim 
@@ -24,6 +26,7 @@ use Exporter;
 	&teardown_kmod
 	&compare
 	&createControllerSocket
+	&run_learning_switch_test
 );
 
 my $nf2_kernel_module_path = 'datapath_nf2/linux-2.6'; 
@@ -166,6 +169,8 @@ sub teardown_kmod {
 	if ($of_kmod_loaded ne "") {
 		die "failed to remove kernel module... please fix!\n";
 	}
+
+	exit 0;
 }
 
 sub compare {
@@ -185,6 +190,98 @@ sub createControllerSocket {
 	);
 	die "Could not create socket: $!\n" unless $sock;
 	return $sock;
+}
+
+sub run_learning_switch_test {
+
+	# test is a function pointer
+	my ($test) = @_;
+
+	my $mapFile;
+
+	# Process command line options
+	unless ( GetOptions( "map=s" => \$mapFile, ) ) {
+		usage();
+		exit 1;
+	}
+
+	if ( defined($mapFile) ) {
+		nftest_process_iface_map($mapFile);
+	}
+
+	# sending/receiving interfaces - NOT OpenFlow ones
+	my @interfaces = ( "eth1", "eth2", "eth3", "eth4" );
+
+	my ( %init_counters, %final_counters, %delta );
+
+	my $pid;
+
+	# Fork off a process for controller
+	if ( !( $pid = fork ) ) {
+
+		# Run controller from this process
+		exec "controller", "-v", "nl:0";
+		die "Failed to launch controller: $!";
+	}
+	else {
+		my $exitCode = 1;
+		try {
+
+			# Run control from this process
+			print "added controller...\n";
+
+			# Wait for controller to load
+			sleep(1);
+
+			# Launch PCAP listenting interface
+			nftest_init( \@ARGV, \@interfaces, );
+			nftest_start( \@interfaces, );
+
+			save_counters( \%init_counters );
+
+			# Run test
+			my %delta = &$test();
+
+			# sleep as long as needed for the test to finish
+			sleep 0.5;
+		
+			# check counter values
+			save_counters( \%final_counters );
+			my $total_errors = verify_counters( %init_counters, %final_counters, %delta );
+
+			#print "about to nftest_finish()\n";
+			my $unmatched = nftest_finish();
+
+			print "Checking pkt errors\n";
+			$total_errors += nftest_print_errors($unmatched);
+
+			if ( $total_errors == 0 ) {
+				print "SUCCESS!\n";
+				$exitCode = 0;
+			}
+			else {
+				print "FAIL: $total_errors errors\n";
+				$exitCode = 1;
+			}
+
+		  }
+		  catch Error with {
+
+			# Catch and print any errors that occurred during control processing
+			my $ex = shift;
+			if ($ex) {
+				print $ex->stringify();
+			}
+		  }
+		  finally {
+
+			# Ensure controller killed even if we have an error
+			kill 9, $pid;
+
+			# Exit with the resulting exit code
+			exit($exitCode);
+		  };
+	}
 }
 
 # Always end library in 1
