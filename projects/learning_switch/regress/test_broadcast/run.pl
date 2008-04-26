@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use Getopt::Long;
 use NF2::TestLib;
 use NF2::PacketLib;
 use OF::OFUtil;
@@ -7,8 +8,19 @@ use Error qw(:try);
 use IO::Socket;
 use strict;
 
+my $mapFile;
+# Process command line options
+unless ( GetOptions ("map=s" => \$mapFile,)) { 
+	usage(); 
+	exit 1;
+}
+
+if (defined($mapFile)) {
+        nftest_process_iface_map($mapFile);
+}
+
 # sending/receiving interfaces - NOT OpenFlow ones
-my @interfaces = ("eth5", "eth6", "eth7", "eth8");
+my @interfaces = ("eth1", "eth2", "eth3", "eth4");
 
 my (%init_counters, %final_counters, %delta);
 
@@ -50,17 +62,17 @@ else {
 		# send one broadcast packet, then do it again on the same port 
 
 		print "Sending now: \n";
-		send_and_count('eth5', $pkt->packed, \%delta);
-                expect_and_count('eth6', $pkt->packed, \%delta);
-                expect_and_count('eth7', $pkt->packed, \%delta);
-                expect_and_count('eth8', $pkt->packed, \%delta);
+		send_and_count(nftest_get_iface('eth1'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth2'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth3'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth4'), $pkt->packed, \%delta);
 
 		# sleep as long as needed for the test to finish
 		sleep 0.5;
-		send_and_count('eth5', $pkt->packed, \%delta);
-        		expect_and_count('eth6', $pkt->packed, \%delta);
-        		expect_and_count('eth7', $pkt->packed, \%delta);
-        		expect_and_count('eth8', $pkt->packed, \%delta);
+		send_and_count(nftest_get_iface('eth1'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth2'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth3'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth4'), $pkt->packed, \%delta);
         sleep 0.5;
 
 		# test 2: 
@@ -77,17 +89,17 @@ else {
 
 		# send one broadcast packet, then do it again on the same port 
 
-		send_and_count('eth6', $pkt->packed, \%delta);
-                expect_and_count('eth5', $pkt->packed, \%delta);
-                expect_and_count('eth7', $pkt->packed, \%delta);
-                expect_and_count('eth8', $pkt->packed, \%delta);
+		send_and_count(nftest_get_iface('eth2'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth1'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth3'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth4'), $pkt->packed, \%delta);
 
 		# sleep as long as needed for the test to finish
 		sleep 0.5;
-		send_and_count('eth6', $pkt->packed, \%delta);
-        		expect_and_count('eth5', $pkt->packed, \%delta);
-        		expect_and_count('eth7', $pkt->packed, \%delta);
-        		expect_and_count('eth8', $pkt->packed, \%delta);
+		send_and_count(nftest_get_iface('eth2'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth1'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth3'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth4'), $pkt->packed, \%delta);
         sleep 0.5;
         
 		# test 3: 
@@ -104,17 +116,17 @@ else {
 
 		# send one broadcast packet, then do it again on the same port 
 
-		send_and_count('eth7', $pkt->packed, \%delta);
-                expect_and_count('eth5', $pkt->packed, \%delta);
-                expect_and_count('eth6', $pkt->packed, \%delta);
-                expect_and_count('eth8', $pkt->packed, \%delta);
+		send_and_count(nftest_get_iface('eth3'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth1'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth2'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth4'), $pkt->packed, \%delta);
 
 		# sleep as long as needed for the test to finish
 		sleep 0.5;
-		send_and_count('eth7', $pkt->packed, \%delta);
-        		expect_and_count('eth5', $pkt->packed, \%delta);
-        		expect_and_count('eth6', $pkt->packed, \%delta);
-        		expect_and_count('eth8', $pkt->packed, \%delta);
+		send_and_count(nftest_get_iface('eth3'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth1'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth2'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth4'), $pkt->packed, \%delta);
         sleep 0.5;
   
   
@@ -132,17 +144,17 @@ else {
 
 		# send one broadcast packet, then do it again on the same port 
 
-		send_and_count('eth8', $pkt->packed, \%delta);
-                expect_and_count('eth5', $pkt->packed, \%delta);
-                expect_and_count('eth6', $pkt->packed, \%delta);
-                expect_and_count('eth7', $pkt->packed, \%delta);
+		send_and_count(nftest_get_iface('eth4'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth1'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth2'), $pkt->packed, \%delta);
+                expect_and_count(nftest_get_iface('eth3'), $pkt->packed, \%delta);
 
 		# sleep as long as needed for the test to finish
 		sleep 0.5;
-		send_and_count('eth8', $pkt->packed, \%delta);
-        		expect_and_count('eth5', $pkt->packed, \%delta);
-        		expect_and_count('eth6', $pkt->packed, \%delta);
-        		expect_and_count('eth7', $pkt->packed, \%delta);
+		send_and_count(nftest_get_iface('eth4'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth1'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth2'), $pkt->packed, \%delta);
+        		expect_and_count(nftest_get_iface('eth3'), $pkt->packed, \%delta);
         sleep 0.5;
         
         # finish all tests, checking results:
