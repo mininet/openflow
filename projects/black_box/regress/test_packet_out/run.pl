@@ -76,7 +76,7 @@ else {
         # Send 'packet_out' message
         print $new_sock $pkt_sent;
 
-	nftest_expect(nftest_get_iface('eth5'), $pkt->packed);
+	nftest_expect(nftest_get_iface('eth1'), $pkt->packed);
 
 	# Wait for test to finish
 	sleep(1);
