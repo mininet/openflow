@@ -3,7 +3,6 @@
 
 use strict;
 use IO::Socket;
-use Error qw(:try);
 use Data::HexDump;
 use Data::Dumper;
 
@@ -12,33 +11,7 @@ use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
 
-sub do_hello_sequence {
-	
-	my ($ofp, $sock) = @_;
-	
-	my $hdr_args_control = {
-		version => 1,
-		type    => $enums{'OFPT_CONTROL_HELLO'},
-		length  => 16,                             # should generate automatically!
-		xid     => 0x00000000
-	};
-	my $control_hello_args = {
-		header        => $hdr_args_control,
-		version       => 1,                # arbitrary, not sure what this should be
-		flags         => 1,                # ensure flow expiration sent!
-		miss_send_len => 0x0080
-	};
-	my $control_hello = $ofp->pack( 'ofp_control_hello', $control_hello_args );
-
-	# Send 'control_hello' message
-	print $sock $control_hello;
-
-	my $recvd_mesg;
-	sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
-	print "received message after control hello\n";
-}
-
-sub my_generic_test {
+sub my_test {
 	
 	my ($sock) = @_;
 		
@@ -133,77 +106,6 @@ sub my_generic_test {
 	compare( "packet_count",  $$msg{'packet_count'},     '==', $pkt_total );
 }
 
-sub run_generic_test {
-	
-	# test is a function pointer
-	my ($test) = @_;
-	
-	my $sock = createControllerSocket('localhost');
-	
-	my $pid;
-	
-	my $total_errors = 1;
-	
-	# Fork off the "controller" server
-	if ( !( $pid = fork ) ) {
-	
-		# Wait for controller to setup socket
-		sleep .1;
-	
-		# Spawn secchan process
-		exec "secchan", "nl:0", "tcp:127.0.0.1";
-		die "Failed to launch secchan: $!";
-	}
-	else {
-		my $exitCode = 1;
-		try {
-	
-			# Wait for secchan to connect
-			my $new_sock = $sock->accept();
-			do_hello_sequence($ofp, $new_sock);
-	
-			&$test($new_sock);
-	
-			#my_generic_test($new_sock);
-	
-		}
-		catch Error with {
-	
-			# Catch and print any errors that occurred during control processing
-			my $ex = shift;
-			if ($ex) {
-				print $ex->stringify();
-			}
-		}
-		finally {
-	
-			# Sleep as long as needed for the test to finish
-			sleep 0.5;
-	
-			close($sock);
-	
-			# Kill secchan process
-			`killall secchan`;
-			
-			my $unmatched = nftest_finish();
-			print "Checking pkt errors\n";
-			$total_errors = nftest_print_errors($unmatched);
-	
-			my $exitCode;
-			if ( $total_errors == 0 ) {
-				print "SUCCESS!\n";
-				$exitCode = 0;
-			}
-			else {
-				print "FAIL: $total_errors errors\n";
-				$exitCode = 1;
-			}
-			
-			exit($exitCode);
-		};
-	}
-}
-
-run_generic_test(\&my_generic_test);
+run_black_box_test(\&my_test);
 
 

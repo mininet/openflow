@@ -12,7 +12,7 @@ package OF::OFUtil;
 use Getopt::Long;
 use NF2::TestLib;
 use Error qw(:try);
-
+use OF::OFPacketLib;
 use Exporter;
 
 @ISA = ('Exporter');
@@ -27,10 +27,15 @@ use Exporter;
 	&compare
 	&createControllerSocket
 	&run_learning_switch_test
+	&do_hello_sequence
+	&run_black_box_test 
 );
 
 my $nf2_kernel_module_path = 'datapath_nf2/linux-2.6'; 
 my $nf2_kernel_module_name = 'openflow_hw_nf2.ko';
+
+# sending/receiving interfaces - NOT OpenFlow ones
+my @interfaces = ( "eth1", "eth2", "eth3", "eth4" );
 
 ##############################################################
 #
@@ -209,9 +214,6 @@ sub run_learning_switch_test {
 		nftest_process_iface_map($mapFile);
 	}
 
-	# sending/receiving interfaces - NOT OpenFlow ones
-	my @interfaces = ( "eth1", "eth2", "eth3", "eth4" );
-
 	my ( %init_counters, %final_counters, %delta );
 
 	my $pid;
@@ -281,6 +283,121 @@ sub run_learning_switch_test {
 			# Exit with the resulting exit code
 			exit($exitCode);
 		  };
+	}
+}
+
+sub do_hello_sequence {
+	
+	my ($ofp, $sock) = @_;
+	
+	my $hdr_args_control = {
+		version => 1,
+		type    => $enums{'OFPT_CONTROL_HELLO'},
+		length  => 16,                             # should generate automatically!
+		xid     => 0x00000000
+	};
+	my $control_hello_args = {
+		header        => $hdr_args_control,
+		version       => 1,                # arbitrary, not sure what this should be
+		flags         => 1,                # ensure flow expiration sent!
+		miss_send_len => 0x0080
+	};
+	my $control_hello = $ofp->pack( 'ofp_control_hello', $control_hello_args );
+
+	# Send 'control_hello' message
+	print $sock $control_hello;
+
+	my $recvd_mesg;
+	sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
+	#print "received message after control hello\n";
+	
+	# Inspect  message
+	my $msg_size = length($recvd_mesg);
+	my $expected_size = $ofp->sizeof('ofp_data_hello') + 4 * $ofp->sizeof('ofp_phy_port');
+	# should probably account for the expected 4 ports' info
+	compare ("msg size", length($recvd_mesg), '==', $expected_size);
+
+	my $msg = $ofp->unpack('ofp_data_hello', $recvd_mesg);
+	#print HexDump ($recvd_mesg);
+	#print Dumper($msg);
+
+	# Verify fields
+	compare("header version", $$msg{'header'}{'version'}, '==', 1);
+	compare("header type", $$msg{'header'}{'type'}, '==', $enums{'OFPT_DATA_HELLO'});
+	compare("header length", $$msg{'header'}{'length'}, '==', $msg_size);
+}
+
+sub run_black_box_test {
+	
+	# test is a function pointer
+	my ($test) = @_;
+	
+	my $sock = createControllerSocket('localhost');
+	
+	my $pid;
+	
+	my $total_errors = 1;
+	
+	# Fork off the "controller" server
+	if ( !( $pid = fork ) ) {
+	
+		# Wait for controller to setup socket
+		sleep .1;
+	
+		# Spawn secchan process
+		exec "secchan", "nl:0", "tcp:127.0.0.1";
+		die "Failed to launch secchan: $!";
+	}
+	else {
+		my $exitCode = 1;
+		try {
+	
+			# Wait for secchan to connect
+			my $new_sock = $sock->accept();		
+	
+			# Launch PCAP listenting interface
+			nftest_init( \@ARGV, \@interfaces, );
+			nftest_start( \@interfaces, );
+	
+			#if ($ofp) { print "ofp not null\n"; } else { print "ofp null\n"; }
+			do_hello_sequence($ofp, $new_sock);
+	
+			&$test($new_sock);
+		}
+		catch Error with {
+	
+			# Catch and print any errors that occurred during control processing
+			my $ex = shift;
+			if ($ex) {
+				print $ex->stringify();
+			}
+		}
+		finally {
+	
+			# Sleep as long as needed for the test to finish
+			sleep 0.5;
+	
+			close($sock);
+	
+			# Kill secchan process
+			`killall secchan`;
+			
+			my $unmatched = nftest_finish();
+			print "Checking pkt errors\n";
+			$total_errors = nftest_print_errors($unmatched); 
+	
+			my $exitCode;
+			if ( $total_errors == 0 ) {
+				print "SUCCESS!\n";
+				$exitCode = 0;
+			}
+			else {
+				print "FAIL: $total_errors errors\n";
+				$exitCode = 1;
+			}
+			
+			exit($exitCode);
+		};
 	}
 }
 

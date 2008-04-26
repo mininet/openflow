@@ -1,50 +1,19 @@
 #!/usr/bin/perl -w
+# test_packet_in
 
 use strict;
 use IO::Socket;
-use Error qw(:try);
 use Data::HexDump;
 use Data::Dumper;
-use Getopt::Long;
 
 use NF2::TestLib;
 use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
 
-my $mapFile;
-# Process command line options
-unless ( GetOptions ("map=s" => \$mapFile,)) { 
-	usage(); 
-	exit 1;
-}
-
-if (defined($mapFile)) {
-        nftest_process_iface_map($mapFile);
-}
-# sending/receiving interfaces - NOT OpenFlow ones
-my @interfaces = ("eth1", "eth2", "eth3", "eth4");
-
-my $sock = createControllerSocket('localhost');
-
-my $pid;
-# Fork off the "controller" server
-if ( !( $pid = fork ) ) {
-
-	# Wait for controller to setup socket 
-	sleep .1;
-
-	# Spawn secchan process
-	exec "secchan", "nl:0", "tcp:127.0.0.1";
-	die "Failed to launch secchan: $!";
-}
-else {
-	# Wait for secchan to connect
-	my $new_sock = $sock->accept();
-
-        # launch PCAP listenting interface
-        nftest_init(\@ARGV,\@interfaces,);
-        nftest_start(\@interfaces,);
+sub my_test {
+	
+	my ($sock) = @_;
 	
 	my $pkt_args = {
 		DA => "00:00:00:00:00:02",
@@ -59,10 +28,7 @@ else {
 	nftest_send(nftest_get_iface('eth1'), $pkt->packed);
 
 	my $recvd_mesg;
-	sysread($new_sock, $recvd_mesg, 1512) || die "Failed to receive message: $!";
-	
-	# Kill secchan process
-	`killall secchan`;
+	sysread($sock, $recvd_mesg, 1512) || die "Failed to receive message: $!";
 
 	# Inspect  message
 	my $msg_size = length($recvd_mesg);
@@ -87,11 +53,6 @@ else {
 	if ($recvd_pkt_data ne $pkt->packed) {
 		die "ERROR: received packet data didn't match packet sent\n";
 	}
-		
- 	my $unmatched = nftest_finish();
-
-	close($sock);
-
-	print "SUCCESS!\n";
-	exit 0;
 }
+
+run_black_box_test(\&my_test);
