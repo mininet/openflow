@@ -363,7 +363,7 @@ sub run_black_box_test {
 		die "Failed to launch secchan: $!";
 	}
 	else {
-		my $exitCode = 1;
+		my $total_errors = 0;
 		try {
 	
 			# Wait for secchan to connect
@@ -377,6 +377,9 @@ sub run_black_box_test {
 			do_hello_sequence($ofp, $new_sock);
 	
 			&$test($new_sock, %options);
+			
+			# Sleep as long as needed for the test to finish
+			sleep 0.5;
 		}
 		catch Error with {
 	
@@ -385,21 +388,20 @@ sub run_black_box_test {
 			if ($ex) {
 				print $ex->stringify();
 			}
+			$total_errors = 1;
 		}
 		finally {
-	
-			# Sleep as long as needed for the test to finish
-			sleep 0.5;
-	
+
 			close($sock);
-	
+
 			# Kill secchan process
 			`killall secchan`;
-			
+
 			my $unmatched = nftest_finish();
 			print "Checking pkt errors\n";
-			$total_errors = nftest_print_errors($unmatched); 
+			$total_errors += nftest_print_errors($unmatched); 
 	
+			# if no errors earlier, and packets match, then success
 			my $exitCode;
 			if ( $total_errors == 0 ) {
 				print "SUCCESS!\n";
