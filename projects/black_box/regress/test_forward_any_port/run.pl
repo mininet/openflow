@@ -28,7 +28,7 @@ sub my_test {
 	
 	my $action_output_args = {
 		max_len => 0,          # send entire packet
-		port    => 0
+		port    => 2
 	};
 	
 	my $action_args = {
@@ -50,9 +50,11 @@ sub my_test {
 	
 	my $pkt = $flow_mod . $action;
 	
-	# removed ."\0\0\0\0";
-	
-	print HexDump($pkt);
+	#print HexDump($pkt);
+
+	# Send 'flow_mod' message
+	print $sock $pkt;
+	print "sent second message\n"; 
 	
 	my $pkt_len       = 64;
 	my $pkt_total     = 1;
@@ -67,21 +69,10 @@ sub my_test {
 		DstPort => 0
 	};
 	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
-	
-	# start here
-
-	# Send 'flow_mod' message
-	print $sock $pkt;
-	print "sent second message\n";
-
-	# Set up sending/receiving interfaces - NOT OpenFlow ones
-	my @interfaces = ( "eth1", "eth2", "eth3", "eth4" );
-	nftest_init( \@ARGV, \@interfaces, );
-	nftest_start( \@interfaces, );
 
 	# Send a packet - ensure packet comes out desired port
 	nftest_send(nftest_get_iface('eth2'), $test_pkt->packed );
-	nftest_expect(nftest_get_iface('eth1'), $test_pkt->packed );
+	nftest_expect(nftest_get_iface('eth3'), $test_pkt->packed );
 	
 	# Wait for flow_expired reply
 	my $recvd_mesg;

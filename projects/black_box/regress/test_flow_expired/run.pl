@@ -60,13 +60,10 @@ sub my_test {
 
 	my $pkt = $flow_mod . $action;
 
-	# removed ."\0\0\0\0";
-
-	print HexDump($pkt);
+	#print HexDump($pkt);
 
 	# Send 'flow_mod' message
 	print $sock $pkt;
-
 	print "sent second message\n";
 
 	my $recvd_mesg;
