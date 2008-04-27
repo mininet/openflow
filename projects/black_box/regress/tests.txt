@@ -1,5 +1,8 @@
+# Basic Tests
 test_hello/run.pl
 test_packet_in/run.pl
 test_packet_out/run.pl
 test_flow_expired/run.pl
+test_miss_send_length/run.pl
+# Forwarding Tests
 test_forward_any_port/run.pl
