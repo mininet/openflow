@@ -14,6 +14,7 @@ use NF2::TestLib;
 use Error qw(:try);
 use OF::OFPacketLib;
 use Exporter;
+use Data::Dumper;
 
 @ISA = ('Exporter');
 @EXPORT = qw( 
@@ -29,6 +30,8 @@ use Exporter;
 	&run_learning_switch_test
 	&do_hello_sequence
 	&run_black_box_test 
+	&create_flow_mod_from_udp
+	&wait_for_flow_expired
 );
 
 my $nf2_kernel_module_path = 'datapath_nf2/linux-2.6'; 
@@ -415,6 +418,110 @@ sub run_black_box_test {
 			exit($exitCode);
 		};
 	}
+}
+
+sub create_flow_mod_from_udp {
+
+	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards ) = @_;
+
+	my $hdr_args = {
+		version => 1,
+		type    => $enums{'OFPT_FLOW_MOD'},
+		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action'),
+		xid     => 0x0000000
+	};
+
+	# might be cleaner to convert the exported colon-hex MAC addrs
+	#print ${$udp_pkt->{Ethernet_hdr}}->SA . "\n";
+	#print ${$test_pkt->{Ethernet_hdr}}->SA . "\n";
+	my $ref_to_eth_hdr = ( $udp_pkt->{'Ethernet_hdr'} );
+	my $ref_to_ip_hdr  = ( $udp_pkt->{'IP_hdr'} );
+
+	# pointer to array
+	my $eth_hdr_bytes = $$ref_to_eth_hdr->{'bytes'};
+	my $ip_hdr_bytes  = $$ref_to_ip_hdr->{'bytes'};
+	my @dst_mac_subarray = @{$eth_hdr_bytes}[ 0 .. 5 ];
+	my @src_mac_subarray = @{$eth_hdr_bytes}[ 6 .. 11 ];
+
+	my @src_ip_subarray = @{$ip_hdr_bytes}[ 12 .. 15 ];
+	my @dst_ip_subarray = @{$ip_hdr_bytes}[ 16 .. 19 ];
+
+	my $src_ip =
+	  ( ( 2**24 ) * $src_ip_subarray[0] + ( 2**16 ) * $src_ip_subarray[1] +
+		  ( 2**8 ) * $src_ip_subarray[2] + $src_ip_subarray[3] );
+
+	my $dst_ip =
+	  ( ( 2**24 ) * $dst_ip_subarray[0] + ( 2**16 ) * $dst_ip_subarray[1] +
+		  ( 2**8 ) * $dst_ip_subarray[2] + $dst_ip_subarray[3] );
+
+	my $match_args = {
+		wildcards => $wildcards,
+		in_port   => $in_port,
+		dl_src    => \@src_mac_subarray,
+		dl_dst    => \@dst_mac_subarray,
+		dl_vlan   => 0xffff,
+		dl_type   => 0x0800,
+		nw_src    => $src_ip,
+		nw_dst    => $dst_ip,
+		nw_proto  => 17,                                  #udp
+		tp_src    => ${ $udp_pkt->{UDP_pdu} }->SrcPort,
+		tp_dst    => ${ $udp_pkt->{UDP_pdu} }->DstPort
+	};
+
+	my $action_output_args = {
+		max_len => 0,                                     # send entire packet
+		port    => $out_port
+	};
+
+	my $action_args = {
+		type => $enums{'OFPAT_OUTPUT'},
+		arg  => { output => $action_output_args }
+	};
+	my $action = $ofp->pack( 'ofp_action', $action_args );
+
+	my $flow_mod_args = {
+		header    => $hdr_args,
+		match     => $match_args,
+		command   => $enums{'OFPFC_ADD'},
+		max_idle  => $max_idle,
+		buffer_id => 0x0000,
+		group_id  => 0
+	};
+	my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
+
+	my $flow_mod_pkt = $flow_mod . $action;
+
+	return $flow_mod_pkt;
+}
+
+sub wait_for_flow_expired {
+	
+	my ($ofp, $sock, $pkt_len, $pkt_total) = @_;
+	
+	my $recvd_mesg;
+	sysread( $sock, $recvd_mesg, 1512 )
+	  || die "Failed to receive message: $!";
+
+	#print HexDump ($recvd_mesg);
+
+	# Inspect  message
+	my $msg_size      = length($recvd_mesg);
+	my $expected_size = $ofp->sizeof('ofp_flow_expired');
+	compare( "msg size", length($recvd_mesg), '==', $expected_size );
+
+	my $msg = $ofp->unpack( 'ofp_flow_expired', $recvd_mesg );
+
+	#print Dumper($msg);
+
+	# Verify fields
+	compare( "header version", $$msg{'header'}{'version'}, '==', 1 );
+	compare(
+		"header type", $$msg{'header'}{'type'},
+		'==',          $enums{'OFPT_FLOW_EXPIRED'}
+	);
+	compare( "header length", $$msg{'header'}{'length'}, '==', $msg_size );
+	compare( "byte_count",    $$msg{'byte_count'},       '==', $pkt_len*$pkt_total );
+	compare( "packet_count",  $$msg{'packet_count'},     '==', $pkt_total );
 }
 
 # Always end library in 1

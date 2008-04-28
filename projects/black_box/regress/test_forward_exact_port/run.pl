@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# test_forward_any_port
+# test_forward_exact_port
 
 use strict;
 use IO::Socket;
@@ -35,7 +35,7 @@ sub send_expect_exact {
 
 	#print HexDump ( $test_pkt->packed );
 
-	my $wildcards = 0x3ff; # match everything!
+	my $wildcards = 0x0; # exact match
 
 	my $flow_mod_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
@@ -54,9 +54,8 @@ sub send_expect_exact {
 		$test_pkt->packed );
 }
 
-
 sub my_test {
-	
+
 	my ($sock) = @_;
 
 	# send from every port to every other port
@@ -71,6 +70,5 @@ sub my_test {
 	}
 }
 
-run_black_box_test(\&my_test);
-
+run_black_box_test( \&my_test );
 

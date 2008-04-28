@@ -6,3 +6,4 @@ test_flow_expired/run.pl
 test_miss_send_length/run.pl
 # Forwarding Tests
 test_forward_any_port/run.pl
+test_forward_exact_port/run.pl

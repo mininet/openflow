@@ -65,28 +65,10 @@ sub my_test {
 	# Send 'flow_mod' message
 	print $sock $pkt;
 	print "sent second message\n";
-
-	my $recvd_mesg;
-	sysread( $sock, $recvd_mesg, 1512 )
-	  || die "Failed to receive message: $!";
-
-	# Inspect  message
-	my $msg_size      = length($recvd_mesg);
-	my $expected_size = $ofp->sizeof('ofp_flow_expired');
-	compare( "msg size", length($recvd_mesg), '==', $expected_size );
-
-	my $msg = $ofp->unpack( 'ofp_flow_expired', $recvd_mesg );
-
-	#print HexDump ($recvd_mesg);
-	print Dumper($msg);
-
-	# Verify fields
-	compare( "header version", $$msg{'header'}{'version'}, '==', 1 );
-	compare(
-		"header type", $$msg{'header'}{'type'},
-		'==',          $enums{'OFPT_FLOW_EXPIRED'}
-	);
-	compare( "header length", $$msg{'header'}{'length'}, '==', $msg_size );
+	
+	my $pkt_len = 0;
+	my $pkt_total = 0;
+	wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
 
 }
 
