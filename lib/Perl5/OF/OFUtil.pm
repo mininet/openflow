@@ -218,18 +218,6 @@ sub run_learning_switch_test {
 	# test is a function pointer
 	my ($test) = @_;
 
-	my $mapFile;
-
-	# Process command line options
-	unless ( GetOptions( "map=s" => \$mapFile, ) ) {
-		usage();
-		exit 1;
-	}
-
-	if ( defined($mapFile) ) {
-		nftest_process_iface_map($mapFile);
-	}
-
 	my ( %init_counters, %final_counters, %delta );
 
 	my $pid;
@@ -472,6 +460,7 @@ sub create_flow_mod_from_udp {
 		max_len => 0,                                     # send entire packet
 		port    => $out_port
 	};
+	print "My Out Port: ${out_port}\n";
 
 	my $action_args = {
 		type => $enums{'OFPAT_OUTPUT'},
