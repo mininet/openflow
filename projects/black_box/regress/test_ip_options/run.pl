@@ -171,7 +171,7 @@ else {
 	my $hello_res2 = $ofp->unpack('ofp_packet_in', $recvd_mesg);
 	compare("header version", $$hello_res2{'header'}{'version'}, '==', 1);
 	if ( $$hello_res2{'header'}{'type'} == $enums{'OFPT_PACKET_IN'} ){
-		print "Short packet is forwarded to secchan as OFPT_PACKET_IN".$$hello_res2{'header'}{'type'}."\n";
+		print "packet is forwarded to secchan as OFPT_PACKET_IN".$$hello_res2{'header'}{'type'}."\n";
 	        $total_errors ++;	
 	}
 	print "received message after 2nd control hello\n";
