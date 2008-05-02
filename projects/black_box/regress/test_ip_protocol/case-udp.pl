@@ -11,7 +11,7 @@ use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
 
-my $ip_protocol=17;
+my $ip_protocol=0x11;
 
 my $hdr_args = {
         version => 1,
@@ -22,14 +22,14 @@ my $hdr_args = {
 
 my $match_args = {
         wildcards => 0,
-        in_port => 2, # '2' means 'eth7'
+        in_port => 2, # '2' means 'eth3'
         dl_src => [ 1, 1, 1, 1, 1, 1 ],
         dl_dst => [ 2, 2, 2, 2, 2, 2 ],
         dl_vlan => 0xffff, # not used unless dl_type is 0x8100.
         dl_type => 0x800,
         nw_src => 0xc0a80128, #192.168.1.40
         nw_dst => 0xc0a80028, #192.168.0.40
-        nw_proto => $ip_protocol, # specified by $ARGV[0]
+	nw_proto => $ip_protocol,
         tp_src => 70, # should not used for matching unless nw_proto is TCP or UDP.
         tp_dst => 80  # should not used for matching unless nw_proto is TCP or UDP.
 };
@@ -39,7 +39,7 @@ my $action_output_args = {
 #        port => $enums{'OFPP_LOCAL'} 
 #        port => $enums{'OFPP_NONE'} 
 #        port => $enums{'OFPP_CONTROLLER'} 
-        port => 3  #'3' means eth8 
+        port => 3  #'3' means eth4 
 };
 
 my $action_args = {
@@ -53,7 +53,7 @@ my $flow_mod_args = {
         header => $hdr_args,
         match => $match_args,
         command => $enums{'OFPFC_ADD'},
-        max_idle => 0x3,
+        max_idle => 0x0,
         buffer_id => 0x0102,
         group_id => 0
 #        priority => 0x1111
@@ -66,10 +66,9 @@ print HexDump($pkt);
 my $pkt_args = {
     DA => "02:02:02:02:02:02",
     SA => "01:01:01:01:01:01",
-#    ip_hdr_len => 5 + ($#ipopt + 1)/4,
     src_ip => "192.168.1.40",
     dst_ip => "192.168.0.40",
-    ttl => 64,
+    ttl => 0xff,
     len => 148,
     src_port => 70,
     dst_port => 80,
@@ -80,9 +79,9 @@ my $iphdr=$test_pkt->{'IP_hdr'};
 #$$iphdr->ip_hdr_len(5+($#ipopt+1)/4); #set ip_hdr_len correctly
 $$iphdr->proto($ip_protocol); #set protocol
 
-#print "print pkt\n";
-#print HexDump($test_pkt->packed);
-#print "--------------------------\n";
+print "print pkt\n";
+print HexDump($test_pkt->packed);
+print "--------------------------\n";
 
 my $hdr_args_control = {
         version => 1,
@@ -138,13 +137,12 @@ else {
 	sleep(1);
 	
 	# sending/receiving interfaces - NOT OpenFlow ones
-	my @interfaces = ("eth5", "eth6", "eth7", "eth8");
+	my @interfaces = ("eth1", "eth2", "eth3", "eth4");
 	nftest_init(\@ARGV,\@interfaces,);
 	nftest_start(\@interfaces,);
 
-
-	nftest_expect('eth8', $test_pkt->packed);
-	nftest_send('eth7', $test_pkt->packed);
+	nftest_expect(nftest_get_iface('eth4'), $test_pkt->packed);
+	nftest_send(nftest_get_iface('eth3'), $test_pkt->packed);
 
 	sleep(1);
 

@@ -22,7 +22,7 @@ my $hdr_args = {
 
 my $match_args = {
         wildcards => 0,
-        in_port => 2, # '2' means 'eth7'
+        in_port => 2, # '2' means 'eth3'
         dl_src => [ 1, 1, 1, 1, 1, 1 ],
         dl_dst => [ 2, 2, 2, 2, 2, 2 ],
         dl_vlan => 0xffff, # not used unless dl_type is 0x8100.
@@ -39,7 +39,7 @@ my $action_output_args = {
 #        port => $enums{'OFPP_LOCAL'} 
 #        port => $enums{'OFPP_NONE'} 
 #        port => $enums{'OFPP_CONTROLLER'} 
-        port => 3  #'3' means eth8 
+        port => 3  #'3' means eth4 
 };
 
 my $action_args = {
@@ -53,7 +53,7 @@ my $flow_mod_args = {
         header => $hdr_args,
         match => $match_args,
         command => $enums{'OFPFC_ADD'},
-        max_idle => 0x3,
+        max_idle => 0x0,
         buffer_id => 0x0102,
         group_id => 0
 #        priority => 0x1111
@@ -134,19 +134,18 @@ else {
 	# Send 'flow_mod' message (install fwd table)
 	print $new_sock $pkt;
 	print "sent second message\n";
-
 	sleep(1);
 	
 	# sending/receiving interfaces - NOT OpenFlow ones
-	my @interfaces = ("eth5", "eth6", "eth7", "eth8");
+	my @interfaces = ("eth1", "eth2", "eth3", "eth4");
 	nftest_init(\@ARGV,\@interfaces,);
 	nftest_start(\@interfaces,);
 
 
-	nftest_expect('eth8', $test_pkt->packed);
-	nftest_send('eth7', $test_pkt->packed);
+	nftest_expect('eth4', $test_pkt->packed);
+	nftest_send('eth3', $test_pkt->packed);
 
-	sleep(1);
+	sleep(3);
 
 	my $total_errors = 0;
 

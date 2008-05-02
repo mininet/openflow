@@ -11,8 +11,7 @@ use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
 
-#my $ip_protocol=$ARGV[0];
-my $ip_protocol=19;
+my $ip_protocol=0x13;
 
 my $hdr_args = {
         version => 1,
@@ -23,16 +22,14 @@ my $hdr_args = {
 
 my $match_args = {
         wildcards => 0,
-        in_port => 2, # '2' means 'eth7'
+        in_port => 2, # '2' means 'eth3'
         dl_src => [ 1, 1, 1, 1, 1, 1 ],
         dl_dst => [ 2, 2, 2, 2, 2, 2 ],
         dl_vlan => 0xffff, # not used unless dl_type is 0x8100.
         dl_type => 0x800,
         nw_src => 0xc0a80128, #192.168.1.40
         nw_dst => 0xc0a80028, #192.168.0.40
-        nw_proto => $ip_protocol, # specified by $ARGV[0]
-#        tp_src => 70, # should not used for matching unless nw_proto is TCP or UDP.
-#        tp_dst => 80  # should not used for matching unless nw_proto is TCP or UDP.
+	nw_proto => $ip_protocol,
         tp_src => 0, # should not used for matching unless nw_proto is TCP or UDP.
         tp_dst => 0  # should not used for matching unless nw_proto is TCP or UDP.
 };
@@ -42,7 +39,7 @@ my $action_output_args = {
 #        port => $enums{'OFPP_LOCAL'} 
 #        port => $enums{'OFPP_NONE'} 
 #        port => $enums{'OFPP_CONTROLLER'} 
-        port => 3  #'3' means eth8 
+        port => 3  #'3' means eth4 
 };
 
 my $action_args = {
@@ -56,13 +53,14 @@ my $flow_mod_args = {
         header => $hdr_args,
         match => $match_args,
         command => $enums{'OFPFC_ADD'},
-        max_idle => 0x3,
+        max_idle => 0x0,
         buffer_id => 0x0102,
         group_id => 0
 #        priority => 0x1111
 };
 my $flow_mod = $ofp->pack('ofp_flow_mod', $flow_mod_args);
 my $pkt = $flow_mod . $action . "\0\0\0\0";
+print "print flow_mod message\n";
 print HexDump($pkt);
 
 #my @ipopt=(0x44,0x08,0x08,0x00,0x11,0x22,0x33,0x44); #IP timestamp option
@@ -71,13 +69,12 @@ my $pkt_args = {
     SA => "01:01:01:01:01:01",
     src_ip => "192.168.1.40",
     dst_ip => "192.168.0.40",
-    ttl => 64,
+    ttl => 0xff,
     len => 148,
     src_port => 70,
     dst_port => 80,
 #    ip_options => \@ipopt 
 };
-#my $test_pkt = new NF2::IP_pkt(%$pkt_args);
 my $test_pkt = new NF2::UDP_pkt(%$pkt_args);
 my $iphdr=$test_pkt->{'IP_hdr'};
 #$$iphdr->ip_hdr_len(5+($#ipopt+1)/4); #set ip_hdr_len correctly
@@ -141,13 +138,12 @@ else {
 	sleep(1);
 	
 	# sending/receiving interfaces - NOT OpenFlow ones
-	my @interfaces = ("eth5", "eth6", "eth7", "eth8");
+	my @interfaces = ("eth1", "eth2", "eth3", "eth4");
 	nftest_init(\@ARGV,\@interfaces,);
 	nftest_start(\@interfaces,);
 
-
-	nftest_expect('eth8', $test_pkt->packed);
-	nftest_send('eth7', $test_pkt->packed);
+	nftest_expect(nftest_get_iface('eth4'), $test_pkt->packed);
+	nftest_send(nftest_get_iface('eth3'), $test_pkt->packed);
 
 	sleep(1);
 
@@ -163,7 +159,7 @@ else {
 	my $hello_res2 = $ofp->unpack('ofp_packet_in', $recvd_mesg);
 	compare("header version", $$hello_res2{'header'}{'version'}, '==', 1);
 	if ( $$hello_res2{'header'}{'type'} == $enums{'OFPT_PACKET_IN'} ){
-		print "Short packet is forwarded to secchan as OFPT_PACKET_IN".$$hello_res2{'header'}{'type'}."\n";
+		print "packet is forwarded to secchan as OFPT_PACKET_IN".$$hello_res2{'header'}{'type'}."\n";
 	        $total_errors ++;	
 	}
 	print "received message after 2nd control hello\n";
