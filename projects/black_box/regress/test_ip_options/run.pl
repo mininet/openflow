@@ -63,7 +63,8 @@ my $flow_mod_args = {
         header => $hdr_args,
         match => $match_args,
         command => $enums{'OFPFC_ADD'},
-        max_idle => 0x3,
+#        max_idle => 0x3,
+        max_idle => 0x0,
         buffer_id => 0x0102,
         group_id => 0
 #        priority => 0x1111
@@ -156,7 +157,7 @@ else {
 	nftest_expect(nftest_get_iface('eth4'), $test_pkt->packed);
 	nftest_send(nftest_get_iface('eth3'), $test_pkt->packed);
 
-	sleep(1);
+	sleep(2);
 
 	my $total_errors = 0;
 
