@@ -17,9 +17,11 @@ use Time::HiRes qw (sleep gettimeofday tv_interval usleep);
 # Length is passed as a parameter and it should be also declared during packet's construction.
 
 sub send_fixed_bandwidth_unique {
-	my ( $rate, $duration, $length, $sock, $pkt, $pkt_sent, $interface ) = @_;
+	my ( $rate, $duration, $sock, $pkt, $pkt_sent, $interface ) = @_;
+	my $length = length( $pkt->packed );
 	my $num_packets = ( $rate * $duration ) / ( $length * 8 );
 	my $inter_time  = 1000000.0 * $duration / $num_packets;
+	
 
 	print(
 "Num Packets : $num_packets, Duration : $duration, Length : $length, InterTime : $inter_time Interface : $interface\n"
@@ -34,7 +36,7 @@ sub send_fixed_bandwidth_unique {
 
 		# Send 'packet_out' message
 		print $sock $pkt_sent;
-		#nftest_expect( $interface, $pkt->packed );
+		nftest_expect( $interface, $pkt->packed );
 		usleep($inter_time);
 	}
 	
@@ -42,9 +44,51 @@ sub send_fixed_bandwidth_unique {
 	print "time elapsed: $sending_time\n";
 	
 	my $bps = $num_packets * $length * 8 / $sending_time;
-	print "bandwidth attempted: $rate\n";
-	print "bandwidth achieved: $bps\n";
+	print "bandwidth attempted: $rate (bps)\n";
+	print "bandwidth achieved:  $bps  (bps)\n";
 }
+
+sub send_fixed_bandwidth_mixed {
+	my ( $rate, $duration, $sock, $pkt_sent_small,$pkt_sent_med,$pkt_sent_lrg,$pkt_small,$pkt_med,$pkt_lrg, $interface ) = @_;
+	my $len_s = length($pkt_small->packed);
+	my $len_m = length($pkt_med->packed);
+	my $len_l = length($pkt_lrg->packed);
+	my $num_loops = ( $rate * $duration ) / (( $len_s+$len_m+$len_l ) * 8 );
+	my $num_packets = $num_loops*3;
+	my $inter_time  = 1000000.0 * $duration / $num_packets;
+
+	print(
+"Num Packets : $num_packets, Duration : $duration, Lengths : $len_s,$len_m,$len_l, InterTime : $inter_time Interface : $interface\n"
+	);
+	
+	print "sending $num_packets packets\n";
+
+	my @start_time = gettimeofday();  
+
+	my $count;
+	for ( $count = 0 ; $count < $num_loops ; $count++ ) {
+
+		# Send 'packet_out' message
+		print $sock $pkt_sent_small;		
+		nftest_expect( $interface, $pkt_small->packed );
+		usleep($inter_time);		
+		print $sock $pkt_sent_med;
+		nftest_expect( $interface, $pkt_med->packed );
+		usleep($inter_time);		
+		print $sock $pkt_sent_lrg;						
+		nftest_expect( $interface, $pkt_lrg->packed );
+		usleep($inter_time);		
+	}
+	
+	my $sending_time = tv_interval(\@start_time);
+	print "time elapsed: $sending_time\n";
+	
+	my $bps = $num_loops * ($len_s+$len_m+$len_l) * 8 / $sending_time;
+	print "bandwidth attempted: $rate(bps)\n";
+	print "bandwidth achieved:  $bps (bps)\n";
+}
+
+
 
 sub my_test {
 
@@ -54,15 +98,18 @@ sub my_test {
 		src_ip => "192.168.0.40",
 		dst_ip => "192.168.1.40",
 		ttl    => 64,
-		len    => 256
+		len    => 64
 	};
-	my $pkt = new NF2::IP_pkt(%$pkt_args);
+	my $pkt_small = new NF2::IP_pkt(%$pkt_args);
+	$pkt_args->{ 'len' } = 256;
+	my $pkt_med = new NF2::IP_pkt(%$pkt_args);
+	$pkt_args->{ 'len' } = 512;
+	my $pkt_lrg = new NF2::IP_pkt(%$pkt_args);
 
 	my $hdr_args = {
 		version => 1,
 		type    => $enums{'OFPT_PACKET_OUT'},
-		length  => $ofp->sizeof('ofp_packet_out') + length( $pkt->packed )
-		,    # should generate automatically!
+		length  => $ofp->sizeof('ofp_packet_out') + length( $pkt_small->packed ),    # should generate automatically!
 		xid => 0x0000abcd
 	};
 	my $packet_out_args = {
@@ -73,15 +120,26 @@ sub my_test {
 	};
 	my $packet_out = $ofp->pack( 'ofp_packet_out', $packet_out_args );
 
-	my $pkt_sent = $packet_out . $pkt->packed;
+	my $pkt_sent_small = $packet_out . $pkt_small->packed;
+	$hdr_args->{'length'} = $ofp->sizeof('ofp_packet_out') + length( $pkt_med->packed );
+	$packet_out_args->{'header'} = $hdr_args;
+	$packet_out = $ofp->pack( 'ofp_packet_out', $packet_out_args );
+	my $pkt_sent_med = $packet_out . $pkt_med->packed;
+	$hdr_args->{'length'} = $ofp->sizeof('ofp_packet_out') + length( $pkt_lrg->packed );
+	$packet_out_args->{'header'} = $hdr_args;
+	$packet_out = $ofp->pack( 'ofp_packet_out', $packet_out_args );
+	my $pkt_sent_lrg = $packet_out . $pkt_lrg->packed;
 
 	my ($sock) = @_;
 
-	&send_fixed_bandwidth_unique( 5 * (10**6) ,
-		5, 64, $sock, $pkt, $pkt_sent, 'eth1' );
+	print "Running Test for a single packet size\n";
+	#&send_fixed_bandwidth_unique( 5 * (10**6) ,5, $sock, $pkt_med, $pkt_sent_med, 'eth1' );
+
+	print "Running Test for different packet sizes\n";
+	&send_fixed_bandwidth_mixed( 5 * (10**5) ,5, $sock,$pkt_sent_small,$pkt_sent_med, $pkt_sent_lrg,$pkt_small,$pkt_med,$pkt_lrg,'eth1');
 
 	# Wait for test to finish
-	sleep(1);
+	sleep(2);
 
 }
 
