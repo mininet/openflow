@@ -14,9 +14,9 @@ use OF::OFPacketLib;
 use Time::HiRes qw (sleep gettimeofday tv_interval usleep);
 
 # Sends packets of the specified length, with specified data rate, over time = duration.
-# Length is passed as a parameter and it should be also declared during packet's construction.
+# A random interarrival time between packets is used, trying to fit the requested data rate.
 
-sub send_fixed_bandwidth_unique {
+sub send_random_bandwidth_unique {
 	my ( $rate, $duration, $sock, $pkt, $pkt_sent, $interface ) = @_;
 	my $length = length( $pkt->packed );
 	my $num_packets = ( $rate * $duration ) / ( $length * 8 );
@@ -30,25 +30,25 @@ sub send_fixed_bandwidth_unique {
 	print "sending $num_packets packets\n";
 
 	my @start_time = gettimeofday();  
-
-	my $count;
-	for ( $count = 0 ; $count < $num_packets ; $count++ ) {
-
-		# Send 'packet_out' message
-		print $sock $pkt_sent;
-		nftest_expect( $interface, $pkt->packed );
-		usleep($inter_time);
-	}
-	
 	my $sending_time = tv_interval(\@start_time);
-	print "time elapsed: $sending_time\n";
+
+	my $count = 0;
+	while($sending_time < $duration){
+	    # Send 'packet_out' message
+	    print $sock $pkt_sent;
+	    nftest_expect( $interface, $pkt->packed );
+	    usleep(int(rand(2*$inter_time)));
+	    $count++;
+	    $sending_time = tv_interval(\@start_time);
+	}
+	print "time elapsed: $sending_time (loops : $count) \n";
 	
-	my $bps = $num_packets * $length * 8 / $sending_time;
+	my $bps = $count * $length * 8 / $sending_time;
 	print "bandwidth attempted: $rate (bps)\n";
 	print "bandwidth achieved:  $bps  (bps)\n";
 }
 
-sub send_fixed_bandwidth_mixed {
+sub send_random_bandwidth_mixed {
 	my ( $rate, $duration, $sock, $pkt_sent_small,$pkt_sent_med,$pkt_sent_lrg,$pkt_small,$pkt_med,$pkt_lrg, $interface ) = @_;
 	my $len_s = length($pkt_small->packed);
 	my $len_m = length($pkt_med->packed);
@@ -64,26 +64,27 @@ sub send_fixed_bandwidth_mixed {
 	print "sending $num_packets packets\n";
 
 	my @start_time = gettimeofday();  
+	my $sending_time = tv_interval(\@start_time);
 
-	my $count;
-	for ( $count = 0 ; $count < $num_loops ; $count++ ) {
-
-		# Send 'packet_out' message
-		print $sock $pkt_sent_small;		
-		nftest_expect( $interface, $pkt_small->packed );
-		usleep($inter_time);		
-		print $sock $pkt_sent_med;
-		nftest_expect( $interface, $pkt_med->packed );
-		usleep($inter_time);		
-		print $sock $pkt_sent_lrg;						
-		nftest_expect( $interface, $pkt_lrg->packed );
-		usleep($inter_time);		
+	my $count = 0;
+	while ($sending_time < $duration){
+	    # Send 'packet_out' message
+	    print $sock $pkt_sent_small;		
+	    nftest_expect( $interface, $pkt_small->packed );
+	    usleep(int(rand(2*$inter_time)));		
+	    print $sock $pkt_sent_med;
+	    nftest_expect( $interface, $pkt_med->packed );
+	    usleep(int(rand(2*$inter_time)));		
+	    print $sock $pkt_sent_lrg;						
+	    nftest_expect( $interface, $pkt_lrg->packed );
+	    usleep(int(rand(2*$inter_time)));		
+	    $count++;
+	    $sending_time = tv_interval(\@start_time);
 	}
 	
-	my $sending_time = tv_interval(\@start_time);
-	print "time elapsed: $sending_time\n";
+	print "time elapsed: $sending_time (loops : $count)\n";
 	
-	my $bps = $num_loops * ($len_s+$len_m+$len_l) * 8 / $sending_time;
+	my $bps = $count * ($len_s+$len_m+$len_l) * 8 / $sending_time;
 	print "bandwidth attempted: $rate(bps)\n";
 	print "bandwidth achieved:  $bps (bps)\n";
 }
@@ -133,10 +134,10 @@ sub my_test {
 	my ($sock) = @_;
 
 	print "Running Test for a single packet size\n";
-	#&send_fixed_bandwidth_unique( 5 * (10**6) ,5, $sock, $pkt_med, $pkt_sent_med, 'eth1' );
+	&send_random_bandwidth_unique( 1 * (10**6) ,15, $sock, $pkt_lrg, $pkt_sent_lrg, 'eth1' );
 
-	print "Running Test for different packet sizes\n";
-	&send_fixed_bandwidth_mixed( 5 * (10**5) ,5, $sock,$pkt_sent_small,$pkt_sent_med, $pkt_sent_lrg,$pkt_small,$pkt_med,$pkt_lrg,'eth1');
+	#print "Running Test for different packet sizes\n";
+	#&send_random_bandwidth_mixed( 5 * (10**5) ,5, $sock,$pkt_sent_small,$pkt_sent_med, $pkt_sent_lrg,$pkt_small,$pkt_med,$pkt_lrg,'eth1');
 
 	# Wait for test to finish
 	sleep(2);
