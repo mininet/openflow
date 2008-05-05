@@ -144,8 +144,8 @@ sub my_test {
 			        my $o_port2 = (($j+1) % 4);
 				print "sending from $i to $j & $i to $o_port2 -- both should match\n";
 				send_expect_exact_with_wildcard( $ofp, $sock, $i, $j, $o_port2, $max_idle, $pkt_len );
-				wait_for_flow_expired_one( $ofp, $sock, $pkt_len, $pkt_total );
-				wait_for_flow_expired_one( $ofp, $sock, $pkt_len, $pkt_total );
+#				wait_for_flow_expired_one( $ofp, $sock, $pkt_len, $pkt_total );
+#				wait_for_flow_expired_one( $ofp, $sock, $pkt_len, $pkt_total );
 
 				delete_send_expect( $ofp, $sock, $i, $j, $o_port2, $max_idle, $pkt_len );
 				print "delete wildcard entry (without STRICT) \n";
