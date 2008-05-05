@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# test_forward_wildcard_port
+# test_forward_wildcard_all
 
 use strict;
 use IO::Socket;
