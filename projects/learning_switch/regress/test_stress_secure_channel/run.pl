@@ -34,8 +34,8 @@ sub my_test {
 
 
 	my @start_time = gettimeofday();
-     for ($cnt = 10; $cnt < 20; $cnt ++){
-     for (my $t = 10; $t < 100; $t ++){
+     for ($cnt = 10; $cnt < 30; $cnt ++){
+     for (my $t = 10; $t < 60; $t ++){
 	my $pkt_args = {
 		DA     => "00:00:00:00:00:01",
 		SA     => "00:00:00:00:$t:$cnt",
@@ -50,12 +50,11 @@ sub my_test {
 	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
 }
 }
-	(my $second, my $micro) = tv_interval(\@start_time);
-	my $secn =  ($second + $micro* 1e-6);
+	my $second  = tv_interval(\@start_time);
 
-	my $bw_result = 1000 * $pkt_len / $secn;
+	my $bw_result = 1000 * $pkt_len / $second;
 	print "PACKET LENGTH: $pkt_len \n";
-	print "TIME ELAPSED: $secn \n";
+	print "TIME ELAPSED: $second \n";
 	print "RESULTING BW: $bw_result Bytes/sec \n";
 
 	return %delta;
