@@ -13,8 +13,8 @@ test_miss_send_length/run.pl
 # Forwarding Tests
 test_forward_any_port/run.pl
 test_forward_exact_port/run.pl
-#test_foward_exact_all/run.pl
-#test_forward_exact_controller/run.pl
+test_forward_exact_all/run.pl
+test_forward_exact_controller/run.pl
 #test_forward_wildcard_port/run.pl
 #test_forward_wildcard_all/run.pl
 #test_forward_wildcard_controller/run.pl
@@ -24,12 +24,21 @@ test_delete/run.pl
 test_delete_strict/run.pl
 
 # Unusual Data
-#test_ip_options/run.pl
+test_ip_options/run.pl
 #test_ip_protocol/run.pl
-#test_ip_offset/run.pl	
-#test_tcp_options/run.pl
+test_ip_offset/run.pl	
+test_tcp_options/run.pl
 #test_llc/run.pl
 
 # Stress Tests / Performance Evaluation
-
-
+test_send_bandwidth_fixed/run.pl
+test_send_bandwidth_random/run.pl
+#test_add_flow_bandwidth/run.pl
+#test_add_flow_latency/run.pl
+#test_receive_bandwidth_fixed/run.pl
+#test_receive_bandwidth_random/run.pl
+#test_forward_bandwidth_fixed/run.pl
+#test_forward_bandwidth_random/run.pl
+#test_forward_latency/run.pl
+#test_switch_bandwidth_random/run.pl
+#test_switch_bandwidth_random/run.pl

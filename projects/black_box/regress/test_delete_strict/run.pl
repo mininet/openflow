@@ -169,7 +169,7 @@ sub wait_for_packet_in {
 	sysread( $sock, $recvd_mesg, $pkt_in_msg_size )
 	  || die "Failed to receive message: $!";
 
-	#        print HexDump ($recvd_mesg);
+	#print HexDump ($recvd_mesg);
 
 	# Inspect  message
 	my $msg_size      = length($recvd_mesg);
@@ -178,7 +178,7 @@ sub wait_for_packet_in {
 
 	my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
 
-	#    print Dumper($msg);
+	#print Dumper($msg);
 
 	# Verify fields
 	compare( "header version", $$msg{'header'}{'version'}, '==', 1 );

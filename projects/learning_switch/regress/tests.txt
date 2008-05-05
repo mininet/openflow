@@ -5,5 +5,5 @@ test_broadcast/run.pl
 test_unicast_move/run.pl
 #test_hub_connected/run.pl
 test_unicast_multiple_hosts/run.pl
-test_fwd_delay/run.pl
-#test_fwd_bandwidth/run.pl
+test_forward_latency/run.pl
+test_forward_bandwidth/run.pl
