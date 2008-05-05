@@ -65,7 +65,7 @@ sub send_expect_multiple {
 sub my_test {
 
 	my ($sock) = @_;
-	my $j = 0xfffb;
+	my $j = 0xfffc;
 	#all ports except the incoming port
 	#NOTE: 0xfffc appears to NOT work.
 
