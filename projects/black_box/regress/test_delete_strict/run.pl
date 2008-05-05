@@ -1,346 +1,300 @@
 #!/usr/bin/perl -w
+# test_delete_strict
 
 use strict;
 use IO::Socket;
-use Error qw(:try);
 use Data::HexDump;
 use Data::Dumper;
+use Time::HiRes qw (sleep usleep);
 
 use NF2::TestLib;
 use NF2::PacketLib;
 use OF::OFUtil;
 use OF::OFPacketLib;
 
-my $ip_protocol=0x11;
+my $pkt_len   = 64;
+my $pkt_total = 1;
+my $max_idle  = 4;
 
-## Wildcard entry  (don't care udp ports)
-my $hdr_args1 = {
-        version => 1,
-        type => $enums{'OFPT_FLOW_MOD'},
-        length => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action') + 4, # need to replace later
-        xid => 0x0000000
-};
-my $match_args1 = {
-        wildcards => 0x300,
-        in_port => 2, # '2' means 'eth3'
-        dl_src => [ 1, 1, 1, 1, 1, 1 ],
-        dl_dst => [ 2, 2, 2, 2, 2, 2 ],
-        dl_vlan => 0xffff, # not used unless dl_type is 0x8100.
-        dl_type => 0x800,
-        nw_src => 0xc0a80128, #192.168.1.40
-        nw_dst => 0xc0a80028, #192.168.0.40
-	nw_proto => $ip_protocol,
-        tp_src => 70, # should not used for matching unless nw_proto is TCP or UDP.
-        tp_dst => 80  # should not used for matching unless nw_proto is TCP or UDP.
-};
-my $action_output_args1 = {
-        max_len => 0xffff, # send entire packet
-        port => 3  #'3' means eth4 
-};
-my $action_args1 = {
-        type => $enums{'OFPAT_OUTPUT'},
-        arg => { output => $action_output_args1 }
-};
-my $action1 = $ofp->pack('ofp_action', $action_args1);
+my $miss_send_len  = $OF::OFUtil::miss_send_len; 
 
-# not sure why either two actions are being sent or structure packing is off.
-my $flow_mod_args1 = {
-        header => $hdr_args1,
-        match => $match_args1,
-        command => $enums{'OFPFC_ADD'},
-        max_idle => 0x0,
-        buffer_id => 0x0102,
-        group_id => 0,
-        priority => 0x2
-};
-my $flow_mod1 = $ofp->pack('ofp_flow_mod', $flow_mod_args1);
-my $flow_mod_pkt1 = $flow_mod1 . $action1 . "\0\0\0\0";
-print HexDump($flow_mod_pkt1);
+sub send_expect_exact_with_wildcard  {
 
-my $flow_mod_args1_delete = {
-        header => $hdr_args1,
-        match => $match_args1,
-#        command => $enums{'OFPFC_DELETE'},
-        command => $enums{'OFPFC_DELETE_STRICT'},
-        max_idle => 0x0,
-        buffer_id => 0x0102,
-        group_id => 0,
-};
-my $flow_mod_delete1 = $ofp->pack('ofp_flow_mod', $flow_mod_args1_delete);
-my $flow_mod_delete_pkt1 = $flow_mod_delete1 . $action1 . "\0\0\0\0";
+	my ( $ofp, $sock, $in_port, $out_port, $out_port2, $max_idle, $pkt_len ) = @_;
 
+	my $test_pkt_args = {
+		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
+		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
+		src_ip => "0.0.0." .           ( $in_port + 1 ),
+		dst_ip => "0.0.0." .           ( $out_port + 1 ),
+		ttl    => 64,
+		len    => $pkt_len,
+		src_port => 70,
+		dst_port => 80
+	};
+	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
 
-#　WExact Match entry
-my $hdr_args2 = {
-        version => 1,
-        type => $enums{'OFPT_FLOW_MOD'},
-        length => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action') + 4, # need to replace later
-        xid => 0x0000000
-};
-my $match_args2 = {
-        wildcards => 0,
-        in_port => 2, # '2' means 'eth3'
-        dl_src => [ 1, 1, 1, 1, 1, 1 ],
-        dl_dst => [ 2, 2, 2, 2, 2, 2 ],
-        dl_vlan => 0xffff, # not used unless dl_type is 0x8100.
-        dl_type => 0x800,
-        nw_src => 0xc0a80128, #192.168.1.40
-        nw_dst => 0xc0a80028, #192.168.0.40
-	nw_proto => $ip_protocol,
-        tp_src => 70, # should not used for matching unless nw_proto is TCP or UDP.
-        tp_dst => 80  # should not used for matching unless nw_proto is TCP or UDP.
-};
-my $action_output_args2 = {
-        max_len => 0xffff, # send entire packet
-        port => 1  #'1' means eth2
-};
-my $action_args2 = {
-        type => $enums{'OFPAT_OUTPUT'},
-        arg => { output => $action_output_args2 }
-};
-my $action2 = $ofp->pack('ofp_action', $action_args2);
+	my $test_pkt_args2 = {
+		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
+		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
+		src_ip => "0.0.0." .           ( $in_port + 1 ),
+		dst_ip => "0.0.0." .           ( $out_port + 1 ),
+		ttl    => 64,
+		len    => $pkt_len,
+		src_port => 170,
+		dst_port => 180
+	};
+	my $test_pkt2 = new NF2::UDP_pkt(%$test_pkt_args2);
 
-# not sure why either two actions are being sent or structure packing is off.
-my $flow_mod_args2 = {
-        header => $hdr_args2,
-        match => $match_args2,
-        command => $enums{'OFPFC_ADD'},
-        max_idle => 0x0,
-        buffer_id => 0x0102,
-        group_id => 0,
-};
-my $flow_mod2 = $ofp->pack('ofp_flow_mod', $flow_mod_args2);
-my $flow_mod_pkt2 = $flow_mod2 . $action2 . "\0\0\0\0";
-print HexDump($flow_mod_pkt2);
+	# Flow entry -- exact match, $out_port
+	my $wildcards = 0x0; # exact match
+	my $flow_mod_exact_pkt =
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
+		$max_idle, $wildcards );
 
-# Wildcard entry (only care input physical port #) -- not used for now (May 2)
-my $hdr_args3 = {
-        version => 1,
-        type => $enums{'OFPT_FLOW_MOD'},
-        length => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action') + 4, # need to replace later
-        xid => 0x0000000
-};
-my $match_args3 = {
-        wildcards => 0x3F0,
-        in_port => 2, # '2' means 'eth3'
-        dl_src => [ 3, 3, 3, 3, 3, 3 ],
-        dl_dst => [ 2, 2, 2, 2, 2, 2 ],
-        dl_vlan => 0xffff, # not used unless dl_type is 0x8100.
-        dl_type => 0x800,
-#        nw_src => 0xc0a80128, #192.168.1.40
-#        nw_dst => 0xc0a80028, #192.168.0.40
-#	nw_proto => $ip_protocol,
-#        tp_src => 70, # should not used for matching unless nw_proto is TCP or UDP.
-#        tp_dst => 80  # should not used for matching unless nw_proto is TCP or UDP.
-};
-my $action_output_args3 = {
-        max_len => 0xffff, # send entire packet
-        port => 0  #'1' means eth1
-};
-my $action_args3 = {
-        type => $enums{'OFPAT_OUTPUT'},
-        arg => { output => $action_output_args3 }
-};
-my $action3 = $ofp->pack('ofp_action', $action_args3);
+	# 2nd flow entry -- wildcard match, $out_port2
+	$wildcards = 0x300; # wildcad match (don't care udp src/dst ports)
+	my $flow_mod_wildcard_pkt =
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port2,
+		$max_idle, $wildcards );
 
-# not sure why either two actions are being sent or structure packing is off.
-my $flow_mod_args3 = {
-        header => $hdr_args3,
-        match => $match_args3,
-        command => $enums{'OFPFC_ADD'},
-        max_idle => 0x0,
-        buffer_id => 0x0102,
-        group_id => 0,
-        priority => 0x0
-};
-my $flow_mod3 = $ofp->pack('ofp_flow_mod', $flow_mod_args3);
-my $flow_mod_pkt3 = $flow_mod3 . $action3 . "\0\0\0\0";
-print HexDump($flow_mod_pkt3);
+	#print HexDump($flow_mod_exact_pkt);
+	#print HexDump($flow_mod_wildcard_pkt);
 
+	# Send 'flow_mod' message
+	print $sock $flow_mod_exact_pkt;
+	print "sent flow_mod message (create exact match entry)\n";
+	usleep(100000);
 
+	print $sock $flow_mod_wildcard_pkt;
+	print "sent flow_mod message (create wildcard entry)\n";
+	usleep(100000);
 
-#my @ipopt=(0x44,0x08,0x08,0x00,0x11,0x22,0x33,0x44); #IP timestamp option
-my $pkt_len = 148;
-my $pkt_args = {
-    DA => "02:02:02:02:02:02",
-    SA => "01:01:01:01:01:01",
-    src_ip => "192.168.1.40",
-    dst_ip => "192.168.0.40",
-    ttl => 0xff,
-    len => $pkt_len,
-    src_port => 70,
-    dst_port => 80,
-#    ip_options => \@ipopt 
-};
-my $test_pkt = new NF2::UDP_pkt(%$pkt_args);
-my $iphdr=$test_pkt->{'IP_hdr'};
-#$$iphdr->ip_hdr_len(5+($#ipopt+1)/4); #set ip_hdr_len correctly
-$$iphdr->proto($ip_protocol); #set protocol
+	# Send a packet - ensure packet comes out desired port
+	print "Verify packets are forwarded correctly\n";
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
+		$test_pkt->packed );
+	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ),
+		$test_pkt->packed );
 
-my $pkt_args2 = {
-    DA => "02:02:02:02:02:02",
-    SA => "01:01:01:01:01:01",
-    src_ip => "192.168.1.40",
-    dst_ip => "192.168.0.40",
-    ttl => 0xff,
-    len => 148,
-    src_port => 71,
-    dst_port => 81,
-#    ip_options => \@ipopt 
-};
-my $test_pkt2 = new NF2::UDP_pkt(%$pkt_args2);
-my $iphdr2=$test_pkt2->{'IP_hdr'};
-$$iphdr2->proto($ip_protocol); #set protocol
-
-# pkt3( not used for now, May 2)
-my $pkt_args3 = {
-    DA => "02:02:02:02:02:02",
-    SA => "01:01:01:01:01:01",
-    src_ip => "192.168.1.40",
-    dst_ip => "192.168.0.40",
-    ttl => 0xff,
-    len => 148,
-    src_port => 0,
-    dst_port => 0,
-    proto => 0x1
-};
-my $test_pkt3 = new NF2::IP_pkt(%$pkt_args3);
-
-
-
-my $hdr_args_control = {
-        version => 1,
-        type => $enums{'OFPT_CONTROL_HELLO'},
-        length => 16, # should generate automatically!
-        xid => 0
-};
-my $control_hello_args = {
-        header => $hdr_args_control,
-        version => 1, # arbitrary, not sure what this should be
-        flags => 1, # ensure flow expiration sent!
-        miss_send_len => 0x0080
-};
-my $control_hello = $ofp->pack('ofp_control_hello', $control_hello_args);
-
-
-###############
-my $sock = createControllerSocket('localhost');
-my $pid;
-# Fork off the "controller" server
-if ( !( $pid = fork ) ) {
-
-	# Wait for controller to setup socket 
-	sleep .1;
-
-	# Spawn secchan process
-	print "spawn sechan\n";
-	exec "secchan", "nl:0", "tcp:127.0.0.1";
-	die "Failed to launch secchan: $!";
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
+		$test_pkt2->packed );
+	nftest_expect( nftest_get_iface( "eth" . ( $out_port2 + 1 ) ),
+		$test_pkt2->packed );
 }
-else {
-	
-	# Wait for secchan to connect
-	my $new_sock = $sock->accept();
 
-        # Send 'control_hello' message
-	print "Send control_hello\n";
-        print $new_sock $control_hello;
+sub delete_strict_send_expect  {
 
-        my $recvd_mesg;
-        sysread($new_sock, $recvd_mesg, 1512) || die "Failed to receive message: $!";
-	print "received message after control hello\n";
-	my $hello_res=$ofp->unpack('ofp_packet_in',$recvd_mesg);
-	compare("header version", $$hello_res{'header'}{'version'}, '==', 1);
-	compare("header type", $$hello_res{'header'}{'type'}, '==', $enums{'OFPT_DATA_HELLO'});
-	print HexDump ($recvd_mesg);
-	print Dumper($hello_res);
+	my ( $ofp, $sock, $in_port, $out_port, $out_port2, $max_idle, $pkt_len ) = @_;
 
-	# Send 'flow_mod' message (install fwd table)
-	print $new_sock $flow_mod_pkt1;
+	# in_port refers to the flow mod entry's input
+	my $test_pkt_args = {
+		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
+		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
+		src_ip => "0.0.0." .           ( $in_port + 1 ),
+		dst_ip => "0.0.0." .           ( $out_port + 1 ),
+		ttl    => 64,
+		len    => $pkt_len,
+		src_port => 70,
+		dst_port => 80
+	};
+	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
 
-	print "Add 1st flow entry(Wildcard A: don't care udp ports)\n";
-	sleep(1);
-	print $new_sock $flow_mod_pkt2;
-	print "Add 2nd flow entry(Exact match)\n";
-	sleep(1);
+	my $test_pkt_args2 = {
+		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
+		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
+		src_ip => "0.0.0." .           ( $in_port + 1 ),
+		dst_ip => "0.0.0." .           ( $out_port + 1 ),
+		ttl    => 64,
+		len    => $pkt_len,
+		src_port => 170,
+		dst_port => 180
+	};
+	my $test_pkt2 = new NF2::UDP_pkt(%$test_pkt_args2);
 
-#	print "Add 3nd flow entry(wildcard B: don't cover Widcard A and exact match)\n";	
-#	sleep(1);
-#	print $new_sock $flow_mod_pkt3;
+	my $wildcards = 0x300; # wildcad match (don't care udp src/dst ports)
+	my $flow_mod_wildcard_pkt =
+	  delete_strict_from_udp( $ofp, $test_pkt, $in_port, $out_port2, $wildcards );
 
+	#print HexDump($flow_mod_exact_pkt);
+	#print HexDump($flow_mod_wildcard_pkt);
 
-	# sending/receiving interfaces - NOT OpenFlow ones
-	my @interfaces = ("eth1", "eth2", "eth3", "eth4");
-	nftest_init(\@ARGV,\@interfaces,);
-	nftest_start(\@interfaces,);
+	# Send 'flow_mod' message (delete wildcard entry with STRICT)
+	print $sock $flow_mod_wildcard_pkt;
+	print "sent flow_mod message (delete (strict) wildcard entry)\n";
+	usleep(100000);
 
+	# Send a packet 
+	print "Verify packets are forwarded correctly i.e., one fwded to contoller and one (exact match) fwd to the specified port\n";
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
+		$test_pkt->packed );
+	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ),
+		$test_pkt->packed );
 
-	print "send packet matching added two entries" . "\n";
-	# Pkt matches exact, Wildcard A
-	nftest_expect(nftest_get_iface('eth2'), $test_pkt->packed);
-	nftest_send(nftest_get_iface('eth3'), $test_pkt->packed);
-
-	# Pkt matches Wildcard A
-	nftest_expect(nftest_get_iface('eth4'), $test_pkt2->packed);
-	nftest_send(nftest_get_iface('eth3'), $test_pkt2->packed);
-
-	# Pkt only matches wildcard B
-#	nftest_expect(nftest_get_iface('eth2'), $test_pkt3->packed);
-#	nftest_send(nftest_get_iface('eth1'), $test_pkt3->packed);
-
-	sleep(1);
-
-	# Send 'flow_mod' message (delete wildcard entry with 'DELETE_STRICT')
-	print $new_sock $flow_mod_delete_pkt1;
-	print "sent delete message (delete wildcard entry with DELETE_STRICT\n";
-
-	sleep(1);
-
-	print "sent pkt matching to the exact match\n";
-	nftest_expect(nftest_get_iface('eth2'), $test_pkt->packed);
-	nftest_send(nftest_get_iface('eth3'), $test_pkt->packed);
-
-	my $total_errors = 0;
-
-	### Check CTRL Channel
-        print $new_sock $control_hello;
-	sysread($new_sock, $recvd_mesg, 1512) || die "Failed to receive message: $!";
-	# Kill secchan process
-	`killall secchan`;
-	# Inspect  message
-	# Verify fields
-	my $hello_res2 = $ofp->unpack('ofp_packet_in', $recvd_mesg);
-	compare("header version", $$hello_res2{'header'}{'version'}, '==', 1);
-	if ( $$hello_res2{'header'}{'type'} == $enums{'OFPT_PACKET_IN'} ){
-		print "packet is forwarded to secchan as OFPT_PACKET_IN".$$hello_res2{'header'}{'type'}."\n";
-	        $total_errors ++;	
-        }
-	print "received message after 2nd control hello\n";
-	print HexDump ($recvd_mesg);
-	print Dumper($hello_res2);
-
-	`killall secchan`;
-
-        ### Check ethernet ports
- 	my $unmatched = nftest_finish();
-	print "Checking pkt errors\n";
-
-	$total_errors += nftest_print_errors($unmatched);
-	
-	# Kill secchan process
-	close($sock);
-        
-	my $exitCode;
-	if ( $total_errors == 0 ) {
-		print "SUCCESS!\n";
-		$exitCode = 0;
-        }
-        else {
-		print "FAIL: $total_errors errors\n";
-		$exitCode = 1;
-        }
-
-        # Exit with the resulting exit code
-        exit($exitCode);
-
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
+	$test_pkt2->packed );
 }
+
+
+sub my_test {
+	
+	my ($sock) = @_;
+
+	# send from every port to every other port
+	for ( my $i = 0 ; $i < 4 ; $i++ ) {
+		for ( my $j = 0 ; $j < 4 ; $j++ ) {
+			if ( $i != $j ) {
+			        my $o_port2 = (($j+1) % 4);
+				print "sending from $i to $j & $i to $o_port2 -- both should match\n";
+				send_expect_exact_with_wildcard( $ofp, $sock, $i, $j, $o_port2, $max_idle, $pkt_len );
+#				wait_for_flow_expired_one( $ofp, $sock, $pkt_len, $pkt_total );
+#				wait_for_flow_expired_one( $ofp, $sock, $pkt_len, $pkt_total );
+				print "delete wildcard entry (with STRICT) \n";
+				print "sending from $i to $j & $i to $o_port2 ";
+				delete_strict_send_expect( $ofp, $sock, $i, $j, $o_port2, $max_idle, $pkt_len );
+				wait_for_packet_in( $ofp, $sock, $pkt_len);
+				wait_for_flow_expired_one( $ofp, $sock, $pkt_len, 2);
+
+			}
+		}
+	}
+}
+
+sub wait_for_flow_expired_one {
+
+    my ($ofp, $sock, $pkt_len, $pkt_total) = @_;
+
+    my $recvd_mesg;
+    sysread( $sock, $recvd_mesg, $ofp->sizeof('ofp_flow_expired'))
+	    || die "Failed to receive message: $!";
+
+        #print HexDump ($recvd_mesg);
+
+        # Inspect  message
+    my $msg_size      = length($recvd_mesg);
+    my $expected_size = $ofp->sizeof('ofp_flow_expired');
+    compare( "msg size", length($recvd_mesg), '==', $expected_size );
+
+    my $msg = $ofp->unpack( 'ofp_flow_expired', $recvd_mesg );
+
+        #print Dumper($msg);
+
+        # Verify fields
+    compare( "header version", $$msg{'header'}{'version'}, '==', 1 );
+    compare(
+                "header type", $$msg{'header'}{'type'},
+                '==',          $enums{'OFPT_FLOW_EXPIRED'}
+		);
+    compare( "header length", $$msg{'header'}{'length'}, '==', $msg_size );
+    compare( "byte_count",    $$msg{'byte_count'},       '==', $pkt_len*$pkt_total );
+    compare( "packet_count",  $$msg{'packet_count'},     '==', $pkt_total );
+}
+
+sub wait_for_packet_in {
+    my ($ofp, $sock, $pkt_len) = @_;
+
+    my $pkt_in_msg_size;
+    if ($pkt_len < $miss_send_len){  # assuming "miss_send_len" in hello is 128 bytes
+	$pkt_in_msg_size = 18 + $pkt_len;
+    }else{
+	$pkt_in_msg_size = 18 + $miss_send_len;
+    }
+
+    my $recvd_mesg;
+    sysread( $sock, $recvd_mesg, $pkt_in_msg_size)
+	    || die "Failed to receive message: $!" ;
+
+#        print HexDump ($recvd_mesg);
+
+    # Inspect  message
+    my $msg_size      = length($recvd_mesg);
+    my $expected_size = $pkt_in_msg_size;
+    compare( "msg size", length($recvd_mesg), '==', $expected_size );
+
+    my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
+
+#    print Dumper($msg);
+
+    # Verify fields
+    compare("header version", $$msg{'header'}{'version'}, '==', 1 );
+    compare("header type", $$msg{'header'}{'type'},'==', $enums{'OFPT_PACKET_IN'});
+    compare("header length", $$msg{'header'}{'length'}, '==', $msg_size );
+    compare("header length", $$msg{'total_len'}, '==', $pkt_len );
+
+    print "pkt (length = $pkt_len) is received by the controller\n";
+}
+
+
+sub delete_strict_from_udp {
+
+	my ( $ofp, $udp_pkt, $in_port, $out_port, $wildcards ) = @_;
+
+	my $hdr_args = {
+		version => 1,
+		type    => $enums{'OFPT_FLOW_MOD'},
+		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action'),
+		xid     => 0x0000000
+	};
+
+	# might be cleaner to convert the exported colon-hex MAC addrs
+	#print ${$udp_pkt->{Ethernet_hdr}}->SA . "\n";
+	#print ${$test_pkt->{Ethernet_hdr}}->SA . "\n";
+	my $ref_to_eth_hdr = ( $udp_pkt->{'Ethernet_hdr'} );
+	my $ref_to_ip_hdr  = ( $udp_pkt->{'IP_hdr'} );
+
+	# pointer to array
+	my $eth_hdr_bytes = $$ref_to_eth_hdr->{'bytes'};
+	my $ip_hdr_bytes  = $$ref_to_ip_hdr->{'bytes'};
+	my @dst_mac_subarray = @{$eth_hdr_bytes}[ 0 .. 5 ];
+	my @src_mac_subarray = @{$eth_hdr_bytes}[ 6 .. 11 ];
+
+	my @src_ip_subarray = @{$ip_hdr_bytes}[ 12 .. 15 ];
+	my @dst_ip_subarray = @{$ip_hdr_bytes}[ 16 .. 19 ];
+
+	my $src_ip =
+	  ( ( 2**24 ) * $src_ip_subarray[0] + ( 2**16 ) * $src_ip_subarray[1] +
+		  ( 2**8 ) * $src_ip_subarray[2] + $src_ip_subarray[3] );
+
+	my $dst_ip =
+	  ( ( 2**24 ) * $dst_ip_subarray[0] + ( 2**16 ) * $dst_ip_subarray[1] +
+		  ( 2**8 ) * $dst_ip_subarray[2] + $dst_ip_subarray[3] );
+
+	my $match_args = {
+		wildcards => $wildcards,
+		in_port   => $in_port,
+		dl_src    => \@src_mac_subarray,
+		dl_dst    => \@dst_mac_subarray,
+		dl_vlan   => 0xffff,
+		dl_type   => 0x0800,
+		nw_src    => $src_ip,
+		nw_dst    => $dst_ip,
+		nw_proto  => 17,                                  #udp
+		tp_src    => ${ $udp_pkt->{UDP_pdu} }->SrcPort,
+		tp_dst    => ${ $udp_pkt->{UDP_pdu} }->DstPort
+	};
+	my $action_output_args = {
+		max_len => 0,                                     # send entire packet
+		port    => $out_port
+	};
+
+	my $action_args = {
+		type => $enums{'OFPAT_OUTPUT'},
+		arg  => { output => $action_output_args }
+	};
+	my $action = $ofp->pack( 'ofp_action', $action_args );
+
+	my $flow_mod_args = {
+		header    => $hdr_args,
+		match     => $match_args,
+		command   => $enums{'OFPFC_DELETE_STRICT'},
+		buffer_id => 0x0000,
+		group_id  => 0
+	};
+	my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
+
+	my $flow_mod_pkt = $flow_mod . $action;
+
+	return $flow_mod_pkt;
+}
+
+run_black_box_test(\&my_test);
