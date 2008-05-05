@@ -134,7 +134,7 @@ sub my_test {
 
 	my ($sock) = @_;
 	
-	&send_fixed_bandwidth_unique( .1 * (10**6) ,5, $sock, $pkt_med, $pkt_sent_med, 'eth1' );
+	&send_fixed_bandwidth_unique( .1 * (10**6) ,5, $sock, $pkt_large, $pkt_sent_large, 'eth1' );
 	
 	#&send_fixed_bandwidth_mixed( 5 * (10**5) ,5, $sock,$pkt_sent_small,$pkt_sent_med, $pkt_sent_lrg,$pkt_small,$pkt_med,$pkt_lrg,'eth1');
 
