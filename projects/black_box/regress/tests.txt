@@ -4,6 +4,32 @@ test_packet_in/run.pl
 test_packet_out/run.pl
 test_flow_expired/run.pl
 test_miss_send_length/run.pl
+
+# Read State Tests
+#test_flow_stats/run.pl
+#test_table_stats/run.pl
+#test_port_stats/run.pl
+
 # Forwarding Tests
 test_forward_any_port/run.pl
 test_forward_exact_port/run.pl
+#test_foward_exact_all/run.pl
+#test_forward_exact_controller/run.pl
+#test_forward_wildcard_port/run.pl
+#test_forward_wildcard_all/run.pl
+#test_forward_wildcard_controller/run.pl
+#test_forward_after_expiration/run.pl
+#test_forward_overlapping_flow_entries/run.pl
+test_delete/run.pl
+test_delete_strict/run.pl
+
+# Unusual Data
+#test_ip_options/run.pl
+#test_ip_protocol/run.pl
+#test_ip_offset/run.pl	
+#test_tcp_options/run.pl
+#test_llc/run.pl
+
+# Stress Tests / Performance Evaluation
+
+
