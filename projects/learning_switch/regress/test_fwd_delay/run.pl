@@ -35,7 +35,7 @@ sub my_test {
 	} 
 	my $total_time_unknown = tv_interval( $start_time_ref );
 
-	my $start_time_ref = [gettimeofday()];
+	$start_time_ref = [gettimeofday()];
 	for ( $cnt = 10 ; $cnt < 20 ; $cnt++ ) {
 		for ( my $t = 10 ; $t < 100 ; $t++ ) {
 			my $pkt_args = {
@@ -57,7 +57,7 @@ sub my_test {
 	
 	# convert to ms, and consider that we sent 900 packets each
 	my $time_unknown_ms = $total_time_unknown * 1000 / 900;
-	my $time_known_ms = $load_time_known * 1000 / 900;
+	my $time_known_ms = $total_time_known * 1000 / 900;
 	
 	printf("Delay with unknown MAC: %.3f ms\n", $time_unknown_ms);
 	printf("Delay with known MAC: %.3f ms\n", $time_known_ms);
