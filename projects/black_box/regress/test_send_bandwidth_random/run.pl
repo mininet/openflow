@@ -135,7 +135,7 @@ sub my_test {
 	my ($sock) = @_;
 
 
-	&send_random_bandwidth_unique( 1 * (10**6) ,15, $sock, $pkt_lrg, $pkt_sent_lrg, 'eth1' );
+	&send_random_bandwidth_unique( .01 * (10**6) ,15, $sock, $pkt_lrg, $pkt_sent_lrg, 'eth1' );
 
 	#&send_random_bandwidth_mixed( 5 * (10**5) ,5, $sock,$pkt_sent_small,$pkt_sent_med, $pkt_sent_lrg,$pkt_small,$pkt_med,$pkt_lrg,'eth1');
 
