@@ -40,6 +40,9 @@ my $nf2_kernel_module_name = 'openflow_hw_nf2.ko';
 # sending/receiving interfaces - NOT OpenFlow ones
 my @interfaces = ( "eth1", "eth2", "eth3", "eth4" );
 
+# data length forwarded to the controller if miss (used in do_hello_sequence)
+$OF::OFUtil::miss_send_len = 0x0080; # 128 bytes
+
 ##############################################################
 #
 # Check that the user has set up their environment correctly.
@@ -304,7 +307,7 @@ sub do_hello_sequence {
 		header        => $hdr_args_control,
 		version       => 1,                # arbitrary, not sure what this should be
 		flags         => 1,                # ensure flow expiration sent!
-		miss_send_len => 0x0080
+		miss_send_len => $miss_send_len
 	};
 	my $control_hello = $ofp->pack( 'ofp_control_hello', $control_hello_args );
 
