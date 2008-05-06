@@ -5,6 +5,7 @@ use strict;
 use IO::Socket;
 use Data::HexDump;
 use Data::Dumper;
+use Time::HiRes qw (sleep usleep gettimeofday);
 
 use NF2::TestLib;
 use NF2::PacketLib;
@@ -13,7 +14,7 @@ use OF::OFPacketLib;
 
 my $pkt_len   = 64;
 my $pkt_total = 1;
-my $max_idle  = 1;
+my $max_idle  = 2;
 
 sub send_expect_exact {
 
@@ -36,6 +37,15 @@ sub send_expect_exact {
 	#print HexDump ( $test_pkt->packed );
 
 	my $wildcards = 0x0; # exact match
+	#my $wildcards = 0x2; # only wildcard the vlan
+	#my $wildcards = 0x2FF; # exact match
+	#my $wildcards = 0x3FE; # exact match on switch in port
+	#my $wildcards = 0x3DF; # exact match on src ip
+	#my $wildcards = 0x1; # exact match on eth src/dest/eth frame/ipsrcdest/128ipproto/256port source
+	#my $wildcards = 0x3BF; # exact match on dest ip
+	#my $wildcards = 0x3FD; # exact match on vlan
+	#my $wildcards = 0x3FB; # exact match on ether source
+	#my $wildcards = 0x3F7; # exact match on ether dest
 
 	my $flow_mod_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
@@ -47,9 +57,12 @@ sub send_expect_exact {
 	print $sock $flow_mod_pkt;
 	print "sent flow_mod message\n";
 
+	usleep(200000);
 	# Send a packet - ensure packet comes out desired port
+	my ($seconds, $microseconds) = gettimeofday();
 	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
 		$test_pkt->packed );
+	print "Packet sent at ${seconds}.${microseconds}\n";
 	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ),
 		$test_pkt->packed );
 }
@@ -62,6 +75,8 @@ sub my_test {
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
 		for ( my $j = 0 ; $j < 4 ; $j++ ) {
 			if ( $i != $j ) {
+	#my $i = 1;
+	#my $j = 2;
 				print "sending from $i to $j\n";
 				send_expect_exact( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
 				wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
