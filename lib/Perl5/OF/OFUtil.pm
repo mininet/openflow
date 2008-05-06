@@ -205,7 +205,7 @@ sub createControllerSocket {
 
 sub process_command_line() {
 	my %options = ();
-	GetOptions(\%options);
+	GetOptions(\%options, "map=s");
 	
 	# Process the mappings if specified
 	if (defined($options{'map'})) {
