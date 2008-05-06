@@ -187,7 +187,7 @@ sub teardown_kmod {
 sub compare {
 	my ($test, $val, $op, $expected) = @_;
 	my $success = eval "$val $op $expected" ? 1 : 0;
-	if (!$success) { die "$test: error $val not $op $expected\n"; }
+	if (!$success) { die "$test: error received: $val not $op expected: $expected\n"; }
 }
 
 sub createControllerSocket {
