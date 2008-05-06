@@ -31,7 +31,11 @@ use Data::Dumper;
 	&do_hello_sequence
 	&run_black_box_test 
 	&create_flow_mod_from_udp
+	&create_flow_mod_from_udp_action
 	&wait_for_flow_expired
+	&wait_for_flow_expired_one
+	&wait_for_flow_expired_size
+	&wait_for_one_packet_in
 );
 
 my $nf2_kernel_module_path = 'datapath_nf2/linux-2.6'; 
@@ -41,7 +45,8 @@ my $nf2_kernel_module_name = 'openflow_hw_nf2.ko';
 my @interfaces = ( "eth1", "eth2", "eth3", "eth4" );
 
 # data length forwarded to the controller if miss (used in do_hello_sequence)
-$OF::OFUtil::miss_send_len = 0x0080; # 128 bytes
+#$OF::OFUtil::miss_send_len = 0x0080; # 128 bytes
+my $miss_send_len = 0x0080; # 128 bytes
 
 ##############################################################
 #
@@ -187,7 +192,7 @@ sub teardown_kmod {
 sub compare {
 	my ($test, $val, $op, $expected) = @_;
 	my $success = eval "$val $op $expected" ? 1 : 0;
-	if (!$success) { die "$test: error received: $val not $op expected: $expected\n"; }
+	if (!$success) { die "$test: error $val not $op $expected\n"; }
 }
 
 sub createControllerSocket {
@@ -415,6 +420,21 @@ sub create_flow_mod_from_udp {
 
 	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards ) = @_;
 
+	my $flow_mod_pkt;
+
+	$flow_mod_pkt = create_flow_mod_from_udp_action ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, 'OFPFC_ADD');
+
+	return $flow_mod_pkt;
+}
+
+sub create_flow_mod_from_udp_action {
+
+	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $mod_type ) = @_;
+
+	if ( $mod_type ne 'OFPFC_ADD' && $mod_type ne 'OFPFC_DELETE' && $mod_type ne 'OFPFC_DELETE_STRICT' ){
+		die "Undefined flow mod type: $mod_type\n";
+	}
+
 	my $hdr_args = {
 		version => 1,
 		type    => $enums{'OFPT_FLOW_MOD'},
@@ -474,7 +494,8 @@ sub create_flow_mod_from_udp {
 	my $flow_mod_args = {
 		header    => $hdr_args,
 		match     => $match_args,
-		command   => $enums{'OFPFC_ADD'},
+#		command   => $enums{$mod_type},
+		command   => $enums{"$mod_type"},
 		max_idle  => $max_idle,
 		buffer_id => 0x0000,
 		group_id  => 0
@@ -490,8 +511,31 @@ sub wait_for_flow_expired {
 	
 	my ($ofp, $sock, $pkt_len, $pkt_total) = @_;
 	
+	wait_for_flow_expired_size ($ofp, $sock, $pkt_len, $pkt_total, 1512);
+
+}
+
+sub wait_for_flow_expired_one {
+
+	my ( $ofp, $sock, $pkt_len, $pkt_total ) = @_;
+
+	wait_for_flow_expired_size ($ofp, $sock, $pkt_len, $pkt_total, $ofp->sizeof('ofp_flow_expired'));
+}
+
+sub wait_for_flow_expired_size {
+# can specify the reading size from socket (by the last argument, $read_size_)
+
+	my ( $ofp, $sock, $pkt_len, $pkt_total, $read_size_ ) = @_;
+	
+	my $read_size;
+	if (defined $read_size_ ){
+		$read_size = $read_size_;
+	}else{
+		$read_size = 1512;
+	}
+
 	my $recvd_mesg;
-	sysread( $sock, $recvd_mesg, 1512 )
+	sysread( $sock, $recvd_mesg, $read_size)
 	  || die "Failed to receive message: $!";
 
 	#print HexDump ($recvd_mesg);
@@ -507,14 +551,59 @@ sub wait_for_flow_expired {
 
 	# Verify fields
 	compare( "header version", $$msg{'header'}{'version'}, '==', 1 );
-	compare(
-		"header type", $$msg{'header'}{'type'},
-		'==',          $enums{'OFPT_FLOW_EXPIRED'}
-	);
-	compare( "header length", $$msg{'header'}{'length'}, '==', $msg_size );
-	compare( "byte_count",    $$msg{'byte_count'},       '==', $pkt_len*$pkt_total );
-	compare( "packet_count",  $$msg{'packet_count'},     '==', $pkt_total );
+	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_EXPIRED'} );
+	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
+	compare( "byte_count",     $$msg{'byte_count'},        '==', $pkt_len * $pkt_total );
+	compare( "packet_count",   $$msg{'packet_count'},      '==', $pkt_total );
 }
+
+sub wait_for_one_packet_in {
+# wait for a packet which arrives via socket, and verify it is the expected packet
+# $sock: socket
+# $pkt_len: packet length of the expected packet to receive
+# $pkt : expected packet to receive
+
+	my ( $ofp, $sock, $pkt_len, $pkt ) = @_;
+
+	my $pkt_in_msg_size;  # read size from socket
+	if ( $pkt_len < $miss_send_len ) {  
+	    # Due to padding, the size of ofp_packet_in header is $ofp->sizeof('ofp_packet_in')-2
+	    $pkt_in_msg_size = ($ofp->sizeof('ofp_packet_in')-2) + $pkt_len;
+	}else {
+		$pkt_in_msg_size = ($ofp->sizeof('ofp_packet_in')-2) + $miss_send_len;
+	}
+
+	my $recvd_mesg;
+	sysread( $sock, $recvd_mesg, $pkt_in_msg_size )
+	  || die "Failed to receive message: $!";
+
+	# Inspect  message
+	my $msg_size      = length($recvd_mesg);
+	my $expected_size = $pkt_in_msg_size;
+	compare( "msg size", length($recvd_mesg), '==', $expected_size );
+
+	my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
+
+#	print Dumper($msg);
+
+	# Verify fields
+	compare( "header version", $$msg{'header'}{'version'}, '==', 1 );
+	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_PACKET_IN'} );
+	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
+	compare( "header length",  $$msg{'total_len'},         '==', $pkt_len );
+
+	my $recvd_pkt_data = substr ($recvd_mesg, $ofp->offsetof('ofp_packet_in', 'data'));
+
+#	print "packet expecting\n";
+#	print HexDump ($pkt);
+#	print "packet received\n";
+#	print HexDump ($recvd_pkt_data);
+
+        if ($recvd_pkt_data ne $pkt) {
+	    die "ERROR: received packet data didn't match the expecting packet\n";
+        }
+}
+
 
 # Always end library in 1
 1;
