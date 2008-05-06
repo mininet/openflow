@@ -5,6 +5,7 @@ use strict;
 use IO::Socket;
 use Data::HexDump;
 use Data::Dumper;
+use Time::HiRes qw (sleep usleep gettimeofday);
 
 use NF2::TestLib;
 use NF2::PacketLib;
@@ -46,6 +47,7 @@ sub send_expect_multi_flow {
 	# Send 'flow_mod' message
 	print $sock $flow_mod_pkt;
 	print "sent exact match flow_mod message\n";
+	usleep(100000);
 
 	$wildcards = 0x03ff; # wildcard everything
 
@@ -58,6 +60,7 @@ sub send_expect_multi_flow {
 	# Send 'flow_mod' message
 	print $sock $flow_mod_pkt;
 	print "sent wildcard match flow_mod message\n";
+	usleep(100000);
 	
 
 	# Send a packet - ensure packet comes out desired port
