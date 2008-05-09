@@ -35,6 +35,7 @@ use Data::Dumper;
 	&wait_for_flow_expired
 	&wait_for_flow_expired_one
 	&wait_for_flow_expired_size
+	&wait_for_flow_expired_total_bytes
 	&wait_for_one_packet_in
 );
 
@@ -522,12 +523,10 @@ sub wait_for_flow_expired_one {
 	wait_for_flow_expired_size ($ofp, $sock, $pkt_len, $pkt_total, $ofp->sizeof('ofp_flow_expired'));
 }
 
-sub wait_for_flow_expired_size {
-# can specify the reading size from socket (by the last argument, $read_size_)
+sub wait_for_flow_expired_total_bytes {
+	my ($ofp, $sock, $bytes, $pkt_total, $read_size_) = @_;
+ 	my $read_size;
 
-	my ( $ofp, $sock, $pkt_len, $pkt_total, $read_size_ ) = @_;
-	
-	my $read_size;
 	if (defined $read_size_ ){
 		$read_size = $read_size_;
 	}else{
@@ -553,10 +552,18 @@ sub wait_for_flow_expired_size {
 	compare( "header version", $$msg{'header'}{'version'}, '==', 1 );
 	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_EXPIRED'} );
 	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
-	compare( "byte_count",     $$msg{'byte_count'},        '==', $pkt_len * $pkt_total );
+	compare( "byte_count",     $$msg{'byte_count'},        '==', $bytes );
 	compare( "packet_count",   $$msg{'packet_count'},      '==', $pkt_total );
 }
 
+sub wait_for_flow_expired_size {
+# can specify the reading size from socket (by the last argument, $read_size_)
+
+	my ( $ofp, $sock, $pkt_len, $pkt_total, $read_size_ ) = @_;
+	wait_for_flow_expired_total_bytes($ofp, $sock, ($pkt_len * $pkt_total), $pkt_total, $read_size_);
+}
+	
+	
 sub wait_for_one_packet_in {
 # wait for a packet which arrives via socket, and verify it is the expected packet
 # $sock: socket
