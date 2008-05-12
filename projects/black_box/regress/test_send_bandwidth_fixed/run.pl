@@ -114,7 +114,7 @@ sub my_test {
 		length  => $ofp->sizeof('ofp_packet_out') + length( $pkt_small->packed ),    # should generate automatically!
 		xid => 0x0000abcd
 	};
-	my $packet_out_args = {
+		my $packet_out_args = {
 		header    => $hdr_args, 
 		buffer_id => -1,                    # data included in this packet
 		in_port   => $enums{'OFPP_NONE'},
