@@ -57,7 +57,7 @@ sub send_expect_exact {
 	print $sock $flow_mod_pkt;
 	print "sent flow_mod message\n";
 
-	usleep(200000);
+	usleep(100000);
 	# Send a packet - ensure packet comes out desired port
 	my ($seconds, $microseconds) = gettimeofday();
 	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
@@ -75,8 +75,6 @@ sub my_test {
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
 		for ( my $j = 0 ; $j < 4 ; $j++ ) {
 			if ( $i != $j ) {
-	#my $i = 1;
-	#my $j = 2;
 				print "sending from $i to $j\n";
 				send_expect_exact( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
 				wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
