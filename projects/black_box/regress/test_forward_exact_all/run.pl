@@ -5,6 +5,7 @@ use strict;
 use IO::Socket;
 use Data::HexDump;
 use Data::Dumper;
+use Time::HiRes qw (sleep usleep gettimeofday);
 
 use NF2::TestLib;
 use NF2::PacketLib;
@@ -46,10 +47,13 @@ sub send_expect_multiple {
 	# Send 'flow_mod' message
 	print $sock $flow_mod_pkt;
 	print "sent flow_mod message\n";
+	usleep(100000);
 
 	# Send a packet - ensure packet comes out desired port
+	my ($seconds, $microseconds) = gettimeofday();
 	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
 		$test_pkt->packed );
+	print "Packet sent at ${seconds}.${microseconds}\n";
 
 	for(my $k = 0; $k < 4; $k++)
 	  {
