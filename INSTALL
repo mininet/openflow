@@ -1,0 +1,92 @@
+OpenFlow Reference Tests v0.2.1
+
+Released X.X.X
+
+This package provides an automated way to verify that an OpenFlow switch 
+adheres to the OpenFlow Protocol.  Out of the box, they work with the OpenFlow
+Reference Linux Switch, but can support other platforms by defining custom 
+setup and teardown scripts.  Additional tests verify the reference learning 
+Ethernet switch controller included with the OpenFlow Reference Linux Switch. 
+
+The code has been tests on CentOS5.1 with dual quad-port Ethernet NICs,
+connected by loopback cables.
+
+Connect cables as:
+ eth1 to eth5
+ eth2 to eth6
+ eth3 to eth7
+ eth4 to eth8
+ 
+It is not a requirement to have both cards in one system; passing the --common-setup and --common-teardown 
+options enable a second system to act as the switch, using SSH with authorized keys.  
+ 
+The instructions assume that the test system has an install of OpenFlow v0.2.1.
+
+The following packages are required:
+ perl-Convert-Binary-C
+ perl-Data-HexDump 
+ perl-Net-Pcap
+ perl-Net-RawIP.i386
+ perl-Error.noarch
+
+These packages can be installed on CentOS 5.1 by doing: 
+ yum -y install  perl-Convert-Binary-C perl-Data-HexDump 
+ rpm -Uhv http://apt.sw.be/packages/rpmforge-release/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
+If it succeeds, do the following and you're done:
+ yum -y install perl-Net-Pcap perl-Net-RawIP.i386 perl-Error.noarch
+If it fails, the DAG package repository is probably down.  You past this with a copy by:
+ wget ftp://fr2.rpmfind.net/linux/dag/redhat/el5/en/i386/dag/RPMS/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
+ rpm -Uhv rpmforge-release-0.3.6-1.el5.rf.i386.rpm
+Since the repo is down, you still won't be able to download packages.  You can get around this by looking at a google cache of  the mirror list:
+http://209.85.173.104/search?q=cache:I3Ha3zXve_QJ:apt.sw.be/redhat/el5/en/mirrors-rpmforge+http://apt.sw.be/redhat/el5/en/mirrors-rpmforge&hl=en&ct=clnk&cd=1&gl=us&client=iceweasel-a
+...then installing the necessary packages individually 
+ rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Net-Pcap-0.16-1.el5.rf.i386.rpm
+ rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Net-RawIP-0.23-1.el5.rf.i386.rpm
+ rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Error-0.17012-1.el5.rf.noarch.rpm
+You can find the packages by looking at a working system and listing installed rpms in chron order:
+ from rpm -qa --last | tac 
+
+After unzipping the tgz to create the openflow-tests dir, copy the environment variables file to your home directory: 
+ cp openflow-test/scripts/env_vars ~/
+Now change this file to match your setup (i.e. location of openflow repository).  Change OFT_ROOT to reference your home directory:
+ vim env_vars
+Enter a root shell session, or set up sudo. The perl-Net-RawIP library requires root access to bind to ports.
+ su
+Source the environment variables:
+ source env_vars
+Verify your setup by running regression tests:
+ of_regress_test.pl
+The test should show pass for all scripts.
+
+To see more options for the regression script, type:
+ of_regress_test.pl --help
+
+== Writing Your Own Tests ==
+
+Look at an example controller test:
+ vim openflow-tests/projects/learning_switch/regress/test_unicast_unknown/run.pl
+ 
+Look at an example black box switch test:
+ vim openflow-tests/projects/black_box/regress/test_hello/run.pl
+
+To run this test with all output printed:
+ cd openflow-tests/projects/learning_switch/regress/test_unicast_unknown
+ of_setup.pl; ./run.pl; of_teardown.pl
+
+To see traffic when running a black box test, use tcpdump.  Secchan and the Perl code use the loopback interface to communicate, and you can snoop on this:
+ tcpdump -X -i lo -s 256
+
+It can be convenient to run you test in isolation, without setup and teardown automatically called.  To set up the OF kmod and interfaces, run:
+ of_setup.pl
+
+To remove the OF kmod cleanly, run:
+ of_teardown.pl
+Note that the kmod refuses removal until the interfaces and datapaths have been removed.
+
+== Reporting Bugs ==
+
+If you've come across a bug, register at the [http://yuba.stanford.edu/openflow-bugs OpenFlow Bugzilla] and post the bug.
+
+ 
+ 
+
