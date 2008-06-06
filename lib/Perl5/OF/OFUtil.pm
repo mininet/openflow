@@ -10,7 +10,7 @@
 package OF::OFUtil; 
 
 use Getopt::Long;
-use NF2::TestLib;
+use Test::TestLib;
 use Error qw(:try);
 use OF::OFPacketLib;
 use Exporter;
