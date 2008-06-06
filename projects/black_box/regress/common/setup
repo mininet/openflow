@@ -2,7 +2,7 @@
 
 use Getopt::Long;
 
-use NF2::TestLib;
+use Test::TestLib;
 use OF::OFUtil;
 
 my $mapFile;

@@ -3,7 +3,7 @@
 use Getopt::Long;
 
 use OF::OFUtil;
-use NF2::TestLib;
+use Test::TestLib;
 
 my $mapFile;
 # Process command line options

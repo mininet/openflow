@@ -1,8 +1,8 @@
 #!/usr/bin/perl -w
 # test_unicast_move
 
-use NF2::TestLib;
-use NF2::PacketLib;
+use Test::TestLib;
+use Test::PacketLib;
 use OF::OFUtil;
 use strict;
 

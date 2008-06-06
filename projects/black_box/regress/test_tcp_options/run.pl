@@ -2,15 +2,7 @@
 # test_tcp_options
 
 use strict;
-use IO::Socket;
-use Data::HexDump;
-use Data::Dumper;
-use Time::HiRes qw (sleep usleep);
-
-use NF2::TestLib;
-use NF2::PacketLib;
-use OF::OFUtil;
-use OF::OFPacketLib;
+use OF::Includes;
 
 my $pkt_len   = 64; # len = 14(Ethr_hdr)+ 20(IP_header)+ 30(TCP_header+Option)
                     # = 64 (IPlen = 50)

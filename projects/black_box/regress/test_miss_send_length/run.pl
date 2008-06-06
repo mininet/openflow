@@ -2,14 +2,7 @@
 # test_packet_in
 
 use strict;
-use IO::Socket;
-use Data::HexDump;
-use Data::Dumper;
-
-use NF2::TestLib;
-use NF2::PacketLib;
-use OF::OFUtil;
-use OF::OFPacketLib;
+use OF::Includes;
 
 # switch expected to send no more than 128B back to controller
 use constant MISS_SEND_LEN => 128;

@@ -8,10 +8,11 @@
 ##############################################################
 
 package OF::Base;
+
 use Exporter;
-@ISA = ('Exporter');
+@ISA    = ('Exporter');
 @EXPORT = qw( &check_OF_vars_set
-            );
+);
 
 ##############################################################
 #
@@ -20,12 +21,12 @@ use Exporter;
 ##############################################################
 sub check_OF_vars_set {
 
-  my @of_vars = qw(OFT_ROOT OF_ROOT);
+	my @of_vars = qw(OFT_ROOT OF_ROOT);
 
-  for (@of_vars) { 
-    my_die ("Please set shell variable $_ and try again.")
-      unless defined $ENV{$_};
-  }
+	for (@of_vars) {
+		my_die("Please set shell variable $_ and try again.")
+		  unless defined $ENV{$_};
+	}
 
 }
 
@@ -35,15 +36,15 @@ sub check_OF_vars_set {
 #
 ##############################################################
 
-if (!defined(&my_die)) {
-	eval('
+if ( !defined(&my_die) ) {
+	eval( '
 	  sub my_die {
 	  my $mess = shift @_;
 	  (my $cmd = $0) =~ s/.*\///;
 	  print STDERR "\n$cmd: $mess\n";
 	  exit 1;
 	}
-	');
+	' );
 }
 
 # Always end library in 1

@@ -2,8 +2,8 @@
 #test_fwd_delay
 # send 1000 packets to find latency for both new flows and existing ones
 
-use NF2::TestLib;
-use NF2::PacketLib;
+use Test::TestLib;
+use Test::PacketLib;
 use OF::OFUtil;
 use strict;
 use Time::HiRes qw(sleep gettimeofday tv_interval usleep);

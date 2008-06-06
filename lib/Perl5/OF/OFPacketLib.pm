@@ -13,14 +13,14 @@
 package OF::OFPacketLib;
 
 use strict;
-use Exporter;
+
 use Convert::Binary::C;
 use Data::Dumper;
 use Data::HexDump;
 use OF::Base;
 
+use Exporter;
 use vars qw(@ISA @EXPORT);  # needed cos strict is on
-
 @ISA = qw(Exporter);
 @EXPORT = qw($ofp %enums);
 

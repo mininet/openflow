@@ -2,18 +2,7 @@
 # test_add_flow_latency
 
 use strict;
-use IO::Socket;
-use Data::HexDump;
-use Data::Dumper;
-
-use NF2::TestLib;
-use NF2::PacketLib;
-use OF::OFUtil;
-use OF::OFPacketLib;
-
-use strict;
-
-use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
+use OF::includes;
 
 sub my_test {
 

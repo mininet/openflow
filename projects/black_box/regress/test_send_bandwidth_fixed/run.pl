@@ -2,14 +2,7 @@
 # test_send_bandwidth_fixed
 
 use strict;
-use IO::Socket;
-use Data::HexDump;
-use Data::Dumper;
-
-use NF2::TestLib;
-use NF2::PacketLib;
-use OF::OFUtil;
-use OF::OFPacketLib;
+use OF::Includes;
 
 use Time::HiRes qw (sleep gettimeofday tv_interval usleep);
 

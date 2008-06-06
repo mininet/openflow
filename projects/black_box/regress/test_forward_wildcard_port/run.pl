@@ -2,15 +2,7 @@
 # test_forward_wildcard_port
 
 use strict;
-use IO::Socket;
-use Data::HexDump;
-use Data::Dumper;
-use Time::HiRes qw (sleep usleep gettimeofday);
-
-use NF2::TestLib;
-use NF2::PacketLib;
-use OF::OFUtil;
-use OF::OFPacketLib;
+use OF::Includes;
 
 my $pkt_len   = 64;
 my $pkt_total = 1;

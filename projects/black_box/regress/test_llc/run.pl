@@ -3,15 +3,7 @@
 # if you want to test DIX format, use use $EthFMT   = "DIX"
 
 use strict;
-use IO::Socket;
-use Data::HexDump;
-use Data::Dumper;
-use Time::HiRes qw (sleep usleep);
-
-use NF2::TestLib;
-use NF2::PacketLib;
-use OF::OFUtil;
-use OF::OFPacketLib;
+use OF::Includes;
 
 ## choose one from "DIX" or "LLC";
 #my $EthFMT   = "DIX";

@@ -2,17 +2,7 @@
 # test_forward_after_expiration
 
 use strict;
-use IO::Socket;
-use Data::HexDump;
-use Data::Dumper;
-use Time::HiRes qw (sleep usleep);
-
-use NF2::TestLib;
-use NF2::PacketLib;
-use OF::OFUtil;
-use OF::OFPacketLib;
-
-#use Time::HiRes qw(gettimeofday sleep usleep time);
+use OF::Includes;
 
 my $pkt_len   = 64;
 my $pkt_total = 1;

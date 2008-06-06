@@ -1,8 +1,8 @@
 #!/usr/bin/perl -w
 #test_unicast_unknown
 
-use NF2::TestLib;
-use NF2::PacketLib;
+use Test::TestLib;
+use Test::PacketLib;
 use OF::OFUtil;
 use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
 use strict;
