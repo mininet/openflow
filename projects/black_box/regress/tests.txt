@@ -5,11 +5,6 @@ test_packet_out/run.pl
 test_flow_expired/run.pl
 test_miss_send_length/run.pl
 
-# Read State Tests
-#test_flow_stats/run.pl
-#test_table_stats/run.pl
-#test_port_stats/run.pl
-
 # Forwarding Tests
 test_forward_any_port/run.pl
 test_forward_exact_port/run.pl
@@ -30,12 +25,14 @@ test_ip_offset/run.pl
 test_tcp_options/run.pl
 #test_llc/run.pl
 
+# BELOW NOT INCLUDED IN CURRRENT RELEASE 
+# WILL BE AVAILABLE SOON
 # Stress Tests / Performance Evaluation
-test_send_bandwidth_fixed/run.pl
-test_send_bandwidth_random/run.pl
+#test_send_bandwidth_fixed/run.pl
+#test_send_bandwidth_random/run.pl
 #test_add_flow_bandwidth/run.pl
 #test_add_flow_latency/run.pl
-test_receive_bandwidth_fixed/run.pl
+#test_receive_bandwidth_fixed/run.pl
 #test_receive_bandwidth_random/run.pl
 #test_forward_bandwidth_fixed/run.pl
 #test_forward_bandwidth_random/run.pl

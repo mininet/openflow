@@ -155,7 +155,7 @@ check_OF_vars_set();
 
 # load C structs and enums
 my $of_file = $ENV{'OF_ROOT'}.'/include/openflow.h';
-print "$of_file\n";
+#print "$of_file\n";
 
 eval { $ofp->parse_file($of_file) };
 if ($@) { die "error in parse_file $@\n"; }

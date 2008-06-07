@@ -1,12 +1,17 @@
-OpenFlow Reference Tests v0.2.1
+       Installation Instructions for OpenFlow Reference Tests
 
-Released X.X.X
-
-This package provides an automated way to verify that an OpenFlow switch 
-adheres to the OpenFlow Protocol.  Out of the box, they work with the OpenFlow
+This document describes how to install and execute the OpenFlow reference test
+suite, which provides an automated way to verify that an OpenFlow switch 
+adheres to the OpenFlow Protocol.  Out of the box, tests work with the OpenFlow
 Reference Linux Switch, but can support other platforms by defining custom 
 setup and teardown scripts.  Additional tests verify the reference learning 
 Ethernet switch controller included with the OpenFlow Reference Linux Switch. 
+
+Please send any comments to:
+
+                      <info@openflowswitch.org> 
+
+=== Prerequisites ===
 
 The code has been tests on CentOS5.1 with dual quad-port Ethernet NICs,
 connected by loopback cables.
@@ -45,6 +50,8 @@ http://209.85.173.104/search?q=cache:I3Ha3zXve_QJ:apt.sw.be/redhat/el5/en/mirror
  rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Error-0.17012-1.el5.rf.noarch.rpm
 You can find the packages by looking at a working system and listing installed rpms in chron order:
  from rpm -qa --last | tac 
+ 
+Alternately, these packages can be installed from source by downloading them from www.cpan.org.
 
 After unzipping the tgz to create the openflow-tests dir, copy the environment variables file to your home directory: 
  cp openflow-test/scripts/env_vars ~/
@@ -60,6 +67,7 @@ The test should show pass for all scripts.
 
 To see more options for the regression script, type:
  of_regress_test.pl --help
+
 
 == Writing Your Own Tests ==
 
@@ -83,10 +91,11 @@ To remove the OF kmod cleanly, run:
  of_teardown.pl
 Note that the kmod refuses removal until the interfaces and datapaths have been removed.
 
+
 == Reporting Bugs ==
 
-If you've come across a bug, register at the [http://yuba.stanford.edu/openflow-bugs OpenFlow Bugzilla] and post the bug.
-
+Please report problems to: 
+info@openflowswitch.org
  
  
 
