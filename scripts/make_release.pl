@@ -6,7 +6,7 @@ use File::Copy;
 
 # pass to tar only the files we care about; be careful to ignore .svn's
 my $release_num = '0.5.1';
-my $of_ver = "openflow-tests-v$release_num";
+my $of_ver = "openflow-test-v$release_num";
 
 if (! -d "temp") { mkdir "temp"; }
 if (! -d "temp/$of_ver") { mkdir "temp/$of_ver"; }
@@ -48,24 +48,13 @@ foreach my $file (@files) {
   print $file . "\n";
 }
 
-my @files_appended;
-foreach my $file (@files) {
-	push @files_appended, "$file";
-}
-
-my $files_separated = join (' ', @files_appended);
-#print $files_separated, "\n";
-
-#print `cd .. && pwd`;
-
-#`tar czf temp/$of_ver.tgz $files_separated`;
-`tar czf temp/$of_ver.tgz temp`;
+`cd $rootdir/temp; tar czf $of_ver.tar.gz *`;
 exit (0);
 
 # DFS 
 sub parse_dir {
 	my ($path) = @_;
-	print "parse_dir called with $path\n";
+	#print "parse_dir called with $path\n";
 	my @file_list;
 	# exists?
 	if (! -e "$path") { 
