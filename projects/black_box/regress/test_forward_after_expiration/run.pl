@@ -28,11 +28,10 @@ sub send_expect_exact {
 
 	#print HexDump ( $test_pkt->packed );
 
-	my $wildcards = 0x0; # exact match
+	my $wildcards = 0x0;    # exact match
 
 	my $flow_mod_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
-		$max_idle, $wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
 
 	#print HexDump($flow_mod_pkt);
 
@@ -42,19 +41,15 @@ sub send_expect_exact {
 	usleep(100000);
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
-		$test_pkt->packed );
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt->packed );
 
-	printf "sent packet on eth" . ($in_port+1) . "\n";
+	printf "sent packet on eth" . ( $in_port + 1 ) . "\n";
 
-	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ),
-		$test_pkt->packed );
-	
+	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ), $test_pkt->packed );
+
 	#wait a little while to make sure the packet gets sent along.
 	#usleep(1000);
-
 }
-
 
 sub send_expect_secchan_nomatch {
 
@@ -74,47 +69,51 @@ sub send_expect_secchan_nomatch {
 	};
 	my $test_pkt2 = new NF2::UDP_pkt(%$test_pkt_args2);
 
+	print "sending out eth"
+	  . ( $in_port + 1 )
+	  . ", expecting response on secchan due to no flow matching\n";
 
-	print "sending out eth" . ($in_port+1) . ", expecting response on secchan due to no flow matching\n";
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
-		$test_pkt2->packed );
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt2->packed );
 
 	my $recvd_mesg;
-	sysread($sock, $recvd_mesg, 1512) || die "Failed to receive message: $!";
+	sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
 
 	# Inspect  message
 	my $msg_size = length($recvd_mesg);
-	my $expected_size = $ofp->offsetof('ofp_packet_in', 'data') + length($test_pkt2->packed);
-	compare ("msg size", $msg_size, '==', $expected_size);
-	
-	my $msg = $ofp->unpack('ofp_packet_in', $recvd_mesg);
+	my $expected_size = $ofp->offsetof( 'ofp_packet_in', 'data' ) + length( $test_pkt2->packed );
+	compare( "msg size", $msg_size, '==', $expected_size );
+
+	my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
+
 	#print HexDump ($recvd_mesg);
 	#print Dumper($msg);
-	
+
 	# Verify fields
-	
-	print "Verifying secchan message for packet sent in to eth" . ($in_port+1) . "\n";
-	
-	compare("header version", $$msg{'header'}{'version'}, '==', 1);
-	compare("header type", $$msg{'header'}{'type'}, '==', $enums{'OFPT_PACKET_IN'});
-	compare("header length", $$msg{'header'}{'length'}, '==', $msg_size);
-	
-	compare("total len", $$msg{'total_len'}, '==', length($test_pkt2->packed));
-	compare("in_port", $$msg{'in_port'}, '==', $in_port);
-	compare("reason", $$msg{'reason'}, '==', $enums{'OFPR_NO_MATCH'});
-	
+
+	print "Verifying secchan message for packet sent in to eth" . ( $in_port + 1 ) . "\n";
+
+	verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
+
+	compare( "total len", $$msg{'total_len'}, '==', length( $test_pkt2->packed ) );
+	compare( "in_port",   $$msg{'in_port'},   '==', $in_port );
+	compare( "reason",    $$msg{'reason'},    '==', $enums{'OFPR_NO_MATCH'} );
+
 	# verify packet was unchanged!
-	my $recvd_pkt_data = substr ($recvd_mesg, $ofp->offsetof('ofp_packet_in', 'data'));
-	if ($recvd_pkt_data ne $test_pkt2->packed) {
-	  die "ERROR: sending from eth". $in_port+1 . " received packet data didn't match packet sent\n";
-	}	
+	my $recvd_pkt_data = substr( $recvd_mesg, $ofp->offsetof( 'ofp_packet_in', 'data' ) );
+	if ( $recvd_pkt_data ne $test_pkt2->packed ) {
+		die "ERROR: sending from eth"
+		  . $in_port + 1
+		  . " received packet data didn't match packet sent\n";
+	}
 
 }
 
 sub my_test {
 
 	my ($sock) = @_;
+
+	enable_flow_expirations( $ofp, $sock );
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {

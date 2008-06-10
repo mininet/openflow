@@ -26,7 +26,7 @@ sub send_expect_exact {
 	};
 	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
 
-	## Change protoco field
+	## Change protocol field
 	my $iphdr=$test_pkt->{'IP_hdr'};
 	$$iphdr->proto(0x13); # overwrite protocol filed in IP header
 
@@ -44,7 +44,6 @@ sub send_expect_exact {
 	print $sock $flow_mod_pkt;
 	print "sent flow_mod message\n";
 	usleep(100000);
-	
 
 	# Send a packet - ensure packet comes out desired port
 	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
@@ -57,6 +56,8 @@ sub send_expect_exact {
 sub my_test {
 	
 	my ($sock) = @_;
+
+	enable_flow_expirations( $ofp, $sock );
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
@@ -75,7 +76,7 @@ sub create_flow_mod_from_pseudo_tcp {
 	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards ) = @_;
 
 	my $hdr_args = {
-		version => 1,
+		version => get_of_ver(),
 		type    => $enums{'OFPT_FLOW_MOD'},
 		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action'),
 		xid     => 0x0000000

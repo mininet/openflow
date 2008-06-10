@@ -4,9 +4,6 @@
 use strict;
 use OF::Includes;
 
-# switch expected to send no more than 128B back to controller
-use constant MISS_SEND_LEN => 128;
-
 sub my_test {
 	
 	my ($sock) = @_;
@@ -28,17 +25,15 @@ sub my_test {
 
 	# Inspect  message
 	my $msg_size = length($recvd_mesg);
-	my $expected_size = $ofp->offsetof('ofp_packet_in', 'data') + MISS_SEND_LEN;
+	my $expected_size = $ofp->offsetof('ofp_packet_in', 'data') + get_of_miss_send_len_default();
 	compare ("msg size", $msg_size, '==', $expected_size);
 
 	my $msg = $ofp->unpack('ofp_packet_in', $recvd_mesg);
 	#print HexDump ($recvd_mesg);
-	print Dumper($msg);
+	#print Dumper($msg);
 
 	# Verify fields
-	compare("header version", $$msg{'header'}{'version'}, '==', 1);
-	compare("header type", $$msg{'header'}{'type'}, '==', $enums{'OFPT_PACKET_IN'});
-	compare("header length", $$msg{'header'}{'length'}, '==', $msg_size);
+	verify_header($msg, 'OFPT_PACKET_IN', $msg_size);
 
 	# total len should be full length of original sent frame
 	compare("total len", $$msg{'total_len'}, '==', length($pkt->packed));
@@ -48,9 +43,9 @@ sub my_test {
 	# verify packet was unchanged!
 	my $recvd_pkt_data = substr ($recvd_mesg, $ofp->offsetof('ofp_packet_in', 'data'));
 	# trim to MISS_SEND_LEN
-	my $pkt_trimmed = substr ($pkt->packed, 0, MISS_SEND_LEN);
+	my $pkt_trimmed = substr ($pkt->packed, 0, get_of_miss_send_len_default());
 	if ($recvd_pkt_data ne $pkt_trimmed) {
-		throw Error::Simple "ERROR: received packet data didn't match packet sent\n";
+		die "ERROR: received packet data didn't match packet sent\n";
 	}
 }
 

@@ -7,9 +7,14 @@ use OF::Includes;
 sub my_test {
 
 	my ($sock) = @_;
+	
+	my $max_idle = 0x1; # second before flow expiration
+
+	# Set flags to make sure we get flow expiration messages
+	enable_flow_expirations($ofp, $sock);
 
 	my $hdr_args = {
-		version => 1,
+		version => get_of_ver(),
 		type    => $enums{'OFPT_FLOW_MOD'},
 		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action'),
 		xid     => 0x0000000
@@ -40,14 +45,15 @@ sub my_test {
 	};
 	my $action = $ofp->pack( 'ofp_action', $action_args );
 
-   # not sure why either two actions are being sent or structure packing is off.
+	# not sure why either two actions are being sent or structure packing is off.
 	my $flow_mod_args = {
 		header    => $hdr_args,
 		match     => $match_args,
 		command   => $enums{'OFPFC_ADD'},
-		max_idle  => 0x1,
+		max_idle  => $max_idle,
 		buffer_id => 0x0102,
-		group_id  => 0
+		priority  => 0,
+		reserved  => 0
 	};
 	my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
 
@@ -58,8 +64,8 @@ sub my_test {
 	# Send 'flow_mod' message
 	print $sock $pkt;
 	print "sent second message\n";
-	
-	my $pkt_len = 0;
+
+	my $pkt_len   = 0;
 	my $pkt_total = 0;
 	wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
 

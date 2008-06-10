@@ -8,8 +8,6 @@ my $pkt_len   = 64;
 my $pkt_total = 1;
 my $max_idle  = 1;
 
-#my $miss_send_len = $OF::OFUtil::miss_send_len;
-
 sub send_expect_exact_with_wildcard {
 
 	my ( $ofp, $sock, $in_port, $out_port, $out_port2, $max_idle, $pkt_len ) = @_;
@@ -39,12 +37,12 @@ sub send_expect_exact_with_wildcard {
 	my $test_pkt2 = new NF2::UDP_pkt(%$test_pkt_args2);
 
 	# Flow entry -- exact match, $out_port
-	my $wildcards          = 0x0;    # exact match
+	my $wildcards = 0x0;    # exact match
 	my $flow_mod_exact_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
 
 	# 2nd flow entry -- wildcard match, $out_port2
-	$wildcards = 0x300;              # wildcard match (don't care udp src/dst ports)
+	$wildcards = 0x300;     # wildcard match (don't care udp src/dst ports)
 	my $flow_mod_wildcard_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port2, $max_idle, $wildcards );
 
@@ -98,9 +96,10 @@ sub delete_send_expect {
 	};
 	my $test_pkt2 = new NF2::UDP_pkt(%$test_pkt_args2);
 
-	my $wildcards             = 0x300;    # wildcard match (don't care udp src/dst ports)
+	my $wildcards = 0x300;    # wildcard match (don't care udp src/dst ports)
 	my $flow_mod_wildcard_pkt =
-	  create_flow_mod_from_udp_action( $ofp, $test_pkt2, $in_port, $out_port2, $max_idle , $wildcards,"OFPFC_DELETE");
+	  create_flow_mod_from_udp_action( $ofp, $test_pkt2, $in_port, $out_port2, $max_idle,
+		$wildcards, "OFPFC_DELETE" );
 
 	#print HexDump($flow_mod_exact_pkt);
 	#print HexDump($flow_mod_wildcard_pkt);
@@ -123,6 +122,8 @@ sub delete_send_expect {
 sub my_test {
 
 	my ($sock) = @_;
+
+	enable_flow_expirations( $ofp, $sock );
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {

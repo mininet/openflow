@@ -19,10 +19,10 @@ sub my_test {
 	my $pkt = new NF2::IP_pkt(%$pkt_args);
 
 	my $hdr_args = {
-		version => 1,
+		version => get_of_ver(),
 		type    => $enums{'OFPT_PACKET_OUT'},
-		length  => $ofp->sizeof('ofp_packet_out') + length( $pkt->packed )
-		,    # should generate automatically!
+		length  => $ofp->sizeof('ofp_packet_out') +
+		  length( $pkt->packed ),    # should generate automatically!
 		xid => 0x0000abcd
 	};
 	my $packet_out_args = {

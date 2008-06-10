@@ -83,9 +83,7 @@ sub send_expect_exact {
 	#print Dumper($msg);
 
 	# Verify fields
-	compare( "header version", $$msg{'header'}{'version'}, '==', 1 );
-	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_PACKET_IN'} );
-	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
+	verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
 
 	compare( "total len", $$msg{'total_len'}, '==', length( $test_pkt2->packed ) );
 	compare( "in_port",   $$msg{'in_port'},   '==', $in_port );
@@ -103,7 +101,9 @@ sub my_test {
 
 	my ($sock) = @_;
 
-	my $j = 0xfffb;
+	my $j = $enums{'OFPP_FLOOD'};
+
+	enable_flow_expirations( $ofp, $sock );
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {

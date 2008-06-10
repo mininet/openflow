@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# test_ip_protocol (case c, not TCP nor UDP, but specify src port!=0, dst port!=0);
+# test_ip_protocol (case e, not TCP nor UDP, but specify src port!=0, dst port!=0);
 
 use strict;
 use OF::Includes;
@@ -58,6 +58,8 @@ sub my_test {
 	
 	my ($sock) = @_;
 
+	enable_flow_expirations( $ofp, $sock );
+
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
 		for ( my $j = 0 ; $j < 4 ; $j++ ) {
@@ -75,7 +77,7 @@ sub create_flow_mod_from_ip {
 	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $s_port, $d_port ) = @_;
 
 	my $hdr_args = {
-		version => 1,
+		version => get_of_ver(),
 		type    => $enums{'OFPT_FLOW_MOD'},
 		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action'),
 		xid     => 0x0000000

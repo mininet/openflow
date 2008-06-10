@@ -63,6 +63,8 @@ sub my_test {
 
 	my ($sock) = @_;
 
+	enable_flow_expirations( $ofp, $sock );
+	
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
 		for ( my $j = 0 ; $j < 4 ; $j++ ) {

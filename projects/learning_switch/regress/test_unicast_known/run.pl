@@ -43,31 +43,31 @@ sub my_test {
 	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
 	sleep 0.5;
 
-	$pkt_args = {
-		DA     => "00:00:00:00:00:01",
-		SA     => "00:00:00:00:00:03",
-		src_ip => "192.168.2.40",
-		dst_ip => "192.168.0.40",
-		ttl    => 64,
-		len    => 64
-	};
-	$pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-	sleep 0.5;
-
-	$pkt_args = {
-		DA     => "00:00:00:00:00:01",
-		SA     => "00:00:00:00:00:04",
-		src_ip => "192.168.3.40",
-		dst_ip => "192.168.0.40",
-		ttl    => 64,
-		len    => 64
-	};
-	$pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-	
+#	$pkt_args = {
+#		DA     => "00:00:00:00:00:01",
+#		SA     => "00:00:00:00:00:03",
+#		src_ip => "192.168.2.40",
+#		dst_ip => "192.168.0.40",
+#		ttl    => 64,
+#		len    => 64
+#	};
+#	$pkt = new NF2::IP_pkt(%$pkt_args);
+#	send_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
+#	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+#	sleep 0.5;
+#
+#	$pkt_args = {
+#		DA     => "00:00:00:00:00:01",
+#		SA     => "00:00:00:00:00:04",
+#		src_ip => "192.168.3.40",
+#		dst_ip => "192.168.0.40",
+#		ttl    => 64,
+#		len    => 64
+#	};
+#	$pkt = new NF2::IP_pkt(%$pkt_args);
+#	send_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
+#	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+#	
 	return %delta;
 }
 

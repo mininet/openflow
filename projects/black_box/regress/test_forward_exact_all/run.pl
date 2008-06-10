@@ -28,11 +28,10 @@ sub send_expect_multiple {
 
 	#print HexDump ( $test_pkt->packed );
 
-	my $wildcards = 0x0; # exact match
+	my $wildcards = 0x0;    # exact match
 
 	my $flow_mod_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
-		$max_idle, $wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
 
 	#print HexDump($flow_mod_pkt);
 
@@ -42,34 +41,29 @@ sub send_expect_multiple {
 	usleep(100000);
 
 	# Send a packet - ensure packet comes out desired port
-	my ($seconds, $microseconds) = gettimeofday();
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
-		$test_pkt->packed );
+	my ( $seconds, $microseconds ) = gettimeofday();
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt->packed );
 	print "Packet sent at ${seconds}.${microseconds}\n";
 
-	for(my $k = 0; $k < 4; $k++)
-	  {
-	    if($k+1 != $in_port+1)
-	      {
-		nftest_expect( nftest_get_iface( "eth" . ( $k + 1 ) ),
-			       $test_pkt->packed );
-	      }
-	  }
-
+	for ( my $k = 0 ; $k < 4 ; $k++ ) {
+		if ( $k + 1 != $in_port + 1 ) {
+			nftest_expect( nftest_get_iface( "eth" . ( $k + 1 ) ), $test_pkt->packed );
+		}
+	}
 }
 
 sub my_test {
 
 	my ($sock) = @_;
-	my $j = 0xfffc;
-	#all ports except the incoming port
-	#NOTE: 0xfffc appears to NOT work.
+	my $j = $enums{'OFPP_ALL'}; # all physical ports except the input
+
+	enable_flow_expirations( $ofp, $sock );
 
 	# send from every port, receive on every port except the send port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
-	  print "sending from $i to (all ports but $i)\n";
-	  send_expect_multiple( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
-	  wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+		print "sending from $i to (all ports but $i)\n";
+		send_expect_multiple( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
+		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
 	}
 }
 

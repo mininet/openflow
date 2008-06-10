@@ -53,6 +53,8 @@ sub send_expect_exact {
 sub my_test {
 	
 	my ($sock) = @_;
+	
+	enable_flow_expirations( $ofp, $sock );
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {

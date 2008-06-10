@@ -28,11 +28,10 @@ sub send_expect_exact {
 
 	#print HexDump ( $test_pkt->packed );
 
-	my $wildcards = 0x0; # exact match
+	my $wildcards = 0x0;    # exact match
 
 	my $flow_mod_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
-		$max_idle, $wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
 
 	#print HexDump($flow_mod_pkt);
 
@@ -40,19 +39,17 @@ sub send_expect_exact {
 	print $sock $flow_mod_pkt;
 	print "sent flow_mod message\n";
 	usleep(100000);
-	
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
-		$test_pkt->packed );
-	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ),
-		$test_pkt->packed );
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt->packed );
+	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ), $test_pkt->packed );
 }
 
-
 sub my_test {
-	
+
 	my ($sock) = @_;
+
+	enable_flow_expirations( $ofp, $sock );
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
@@ -66,6 +63,5 @@ sub my_test {
 	}
 }
 
-run_black_box_test(\&my_test);
-
+run_black_box_test( \&my_test );
 

@@ -27,16 +27,16 @@ sub send_expect_exact {
 	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
 
 	## Make packet TCP (assuming only tcp src port, tcp dst port fields are used)
-	my $iphdr=$test_pkt->{'IP_hdr'};
-	$$iphdr->proto(6); # overwrite protocol filed in IP header
+	my $iphdr = $test_pkt->{'IP_hdr'};
+	$$iphdr->proto(6);    # overwrite protocol filed in IP header
 
 	#print HexDump ( $test_pkt->packed );
 
-	my $wildcards = 0x0; # exact match
+	my $wildcards = 0x0;    # exact match
 
 	my $flow_mod_pkt =
-	  create_flow_mod_from_pseudo_tcp( $ofp, $test_pkt, $in_port, $out_port,
-		$max_idle, $wildcards );
+	  create_flow_mod_from_pseudo_tcp( $ofp, $test_pkt, $in_port, $out_port, $max_idle,
+		$wildcards );
 
 	#print HexDump($flow_mod_pkt);
 
@@ -44,19 +44,17 @@ sub send_expect_exact {
 	print $sock $flow_mod_pkt;
 	print "sent flow_mod message\n";
 	usleep(100000);
-	
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
-		$test_pkt->packed );
-	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ),
-		$test_pkt->packed );
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt->packed );
+	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ), $test_pkt->packed );
 }
 
-
 sub my_test {
-	
+
 	my ($sock) = @_;
+
+	enable_flow_expirations( $ofp, $sock );
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
@@ -75,7 +73,7 @@ sub create_flow_mod_from_pseudo_tcp {
 	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards ) = @_;
 
 	my $hdr_args = {
-		version => 1,
+		version => get_of_ver(),
 		type    => $enums{'OFPT_FLOW_MOD'},
 		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action'),
 		xid     => 0x0000000
@@ -88,8 +86,8 @@ sub create_flow_mod_from_pseudo_tcp {
 	my $ref_to_ip_hdr  = ( $udp_pkt->{'IP_hdr'} );
 
 	# pointer to array
-	my $eth_hdr_bytes = $$ref_to_eth_hdr->{'bytes'};
-	my $ip_hdr_bytes  = $$ref_to_ip_hdr->{'bytes'};
+	my $eth_hdr_bytes    = $$ref_to_eth_hdr->{'bytes'};
+	my $ip_hdr_bytes     = $$ref_to_ip_hdr->{'bytes'};
 	my @dst_mac_subarray = @{$eth_hdr_bytes}[ 0 .. 5 ];
 	my @src_mac_subarray = @{$eth_hdr_bytes}[ 6 .. 11 ];
 
@@ -97,15 +95,19 @@ sub create_flow_mod_from_pseudo_tcp {
 	my @dst_ip_subarray = @{$ip_hdr_bytes}[ 16 .. 19 ];
 
 	my $src_ip =
-	  ( ( 2**24 ) * $src_ip_subarray[0] + ( 2**16 ) * $src_ip_subarray[1] +
-		  ( 2**8 ) * $src_ip_subarray[2] + $src_ip_subarray[3] );
+	  ( ( 2**24 ) * $src_ip_subarray[0] +
+		  ( 2**16 ) * $src_ip_subarray[1] +
+		  ( 2**8 ) * $src_ip_subarray[2] +
+		  $src_ip_subarray[3] );
 
 	my $dst_ip =
-	  ( ( 2**24 ) * $dst_ip_subarray[0] + ( 2**16 ) * $dst_ip_subarray[1] +
-		  ( 2**8 ) * $dst_ip_subarray[2] + $dst_ip_subarray[3] );
+	  ( ( 2**24 ) * $dst_ip_subarray[0] +
+		  ( 2**16 ) * $dst_ip_subarray[1] +
+		  ( 2**8 ) * $dst_ip_subarray[2] +
+		  $dst_ip_subarray[3] );
 
 	# read IP_header protocol field
-	my $iph = $udp_pkt->{'IP_hdr'};
+	my $iph   = $udp_pkt->{'IP_hdr'};
 	my $proto = $$iph->proto();
 
 	my $match_args = {
@@ -117,7 +119,7 @@ sub create_flow_mod_from_pseudo_tcp {
 		dl_type   => 0x0800,
 		nw_src    => $src_ip,
 		nw_dst    => $dst_ip,
-		nw_proto  => $proto, #any protocol 
+		nw_proto  => $proto,                              #any protocol
 		tp_src    => ${ $udp_pkt->{UDP_pdu} }->SrcPort,
 		tp_dst    => ${ $udp_pkt->{UDP_pdu} }->DstPort
 	};
@@ -149,6 +151,5 @@ sub create_flow_mod_from_pseudo_tcp {
 	return $flow_mod_pkt;
 }
 
-run_black_box_test(\&my_test);
-
+run_black_box_test( \&my_test );
 

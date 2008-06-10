@@ -100,11 +100,7 @@ projects/learning_switch/regress/tests.txt
 Learning Switch Tests
 ----------------
 
-Three tests currently fail with OF Reference v0.2.1:
-
--Forward Exact All: OFPP_FLOOD (0xfffb) gives the expected behavior, OFPP_ALL (0xfffc) yields no output packets.
-
--IP Protocol: Even if protocol is not TCP nor UDP, port number fields seems used for matching. Only when protocol number is specified to zero, port number fields are not used for matching
+One test currently fails with OF Reference v0.8.1:
 
 -LLC: Pkt is forwarded to the controller, when it should be dropped.
 
@@ -127,6 +123,12 @@ projects/black_box/regress/tests.txt
 :; Name: test_packet_out
 :; Owner: Brandon Heller
 :; Description: send packet to switch on secure chan for each output port, ensure packet received at proper ports.
+
+=== Switch Config ===
+:; Name: test_switch_config
+:; Owner: Brandon Heller
+:; Description: verify default switch config, set config, verify that config has changed
+:; Status: done
 
 === Flow Expired ===
 :; Name: test_flow_expired
@@ -260,7 +262,7 @@ projects/black_box/regress/tests.txt
 |70
 |80
 |Match (but not clearly stated)
-|Doesn't match
+|Doesn't match (Now matches!)
 |-
 !D (case-d.pl)
 |0x13(non TCP nor UDP)
@@ -280,7 +282,7 @@ projects/black_box/regress/tests.txt
 |70
 |80
 |Match (but not clearly stated)
-|Doesn't match
+|Doesn't match (now matches!)
 |}
 
 === IP Offset > Pkt Len ===

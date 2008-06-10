@@ -28,11 +28,10 @@ sub send_expect_multi_flow {
 
 	#print HexDump ( $test_pkt->packed );
 
-	my $wildcards = 0x0; # exact match
+	my $wildcards = 0x0;    # exact match
 
 	my $flow_mod_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
-		$max_idle, $wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
 
 	#print HexDump($flow_mod_pkt);
 
@@ -41,11 +40,9 @@ sub send_expect_multi_flow {
 	print "sent exact match flow_mod message\n";
 	usleep(100000);
 
-	$wildcards = 0x03ff; # wildcard everything
+	$wildcards = 0x03ff;    # wildcard everything
 
-	$flow_mod_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, 0xfffd,
-		1, $wildcards );
+	$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, 0xfffd, 1, $wildcards );
 
 	#print HexDump($flow_mod_pkt);
 
@@ -53,40 +50,34 @@ sub send_expect_multi_flow {
 	print $sock $flow_mod_pkt;
 	print "sent wildcard match flow_mod message\n";
 	usleep(100000);
-	
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
-		$test_pkt->packed );
-	
-	#sleep(1);
-	
-	for(my $k = 0; $k < 4; $k++)
-	  {
-	    if($k+1 != $in_port+1)
-	      {
-		nftest_expect( nftest_get_iface( "eth" . ( $k + 1 ) ),
-			       $test_pkt->packed );
-	      }
-	  }
+	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt->packed );
+
+	for ( my $k = 0 ; $k < 4 ; $k++ ) {
+		if ( $k + 1 != $in_port + 1 ) {
+			nftest_expect( nftest_get_iface( "eth" . ( $k + 1 ) ), $test_pkt->packed );
+		}
+	}
 
 }
 
 sub my_test {
 
 	my ($sock) = @_;
-	my $j = 0xfffb;
-	#all ports except the incoming port
-	#NOTE: 0xfffc appears to NOT work.
+
+	enable_flow_expirations( $ofp, $sock );
+
+	my $j = $enums{'OFPP_ALL'};
 
 	# send from every port, receive on every port except the send port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
-	  print "sending from $i to (all ports but $i)\n";
-	  send_expect_multi_flow( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
-	  print "waiting for first flow to expire\n";
-	  wait_for_flow_expired( $ofp, $sock, $pkt_len, 0 );
-	  print "waiting for second flow to expire\n";
-	  wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+		print "sending from $i to (all ports but $i)\n";
+		send_expect_multi_flow( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
+		print "waiting for first flow to expire\n";
+		wait_for_flow_expired( $ofp, $sock, $pkt_len, 0 );
+		print "waiting for second flow to expire\n";
+		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
 	}
 }
 

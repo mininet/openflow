@@ -26,8 +26,6 @@ use vars qw(@ISA @EXPORT);  # needed cos strict is on
 
 our $ofp = Convert::Binary::C->new;
 
-print "test";
-
 # Convert::Binary::C config generated with `ccconfig`
 # should run this during make to customize to a machine
 my %config = (
