@@ -5,8 +5,9 @@ use OF::Includes;
 use File::Copy;
 
 # pass to tar only the files we care about; be careful to ignore .svn's
-my $release_num = '0.5.1';
-my $of_ver = "openflow-test-v$release_num";
+my $release_num = '0.8.1';
+my $revision = '0';
+my $of_ver = "openflow-test-v$release_num-r$revision";
 
 if (! -d "temp") { mkdir "temp"; }
 if (! -d "temp/$of_ver") { mkdir "temp/$of_ver"; }

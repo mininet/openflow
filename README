@@ -5,16 +5,26 @@ What's here?
 
 This distribution includes:
 
-    - 21 "black box" tests to verify that an OF switch conforms to the 
-      OF protocol v0.5.1
+    - 22 "black box" tests to verify that an OF switch conforms to the 
+      OF protocol v0.8.1
 
-    - 7 test to verify that the reference controller acts as a learning
+    - 5 test to verify that the reference controller acts as a learning
       Ethernet switch 
 
 The tests are intended to simplify the process of creating an OF switch
 that conforms to spec.  
 
 Please see INSTALL for instruction on installing and running the tests.
+
+Changelog
+---------------
+v0.8.1-r0
+-all tests updated to OF spec v0.8.1
+-added black box test test_switch_config
+-fixed timing dependence in learning switch tests
+
+v0.2.1
+-initial release for OF spec v0.5.1, code tested for ref OF code v0.2.1
 
 Platform support
 ----------------
