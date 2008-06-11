@@ -1,10 +1,8 @@
 #!/usr/bin/perl -w
 #test_unicast_unknown
 
-use Test::TestLib;
-use Test::PacketLib;
-use OF::OFUtil;
 use strict;
+use OF::Includes;
 
 sub my_test {
 
@@ -31,5 +29,4 @@ sub my_test {
 	return %delta;
 }
 
-# how do we pass the cmd-line arguments to the script?
 run_learning_switch_test( \&my_test );

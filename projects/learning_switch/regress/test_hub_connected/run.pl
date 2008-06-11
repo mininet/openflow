@@ -1,10 +1,8 @@
 #!/usr/bin/perl -w
 # test_same_port?
 
-use Test::TestLib;
-use Test:PacketLib;
-use OF::OFUtil;
 use strict;
+use OF::Includes;
 
 sub my_test {
 
@@ -31,7 +29,7 @@ sub my_test {
 	expect_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
 
 	# sleep as long as needed for the test to finish
-	sleep 0.5;
+	sleep 0.1;
 
 	my $pkt_args = {
 		DA     => "00:00:00:00:00:08",
@@ -46,7 +44,7 @@ sub my_test {
 	expect_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
 	expect_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
 	expect_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
-	sleep 0.5;
+	sleep 0.1;
 
   #  Now A and B try to talk to each other. see if switch drop the packet or not
 
@@ -63,5 +61,4 @@ sub my_test {
 	return %delta;
 }
 
-# how do we pass the cmd-line arguments to the script?
 run_learning_switch_test( \&my_test );

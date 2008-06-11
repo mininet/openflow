@@ -1,9 +1,9 @@
 test_unicast_unknown/run.pl
-test_unicast_known/run.pl # second packet sent to one interface seems to "reset" a saved broadcast conn... 
-#test_broadcast/run.pl
-###test_unicast_self/run.pl
-#test_unicast_move/run.pl
-###test_hub_connected/run.pl
-#test_unicast_multiple_hosts/run.pl
+test_unicast_known/run.pl
+test_broadcast/run.pl
+#test_unicast_self/run.pl
+test_unicast_move/run.pl
+#test_hub_connected/run.pl
+test_unicast_multiple_hosts/run.pl
 ##test_forward_latency/run.pl
 ##test_forward_bandwidth/run.pl

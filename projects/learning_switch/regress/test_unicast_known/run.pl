@@ -1,10 +1,8 @@
 #!/usr/bin/perl -w
 # test_unicast_known
 
-use Test::TestLib;
-use Test::PacketLib;
-use OF::OFUtil;
 use strict;
+use OF::Includes;
 
 sub my_test {
 
@@ -27,8 +25,7 @@ sub my_test {
 	expect_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
 	expect_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
 	expect_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
-
-	sleep 0.5;
+	sleep(.1);
 
 	$pkt_args = {
 		DA     => "00:00:00:00:00:01",
@@ -41,35 +38,34 @@ sub my_test {
 	$pkt = new NF2::IP_pkt(%$pkt_args);
 	send_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
 	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-	sleep 0.5;
+	sleep(.1);
 
-#	$pkt_args = {
-#		DA     => "00:00:00:00:00:01",
-#		SA     => "00:00:00:00:00:03",
-#		src_ip => "192.168.2.40",
-#		dst_ip => "192.168.0.40",
-#		ttl    => 64,
-#		len    => 64
-#	};
-#	$pkt = new NF2::IP_pkt(%$pkt_args);
-#	send_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
-#	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-#	sleep 0.5;
-#
-#	$pkt_args = {
-#		DA     => "00:00:00:00:00:01",
-#		SA     => "00:00:00:00:00:04",
-#		src_ip => "192.168.3.40",
-#		dst_ip => "192.168.0.40",
-#		ttl    => 64,
-#		len    => 64
-#	};
-#	$pkt = new NF2::IP_pkt(%$pkt_args);
-#	send_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
-#	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-#	
+	$pkt_args = {
+		DA     => "00:00:00:00:00:01",
+		SA     => "00:00:00:00:00:03",
+		src_ip => "192.168.2.40",
+		dst_ip => "192.168.0.40",
+		ttl    => 64,
+		len    => 64
+	};
+	$pkt = new NF2::IP_pkt(%$pkt_args);
+	send_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
+	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+	sleep(.1);
+
+	$pkt_args = {
+		DA     => "00:00:00:00:00:01",
+		SA     => "00:00:00:00:00:04",
+		src_ip => "192.168.3.40",
+		dst_ip => "192.168.0.40",
+		ttl    => 64,
+		len    => 64
+	};
+	$pkt = new NF2::IP_pkt(%$pkt_args);
+	send_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
+	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+	
 	return %delta;
 }
 
-# how do we pass the cmd-line arguments to the script?
 run_learning_switch_test( \&my_test );

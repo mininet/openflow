@@ -1,10 +1,8 @@
 #!/usr/bin/perl -w
 # test_unicast_multiple_hosts
 
-use Test::TestLib;
-use Test::PacketLib;
-use OF::OFUtil;
 use strict;
+use OF::Includes;
 
 sub my_test {
 
@@ -47,7 +45,7 @@ sub my_test {
 			$pkt = new NF2::IP_pkt(%$pkt_args);
 			send_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
 			expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-			sleep 0.5;
+			sleep 0.1;
 
 		}
 	}
@@ -66,8 +64,7 @@ sub my_test {
 			$pkt = new NF2::IP_pkt(%$pkt_args);
 			send_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
 			expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-			sleep 0.5;
-
+			sleep 0.1;
 		}
 	}
 
@@ -85,7 +82,7 @@ sub my_test {
 			$pkt = new NF2::IP_pkt(%$pkt_args);
 			send_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
 			expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-			sleep 0.5;
+			sleep 0.1;
 
 		}
 	}
@@ -93,5 +90,4 @@ sub my_test {
 	return %delta;
 }
 
-# how do we pass the cmd-line arguments to the script?
 run_learning_switch_test( \&my_test );
