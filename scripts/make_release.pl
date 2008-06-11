@@ -49,6 +49,15 @@ foreach my $file (@files) {
   print $file . "\n";
 }
 
+# set x permission for non-.pl files
+my @write_perm_list = (
+	'./projects/learning_switch/regress/common/setup',
+	'./projects/learning_switch/regress/common/teardown',
+	'./projects/black_box/regress/common/setup',
+	'./projects/black_box/regress/common/teardown'	
+);
+chmod 755, @write_perm_list;
+
 `cd $rootdir/temp; tar czf $of_ver.tar.gz *`;
 exit (0);
 
@@ -64,10 +73,19 @@ sub parse_dir {
 	# file? 
 	elsif (-f "$path") { 
 		if (file_ok($path)) {
-			#print "added $path to list\n";
+			print "added $path to list\n";
 			push @file_list, "$path"; 
 			
 			copy($path, "temp/$of_ver/$path") || die "failed to copy $path\n";
+			
+			#for perl files, make them executable 
+			my $match = $path =~ m/.pl/;
+			print "  match = $match\n";
+			if ($match) { 
+				# ensure file is executable
+				print "  setting chmod for $path\n";
+				chmod 755, "temp/$of_ver/$path" || die "failed to set chmod $path\n";
+			};
 		}
 		else {
 			#print "ignore file $path\n";
