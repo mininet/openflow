@@ -46,7 +46,6 @@ sub my_test {
 
 	#Now Host A Has Changed Location and Attached to p2
 	#It will send a packet to p1 form its new location
-
 	$pkt_args = {
 		DA     => "00:00:00:00:00:02",
 		SA     => "00:00:00:00:00:01",
@@ -62,7 +61,6 @@ sub my_test {
 
 	# Now p1 sends something to Host A which is now attached to p2
 	# we expect the switch to already updated its entry for Host A
-
 	$pkt_args = {
 		DA     => "00:00:00:00:00:01",
 		SA     => "00:00:00:00:00:02",

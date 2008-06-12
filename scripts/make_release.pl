@@ -50,13 +50,18 @@ foreach my $file (@files) {
 }
 
 # set x permission for non-.pl files
+# originally used perl chmod, but it doesn't work
 my @write_perm_list = (
-	'./projects/learning_switch/regress/common/setup',
-	'./projects/learning_switch/regress/common/teardown',
-	'./projects/black_box/regress/common/setup',
-	'./projects/black_box/regress/common/teardown'	
+	"./temp/$of_ver/projects/learning_switch/regress/common/setup",
+	"./temp/$of_ver/projects/learning_switch/regress/common/teardown",
+	"./temp/$of_ver/projects/black_box/regress/common/setup",
+	"./temp/$of_ver/projects/black_box/regress/common/teardown"	
 );
-chmod 755, @write_perm_list;
+foreach my $file (@write_perm_list) {
+	`chmod 755 $file`;
+}
+
+#print $write_perm_list[0] . "\n";
 
 `cd $rootdir/temp; tar czf $of_ver.tar.gz *`;
 exit (0);

@@ -8,7 +8,7 @@ This distribution includes:
     - 22 "black box" tests to verify that an OF switch conforms to the 
       OF protocol v0.8.1
 
-    - 5 test to verify that the reference controller acts as a learning
+    - 7 test to verify that the reference controller acts as a learning
       Ethernet switch 
 
 The tests are intended to simplify the process of creating an OF switch
@@ -20,7 +20,7 @@ Changelog
 ---------------
 v0.8.1-r0
 -all tests updated to OF spec v0.8.1
--added black box test test_switch_config
+-added black box test switch_config
 -fixed timing dependence in learning switch tests
 
 v0.2.1
@@ -238,62 +238,6 @@ projects/black_box/regress/tests.txt
 :: As of May 2, 2008, the result is the following. Even if protocol is not TCP nor UDP, port number fields seems used for matching. Only when protocol number is specified to zero, port number fields are not used for matching.. It seems a strange behavior.
 :; Status: Done (rewritten w/ clean format) 
 :; Note : TCP checksum (in TCP header) is not calculated due to lack of NF2::TCP library (but OF switch won't check it anyway).
-{| border="1"
-|+ Test results (as of Mar 2, 2008)
-! rowspan="2" valign="center"| Case !! colspan="3"|Match Args !! colspan="3" | Packet Header !! rowspan="2" valign="center" | Spec !!rowspan="2" valign="center" | Reality
-|-
-!protocol id || src port || dst port|| protocol id || src port|| dst port
-|-
-!A (case-tcp.pl)
-|TCP(0x6)
-|70
-|80
-|TCP(0x6)
-|70
-|80
-|Match
-|Match
-|-
-!B (case-udp.pl)
-|UDP(0x11)
-|70
-|80
-|UDP(0x11)
-|70
-|80
-|Match
-|Match
-|-
-!C (case-c.pl)
-|0x13(non TCP nor UDP)
-|70
-|80
-|0x13
-|70
-|80
-|Match (but not clearly stated)
-|Doesn't match (Now matches!)
-|-
-!D (case-d.pl)
-|0x13(non TCP nor UDP)
-|0 
-|0 
-|0x13
-|70
-|80
-|Match (but not clearly stated)
-|Match
-|-
-!E (case-e.pl)
-|0x13(non TCP nor UDP)
-|3 
-|4 
-|0x13
-|70
-|80
-|Match (but not clearly stated)
-|Doesn't match (now matches!)
-|}
 
 === IP Offset > Pkt Len ===
 :; Name: test_ip_offset
@@ -322,14 +266,13 @@ projects/black_box/regress/tests.txt
 :::; LLC header (3 byte) = 0xAA 0xAA 0x03 (always this value for IP packets)
 :::; SNAP header(5 byte) = OUI(3B)+Type(2B)=0x000000 + 0x0800(IP) (always this value for IP packets)
 :::; IP Packet
-:; NOTE: It fails (pkt is forwarded to the controller) as of May 2, 2008.
+:; NOTE: It fails (pkt is forwarded to the controller) as of June 11, 2008.
 
 
 Bugs/Shortcomings
 -----------------
 
-- None are currently known.  
-
+- test_llc and test_ip_protocol are not actually run when enabled in a tests.txt file  
 
 Contact 
 -------
