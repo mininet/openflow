@@ -40,6 +40,9 @@ sub my_test {
 
 	nftest_expect( nftest_get_iface('eth1'), $pkt->packed );
 
+	# Wait for packet to be forwarded out
+	sleep (.1);
+
 }
 
 run_black_box_test( \&my_test );

@@ -25,7 +25,9 @@ Connect cables as:
 It is not a requirement to have both cards in one system; passing the --common-setup and --common-teardown 
 options enable a second system to act as the switch, using SSH with authorized keys.  
  
-The instructions assume that the test system has an install of OpenFlow v0.2.1.
+The instructions assume that the test system has an install of OpenFlow v0.8.1.
+
+=== CentOS 5.1 Install ===
 
 The following packages are required:
  perl-Convert-Binary-C
@@ -39,7 +41,7 @@ These packages can be installed on CentOS 5.1 by doing:
  rpm -Uhv http://apt.sw.be/packages/rpmforge-release/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
 If it succeeds, do the following and you're done:
  yum -y install perl-Net-Pcap perl-Net-RawIP.i386 perl-Error.noarch
-If it fails, the DAG package repository is probably down.  You past this with a copy by:
+If it fails, the DAG package repository is probably down.  You can get past this with a copy by:
  wget ftp://fr2.rpmfind.net/linux/dag/redhat/el5/en/i386/dag/RPMS/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
  rpm -Uhv rpmforge-release-0.3.6-1.el5.rf.i386.rpm
 Since the repo is down, you still won't be able to download packages.  You can get around this by looking at a google cache of  the mirror list:
@@ -52,6 +54,49 @@ You can find the packages by looking at a working system and listing installed r
  from rpm -qa --last | tac 
  
 Alternately, these packages can be installed from source by downloading them from www.cpan.org.
+
+=== Debian Install ===
+
+These instructions derive from http://netfpga.org/netfpgawiki/index.php/Ubuntu_Compatibility
+
+*The version of libnet-pcap-perl that Debian and Ubuntu 6.06/7.04/7.10 provides is ANCIENT (version 0.04). The latest stable version is 0.14. No newer version is available as a package, so we must build it ourselves.
+*The version of libpcap that Debian and Ubuntu 7.04 provides by default is old (version 0.72). The latest stable version is 0.9.8. Fortunately, the package manager has a newer version called "libpcap0.8" that is really version 0.9.5
+*Remove old packages / install new ones 
+
+May not be necessary:
+ apt-get remove libpcap0.7
+ apt-get remove libpcap0.7-dev
+ apt-get remove libpcap-dev
+ apt-get remove libnet-pcap-perl
+
+Will be necessary:
+ apt-get install liberror-perl
+ apt-get install libio-interface-perl     (Used to manually build a newer version of Net::PCap)
+ apt-get install liblist-moreutils-perl   (Used to manually build a newer version of Net::RawIP)
+ apt-get install libpcap0.8
+ apt-get install libpcap0.8-dev
+ apt-get install psmisc                   (Used to get killall)
+
+Required packages have Debian versions at packages.debian.org, however these packages may not be the newest, or not exist at all.  libnet-rawip-perl and libnet-pacp-perl may work, but have not been tested. We'll manually install these two packages:
+http://search.cpan.org/~saper/Net-Pcap-0.14/Pcap.pm
+http://search.cpan.org/~szabgab/Net-RawIP-0.21/lib/Net/RawIP.pm
+http://search.cpan.org/dist/Convert-Binary-C/lib/Convert/Binary/C.pm
+http://search.cpan.org/dist/Data-HexDump/lib/Data/HexDump.pm
+
+Download the following:
+ wget http://search.cpan.org/CPAN/authors/id/S/SA/SAPER/Net-Pcap-0.14.tar.gz
+ wget http://search.cpan.org/CPAN/authors/id/S/SZ/SZABGAB/Net-RawIP-0.21.tar.gz
+ wget http://search.cpan.org/CPAN/authors/id/M/MH/MHX/Convert-Binary-C-0.71.tar.gz
+ wget http://search.cpan.org/CPAN/authors/id/F/FT/FTASSIN/Data-HexDump-0.02.tar.gz
+For each package:
+ tar xzf <package.tar.gz>
+ cd <package>
+ perl Makefile.PL
+ make
+ make install
+
+
+=== Common Install ===
 
 After unzipping the tgz to create the openflow-tests dir, copy the environment variables file to your home directory: 
  cp openflow-test/scripts/env_vars ~/
