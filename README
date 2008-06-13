@@ -18,6 +18,10 @@ Please see INSTALL for instruction on installing and running the tests.
 
 Changelog
 ---------------
+v0.8.1-r1
+-added instructions for Debian install
+-fixed timing bug in packet_out
+
 v0.8.1-r0
 -all tests updated to OF spec v0.8.1
 -added black box test switch_config
