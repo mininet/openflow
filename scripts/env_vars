@@ -1,4 +1,4 @@
-export OFT_ROOT=/home/brandonh/openflow-test
-export OF_ROOT=/root/openflow-v0.2.1
+export OFT_ROOT=/home/yourname/openflow-test
+export OF_ROOT=/root/openflow-v0.8.1
 export PATH=${PATH}:/${OFT_ROOT}/bin:/sbin:/usr/sbin
 export PERL5LIB=${PERL5LIB}:${OFT_ROOT}/lib/Perl5
