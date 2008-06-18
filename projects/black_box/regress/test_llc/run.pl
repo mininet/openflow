@@ -33,7 +33,7 @@ sub send_expect_exact_oneshot {
 	@{ $test_pkt_llc_ip->{'bytes'} }[ 0 .. ( $pkt_len_llc - 1 ) ] = (
 		0x02, 0x02, 0x02, 0x02, 0x02, 0x02,    # dst mac 6byte (02:02:02:02:02:02)
 		0x04, 0x04, 0x04, 0x04, 0x04, 0x04,    # src mac 6byte (04:04:04:04:04:04)
-		0x00, 0x36,                            # 2byte (Length=56byte=0x0036)
+		0x00, 0x36,                            # 2byte (Length=54byte=0x0036)
 		0xAA, 0xAA, 0x03,                      #LLC           # 3byte (always this value)
 		0x00, 0x00, 0x00,                      #SNAP(OUI)     # 3byte (always this value)
 		0x08, 0x00,                            #SNAP(PID)          # 2byte (0x0800 = IP)
