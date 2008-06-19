@@ -48,8 +48,10 @@ use Data::HexDump;
   &enable_flow_expirations
 );
 
-my $nf2_kernel_module_path = 'datapath_nf2/linux-2.6';
-my $nf2_kernel_module_name = 'openflow_hw_nf2.ko';
+my $nf2_kernel_module_path = 'datapath/linux-2.6';
+my $nf2_kernel_module_name_no_ext = 'hwtable_nf2_mod';
+my $nf2_kernel_module_name = $nf2_kernel_module_name_no_ext . '.ko';
+my $openflow_dir = $ENV{OF_ROOT};
 
 use constant CURRENT_OF_VER => 0x83;
 
@@ -142,20 +144,23 @@ sub setup_kmod {
 		exit 1;
 	}
 
-	my $openflow_dir = $ENV{OF_ROOT};
-
 	# create openflow switch on four ports
 	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
 
 	# If we are using the NetFPGA add the hardware kernel module
 	if ($isNF2) {
 		`insmod ${openflow_dir}/${nf2_kernel_module_path}/${nf2_kernel_module_name}`;
+		my $nf2_kmod_loaded = `lsmod | grep ${nf2_kernel_module_name_no_ext}`;
+		if ( $nf2_kmod_loaded eq "" ) {
+			print "failed to load nf2 hw table kernel module!\n";
+			exit 1;
+		}
 	}
-	`dpctl adddp nl:0`;
+	`${openflow_dir}/utilities/dpctl adddp nl:0`;
 
 	for ( my $i = 5 ; $i <= 8 ; $i++ ) {
 		my $iface = nftest_get_iface("eth$i");
-		`dpctl addif nl:0 $iface`;
+		`${openflow_dir}/utilities/dpctl addif nl:0 $iface`;
 	}
 }
 
@@ -175,14 +180,14 @@ sub teardown_kmod {
 	# remove interfaces from openflow
 	for ( my $i = 5 ; $i <= 8 ; $i++ ) {
 		my $iface = nftest_get_iface("eth$i");
-		`dpctl delif nl:0 $iface`;
+		`${openflow_dir}/utilities/dpctl delif nl:0 $iface`;
 	}
 
-	`dpctl deldp nl:0`;
+	`${openflow_dir}/utilities/dpctl deldp nl:0`;
 
 	# tear down the NF2 module if necessary
 	if ($isNF2) {
-		my $of_hw_kmod_removed = `rmmod ${nf2_kernel_module_name}`;
+		my $of_hw_kmod_removed = `rmmod ${nf2_kernel_module_name_no_ext}`;
 		if ( $of_hw_kmod_removed ne "" ) {
 			die "failed to remove hardware kernel module... please fix!\n";
 		}
@@ -428,7 +433,7 @@ sub run_black_box_test {
 		sleep .1;
 
 		# Spawn secchan process
-		exec "secchan", "nl:0", "tcp:127.0.0.1";
+		exec "${openflow_dir}/secchan/secchan", "nl:0", "tcp:127.0.0.1";
 		die "Failed to launch secchan: $!";
 	}
 	else {
