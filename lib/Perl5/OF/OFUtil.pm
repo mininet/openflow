@@ -19,6 +19,8 @@ use Data::Dumper;
 use IO::Socket;
 use Data::HexDump;
 
+use Proc::Background;
+
 @ISA    = ('Exporter');
 @EXPORT = qw(
   &trim
@@ -27,7 +29,9 @@ use Data::HexDump;
   &save_counters
   &verify_counters
   &setup_kmod
+  &setup_user
   &teardown_kmod
+  &teardown_user
   &compare
   &createControllerSocket
   &run_learning_switch_test
@@ -120,14 +124,50 @@ sub verify_counters {
 	return $errors;
 }
 
-sub setup_kmod {
-	my $isNF2 = shift;
-
+sub setup_pcap_interfaces {
 	# ensure all interfaces use an address
 	for ( my $i = 1 ; $i <= 4 ; $i++ ) {
 		my $iface = nftest_get_iface("eth$i");
-		`/sbin/ifconfig $iface 192.168.$i.1`;
+		`/sbin/ifconfig $iface 192.168.10$i.1`;
 	}
+}
+
+sub setup_kmod {
+
+	setup_pcap_interfaces();
+
+	# verify kernel module not loaded
+	my $of_kmod_loaded = `lsmod | grep openflow`;
+	if ( $of_kmod_loaded ne "" ) {
+		print "openflow kernel module already loaded... please fix!\n";
+		exit 1;
+	}
+
+	# verify controller not already running
+	my $controller_loaded = `ps -A | grep controller`;
+	if ( $controller_loaded ne "" ) {
+		print "controller already loaded... please remove and try again!\n";
+		exit 1;
+	}
+
+	my $openflow_dir = $ENV{'OF_ROOT'};
+
+	# create openflow switch on four ports
+	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
+
+	`dpctl adddp nl:0`;
+
+	for ( my $i = 5 ; $i <= 8 ; $i++ ) {
+		my $iface = nftest_get_iface("eth$i");
+		`dpctl addif nl:0 $iface`;
+	}
+	
+	system('secchan nl:0 tcp:127.0.0.1 &');
+}
+
+sub setup_NF2 {
+	
+	setup_pcap_interfaces();
 
 	# verify kernel module not loaded
 	my $of_kmod_loaded = `lsmod | grep openflow`;
@@ -147,15 +187,9 @@ sub setup_kmod {
 	# create openflow switch on four ports
 	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
 
-	# If we are using the NetFPGA add the hardware kernel module
-	if ($isNF2) {
-		`insmod ${openflow_dir}/${nf2_kernel_module_path}/${nf2_kernel_module_name}`;
-		my $nf2_kmod_loaded = `lsmod | grep ${nf2_kernel_module_name_no_ext}`;
-		if ( $nf2_kmod_loaded eq "" ) {
-			print "failed to load nf2 hw table kernel module!\n";
-			exit 1;
-		}
-	}
+	# add the hardware kernel module
+	`insmod ${openflow_dir}/${nf2_kernel_module_path}/${nf2_kernel_module_name}`;
+
 	`${openflow_dir}/utilities/dpctl adddp nl:0`;
 
 	for ( my $i = 5 ; $i <= 8 ; $i++ ) {
@@ -164,8 +198,50 @@ sub setup_kmod {
 	}
 }
 
+sub setup_user {
+
+	setup_pcap_interfaces();
+
+	# create openflow switch on four ports
+	system("switch tcp:127.0.0.1 -i eth5,eth6,eth7,eth8 \&");
+}
+
 sub teardown_kmod {
-	my $isNF2 = shift;
+	
+	# check that we're root?
+	my $who = `whoami`;
+	if ( trim($who) ne 'root' ) { die "must be root\n"; }
+
+	`killall secchan`;
+
+	# check if openflow kernel module loaded
+	my $of_kmod_loaded = `lsmod | grep openflow_mod`;
+	if ( $of_kmod_loaded eq "" ) { exit 0; }
+
+	print "tearing down interfaces and datapaths\n";
+
+	# remove interfaces from openflow
+	for ( my $i = 5 ; $i <= 8 ; $i++ ) {
+		my $iface = nftest_get_iface("eth$i");
+		`dpctl delif nl:0 $iface`;
+	}
+
+	`dpctl deldp nl:0`;
+
+	my $of_kmod_removed = `rmmod openflow_mod`;
+	if ( $of_kmod_removed ne "" ) {
+		die "failed to remove kernel module... please fix!\n";
+	}
+
+	$of_kmod_loaded = `lsmod | grep openflow_mod`;
+	if ( $of_kmod_loaded ne "" ) {
+		die "failed to remove kernel module... please fix!\n";
+	}
+
+	exit 0;
+}
+
+sub teardown_NF2 {
 
 	# check that we're root?
 	my $who = `whoami`;
@@ -185,7 +261,7 @@ sub teardown_kmod {
 
 	`${openflow_dir}/utilities/dpctl deldp nl:0`;
 
-	# tear down the NF2 module if necessary
+	# tear down the NF2 module
 	if ($isNF2) {
 		my $of_hw_kmod_removed = `rmmod ${nf2_kernel_module_name_no_ext}`;
 		if ( $of_hw_kmod_removed ne "" ) {
@@ -206,6 +282,18 @@ sub teardown_kmod {
 	exit 0;
 }
 
+
+sub teardown_user {
+
+	# check that we're root?
+	my $who = `whoami`;
+	if ( trim($who) ne 'root' ) { die "must be root\n"; }
+
+	`killall switch`;
+
+	exit 0;
+}
+
 sub compare {
 	my ( $test, $val, $op, $expected ) = @_;
 	my $success = eval "$val $op $expected" ? 1 : 0;
@@ -214,6 +302,7 @@ sub compare {
 
 sub createControllerSocket {
 	my ($host) = @_;
+	print "about to make socket\n";
 	my $sock = new IO::Socket::INET(
 		LocalHost => $host,
 		LocalPort => '975',
@@ -222,6 +311,7 @@ sub createControllerSocket {
 		Reuse     => 1
 	);
 	die "Could not create socket: $!\n" unless $sock;
+	print "made socket\n";
 	return $sock;
 }
 
@@ -251,7 +341,8 @@ sub run_learning_switch_test {
 	if ( !( $pid = fork ) ) {
 
 		# Run controller from this process
-		exec "controller", "-v", "nl:0";
+		#exec "controller", "-v", "nl:0";
+		exec "controller", "-v", "ptcp:";
 		die "Failed to launch controller: $!";
 	}
 	else {
@@ -415,32 +506,38 @@ sub set_config {
 }
 
 sub run_black_box_test {
-	my %options = process_command_line();
 
 	# test is a function pointer
 	my ($test) = @_;
-
+	
+	my %options = process_command_line();
+	
 	my $sock = createControllerSocket('localhost');
 
 	my $pid;
 
 	my $total_errors = 1;
 
-	# Fork off the "controller" server
-	if ( !( $pid = fork ) ) {
-
-		# Wait for controller to setup socket
+	#system("secchan nl:0 tcp:127.0.0.1 \&");
+	
+#	# Fork off the "controller" server
+#	if ( !( $pid = fork ) ) {
+#
+#		# Wait for controller to setup socket
 		sleep .1;
 
-		# Spawn secchan process
-		exec "${openflow_dir}/secchan/secchan", "nl:0", "tcp:127.0.0.1";
-		die "Failed to launch secchan: $!";
-	}
-	else {
-		my $total_errors = 0;
+#
+#		# Spawn secchan process
+#		exec "secchan", "nl:0", "tcp:127.0.0.1";
+#		die "Failed to launch secchan: $!";
+#	}
+#	else {
+		$total_errors = 0;
+
 		try {
 
 			# Wait for secchan to connect
+			print "about to accept\n";
 			my $new_sock = $sock->accept();
 
 			# Launch PCAP listenting interface
@@ -468,9 +565,6 @@ sub run_black_box_test {
 
 			close($sock);
 
-			# Kill secchan process
-			`killall secchan`;
-
 			my $unmatched = nftest_finish();
 			print "Checking pkt errors\n";
 			$total_errors += nftest_print_errors($unmatched);
@@ -488,7 +582,7 @@ sub run_black_box_test {
 
 			exit($exitCode);
 		};
-	}
+#	}
 }
 
 sub create_flow_mod_from_udp {

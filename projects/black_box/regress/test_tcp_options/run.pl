@@ -30,8 +30,8 @@ sub send_tcp_op_expect_exact {
 	my $test_pkt_args = {
 		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
 		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
-		src_ip => "0.0.0." .           ( $in_port + 1 ),
-		dst_ip => "0.0.0." .           ( $out_port + 1 ),
+		src_ip => "192.168.200." .           ( $in_port + 1 ),
+		dst_ip => "192.168.201." .           ( $out_port + 1 ),
 		ttl    => 64,
 		len    => $pkt_len,
 		proto => 6,                # TCP protocol id
@@ -165,4 +165,3 @@ sub create_flow_mod_from_ip {
 }
 
 run_black_box_test( \&my_test );
-

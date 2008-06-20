@@ -27,8 +27,8 @@ sub my_test {
 		dl_dst    => [ 0, 0, 0, 0, 0, 1 ],
 		dl_vlan   => 0xffff,
 		dl_type   => 0x800,
-		nw_src    => 0xc0a80128,             #192.168.1.40
-		nw_dst    => 0xc0a80028,             #192.168.0.40
+		nw_src    => 0xc0a8c928,             #192.168.201.40
+		nw_dst    => 0xc0a8c828,             #192.168.200.40
 		nw_proto  => 0xff,                   #tcp
 		tp_src    => 0,
 		tp_dst    => 0

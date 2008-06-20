@@ -40,7 +40,6 @@ my $setup       = 'setup';
 my $teardown    = 'teardown';
 
 my $_ROOT_DIR   = '';
-my $_IS_NETFPGA = 1;
 
 use constant REQUIRED => 1;
 use constant OPTIONAL => 0;
@@ -59,6 +58,7 @@ my $failfast       = 0;
 my $rootOverride   = '';
 my $commonSetup    = $setup;
 my $commonTeardown = $teardown;
+my $commonSTArgs   = '';  
 
 sub run_regress_test {
 
@@ -77,9 +77,10 @@ sub run_regress_test {
 			"ci=s"              => \$ci,
 			"citest=s"          => \$citest,
 			"failfast"          => \$failfast,
-			"root=s"            => \$rootOverride,
 			"common-setup=s"    => \$commonSetup,
 			"common-teardown=s" => \$commonTeardown,
+			"common-st-args=s"  => \$commonSTArgs,
+			"root=s"            => \$rootOverride
 		)
 		and ( $help eq '' )
 	  )
@@ -94,7 +95,7 @@ sub run_regress_test {
 	#
 	# Check stuff
 	#
-
+	
 	# If a root override was specified, set it
 	if ( $rootOverride ne '' ) {
 		$_ROOT_DIR = $rootOverride;
@@ -103,11 +104,6 @@ sub run_regress_test {
 		my_die( "Unknown root test directory", 0 );
 	}
 	print "Root directory is $_ROOT_DIR\n";
-
-#	# Check if this is being run on a NetFPGA
-#	if ( $isNetFPGA ne '' && lc($isNetFPGA) eq 'false' ) {
-#		$_IS_NETFPGA = 0;
-#	}
 
 	# Verify that the continuous integration program is correct if set
 	if ( $ci ne '' && $ci ne 'teamcity' ) {
@@ -228,6 +224,7 @@ SYNOPSIS
         [--root <root_test_path>]
         [--common-setup <local common setup file name>] 
         [--common-teardown <local common teardown file name>]
+        [--common-st-args <args for common setup & teardown>]
 
    $cmd --help  - show detailed help
 
@@ -270,8 +267,11 @@ OPTIONS
    --common-setup <local common setup file name>
      Run a custom setup script for each test.
     
-   --common-teardown <local common teardown file name>]
+   --common-teardown <local common teardown file name>
      Run a custom teardown script for each test.
+     
+   --common-st-args <args for common setup & teardown>
+     Pass args to setup and teardown.
 
 HERE
 
@@ -387,6 +387,7 @@ sub runRegressionSuite {
 			print "  Running test '$test'... " unless $quiet;
 
 			# Common setup
+			#print "    common setup\n";
 			my ( $csResult, $lsResult, $testResult, $ltResult, $ctResult ) = ( 1, 1, 1, 1, 1 );
 			my ( $csOutput, $lsOutput, $testOutput, $ltOutput, $ctOutput );
 			( $csResult, $csOutput ) = runCommonSetup($project);
@@ -395,6 +396,7 @@ sub runRegressionSuite {
 			$commonPass &= $csResult;
 
 			# Local setup -- only run if common setup passed
+			#print "    local setup\n";
 			if ($csResult) {
 				( $lsResult, $lsOutput ) = runLocalSetup( $project, $test );
 				$testResults{$test} = $lsResult;
@@ -402,6 +404,7 @@ sub runRegressionSuite {
 			}
 
 			# Actual test -- only run if both setups succeed
+			#print "    actual test\n";
 			if ( $csResult && $lsResult ) {
 				( $testResult, $testOutput ) = runTest( $project, $test );
 				$testResults{$test} = $testResult;
@@ -409,6 +412,7 @@ sub runRegressionSuite {
 			}
 
 			# Local teardown -- only run if the local setup succeeded
+			#print "    local teardown\n";
 			if ( $csResult && $lsResult ) {
 				( $ltResult, $ltOutput ) = runLocalTeardown( $project, $test );
 				$testResults{$test} = $ltResult;
@@ -416,6 +420,7 @@ sub runRegressionSuite {
 			}
 
 			# Common teardown -- only run if the common setup succeeded
+			#print "    common teardown\n";
 			if ($csResult) {
 				( $ctResult, $ctOutput ) = runCommonTeardown($project);
 				$testResults{$test} = $ctResult;
@@ -510,7 +515,7 @@ sub runGlobalSetup {
 #   Run the global setup for a regression suite
 sub runGlobalTeardown {
 	my $project = shift;
-
+	
 	return runScript( $project, $globalDir, $teardown, OPTIONAL );
 }
 
@@ -519,8 +524,14 @@ sub runGlobalTeardown {
 #   Run the common setup for a regression suite
 sub runCommonSetup {
 	my $project = shift;
+    my $args = '';
 
-	return runScript( $project, $commonDir, $commonSetup, OPTIONAL );
+	if ( defined($commonSTArgs) ) {
+		$args = " --common-st-args=$commonSTArgs";
+		$args = $args . " > /dev/null 2> /dev/null";
+	}
+
+	return runScript( $project, $commonDir, $commonSetup, OPTIONAL, $args );
 }
 
 #########################################################
@@ -528,8 +539,14 @@ sub runCommonSetup {
 #   Run the common setup for a regression suite
 sub runCommonTeardown {
 	my $project = shift;
+	my $args = '';
 
-	return runScript( $project, $commonDir, $commonTeardown, OPTIONAL );
+	if ( defined($commonSTArgs) ) {
+		$args = " --common-st-args=$commonSTArgs";
+		$args = $args . " > /dev/null 2> /dev/null";
+	}
+
+	return runScript( $project, $commonDir, $commonTeardown, OPTIONAL, $args );
 }
 
 #########################################################
@@ -572,8 +589,7 @@ sub runScript {
 	my $dir      = shift;
 	my $script   = shift;
 	my $required = shift;
-
-	my $args = '';
+	my $args     = shift || '';
 
 	# Verify that the test exists
 	unless ( -x "$_ROOT_DIR/$projectRoot/$project/$regressRoot/$dir/$script" ) {
@@ -589,7 +605,7 @@ sub runScript {
 	#
 	# Map file if it exists
 	if ( defined($mapFile) ) {
-		$args .= "--map $mapFile ";
+		$args = " --map $mapFile " . $args;
 	}
 
 	# Change to the test directory
@@ -649,3 +665,5 @@ sub my_die {
 	tcTestFailed( $citest, $mess, $details );
 	exit 1;
 }
+
+1;
