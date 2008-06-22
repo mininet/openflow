@@ -42,7 +42,7 @@
 #include "table.h"
 #include "flow.h"
 #include "datapath.h"
-
+#include "hwtable-dummy.h"
 
 /* Max number of flow entries supported by the hardware */
 #define DUMMY_MAX_FLOW   8192
@@ -303,6 +303,6 @@ static void dummy_cleanup(void)
 }
 module_exit(dummy_cleanup);
 
-MODULE_DESCRIPTION("Dummy hardware table driver");
+MODULE_DESCRIPTION(NF2_DEV_NAME);
 MODULE_AUTHOR("Copyright (c) 2008 The Board of Trustees of The Leland Stanford Junior University");
-MODULE_LICENSE("Stanford License");
+MODULE_LICENSE("GPL");

@@ -45,13 +45,16 @@ case "${enable_hw_tables}" in # (
     ;;
 esac
 for d in $hw_tables; do
-    mk=datapath/hwtable-$d/Modules.mk
+    mk=datapath/hwtable_$d/Modules.mk
+    base=datapath/hwtable_$d
     if test ! -e $srcdir/$mk; then
        AC_MSG_ERROR([--enable-hw-tables=$d specified but $mk is missing])
     fi
     HW_TABLES="$HW_TABLES \$(top_srcdir)/$mk"
+    HW_TABLES_INCLUDE="$HW_TABLES_INCLUDE -I\$(top_srcdir)/$base"
 done
 AC_SUBST(HW_TABLES)
+AC_SUBST(HW_TABLES_INCLUDE)
 
 AC_ARG_VAR(KARCH, [Kernel Architecture String])
 AC_SUBST(KARCH)
