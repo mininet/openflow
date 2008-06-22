@@ -46,7 +46,7 @@
 /* For NetFPGA */
 #include "reg_defines.h"
 #include "nf2_openflow.h"
-#include "hwtable-nf2.h"
+#include "hwtable_nf2.h"
 
 
 /* Max number of flow entries supported by the hardware */

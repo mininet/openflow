@@ -1,6 +1,6 @@
 #include <linux/etherdevice.h>
 #include "compat.h"
-#include "hwtable-nf2.h"
+#include "hwtable_nf2.h"
 #include "crc32.h"
 
 /* For NetFPGA */
