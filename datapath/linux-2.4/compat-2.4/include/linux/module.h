@@ -3,6 +3,8 @@
 
 #include <linux/kernel.h>
 #include_next <linux/module.h>
+#include <asm/page.h>
+#include <asm/atomic.h>
 
 static inline int try_module_get(struct module *module)
 {

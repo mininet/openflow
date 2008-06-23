@@ -10,6 +10,7 @@ static inline unsigned long __cmpxchg_u32(volatile int * m, unsigned long old,
 {
 	__u32 retval;
 
+#ifdef JIANGZHU_DEV
 	if (cpu_has_llsc && R10000_LLSC_WAR) {
 		__asm__ __volatile__(
 		"	.set	push					\n"
@@ -56,8 +57,16 @@ static inline unsigned long __cmpxchg_u32(volatile int * m, unsigned long old,
 			*m = new;
 		local_irq_restore(flags);	/* implies memory barrier  */
 	}
+#endif 
+	unsigned long flags;
 
-	smp_llsc_mb();
+	local_irq_save(flags);
+	retval = *m;
+	if (retval == old)
+		*m = new;
+	local_irq_restore(flags);	/* implies memory barrier  */
+
+	/* smp_llsc_mb(); */
 
 	return retval;
 }
@@ -67,6 +76,7 @@ static inline unsigned long __cmpxchg_u32_local(volatile int * m,
 {
 	__u32 retval;
 
+#ifdef JIANGZHU_DEV
 	if (cpu_has_llsc && R10000_LLSC_WAR) {
 		__asm__ __volatile__(
 		"	.set	push					\n"
@@ -110,6 +120,14 @@ static inline unsigned long __cmpxchg_u32_local(volatile int * m,
 			*m = new;
 		local_irq_restore(flags);	/* implies memory barrier  */
 	}
+#endif 
+	unsigned long flags;
+
+	local_irq_save(flags);
+	retval = *m;
+	if (retval == old)
+		*m = new;
+	local_irq_restore(flags);	/* implies memory barrier  */
 
 	return retval;
 }
@@ -119,7 +137,7 @@ static inline unsigned long __cmpxchg_u64(volatile int * m, unsigned long old,
 	unsigned long new)
 {
 	__u64 retval;
-
+#ifdef JIANGZHU_DEV
 	if (cpu_has_llsc && R10000_LLSC_WAR) {
 		__asm__ __volatile__(
 		"	.set	push					\n"
@@ -162,8 +180,16 @@ static inline unsigned long __cmpxchg_u64(volatile int * m, unsigned long old,
 			*m = new;
 		local_irq_restore(flags);	/* implies memory barrier  */
 	}
+#endif 
+	unsigned long flags;
 
-	smp_llsc_mb();
+	local_irq_save(flags);
+	retval = *m;
+	if (retval == old)
+		*m = new;
+	local_irq_restore(flags);	/* implies memory barrier  */
+
+	/* smp_llsc_mb();*/
 
 	return retval;
 }
@@ -173,6 +199,7 @@ static inline unsigned long __cmpxchg_u64_local(volatile int * m,
 {
 	__u64 retval;
 
+#ifdef JIANGZHU_DEV
 	if (cpu_has_llsc && R10000_LLSC_WAR) {
 		__asm__ __volatile__(
 		"	.set	push					\n"
@@ -212,6 +239,14 @@ static inline unsigned long __cmpxchg_u64_local(volatile int * m,
 			*m = new;
 		local_irq_restore(flags);	/* implies memory barrier  */
 	}
+#endif 
+	unsigned long flags;
+
+	local_irq_save(flags);
+	retval = *m;
+	if (retval == old)
+		*m = new;
+	local_irq_restore(flags);	/* implies memory barrier  */
 
 	return retval;
 }
