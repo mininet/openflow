@@ -37,8 +37,24 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <inttypes.h>
+
+/* Fix for some compile issues we were experiencing when setting up openwrt
+ * with the 2.4 kernel. linux/ethtool.h seems to use kernel-style inttypes,
+ * which breaks in userspace.
+ */
+#ifndef __KERNEL__
 #include <linux/types.h>
+#define u8 __u8
+#define u16 __u16
+#define u32 __u32
+#define u64 __u64
+#define s8 __s8
+#define s16 __s16
+#define s32 __s32
+#define s64 __s64
+#endif
 #include <linux/ethtool.h>
+
 #include <linux/sockios.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
