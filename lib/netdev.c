@@ -76,6 +76,12 @@
 #include "packets.h"
 #include "poll-loop.h"
 
+/* This doesn't seem to be defined in the linux/ethtool.h for linux 2.4 */
+#ifndef SPEED_2500 
+#define SPEED_2500 2500
+#endif
+
+
 #define THIS_MODULE VLM_netdev
 #include "vlog.h"
 
