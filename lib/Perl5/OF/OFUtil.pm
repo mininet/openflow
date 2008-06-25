@@ -19,8 +19,6 @@ use Data::Dumper;
 use IO::Socket;
 use Data::HexDump;
 
-use Proc::Background;
-
 @ISA    = ('Exporter');
 @EXPORT = qw(
   &trim
