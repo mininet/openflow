@@ -1,12 +1,12 @@
 #include <linux/etherdevice.h>
 #include "compat.h"
-#include "hwtable_nf2.h"
+#include "hwtable_nf2/hwtable_nf2.h"
 #include "crc32.h"
 
 /* For NetFPGA */
-#include "nf2.h"
-#include "reg_defines.h"
-#include "nf2_export.h"
+#include "hwtable_nf2/nf2.h"
+#include "hwtable_nf2/reg_defines.h"
+#include "hwtable_nf2/nf2_export.h"
 
 spinlock_t wildcard_free_lock;
 struct list_head wildcard_free_list;

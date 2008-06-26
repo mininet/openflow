@@ -1,8 +1,8 @@
 #include <linux/time.h>
-#include "nf2_openflow.h"
-#include "nf2.h"
-#include "reg_defines.h"
-#include "nf2_export.h"
+#include "hwtable_nf2/nf2_openflow.h"
+#include "hwtable_nf2/nf2.h"
+#include "hwtable_nf2/reg_defines.h"
+#include "hwtable_nf2/nf2_export.h"
 
 void nf2_reset_card(struct net_device *dev) {
 	unsigned int val = 0x00010100;
