@@ -21,10 +21,10 @@ sub my_test {
 	# send one packet; controller should learn MAC, add a flow
 	#  entry, and send this packet out the other interfaces
 	print "Sending now: \n";
-	send_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
+	send_and_count( 'eth1', $pkt->packed, \%delta );
+	expect_and_count( 'eth2', $pkt->packed, \%delta );
+	expect_and_count( 'eth3', $pkt->packed, \%delta );
+	expect_and_count( 'eth4', $pkt->packed, \%delta );
 	sleep(.1);
 
 	$pkt_args = {
@@ -36,8 +36,8 @@ sub my_test {
 		len    => 64
 	};
 	$pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+	send_and_count( 'eth2', $pkt->packed, \%delta );
+	expect_and_count( 'eth1', $pkt->packed, \%delta );
 	sleep(.1);
 
 	$pkt_args = {
@@ -49,8 +49,8 @@ sub my_test {
 		len    => 64
 	};
 	$pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+	send_and_count( 'eth3', $pkt->packed, \%delta );
+	expect_and_count( 'eth1', $pkt->packed, \%delta );
 	sleep(.1);
 
 	$pkt_args = {
@@ -62,10 +62,10 @@ sub my_test {
 		len    => 64
 	};
 	$pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+	send_and_count( 'eth4', $pkt->packed, \%delta );
+	expect_and_count( 'eth1', $pkt->packed, \%delta );
 	
 	return %delta;
 }
 
-run_learning_switch_test( \&my_test );
+run_learning_switch_test( \&my_test,  \@ARGV  );

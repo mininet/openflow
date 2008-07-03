@@ -14,8 +14,10 @@ Please send any comments to:
 === Prerequisites ===
 
 The code has been tested on CentOS5.1 and Debian Unstable under two
-configurations:
-(1) Dual quad-port Ethernet NICs connected by physical loopback cables.
+configurations. A third is useful for testing an external openflow 
+switch.
+
+(1) Two quad-port Ethernet NICs connected by physical loopback cables
 
 Assign ports as eth{1..8} and connect cables as:
  eth1 to eth5
@@ -28,38 +30,35 @@ Assign ports as eth{1..8} and connect cables as:
 To set these up, you must have a kernel version >= 2.6.24 and the veth kernel 
 module compiled.
 
-To set up link pair, you must also have a version of iproute installed.
+To set up link pairs, you must also have iproute installed.
 
-To insert:
- modprobe veth
-To add link pairs, use this command, four times:
- ip link add type veth
-You should get veth{0..7}.  The usual ports of eth{1..8} are remapped to these 
-ports via the file veth.map in /bin/.
+Scripts to simplify this are included in bin/:
+-bin/veth_setup.pl
+-bin/veth_teardown.pl
 
-To remove the ports, use this command, four times:
- ip link del veth0
+Before running any veth tests, make sure to run bin/veth_setup.pl, which will 
+create interfaces veth{0..7}.  The usual ports of eth{1..8} are remapped to these 
+ports via the file veth.map in /bin/.  To remove these interfaces, run
+bin/veth_teardown.pl
 
 (3) A third configuration is to use four ports of Ethernet on the test machine,
-connected to an external switch.  Passing the --common-setup and --common-teardown 
-options enables a second system to act as the switch, using SSH with authorized keys.  
+connected to an external switch.  To do this, you must provide custom setup
+and teardown scripts that enable/disable OpenFlow on the external switch via 
+SSH, telnet, or SNMP. See the scripts in bin/ for examples of how to create 
+these. 
  
 The instructions assume that the test system has an install of OpenFlow v0.8.1.
 
 Note also that the tests require no other packets to be sent on the testing
 interfaces.  Built-in program like avahi-daemon and/or network-manager may
 send packets, causing the tests to report failure.  The simplest way to remove
-this packets is probably to disable the ipv6 module.  In 
-/etc/modprobe.d/aliases change the line
- alias net-pf-10 ipv6
-to
- alias net-pf-10 off
- alias ipv6 off
-After doing so, reboot the system. 
+this packets is probably to disable the ipv6 module.  After doing so, 
+reboot the system. 
+
 You may also want to remove avahi-daemon, which may send packets, attempting
 to find an address via zeroconf.
 
-=== CentOS 5.1 Install ===
+=== CentOS 5.2 Install ===
 
 The following packages are required:
  perl-Convert-Binary-C
@@ -68,7 +67,7 @@ The following packages are required:
  perl-Net-RawIP.i386
  perl-Error.noarch
 
-These packages can be installed on CentOS 5.1 by doing: 
+These packages can be installed on CentOS 5.2 by doing: 
  yum -y install  perl-Convert-Binary-C perl-Data-HexDump 
  rpm -Uhv http://apt.sw.be/packages/rpmforge-release/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
 If it succeeds, do the following and you're done:
@@ -135,7 +134,11 @@ Install if you want to use veth pairs:
 
 === Common Install ===
 
-In the sections below, {platform} refers to user, user_veth, kmod, and kmod_veth.
+In the sections below, {platform} refers to:
+user
+user_veth
+kmod
+kmod_veth
 
 After unzipping the tgz to create the openflow-tests dir, copy the environment variables file to your home directory: 
  cp openflow-test/scripts/env_vars ~/
@@ -148,7 +151,7 @@ Source the environment variables:
 Verify your setup by running regression tests on your platform of choice:
  of_{platform}_test.pl
 For the user-space switch, the tests should show pass for all scripts except the _X_controller ones.  
-For the kernel-space switch, all tests should pass
+For the kernel-space switch, all tests should pass.
 
 To see more options for the regression script, type:
  of_{platform}_test.pl --help
@@ -161,7 +164,7 @@ Look at an example controller test:
 Look at an example black box switch test:
  vim openflow-tests/projects/black_box/regress/test_hello/run.pl
 
-To run this test with all output printed:
+To run an individual test (learning switch example):
  cd openflow-tests/projects/learning_switch/regress/test_unicast_unknown
  of_{platform}_setup.pl; ./run.pl; of_{platform}_teardown.pl
 

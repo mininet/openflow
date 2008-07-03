@@ -59,4 +59,4 @@ sub my_test {
 }
 
 # how do we pass the cmd-line arguments to the script?
-run_learning_switch_test( \&my_test );
+run_learning_switch_test( \&my_test, \@ARGV  );

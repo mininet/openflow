@@ -209,8 +209,6 @@ sub setup_user {
 	$if_string .= nftest_get_iface("eth8");
 	print "about to create switch tcp:127.0.0.1 -i $if_string \& \n";
 	system("${openflow_dir}/switch/switch tcp:127.0.0.1 -i $if_string \&");
-
-	die("asdfa");
 }
 
 sub teardown_kmod {
@@ -336,9 +334,10 @@ sub process_command_line() {
 
 sub run_learning_switch_test {
 
-
 	# test is a function pointer
-	my ( $test, @ARGV ) = @_;
+	my ( $test_ref, $argv_ref) = @_;
+
+	my %options = nftest_init( $argv_ref, \@interfaces, );
 
 	my ( %init_counters, %final_counters, %delta );
 
@@ -348,7 +347,6 @@ sub run_learning_switch_test {
 	if ( !( $pid = fork ) ) {
 
 		# Run controller from this process
-		#exec "controller", "-v", "nl:0";
 		exec "controller", "-v", "ptcp:";
 		die "Failed to launch controller: $!";
 	}
@@ -362,15 +360,12 @@ sub run_learning_switch_test {
 			# Wait for controller to load
 			sleep(1);
 
-			# Launch PCAP listenting interface
-			my %options = nftest_init( \@ARGV, \@interfaces );
-
 			nftest_start( \@interfaces, );
 
 			save_counters( \%init_counters );
 
 			# Run test
-			my %delta = &$test();
+			my %delta = &$test_ref();
 
 			# sleep as long as needed for the test to finish
 			sleep 0.5;

@@ -20,7 +20,7 @@ sub my_test {
 	my $pkt = new NF2::IP_pkt(%$pkt_args);
 
 	print "Sending now: \n";
-	send_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+	send_and_count( 'eth1', $pkt->packed, \%delta );
 
 	$pkt_args = {
 		DA     => "00:00:00:00:00:02",
@@ -31,7 +31,7 @@ sub my_test {
 		len    => 64
 	};
 	$pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
+	send_and_count( 'eth2', $pkt->packed, \%delta );
 
 	$pkt_args = {
 		DA     => "00:00:00:00:00:03",
@@ -42,7 +42,7 @@ sub my_test {
 		len    => 64 
 	};
 	$pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
+	send_and_count( 'eth3', $pkt->packed, \%delta );
 
 	$pkt_args = {
 		DA     => "00:00:00:00:00:04",
@@ -53,9 +53,9 @@ sub my_test {
 		len    => 64
 	};
 	$pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
+	send_and_count( 'eth4', $pkt->packed, \%delta );
 
 	return %delta;
 }
 
-run_learning_switch_test( \&my_test );
+run_learning_switch_test( \&my_test,  \@ARGV  );

@@ -922,8 +922,7 @@ sub nftest_process_iface_map {
 
 		# Work out if we've got something that looks like a mapping
 		if (/^(\w+):\s*(\w+)$/) {
-			$ifaceNameMap{$1} = $2;
-			print "added ifaceNameMap $1 points to $2\n";
+			$ifaceNameMap{$1} = $2; 
 		}
 	}
 	close MAPFILE;

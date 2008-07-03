@@ -23,10 +23,10 @@ sub my_test {
 	# send one packet; controller should learn MAC, add a flow
 	#  entry, and send this packet out the other interfaces
 	print "Sending now: \n";
-	send_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
+	send_and_count( 'eth1', $pkt->packed, \%delta );
+	expect_and_count( 'eth2', $pkt->packed, \%delta );
+	expect_and_count( 'eth3', $pkt->packed, \%delta );
+	expect_and_count( 'eth4', $pkt->packed, \%delta );
 
 	# sleep as long as needed for the test to finish
 	sleep 0.1;
@@ -40,10 +40,10 @@ sub my_test {
 		len    => 64
 	};
 	my $pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth2'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth3'), $pkt->packed, \%delta );
-	expect_and_count( nftest_get_iface('eth4'), $pkt->packed, \%delta );
+	send_and_count( 'eth1', $pkt->packed, \%delta );
+	expect_and_count( 'eth2', $pkt->packed, \%delta );
+	expect_and_count( 'eth3', $pkt->packed, \%delta );
+	expect_and_count( 'eth4', $pkt->packed, \%delta );
 	sleep 0.1;
 
   #  Now A and B try to talk to each other. see if switch drop the packet or not
@@ -57,8 +57,8 @@ sub my_test {
 		len    => 64
 	};
 	my $pkt = new NF2::IP_pkt(%$pkt_args);
-	send_and_count( nftest_get_iface('eth1'), $pkt->packed, \%delta );
+	send_and_count( 'eth1', $pkt->packed, \%delta );
 	return %delta;
 }
 
-run_learning_switch_test( \&my_test );
+run_learning_switch_test( \&my_test,  \@ARGV  );
