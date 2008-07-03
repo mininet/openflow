@@ -169,46 +169,38 @@ my %vhARPRepLog : shared;
 sub nftest_init {
 	my ( $argv_ref, $active_ports_ref ) = @_;
 
-	#  my %argv_hash = { @$argv_ref };
-
-	foreach my $iface (@$active_ports_ref) {
-
-		# add the interface with a default name
-		$ifaceNameMap{$iface} = $iface;
-	}
-
-	#
-	# Process arguments
-	#
-
-	my $help = '';
-	my $mapFile;
-
 	my @ARGV = @$argv_ref;
+
+	my %options = ();
+	
 	unless (
-		GetOptions(
-			"help"  => \$help,
-			"map=s" => \$mapFile
-		)
-		and ( $help eq '' )
-	  )
+		GetOptions( 
+			\%options, 
+			"map=s",
+			"one-indexed",
+			"controller=s"
+			)
+		) 
 	{
 		usage();
-		exit 1;
+		exit 1;		
 	}
 
-	#
-	# Verify that the mapfile exists
-	#
-	if ( defined($mapFile) ) {
-		nftest_process_iface_map($mapFile);
+	$options{'pkt_len'} = 64;
+	$options{'pkt_total'} = 1;
+	$options{'max_idle'} = 1;
+
+	# Process the mappings if specified, else use defaults
+	if ( defined( $options{'map'} ) ) {
+		nftest_process_iface_map( $options{'map'} );
+	} else {
+		foreach my $iface (@$active_ports_ref) {
+			# add the interface with a default name
+			$ifaceNameMap{$iface} = $iface;
+		}		
 	}
 
-	# change the mappings according to command line args
-	#  while (my ($name, $mapped_to) = each %argv_hash) {
-	#    print "nftest_initialize: mapping $name to $mapped_to.\n";
-	#    $ifaceNameMap{$name} = $mapped_to;
-	#  }
+	return %options;
 }
 
 ###############################################################
@@ -227,7 +219,6 @@ sub nftest_start {
 
 	lock($mode);
 	$mode = MODE_NON_VHOST;
-	
 
 	foreach my $iface (@$active_ports_ref) {
 
@@ -237,11 +228,9 @@ sub nftest_start {
 			lock %pktHashes;
 			$pktHashes{$iface} = $pkts;
 		}
-
-		my $ifaceReal = $ifaceNameMap{$iface};
-
+		
 		# Create the capture thread
-		push @threads, NF2::Pcap::start( $ifaceReal, \&nftest_pkt_arrival, $iface );
+		push @threads, NF2::Pcap::start( $iface, \&nftest_pkt_arrival, $iface );
 	}
 
 	# Sleep 2 seconds before returning to give threads time to launch
@@ -282,12 +271,12 @@ sub nftest_restart {
 # Return:
 ################################################################
 sub nftest_pkt_arrival {
-	my ( $devReal, $packet, $iface ) = @_;
+	my ( $dev, $packet, $iface ) = @_;
 
 	# Store the packet in the correct hash
 	lock %pktHashes;
 	if ( !defined( $pktHashes{$iface} ) ) {
-		die "Not currently listening on device $iface. Make sure you called nftest_start before.\n";
+		die "Not currently listening on device $iface. Make sure you called nftest_start before 1.\n";
 	}
 	my $pkts = $pktHashes{$iface};
 
@@ -366,7 +355,7 @@ sub nftest_expect {
 		lock %pktHashes;
 		if ( !defined( $pktHashes{$dev} ) ) {
 			die
-			  "Not currently listening on device $dev. Make sure you called nftest_start before.\n";
+			  "Not currently listening on device $dev. Make sure you called nftest_start before 2.\n";
 		}
 		$pkts = $pktHashes{$dev};
 	}
@@ -421,7 +410,7 @@ sub get_pkts {
 
 	# Verify that something is listening on the requested port
 	if ( !defined( $pktHashes{$dev} ) ) {
-		die "Not currently listening on device $dev. Make sure you called nftest_start before.\n";
+		die "Not currently listening on device $dev. Make sure you called nftest_start before 3.\n";
 	}
 
 	# Work out which packets were unexpected
@@ -437,7 +426,7 @@ sub get_pkts {
 
 ###############################################################
 # Name: getIface
-# Get the Net::RawIP object associated with an interface
+# Get the Net::RawIP object associated with a [pre-map] interface
 # Arguments: iface string
 # Return: Net::RawIP object
 ###############################################################
@@ -453,7 +442,7 @@ sub getIface {
 
 	# Convert the values to strings and create the object
 	$rawIPs{$ifaceName} = Net::RawIP->new;
-	$rawIPs{$ifaceName}->ethnew( $ifaceNameMap{$ifaceName} );
+	$rawIPs{$ifaceName}->ethnew($ifaceNameMap{$ifaceName} );
 	return $rawIPs{$ifaceName};
 }
 
@@ -934,6 +923,7 @@ sub nftest_process_iface_map {
 		# Work out if we've got something that looks like a mapping
 		if (/^(\w+):\s*(\w+)$/) {
 			$ifaceNameMap{$1} = $2;
+			print "added ifaceNameMap $1 points to $2\n";
 		}
 	}
 	close MAPFILE;
@@ -1003,12 +993,12 @@ sub nftest_pkt_cap_start {
 # Return:
 ################################################################
 sub nftest_pkt_cap_arrival {
-  my ($devReal, $packet, $iface) = @_;
+  my ($dev, $packet, $iface) = @_;
 
   # Store the packet in the correct hash
   lock %pktArrays;
   if (!defined($pktArrays{$iface})) {
-    die "Not currently listening on device $iface. Make sure you called nftest_start before.\n";
+    die "Not currently listening on device $iface. Make sure you called nftest_start before 4.\n";
   }
   
   push @{ $pktArrays{$iface} }, $packet;

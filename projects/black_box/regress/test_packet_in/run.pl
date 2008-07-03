@@ -6,19 +6,10 @@ use OF::Includes;
 
 sub my_test {
 
-	my ($sock) = @_;
+	my ($sock, $options_ref) = @_;
 
-	my $pkt_args = {
-		DA     => "00:00:00:00:00:02",
-		SA     => "00:00:00:00:00:01",
-		src_ip => "192.168.200.40",
-		dst_ip => "192.168.201.40",
-		ttl    => 64,
-		len    => 64
-	};
-	my $pkt = new NF2::IP_pkt(%$pkt_args);
-
-	nftest_send( nftest_get_iface('eth1'), $pkt->packed );
+	my $pkt = get_default_black_box_pkt( 0, 1);
+	nftest_send('eth1', $pkt->packed );
 
 	my $recvd_mesg;
 	sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
@@ -47,4 +38,4 @@ sub my_test {
 	}
 }
 
-run_black_box_test( \&my_test );
+run_black_box_test( \&my_test, \@ARGV );

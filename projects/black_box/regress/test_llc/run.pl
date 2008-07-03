@@ -22,9 +22,6 @@ else {
 	print "test for DIX\n";
 }
 
-my $pkt_total = 1;
-my $max_idle  = 1;
-
 sub send_expect_exact_oneshot {
 
 	my ( $ofp, $sock, $in_port, $out_port, $max_idle, $pkt_len ) = @_;
@@ -97,18 +94,22 @@ sub send_expect_exact_oneshot {
 
 	# Send a packet - ensure packet comes out desired port
 	if ( $EthFMT eq "LLC" ) {
-		nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt_llc_ip->packed );
-		nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ), $test_pkt_llc_ip->packed );
+		nftest_send( "eth" . ( $in_port + 1 ), $test_pkt_llc_ip->packed );
+		nftest_expect( "eth" . ( $out_port + 1 ), $test_pkt_llc_ip->packed );
 	}
 	else {
-		nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt_dix_ip->packed );
-		nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ), $test_pkt_dix_ip->packed );
+		nftest_send( "eth" . ( $in_port + 1 ), $test_pkt_dix_ip->packed );
+		nftest_expect( "eth" . ( $out_port + 1 ), $test_pkt_dix_ip->packed );
 	}
 }
 
 sub my_test {
 
-	my ($sock) = @_;
+	my ($sock, $options_ref) = @_;
+
+	my $max_idle = $$options_ref{'max_idle'};
+	#my $pkt_len = $$options_ref{'pkt_len'};
+	my $pkt_total = $$options_ref{'pkt_total'};
 
 	enable_flow_expirations( $ofp, $sock );
 
@@ -124,5 +125,5 @@ sub my_test {
 	}
 }
 
-run_black_box_test( \&my_test );
+run_black_box_test( \&my_test, \@ARGV );
 

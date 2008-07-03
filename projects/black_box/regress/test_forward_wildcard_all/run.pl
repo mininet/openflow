@@ -4,10 +4,6 @@
 use strict;
 use OF::Includes;
 
-my $pkt_len   = 64;
-my $pkt_total = 1;
-my $max_idle  = 2;
-
 sub send_expect_exact {
 
 	my ( $ofp, $sock, $in_port, $out_port, $max_idle, $pkt_len, $wildcards ) = @_;
@@ -16,30 +12,11 @@ sub send_expect_exact {
 
 	# in_port refers to the flow mod entry's input
 
-	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
-		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
-		src_ip => "192.168.200." .           ( $in_port + 1 ),
-		dst_ip => "192.168.201." .           ( $out_port + 1 ),
-		ttl    => 64,
-		len    => $pkt_len,
-		src_port => 1,
-		dst_port => 0
-	};
-	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
+	# This packet will always match
+	my $test_pkt = get_default_black_box_pkt_len( $in_port, $out_port, $pkt_len );
 
-	#This packet will always mismatch
-	my $test_pkt_args2 = {
-		DA       => "00:00:00:00:00:FF",
-		SA       => "00:00:00:00:00:FF",
-		src_ip   => "192.168.200." . ( $in_port + 1 ),
-		dst_ip   => "192.168.201." . ( $out_port + 1 ),
-		ttl      => 64,
-		len      => $pkt_len,
-		src_port => 1,
-		dst_port => 0
-	};
-	my $test_pkt2 = new NF2::UDP_pkt(%$test_pkt_args2);
+	# This packet will always miss
+	my $test_pkt2 = get_default_black_box_pkt_len( $in_port + 5, $out_port + 5, $pkt_len );
 
 	#print HexDump ( $test_pkt->packed );
 
@@ -54,24 +31,24 @@ sub send_expect_exact {
 	usleep(100000);
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt->packed );
+	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt->packed );
 
 	for ( my $k = 0 ; $k < 4 ; $k++ ) {
 		if ( $k + 1 != $in_port + 1 ) {
-			nftest_expect( nftest_get_iface( "eth" . ( $k + 1 ) ), $test_pkt->packed );
+			nftest_expect( "eth" . ( $k + 1 ), $test_pkt->packed );
 		}
 	}
 
 	print "Matching packet sent\n";
 
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt2->packed );
+	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt2->packed );
 
 	print "Non-matching packet sent\n";
 	my $recvd_mesg;
 	sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
 
 	# Inspect  message
-	my $msg_size      = length($recvd_mesg);
+	my $msg_size = length($recvd_mesg);
 	my $expected_size = $ofp->offsetof( 'ofp_packet_in', 'data' ) + length( $test_pkt2->packed );
 
 	#print "Comparing sizes $msg_size and $expected_size\n";
@@ -99,11 +76,14 @@ sub send_expect_exact {
 
 sub my_test {
 
-	my ($sock) = @_;
-
+	my ( $sock, $options_ref ) = @_;
 	my $j = $enums{'OFPP_FLOOD'};
 
 	enable_flow_expirations( $ofp, $sock );
+
+	my $max_idle =  $$options_ref{'max_idle'};
+	my $pkt_len = $$options_ref{'pkt_len'};
+	my $pkt_total = $$options_ref{'pkt_total'};
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
@@ -125,7 +105,7 @@ sub my_test {
 		send_expect_exact( $ofp, $sock, $i, $j, $max_idle, $pkt_len, 0x0004 );
 		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
 
-		print "wildcards 0x0008 : DL_DST\n"; 
+		print "wildcards 0x0008 : DL_DST\n";
 		send_expect_exact( $ofp, $sock, $i, $j, $max_idle, $pkt_len, 0x0008 );
 		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
 
@@ -158,5 +138,5 @@ sub my_test {
 	}
 }
 
-run_black_box_test( \&my_test );
+run_black_box_test( \&my_test, \@ARGV );
 

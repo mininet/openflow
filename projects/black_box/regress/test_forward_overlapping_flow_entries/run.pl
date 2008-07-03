@@ -4,27 +4,11 @@
 use strict;
 use OF::Includes;
 
-my $pkt_len   = 64;
-my $pkt_total = 1;
-my $max_idle  = 5;
-
 sub send_expect_multi_flow {
 
 	my ( $ofp, $sock, $in_port, $out_port, $max_idle, $pkt_len ) = @_;
 
-	# in_port refers to the flow mod entry's input
-
-	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
-		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
-		src_ip => "192.168.200." .           ( $in_port + 1 ),
-		dst_ip => "192.168.201." .           ( $out_port + 1 ),
-		ttl    => 64,
-		len    => $pkt_len,
-		src_port => 1,
-		dst_port => 0
-	};
-	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
+	my $test_pkt = get_default_black_box_pkt_len( $in_port, $out_port, $pkt_len );	
 
 	#print HexDump ( $test_pkt->packed );
 
@@ -52,11 +36,11 @@ sub send_expect_multi_flow {
 	usleep(100000);
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt->packed );
+	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt->packed );
 
 	for ( my $k = 0 ; $k < 4 ; $k++ ) {
 		if ( $k + 1 != $in_port + 1 ) {
-			nftest_expect( nftest_get_iface( "eth" . ( $k + 1 ) ), $test_pkt->packed );
+			nftest_expect( "eth" . ( $k + 1 ), $test_pkt->packed );
 		}
 	}
 
@@ -64,7 +48,12 @@ sub send_expect_multi_flow {
 
 sub my_test {
 
-	my ($sock) = @_;
+	my ($sock, $options_ref) = @_; 
+	
+	#my $max_idle =  $$options_ref{'max_idle'};
+	my $max_idle = 5;
+	my $pkt_len = $$options_ref{'pkt_len'};
+	my $pkt_total = $$options_ref{'pkt_total'};
 
 	enable_flow_expirations( $ofp, $sock );
 
@@ -81,5 +70,5 @@ sub my_test {
 	}
 }
 
-run_black_box_test( \&my_test );
+run_black_box_test( \&my_test, \@ARGV );
 

@@ -31,7 +31,7 @@ use Data::HexDump;
   &teardown_kmod
   &teardown_user
   &compare
-  &createControllerSocket
+  &create_controller_socket
   &run_learning_switch_test
   &do_hello_sequence
   &get_config
@@ -48,12 +48,14 @@ use Data::HexDump;
   &get_of_ver
   &get_of_miss_send_len_default
   &enable_flow_expirations
+  &get_default_black_box_pkt
+  &get_default_black_box_pkt_len
 );
 
-my $nf2_kernel_module_path = 'datapath/linux-2.6';
+my $nf2_kernel_module_path        = 'datapath/linux-2.6';
 my $nf2_kernel_module_name_no_ext = 'hwtable_nf2_mod';
-my $nf2_kernel_module_name = $nf2_kernel_module_name_no_ext . '.ko';
-my $openflow_dir = $ENV{OF_ROOT};
+my $nf2_kernel_module_name        = $nf2_kernel_module_name_no_ext . '.ko';
+my $openflow_dir                  = $ENV{OF_ROOT};
 
 use constant CURRENT_OF_VER => 0x83;
 
@@ -62,8 +64,6 @@ use constant MISS_SEND_LEN_DEFAULT => 0x80;
 
 # sending/receiving interfaces - NOT OpenFlow ones
 my @interfaces = ( "eth1", "eth2", "eth3", "eth4" );
-
-
 
 ##############################################################
 
@@ -123,6 +123,7 @@ sub verify_counters {
 }
 
 sub setup_pcap_interfaces {
+
 	# ensure all interfaces use an address
 	for ( my $i = 1 ; $i <= 4 ; $i++ ) {
 		my $iface = nftest_get_iface("eth$i");
@@ -159,12 +160,12 @@ sub setup_kmod {
 		my $iface = nftest_get_iface("eth$i");
 		`dpctl addif nl:0 $iface`;
 	}
-	
+
 	system('secchan nl:0 tcp:127.0.0.1 &');
 }
 
 sub setup_NF2 {
-	
+
 	setup_pcap_interfaces();
 
 	# verify kernel module not loaded
@@ -201,11 +202,19 @@ sub setup_user {
 	setup_pcap_interfaces();
 
 	# create openflow switch on four ports
-	system("switch tcp:127.0.0.1 -i eth5,eth6,eth7,eth8 \&");
+	my $if_string = '';
+	for ( my $i = 5 ; $i <= 7 ; $i++ ) {
+		$if_string .= nftest_get_iface("eth$i") . ',';
+	}
+	$if_string .= nftest_get_iface("eth8");
+	print "about to create switch tcp:127.0.0.1 -i $if_string \& \n";
+	system("${openflow_dir}/switch/switch tcp:127.0.0.1 -i $if_string \&");
+
+	die("asdfa");
 }
 
 sub teardown_kmod {
-	
+
 	# check that we're root?
 	my $who = `whoami`;
 	if ( trim($who) ne 'root' ) { die "must be root\n"; }
@@ -280,7 +289,6 @@ sub teardown_NF2 {
 	exit 0;
 }
 
-
 sub teardown_user {
 
 	# check that we're root?
@@ -298,7 +306,7 @@ sub compare {
 	if ( !$success ) { die "$test: error $val not $op $expected\n"; }
 }
 
-sub createControllerSocket {
+sub create_controller_socket {
 	my ($host) = @_;
 	print "about to make socket\n";
 	my $sock = new IO::Socket::INET(
@@ -315,6 +323,7 @@ sub createControllerSocket {
 
 sub process_command_line() {
 	my %options = ();
+
 	GetOptions( \%options, "map=s" );
 
 	# Process the mappings if specified
@@ -326,10 +335,10 @@ sub process_command_line() {
 }
 
 sub run_learning_switch_test {
-	my %options = process_command_line();
+
 
 	# test is a function pointer
-	my ($test) = @_;
+	my ( $test, @ARGV ) = @_;
 
 	my ( %init_counters, %final_counters, %delta );
 
@@ -354,7 +363,8 @@ sub run_learning_switch_test {
 			sleep(1);
 
 			# Launch PCAP listenting interface
-			nftest_init( \@ARGV, \@interfaces, );
+			my %options = nftest_init( \@ARGV, \@interfaces );
+
 			nftest_start( \@interfaces, );
 
 			save_counters( \%init_counters );
@@ -411,7 +421,7 @@ sub do_hello_sequence {
 	my $hdr_args_features_request = {
 		version => CURRENT_OF_VER,
 		type    => $enums{'OFPT_FEATURES_REQUEST'},
-		length  => $ofp->sizeof('ofp_header'),  # should generate automatically!
+		length  => $ofp->sizeof('ofp_header'),        # should generate automatically!
 		xid     => 0x00000000
 	};
 	my $features_request = $ofp->pack( 'ofp_header', $hdr_args_features_request );
@@ -438,13 +448,13 @@ sub do_hello_sequence {
 	#print Dumper($msg);
 
 	# Verify fields
-	verify_header ( $msg, 'OFPT_FEATURES_REPLY', $msg_size);
+	verify_header( $msg, 'OFPT_FEATURES_REPLY', $msg_size );
 }
 
 sub get_config {
-	
-	my ( $ofp, $sock )  = @_;
-	
+
+	my ( $ofp, $sock ) = @_;
+
 	my $hdr_args_get_config_request = {
 		version => CURRENT_OF_VER,
 		type    => $enums{'OFPT_GET_CONFIG_REQUEST'},
@@ -475,15 +485,15 @@ sub get_config {
 	#print Dumper($msg);
 
 	# Verify header fields
-	verify_header ( $msg, 'OFPT_GET_CONFIG_REPLY', $msg_size);
-	
+	verify_header( $msg, 'OFPT_GET_CONFIG_REPLY', $msg_size );
+
 	return $msg;
 }
 
 sub set_config {
-	
-	my ( $ofp, $sock, $flags, $miss_send_len )  = @_;
-	
+
+	my ( $ofp, $sock, $flags, $miss_send_len ) = @_;
+
 	my $hdr_args = {
 		version => CURRENT_OF_VER,
 		type    => $enums{'OFPT_SET_CONFIG'},
@@ -492,8 +502,8 @@ sub set_config {
 	};
 
 	my $set_config_args = {
-		header => $hdr_args,
-		flags => $flags,
+		header        => $hdr_args,
+		flags         => $flags,
 		miss_send_len => $miss_send_len
 	};
 
@@ -504,83 +514,59 @@ sub set_config {
 }
 
 sub run_black_box_test {
-
-	# test is a function pointer
-	my ($test) = @_;
 	
-	my %options = process_command_line();
-	
-	my $sock = createControllerSocket('localhost');
+	my ( $test_ref, $argv_ref ) = @_;
 
-	my $pid;
+	my %options = nftest_init( $argv_ref, \@interfaces, );
 
-	my $total_errors = 1;
+	my $sock = create_controller_socket('localhost');
 
-	#system("secchan nl:0 tcp:127.0.0.1 \&");
-	
-#	# Fork off the "controller" server
-#	if ( !( $pid = fork ) ) {
-#
-#		# Wait for controller to setup socket
-		sleep .1;
+	my $total_errors = 0;
+	try {
 
-#
-#		# Spawn secchan process
-#		exec "secchan", "nl:0", "tcp:127.0.0.1";
-#		die "Failed to launch secchan: $!";
-#	}
-#	else {
-		$total_errors = 0;
+		# Wait for secchan to connect
+		print "waiting for secchan to connect\n";
+		my $new_sock = $sock->accept();
 
-		try {
+		# Launch PCAP listenting interface
+		nftest_start( \@interfaces );
 
-			# Wait for secchan to connect
-			print "about to accept\n";
-			my $new_sock = $sock->accept();
+		do_hello_sequence( $ofp, $new_sock );
 
-			# Launch PCAP listenting interface
-			nftest_init( \@ARGV, \@interfaces, );
-			nftest_start( \@interfaces, );
+		&$test_ref( $new_sock, \%options );
 
-			#if ($ofp) { print "ofp not null\n"; } else { print "ofp null\n"; }
-			do_hello_sequence( $ofp, $new_sock );
+		# Sleep as long as needed for the test to finish
+		sleep 0.5;
+	}
+	catch Error with {
 
-			&$test( $new_sock, %options );
-
-			# Sleep as long as needed for the test to finish
-			sleep 0.5;
+		# Catch and print any errors that occurred during control processing
+		my $ex = shift;
+		if ($ex) {
+			print $ex->stringify();
 		}
-		catch Error with {
+		$total_errors = 1;
+	}
+	finally {
 
-			# Catch and print any errors that occurred during control processing
-			my $ex = shift;
-			if ($ex) {
-				print $ex->stringify();
-			}
-			$total_errors = 1;
+		close($sock);
+
+		my $unmatched = nftest_finish();
+		print "Checking pkt errors\n";
+		$total_errors += nftest_print_errors($unmatched);
+
+		# if no errors earlier, and packets match, then success
+		my $exitCode;
+		if ( $total_errors == 0 ) {
+			print "SUCCESS!\n";
+			$exitCode = 0;
 		}
-		finally {
-
-			close($sock);
-
-			my $unmatched = nftest_finish();
-			print "Checking pkt errors\n";
-			$total_errors += nftest_print_errors($unmatched);
-
-			# if no errors earlier, and packets match, then success
-			my $exitCode;
-			if ( $total_errors == 0 ) {
-				print "SUCCESS!\n";
-				$exitCode = 0;
-			}
-			else {
-				print "FAIL: $total_errors errors\n";
-				$exitCode = 1;
-			}
-
-			exit($exitCode);
-		};
-#	}
+		else {
+			print "FAIL: $total_errors errors\n";
+			$exitCode = 1;
+		}
+		exit($exitCode);
+	};
 }
 
 sub create_flow_mod_from_udp {
@@ -794,12 +780,12 @@ sub wait_for_one_packet_in {
 }
 
 sub verify_header {
-	
-	my ( $msg, $ofpt, $msg_size) = @_;
 
-	compare("header version", $$msg{'header'}{'version'}, '==', CURRENT_OF_VER);
-	compare("header type", $$msg{'header'}{'type'}, '==', $enums{$ofpt});
-	compare("header length", $$msg{'header'}{'length'}, '==', $msg_size);
+	my ( $msg, $ofpt, $msg_size ) = @_;
+
+	compare( "header version", $$msg{'header'}{'version'}, '==', CURRENT_OF_VER );
+	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{$ofpt} );
+	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
 }
 
 sub get_of_ver {
@@ -811,12 +797,34 @@ sub get_of_miss_send_len_default {
 }
 
 sub enable_flow_expirations {
-	
+
 	my ( $ofp, $sock ) = @_;
 
-	my $flags = 1; # OFPC_SEND_FLOW_EXP = 0x0001;
+	my $flags         = 1;                       # OFPC_SEND_FLOW_EXP = 0x0001;
 	my $miss_send_len = MISS_SEND_LEN_DEFAULT;
-	set_config($ofp, $sock, $flags, $miss_send_len);
+	set_config( $ofp, $sock, $flags, $miss_send_len );
+}
+
+sub get_default_black_box_pkt {
+	my ($in_port, $out_port) = @_; 
+
+	return get_default_black_box_pkt_len($in_port, $out_port, 64);
+}
+
+sub get_default_black_box_pkt_len {
+	my ($in_port, $out_port, $len) = @_; 
+
+	my $pkt_args = {
+		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
+		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
+		src_ip => "192.168.200." .     ( $in_port + 1 ),
+		dst_ip => "192.168.201." .     ( $out_port + 1 ),
+		ttl    => 64,
+		len    => $len,
+		src_port => 1,
+		dst_port => 0
+	};
+	return new NF2::UDP_pkt(%$pkt_args);
 }
 
 # Always end library in 1

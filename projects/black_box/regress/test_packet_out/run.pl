@@ -6,17 +6,9 @@ use OF::Includes;
 
 sub my_test {
 
-	my ($sock) = @_;
+	my ($sock, $options_ref) = @_;
 
-	my $pkt_args = {
-		DA     => "00:00:00:00:00:02",
-		SA     => "00:00:00:00:00:01",
-		src_ip => "192.168.200.40",
-		dst_ip => "192.168.201.40",
-		ttl    => 64,
-		len    => 64
-	};
-	my $pkt = new NF2::IP_pkt(%$pkt_args);
+	my $pkt = get_default_black_box_pkt( 0, 1);
 
 	my $hdr_args = {
 		version => get_of_ver(),
@@ -38,12 +30,12 @@ sub my_test {
 	# Send 'packet_out' message
 	print $sock $pkt_sent;
 
-	nftest_expect( nftest_get_iface('eth1'), $pkt->packed );
+	nftest_expect( 'eth1', $pkt->packed );
 
 	# Wait for packet to be forwarded out
 	sleep (.1);
 
 }
 
-run_black_box_test( \&my_test );
+run_black_box_test( \&my_test, \@ARGV );
 

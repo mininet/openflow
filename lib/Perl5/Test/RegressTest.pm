@@ -605,7 +605,7 @@ sub runScript {
 	#
 	# Map file if it exists
 	if ( defined($mapFile) ) {
-		$args = " --map $mapFile " . $args;
+		$args = " --map=$mapFile " . $args;
 	}
 
 	# Change to the test directory

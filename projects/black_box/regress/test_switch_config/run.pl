@@ -6,7 +6,7 @@ use OF::Includes;
 
 sub my_test {
 
-	my ($sock) = @_;
+	my ($sock, $options_ref) = @_;
 
 	my $msg = get_config( $ofp, $sock );
 
@@ -33,5 +33,5 @@ sub my_test {
 	compare( "flags", $$msg{'flags'}, '==', $flags );	
 }
 
-run_black_box_test( \&my_test );
+run_black_box_test( \&my_test, \@ARGV );
 

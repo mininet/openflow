@@ -20,10 +20,11 @@ Changelog
 ---------------
 v0.8.1-r2
 -refactored code to make new test ports easier
--fixed bug in test_LLC
--changed all interfaces IPs to 192.168.2XX.XXX to not conflict with the
+-fixed documentation bug in test_LLC
+-changed all interfaces IPs to 192.168.20X.X to not conflict with the
   IP addrs typically assigned via DHCP by home routers
--added easy support for testing user-space switch
+-added easy support for testing user-space switch with physical ports
+-added easy support for user-space switch with virtual ports
 
 v0.8.1-r1
 -added instructions for Debian install
@@ -118,12 +119,17 @@ projects/learning_switch/regress/tests.txt
 :; Description: assume each port is connected to a switch, so that each port receives traffic from multiple MAC addresses - say, 20 per port.  Other than multiple MAC addrs per port, this is just like test_unicast_known.  Each port sends to a host at a different port.
 
 
-Learning Switch Tests
+Black Box Tests
 ----------------
 
-One test currently fails with OF Reference v0.8.1:
+One test currently fails with the OF Reference v0.8.1 kmod:
 
 -LLC: Pkt is forwarded to the controller, when it should be dropped.
+
+Two tests are currently failing with the OF Reference v0.8.1 user-space switch:
+
+-test_forward_exact_controller
+-test_forward_wildcard_controller
 
 All failing tests can be re-activated by changing 
 projects/black_box/regress/tests.txt

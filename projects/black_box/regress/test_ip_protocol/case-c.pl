@@ -4,10 +4,6 @@
 use strict;
 use OF::Includes;
 
-my $pkt_len   = 64;
-my $pkt_total = 1;
-my $max_idle  = 1;
-
 sub send_expect_exact {
 
 	my ( $ofp, $sock, $in_port, $out_port, $max_idle, $pkt_len ) = @_;
@@ -46,16 +42,20 @@ sub send_expect_exact {
 	usleep(100000);
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ),
+	nftest_send( "eth" . ( $in_port + 1 ),
 		$test_pkt->packed );
-	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ),
+	nftest_expect( "eth" . ( $out_port + 1 ),
 		$test_pkt->packed );
 }
 
 
 sub my_test {
 	
-	my ($sock) = @_;
+	my ($sock, $options_ref) = @_;
+
+	my $max_idle = $$options_ref{'max_idle'};
+	my $pkt_len = $$options_ref{'pkt_len'};
+	my $pkt_total = $$options_ref{'pkt_total'};
 
 	enable_flow_expirations( $ofp, $sock );
 
@@ -150,4 +150,4 @@ sub create_flow_mod_from_pseudo_tcp {
 	return $flow_mod_pkt;
 }
 
-run_black_box_test(\&my_test);
+run_black_box_test(\&my_test, \@ARGV);

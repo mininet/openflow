@@ -4,10 +4,6 @@
 use strict;
 use OF::Includes;
 
-my $pkt_len   = 64;
-my $pkt_total = 1;
-my $max_idle  = 1;
-
 sub send_expect_exact_with_wildcard {
 
 	my ( $ofp, $sock, $in_port, $out_port, $out_port2, $max_idle, $pkt_len ) = @_;
@@ -60,11 +56,11 @@ sub send_expect_exact_with_wildcard {
 
 	# Send a packet - ensure packet comes out desired port
 	print "Verify packets are forwarded correctly\n";
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt->packed );
-	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ), $test_pkt->packed );
+	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt->packed );
+	nftest_expect( "eth" . ( $out_port + 1 ), $test_pkt->packed );
 
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt2->packed );
-	nftest_expect( nftest_get_iface( "eth" . ( $out_port2 + 1 ) ), $test_pkt2->packed );
+	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt2->packed );
+	nftest_expect( "eth" . ( $out_port2 + 1 ), $test_pkt2->packed );
 }
 
 sub delete_strict_send_expect {
@@ -114,16 +110,20 @@ sub delete_strict_send_expect {
 	# Send a packet
 	print
 "Verify packets are forwarded correctly i.e., one fwded to contoller and one (exact match) fwd to the specified port\n";
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt->packed );
-	nftest_expect( nftest_get_iface( "eth" . ( $out_port + 1 ) ), $test_pkt->packed );
+	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt->packed );
+	nftest_expect( "eth" . ( $out_port + 1 ), $test_pkt->packed );
 
-	nftest_send( nftest_get_iface( "eth" . ( $in_port + 1 ) ), $test_pkt2->packed );
+	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt2->packed );
 	wait_for_one_packet_in( $ofp, $sock, $pkt_len, $test_pkt2->packed );
 }
 
 sub my_test {
 
-	my ($sock) = @_;
+	my ($sock, $options_ref) = @_;
+
+	my $max_idle =  $$options_ref{'max_idle'};
+	my $pkt_len = $$options_ref{'pkt_len'};
+	my $pkt_total = $$options_ref{'pkt_total'};
 
 	enable_flow_expirations( $ofp, $sock );
 
@@ -145,4 +145,4 @@ sub my_test {
 	}
 }
 
-run_black_box_test( \&my_test );
+run_black_box_test( \&my_test, \@ARGV );

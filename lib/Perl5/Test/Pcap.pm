@@ -12,6 +12,7 @@ use threads;                # pull in threading routines
 use threads::shared;        # and variable sharing routines
 use Socket;
 use IO::Select;
+use Test::TestLib;
 
 # state enumeration
 use constant ETH_P_ALL     => 3;
@@ -102,6 +103,9 @@ sub bindToDevice {
    socket($s, PF_PACKET, SOCK_RAW, ETH_P_ALL) 
       or die "Error opening socket. Errno: $!";
 
+   # Convert from pre-map interface to real one
+   $dev = Test::TestLib::nftest_get_iface($dev);
+
    # Get the index of the given port
    my $ifr = pack('Z[16]x[16]', $dev);
    ioctl($s, SIOCGIFINDEX, $ifr) 
@@ -136,6 +140,9 @@ sub bindToDevice {
 #####################################################################
 sub endPromisc {
    my ($dev, $s) = @_;
+
+   # Convert from pre-map interface to real one
+   $dev = Test::TestLib::nftest_get_iface($dev);   
 
    # Attempt to disable promiscuous mode
    my $ifr = pack('Z[16]x[16]', $dev);
