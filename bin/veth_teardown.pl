@@ -1,4 +1,4 @@
 #!/usr/bin/perl -w
 
-`rmmod veth`;
+`/sbin/rmmod veth`;
 

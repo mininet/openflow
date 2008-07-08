@@ -15,7 +15,7 @@ Please send any comments to:
 
 The code has been tested on CentOS5.1 and Debian Unstable under two
 configurations. A third is useful for testing an external openflow 
-switch.
+switch. 
 
 (1) Two quad-port Ethernet NICs connected by physical loopback cables
 
@@ -52,46 +52,38 @@ The instructions assume that the test system has an install of OpenFlow v0.8.1.
 Note also that the tests require no other packets to be sent on the testing
 interfaces.  Built-in program like avahi-daemon and/or network-manager may
 send packets, causing the tests to report failure.  The simplest way to remove
-this packets is probably to disable the ipv6 module.  After doing so, 
+this packets is to disable the ipv6 module.  After doing so, 
 reboot the system. 
 
 You may also want to remove avahi-daemon, which may send packets, attempting
 to find an address via zeroconf.
 
-=== CentOS 5.2 Install ===
-
 The following packages are required:
  perl-Convert-Binary-C
  perl-Data-HexDump 
- perl-Net-Pcap
- perl-Net-RawIP.i386
- perl-Error.noarch
+ perl-Net-Pcap 		(perl-Net-Pcap-0.16-1)
+ perl-Net-RawIP.i386 	(perl-Net-RawIP-0.23-1)
+ perl-Error.noarch 	(perl-Error-0.17012-1)
 
-These packages can be installed on CentOS 5.2 by doing: 
- yum -y install  perl-Convert-Binary-C perl-Data-HexDump 
- rpm -Uhv http://apt.sw.be/packages/rpmforge-release/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
-If it succeeds, do the following and you're done:
- yum -y install perl-Net-Pcap perl-Net-RawIP.i386 perl-Error.noarch
-If it fails, the DAG package repository is probably down.  You can get past this with a copy by:
- wget ftp://fr2.rpmfind.net/linux/dag/redhat/el5/en/i386/dag/RPMS/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
+These packages can be installed from source via www.cpan.org, or you can use pre-built packages (much faster!).
+
+=== CentOS 5.2 Install ===
+Install the RPMForge repository:
+ wget http://dag.wieers.com/rpm/packages/rpmforge-release/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
  rpm -Uhv rpmforge-release-0.3.6-1.el5.rf.i386.rpm
-Since the repo is down, you still won't be able to download packages.  You can get around this by looking at a google cache of  the mirror list:
-http://209.85.173.104/search?q=cache:I3Ha3zXve_QJ:apt.sw.be/redhat/el5/en/mirrors-rpmforge+http://apt.sw.be/redhat/el5/en/mirrors-rpmforge&hl=en&ct=clnk&cd=1&gl=us&client=iceweasel-a
-...then installing the necessary packages individually 
- rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Net-Pcap-0.16-1.el5.rf.i386.rpm
- rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Net-RawIP-0.23-1.el5.rf.i386.rpm
- rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Error-0.17012-1.el5.rf.noarch.rpm
-You can find the packages by looking at a working system and listing installed rpms in chron order:
- from rpm -qa --last | tac 
- 
-Alternately, these packages can be installed from source by downloading them from www.cpan.org.
 
-Install iproute:
- XXX
+Install Perl packages:
+ yum -y install perl-Convert-Binary-C perl-Data-HexDump perl-Net-Pcap perl-Net-RawIP.i386 perl-Error.noarch
+ 
+Upgrade to a newer kernel.
+ 
+Install an updated version of the iproute utility
 
 === Debian Install ===
 
 These instructions derive from http://netfpga.org/netfpgawiki/index.php/Ubuntu_Compatibility
+
+Some instructions may no longer be necessary.
 
 *The version of libnet-pcap-perl that Debian and Ubuntu 6.06/7.04/7.10 provides is ANCIENT (version 0.04). The latest stable version is 0.14. No newer version is available as a package, so we must build it ourselves.
 *The version of libpcap that Debian and Ubuntu 7.04 provides by default is old (version 0.72). The latest stable version is 0.9.8. Fortunately, the package manager has a newer version called "libpcap0.8" that is really version 0.9.5
@@ -132,7 +124,7 @@ Install if you want to use veth pairs:
  apt-get install iproute
 
 
-=== Common Install ===
+=== Running the Tests ===
 
 In the sections below, {platform} refers to:
 user
@@ -183,5 +175,20 @@ Note that the kmod refuses removal until the interfaces and datapaths have been 
 Please report problems to: 
 info@openflowswitch.org
  
- 
+== Archives ==
 
+ 
+If it fails, the DAG package repository is probably down.  You can get past this with a copy by:
+ wget ftp://fr2.rpmfind.net/linux/dag/redhat/el5/en/i386/dag/RPMS/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
+ rpm -Uhv rpmforge-release-0.3.6-1.el5.rf.i386.rpm
+Since the repo is down, you still won't be able to download packages.  You can get around this by looking at a google cache of  the mirror list:
+http://209.85.173.104/search?q=cache:I3Ha3zXve_QJ:apt.sw.be/redhat/el5/en/mirrors-rpmforge+http://apt.sw.be/redhat/el5/en/mirrors-rpmforge&hl=en&ct=clnk&cd=1&gl=us&client=iceweasel-a
+...then installing the necessary packages individually 
+ rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Net-Pcap-0.16-1.el5.rf.i386.rpm
+ rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Net-RawIP-0.23-1.el5.rf.i386.rpm
+ rpm -Uhv http://mirror.cpsc.ucalgary.ca/mirror/dag/redhat/el5/en/i386/dag/RPMS/perl-Error-0.17012-1.el5.rf.noarch.rpm
+You can find the packages by looking at a working system and listing installed rpms in chron order:
+ from rpm -qa --last | tac 
+
+ yum -y install  perl-Convert-Binary-C perl-Data-HexDump 
+ rpm -Uhv http://apt.sw.be/packages/rpmforge-release/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
