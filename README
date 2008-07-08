@@ -42,12 +42,12 @@ Platform support
 ----------------
 
 The code is written in Perl5, and should in theory work on any system.  
-It has only been tested with CentOS5.1.
+It has been tested with CentOS 5.2, Ubuntu 8.04, and Debian Unstable.
 
 Learning Switch Tests
 ----------------
 
-Two tests currently fail with OF Reference v0.2.1:
+Two tests currently fail with OF Reference v0.8.1:
 
 -Unicast, send to self: the switch is forwarding packets with source and destination on the same port to that port instead of dropping it.
 
