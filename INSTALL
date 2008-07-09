@@ -177,7 +177,7 @@ kmod_veth
 
 After unzipping the tgz to create the openflow-tests dir, copy the environment variables file to your home directory: 
  cd ~/
- cp openflow-v0.8.1/scripts/env_vars .
+ cp openflow-test-<version>/scripts/env_vars .
 Update the OFT_ROOT (tests) and OF_ROOT (openflow) environment vars to your setup.  These can also be add to your ~/.bashrc file to load automatically:
  vim env_vars
 Enter a root shell session, or set up sudo. The perl-Net-RawIP library requires root access to bind to ports.
@@ -197,13 +197,13 @@ To see more options for the regression script, type:
 == Writing Your Own Tests ==
 
 Look at an example controller test:
- vim openflow-tests/projects/learning_switch/regress/test_unicast_unknown/run.pl
+ vim openflow-test-<version>/projects/learning_switch/regress/test_unicast_unknown/run.pl
  
 Look at an example black box switch test:
- vim openflow-tests/projects/black_box/regress/test_hello/run.pl
+ vim openflow-test-<version>/projects/black_box/regress/test_hello/run.pl
 
 To run an individual test (learning switch example):
- cd openflow-tests/projects/learning_switch/regress/test_unicast_unknown
+ cd openflow-test-<version>/projects/learning_switch/regress/test_unicast_unknown
  of_{platform}_setup.pl; ./run.pl; of_{platform}_teardown.pl
 
 To see traffic when running a black box test, use tcpdump.  Secchan and the Perl code use the loopback interface to communicate, and you can snoop on this:
