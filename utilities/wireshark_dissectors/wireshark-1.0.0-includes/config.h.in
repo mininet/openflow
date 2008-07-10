@@ -1,0 +1,321 @@
+/* config.h.in.  Generated from configure.in by autoheader.  */
+
+/* Directory for data */
+#undef DATAFILE_DIR
+
+/* Link plugins statically into Wireshark */
+#undef ENABLE_STATIC
+
+/* Format modifier for printing 64-bit numbers */
+#undef G_GINT64_MODIFIER
+
+/* Enable AirPDcap (WPA/WPA2 decryption) */
+#undef HAVE_AIRPDCAP
+
+/* Define to 1 if you have the <arpa/inet.h> header file. */
+#undef HAVE_ARPA_INET_H
+
+/* Define to 1 if you have the <arpa/nameser.h> header file. */
+#undef HAVE_ARPA_NAMESER_H
+
+/* Define to 1 if you have the <direct.h> header file. */
+#undef HAVE_DIRECT_H
+
+/* Define to 1 if you have the <dirent.h> header file. */
+#undef HAVE_DIRENT_H
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the <fcntl.h> header file. */
+#undef HAVE_FCNTL_H
+
+/* Define to 1 if you have the `gethostbyname2' function. */
+#undef HAVE_GETHOSTBYNAME2
+
+/* Define to 1 if you have the `getprotobynumber' function. */
+#undef HAVE_GETPROTOBYNUMBER
+
+/* Define to use GNU ADNS library */
+#undef HAVE_GNU_ADNS
+
+/* Define to 1 if you have the <grp.h> header file. */
+#undef HAVE_GRP_H
+
+/* Define to use heimdal kerberos */
+#undef HAVE_HEIMDAL_KERBEROS
+
+/* Define if you have the iconv() function. */
+#undef HAVE_ICONV
+
+/* Define if inet_ntop() prototype exists */
+#undef HAVE_INET_NTOP_PROTO
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the `issetugid' function. */
+#undef HAVE_ISSETUGID
+
+/* Define to use kerberos */
+#undef HAVE_KERBEROS
+
+/* Define if krb5.h defines KEYTYPE_ARCFOUR_56 */
+#undef HAVE_KEYTYPE_ARCFOUR_56
+
+/* Define to 1 if you have the <lauxlib.h> header file. */
+#undef HAVE_LAUXLIB_H
+
+/* Define to use the libcap library */
+#undef HAVE_LIBCAP
+
+/* Define to use libgcrypt */
+#undef HAVE_LIBGCRYPT
+
+/* Define to use gnutls library */
+#undef HAVE_LIBGNUTLS
+
+/* Define to use libpcap library */
+#undef HAVE_LIBPCAP
+
+/* Define to use libpcre library */
+#undef HAVE_LIBPCRE
+
+/* Define to use libportaudio library */
+#undef HAVE_LIBPORTAUDIO
+
+/* Define to 1 if you have the `smi' library (-lsmi). */
+#undef HAVE_LIBSMI
+
+/* Define to use libz library */
+#undef HAVE_LIBZ
+
+/* Define to 1 if you have the <lua5.1/lauxlib.h> header file. */
+#undef HAVE_LUA5_1_LAUXLIB_H
+
+/* Define to 1 if you have the <lua5.1/lualib.h> header file. */
+#undef HAVE_LUA5_1_LUALIB_H
+
+/* Define to 1 if you have the <lua5.1/lua.h> header file. */
+#undef HAVE_LUA5_1_LUA_H
+
+/* Define to 1 if you have the <lualib.h> header file. */
+#undef HAVE_LUALIB_H
+
+/* Define to use Lua 5.1 */
+#undef HAVE_LUA_5_1
+
+/* Define to 1 if you have the <lua.h> header file. */
+#undef HAVE_LUA_H
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to use MIT kerberos */
+#undef HAVE_MIT_KERBEROS
+
+/* Define to 1 if you have the `mmap' function. */
+#undef HAVE_MMAP
+
+/* Define to 1 if you have the `mprotect' function. */
+#undef HAVE_MPROTECT
+
+/* Define to 1 if you have the <netdb.h> header file. */
+#undef HAVE_NETDB_H
+
+/* Define to 1 if you have the <netinet/in.h> header file. */
+#undef HAVE_NETINET_IN_H
+
+/* Define to 1 if you have OS X frameworks */
+#undef HAVE_OS_X_FRAMEWORKS
+
+/* Define if pcap_breakloop is known */
+#undef HAVE_PCAP_BREAKLOOP
+
+/* Define to 1 if you have the `pcap_createsrcstr' function. */
+#undef HAVE_PCAP_CREATESRCSTR
+
+/* Define to 1 if you have the `pcap_datalink_name_to_val' function. */
+#undef HAVE_PCAP_DATALINK_NAME_TO_VAL
+
+/* Define to 1 if you have the `pcap_datalink_val_to_name' function. */
+#undef HAVE_PCAP_DATALINK_VAL_TO_NAME
+
+/* Define to 1 if you have the `pcap_findalldevs' function and a pcap.h that
+   declares pcap_if_t. */
+#undef HAVE_PCAP_FINDALLDEVS
+
+/* Define to 1 if you have the `pcap_findalldevs_ex' function. */
+#undef HAVE_PCAP_FINDALLDEVS_EX
+
+/* Define to 1 if you have the `pcap_freecode' function. */
+#undef HAVE_PCAP_FREECODE
+
+/* Define to 1 if you have the `pcap_get_selectable_fd' function. */
+#undef HAVE_PCAP_GET_SELECTABLE_FD
+
+/* Define to 1 if you have the `pcap_lib_version' function. */
+#undef HAVE_PCAP_LIB_VERSION
+
+/* Define to 1 if you have the `pcap_list_datalinks' function. */
+#undef HAVE_PCAP_LIST_DATALINKS
+
+/* Define to 1 if you have the `pcap_open' function. */
+#undef HAVE_PCAP_OPEN
+
+/* Define to 1 if you have the `pcap_open_dead' function. */
+#undef HAVE_PCAP_OPEN_DEAD
+
+/* Define to 1 if you have WinPcap remote capturing support and prefer to use
+   these new API features. */
+#undef HAVE_PCAP_REMOTE
+
+/* Define to 1 if you have the `pcap_setsampling' function. */
+#undef HAVE_PCAP_SETSAMPLING
+
+/* Define to 1 if you have the `pcap_set_datalink' function. */
+#undef HAVE_PCAP_SET_DATALINK
+
+/* Define if libpcap version is known */
+#undef HAVE_PCAP_VERSION
+
+/* Define if plugins are enabled */
+#undef HAVE_PLUGINS
+
+/* Define to 1 if you have the <portaudio.h> header file. */
+#undef HAVE_PORTAUDIO_H
+
+/* Define to 1 if you have the <pwd.h> header file. */
+#undef HAVE_PWD_H
+
+/* Define to 1 to enable remote capturing feature in WinPcap library */
+#undef HAVE_REMOTE
+
+/* Define if sa_len field exists in struct sockaddr */
+#undef HAVE_SA_LEN
+
+/* Define to 1 if you have the `setresgid' function. */
+#undef HAVE_SETRESGID
+
+/* Define to 1 if you have the `setresuid' function. */
+#undef HAVE_SETRESUID
+
+/* Define to 1 if you have the <stdarg.h> header file. */
+#undef HAVE_STDARG_H
+
+/* Define to 1 if you have the <stddef.h> header file. */
+#undef HAVE_STDDEF_H
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the `sysconf' function. */
+#undef HAVE_SYSCONF
+
+/* Define to 1 if you have the <sys/ioctl.h> header file. */
+#undef HAVE_SYS_IOCTL_H
+
+/* Define to 1 if you have the <sys/param.h> header file. */
+#undef HAVE_SYS_PARAM_H
+
+/* Define to 1 if you have the <sys/socket.h> header file. */
+#undef HAVE_SYS_SOCKET_H
+
+/* Define to 1 if you have the <sys/sockio.h> header file. */
+#undef HAVE_SYS_SOCKIO_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/time.h> header file. */
+#undef HAVE_SYS_TIME_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <sys/utsname.h> header file. */
+#undef HAVE_SYS_UTSNAME_H
+
+/* Define to 1 if you have the <sys/wait.h> header file. */
+#undef HAVE_SYS_WAIT_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* HTML viewer, e.g. mozilla */
+#undef HTML_VIEWER
+
+/* Define as const if the declaration of iconv() needs const. */
+#undef ICONV_CONST
+
+/* Define if <inttypes.h> defines PRI[doxu]64 macros */
+#undef INTTYPES_H_DEFINES_FORMATS
+
+/* Define if getopt.h needs to be included */
+#undef NEED_GETOPT_H
+
+/* Define if g_ascii_strcasecmp.h needs to be included */
+#undef NEED_G_ASCII_STRCASECMP_H
+
+/* Define if g_ascii_strtoull.h needs to be included */
+#undef NEED_G_ASCII_STRTOULL_H
+
+/* Define if inet/aton.h needs to be included */
+#undef NEED_INET_ATON_H
+
+/* Define if inet/v6defs.h needs to be included */
+#undef NEED_INET_V6DEFS_H
+
+/* Define if strerror.h needs to be included */
+#undef NEED_STRERROR_H
+
+/* Define if strptime.h needs to be included */
+#undef NEED_STRPTIME_H
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Define if we are using version of of the Portaudio library API */
+#undef PORTAUDIO_API_1
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* Version number of package */
+#undef VERSION
+
+/* Define to 1 if your processor stores words with the most significant byte
+   first (like Motorola and SPARC, unlike Intel and VAX). */
+#undef WORDS_BIGENDIAN
+
+/* Define as the string to precede external variable declarations in
+   dynamically-linked libraries */
+#undef WS_VAR_IMPORT
+
+/* Define to 1 if `lex' declares `yytext' as a `char *' by default, not a
+   `char[]'. */
+#undef YYTEXT_POINTER
