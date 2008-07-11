@@ -35,7 +35,7 @@ static int global_openflow_proto = OPENFLOW_DST_TCP_PORT;
 /** names to bind to various values in the type field */
 static const value_string names_ofp_type[] = {
     { OFPT_FEATURES_REQUEST,    "CSM: Features Request" },
-    { OFPT_FEATURES_REPLY,      "CSM: Feautres Reply" },
+    { OFPT_FEATURES_REPLY,      "CSM: Features Reply" },
     { OFPT_GET_CONFIG_REQUEST,  "CSM: Get Config Request" },
     { OFPT_GET_CONFIG_REPLY,    "CSM: Get Config Reply" },
     { OFPT_SET_CONFIG,          "CSM: Set Config" },
@@ -506,7 +506,7 @@ void proto_register_openflow()
           { "Type", "of.type", FT_UINT8, BASE_DEC, VALS(names_ofp_type), NO_MASK, "Type", HFILL }},
 
         { &ofp_header_length,
-          { "Length (B)", "of.len", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Length (bytes)", HFILL }},
+          { "Length", "of.len", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Length (bytes)", HFILL }},
 
         { &ofp_header_xid,
           { "Transaction ID", "of.id", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Transaction ID", HFILL }},
@@ -673,6 +673,16 @@ static void add_child( proto_item* tree, gint hf, tvbuff_t *tvb, guint32* offset
 }
 
 /**
+ * Adds "hf" to "tree" starting at "offset" into "tvb" and using "length"
+ * bytes.  offset is incremented by length.  The specified string is used as the
+ * field's display value.
+ */
+static void add_child_str(proto_item* tree, gint hf, tvbuff_t *tvb, guint32* offset, guint32 len, const char* str) {
+    proto_tree_add_string(tree, hf, tvb, *offset, len, str);
+    *offset += len;
+}
+
+/**
  * Adds "hf" to "tree" starting at "offset" into "tvb" and using "length" bytes.
  */
 static void add_child_const( proto_item* tree, gint hf, tvbuff_t *tvb, guint32 offset, guint32 len ) {
@@ -724,10 +734,10 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         header_tree = proto_item_add_subtree(sub_item, ett_ofp_header);
 
         /* add the headers field as children of the header node */
-        add_child_const( header_tree, ofp_header_version, tvb, offset, 1 );
-        add_child_const( header_tree, ofp_header_type,    tvb, offset, 1 );
-        add_child_const( header_tree, ofp_header_length,  tvb, offset, 2 );
-        add_child_const( header_tree, ofp_header_xid,     tvb, offset, 4 );
+        add_child( header_tree, ofp_header_version, tvb, &offset, 1 );
+        add_child( header_tree, ofp_header_type,    tvb, &offset, 1 );
+        add_child( header_tree, ofp_header_length,  tvb, &offset, 2 );
+        add_child( header_tree, ofp_header_xid,     tvb, &offset, 4 );
     }
 }
 
