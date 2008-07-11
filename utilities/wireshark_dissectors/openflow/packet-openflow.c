@@ -114,6 +114,7 @@ static const value_string names_ofp_action_type[] = {
     { OFPAT_SET_TP_DST,  "TCP/UDP destination port"},
     { 0,                 NULL }
 };
+#define NUM_ACTIONS 8
 
 /** names from ofp_capabilities */
 static const value_string names_ofp_capabilities[] = {
@@ -123,6 +124,14 @@ static const value_string names_ofp_capabilities[] = {
     { OFPC_STP,          "802.11d spanning tree" },
     { OFPC_MULTI_PHY_TX, "Supports transmitting through multiple physical interface" },
     { 0,                 NULL }
+};
+#define NUM_CAPABILITIES 5
+
+/** yes/no for bitfields field */
+static const value_string names_choice[] = {
+    { 0, "No"  },
+    { 1, "Yes" },
+    { 0, NULL  }
 };
 
 /** names from ofp_flow_mod_command */
@@ -209,13 +218,17 @@ static gint ofp_action_output_port    = -1;
 /* Controller/Switch Messages */
 static gint ofp_switch_features               = -1;
 static gint ofp_switch_features_datapath_id   = -1;
+static gint ofp_switch_features_table_info_hdr= -1;
 static gint ofp_switch_features_n_exact       = -1;
 static gint ofp_switch_features_n_compression = -1;
 static gint ofp_switch_features_n_general     = -1;
+static gint ofp_switch_features_buffer_limits_hdr = -1;
 static gint ofp_switch_features_buffer_mb     = -1;
 static gint ofp_switch_features_n_buffers     = -1;
-static gint ofp_switch_features_capabilities  = -1;
-static gint ofp_switch_features_actions       = -1;
+static gint ofp_switch_features_capabilities_hdr = -1;
+static gint ofp_switch_features_capabilities[NUM_CAPABILITIES];
+static gint ofp_switch_features_actions_hdr = -1;
+static gint ofp_switch_features_actions[NUM_ACTIONS];
 static gint ofp_switch_features_ports         = -1;
 
 static gint ofp_switch_config               = -1;
@@ -322,165 +335,40 @@ static gint ofp_error_msg_code = -1;
 static gint ofp_error_msg_data = -1;
 
 /* These are the ids of the subtrees that we may be creating */
-static gint ett_ofp                = -1;
+static gint ett_ofp = -1;
 
 /* Open Flow Header */
-static gint ett_ofp_header         = -1;
-static gint ett_ofp_header_version = -1;
-static gint ett_ofp_header_type    = -1;
-static gint ett_ofp_header_length  = -1;
-static gint ett_ofp_header_xid     = -1;
-static gint ett_ofp_header_warn_ver = -1;
-static gint ett_ofp_header_warn_type = -1;
+static gint ett_ofp_header = -1;
 
 /* Common Structures */
-static gint ett_ofp_phy_port          = -1;
-static gint ett_ofp_phy_port_port_no  = -1;
-static gint ett_ofp_phy_port_hw_addr  = -1;
-static gint ett_ofp_phy_port_name     = -1;
-static gint ett_ofp_phy_port_flags    = -1;
-static gint ett_ofp_phy_port_speed    = -1;
-static gint ett_ofp_phy_port_features = -1;
-
-static gint ett_ofp_match           = -1;
-static gint ett_ofp_match_wildcards = -1;
-static gint ett_ofp_match_in_port   = -1;
-static gint ett_ofp_match_dl_src    = -1;
-static gint ett_ofp_match_dl_dst    = -1;
-static gint ett_ofp_match_dl_vlan   = -1;
-static gint ett_ofp_match_dl_type   = -1;
-static gint ett_ofp_match_nw_src    = -1;
-static gint ett_ofp_match_nw_dst    = -1;
-static gint ett_ofp_match_nw_proto  = -1;
-static gint ett_ofp_match_pad       = -1;
-static gint ett_ofp_match_tp_src    = -1;
-static gint ett_ofp_match_tp_dst    = -1;
-
-static gint ett_ofp_action         = -1;
-static gint ett_ofp_action_type    = -1;
-static gint ett_ofp_action_output  = -1;
-static gint ett_ofp_action_vlan_id = -1;
-static gint ett_ofp_action_dl_addr = -1;
-static gint ett_ofp_action_nw_addr = -1;
-static gint ett_ofp_action_tp      = -1;
-
-static gint ett_ofp_action_output_max_len = -1;
-static gint ett_ofp_action_output_port    = -1;
+static gint ett_ofp_phy_port = -1;
+static gint ett_ofp_match = -1;
+static gint ett_ofp_action = -1;
 
 /* Controller/Switch Messages */
-static gint ett_ofp_switch_features               = -1;
-static gint ett_ofp_switch_features_datapath_id   = -1;
-static gint ett_ofp_switch_features_n_exact       = -1;
-static gint ett_ofp_switch_features_n_compression = -1;
-static gint ett_ofp_switch_features_n_general     = -1;
-static gint ett_ofp_switch_features_buffer_mb     = -1;
-static gint ett_ofp_switch_features_n_buffers     = -1;
-static gint ett_ofp_switch_features_capabilities  = -1;
-static gint ett_ofp_switch_features_actions       = -1;
-static gint ett_ofp_switch_features_ports         = -1;
-
-static gint ett_ofp_switch_config               = -1;
-static gint ett_ofp_switch_config_flags         = -1;
-static gint ett_ofp_switch_config_miss_send_len = -1;
-
-static gint ett_ofp_flow_mod           = -1;
-static gint ett_ofp_flow_mod_match     = -1;
-static gint ett_ofp_flow_mod_command   = -1;
-static gint ett_ofp_flow_mod_max_idle  = -1;
-static gint ett_ofp_flow_mod_buffer_id = -1;
-static gint ett_ofp_flow_mod_priority  = -1;
-static gint ett_ofp_flow_mod_pad       = -1;
-static gint ett_ofp_flow_mod_reserved  = -1;
-static gint ett_ofp_flow_mod_actions   = -1;
-
-static gint ett_ofp_port_mod      = -1;
-static gint ett_ofp_port_mod_desc = -1;
-
-static gint ett_ofp_stats_request       = -1;
-static gint ett_ofp_stats_request_type  = -1;
-static gint ett_ofp_stats_request_flags = -1;
-static gint ett_ofp_stats_request_body  = -1;
-
-static gint ett_ofp_stats_reply       = -1;
-static gint ett_ofp_stats_reply_type  = -1;
-static gint ett_ofp_stats_reply_flags = -1;
-static gint ett_ofp_stats_reply_body  = -1;
-
-static gint ett_ofp_flow_stats_request          = -1;
-/* field: ett_ofp_match */
-static gint ett_ofp_flow_stats_request_table_id = -1;
-static gint ett_ofp_flow_stats_request_pad      = -1;
-
-static gint ett_ofp_flow_stats              = -1;
-static gint ett_ofp_flow_stats_length       = -1;
-static gint ett_ofp_flow_stats_table_id     = -1;
-static gint ett_ofp_flow_stats_pad          = -1;
-static gint ett_ofp_flow_stats_match        = -1;
-static gint ett_ofp_flow_stats_duration     = -1;
-static gint ett_ofp_flow_stats_packet_count = -1;
-static gint ett_ofp_flow_stats_byte_count   = -1;
-static gint ett_ofp_flow_stats_priority     = -1;
-static gint ett_ofp_flow_stats_max_idle     = -1;
-static gint ett_ofp_flow_stats_actions      = -1;
-
-static gint ett_ofp_aggregate_stats_request          = -1;
-/* field: ett_ofp_match */
-static gint ett_ofp_aggregate_stats_request_table_id = -1;
-static gint ett_ofp_aggregate_stats_request_pad      = -1;
-
-static gint ett_ofp_aggregate_stats_reply              = -1;
-static gint ett_ofp_aggregate_stats_reply_packet_count = -1;
-static gint ett_ofp_aggregate_stats_reply_byte_count   = -1;
-static gint ett_ofp_aggregate_stats_reply_flow_count   = -1;
-
-static gint ett_ofp_table_stats               = -1;
-static gint ett_ofp_table_stats_table_id      = -1;
-static gint ett_ofp_table_stats_pad           = -1;
-static gint ett_ofp_table_stats_name          = -1;
-static gint ett_ofp_table_stats_max_entries   = -1;
-static gint ett_ofp_table_stats_active_count  = -1;
-static gint ett_ofp_table_stats_matched_count = -1;
-
-static gint ett_ofp_port_stats            = -1;
-static gint ett_ofp_port_stats_port_no    = -1;
-static gint ett_ofp_port_stats_pad        = -1;
-static gint ett_ofp_port_stats_rx_count   = -1;
-static gint ett_ofp_port_stats_tx_count   = -1;
-static gint ett_ofp_port_stats_drop_count = -1;
-
-static gint ett_ofp_packet_out           = -1;
-static gint ett_ofp_packet_out_buffer_id = -1;
-static gint ett_ofp_packet_out_in_port   = -1;
-static gint ett_ofp_packet_out_out_port  = -1;
-static gint ett_ofp_packet_out_actions   = -1;
-static gint ett_ofp_packet_out_data      = -1;
+static gint ett_ofp_switch_features = -1;
+static gint ett_ofp_switch_features_table_info_hdr = -1;
+static gint ett_ofp_switch_features_buffer_limits_hdr = -1;
+static gint ett_ofp_switch_features_capabilities_hdr = -1;
+static gint ett_ofp_switch_features_actions_hdr = -1;
+static gint ett_ofp_switch_config = -1;
+static gint ett_ofp_flow_mod = -1;
+static gint ett_ofp_port_mod = -1;
+static gint ett_ofp_stats_request = -1;
+static gint ett_ofp_stats_reply = -1;
+static gint ett_ofp_flow_stats_request = -1;
+static gint ett_ofp_flow_stats = -1;
+static gint ett_ofp_aggregate_stats_request = -1;
+static gint ett_ofp_aggregate_stats_reply = -1;
+static gint ett_ofp_table_stats = -1;
+static gint ett_ofp_port_stats = -1;
+static gint ett_ofp_packet_out = -1;
 
 /* Asynchronous Messages */
-static gint ett_ofp_packet_in        = -1;
-static gint ett_ofp_packet_buffer_id = -1;
-static gint ett_ofp_packet_total_len = -1;
-static gint ett_ofp_packet_in_port   = -1;
-static gint ett_ofp_packet_reason    = -1;
-static gint ett_ofp_packet_pad       = -1;
-static gint ett_ofp_packet_data      = -1;
-
-static gint ett_ofp_flow_expired              = -1;
-/* field: ett_ofp_match */
-static gint ett_ofp_flow_expired_priority     = -1;
-static gint ett_ofp_flow_expired_pad          = -1;
-static gint ett_ofp_flow_expired_duration     = -1;
-static gint ett_ofp_flow_expired_packet_count = -1;
-static gint ett_ofp_flow_expired_byte_count   = -1;
-
-static gint ett_ofp_port_status        = -1;
-static gint ett_ofp_port_status_reason = -1;
-static gint ett_ofp_port_status_pad    = -1;
-static gint ett_ofp_port_status_desc   = -1;
-
-static gint ett_ofp_error_msg      = -1;
-static gint ett_ofp_error_msg_type = -1;
-static gint ett_ofp_error_msg_code = -1;
-static gint ett_ofp_error_msg_data = -1;
+static gint ett_ofp_packet_in = -1;
+static gint ett_ofp_flow_expired = -1;
+static gint ett_ofp_port_status = -1;
+static gint ett_ofp_error_msg = -1;
 
 void proto_reg_handoff_openflow()
 {
@@ -491,8 +379,26 @@ void proto_reg_handoff_openflow()
 #define NO_STRINGS NULL
 #define NO_MASK 0x0
 
+/** Returns newly allocated string with two spaces in front of str. */
+static inline char* indent( char* str ) {
+    char* ret = malloc( strlen(str) + 3 );
+    ret[0] = ' ';
+    ret[1] = ' ';
+    memcpy( &ret[2], str, strlen(str) + 1 );
+    return ret;
+}
+
 void proto_register_openflow()
 {
+    /* initialize uninitialized header fields */
+    int i;
+    for( i=0; i<NUM_CAPABILITIES; i++ ) {
+        ofp_switch_features_capabilities[i] = -1;
+    }
+    for( i=0; i<NUM_ACTIONS; i++ ) {
+        ofp_switch_features_actions[i] = -1;
+    }
+
     /* A header field is something you can search/filter on.
     *
     * We create a structure to register our fields. It consists of an
@@ -525,10 +431,88 @@ void proto_register_openflow()
         { &ofp_header_warn_type,
           { "Warning", "of.warn_type", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Type Warning", HFILL }},
 
+        /* Common Structures */
+
+
         /* CSM: Features Request */
         /* nothing beyond the header */
 
         /* CSM: Features Reply */
+        { &ofp_switch_features,
+          { "Switch Features", "of.sf", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Switch Features", HFILL }},
+
+        { &ofp_switch_features_datapath_id,
+          { "Datapath ID", "of.sf_datapath_id", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Datapath ID", HFILL }},
+
+        { &ofp_switch_features_table_info_hdr,
+          { "Table Info", "of.sf_table_info", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Table Info", HFILL }},
+
+        { &ofp_switch_features_n_exact,
+          { "Max Exact-Match", "of.sf_n_exact", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Max Exact-Match", HFILL }},
+
+        { &ofp_switch_features_n_compression,
+          { "Max Entries Compressed", "of.sf_n_compression", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Max Entries Compressed", HFILL }},
+
+        { &ofp_switch_features_n_general,
+          { "Max Arbitrary Form Entries", "of.sf_n_general", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Max Arbitrary Form Entries", HFILL }},
+
+        { &ofp_switch_features_buffer_limits_hdr,
+          { "Buffer Limits", "of.sf_buffer_limits", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Buffer Limits", HFILL }},
+
+        { &ofp_switch_features_buffer_mb,
+          { "Buffer Space (MB)", "of.sf_buffer_mb", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL }},
+
+        { &ofp_switch_features_n_buffers,
+          { "Max Packets Buffered", "of.sf_", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL }},
+
+        { &ofp_switch_features_capabilities_hdr,
+          { "Capabilities", "of.sf_capabilities", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Capabilities", HFILL }},
+
+        { &ofp_switch_features_capabilities[0],
+          { "  Flow statistics", "of.sf_capabilities_flow_stats", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_FLOW_STATS, "Flow statistics", HFILL }},
+
+        { &ofp_switch_features_capabilities[1],
+          { "  Table statistics", "of.sf_capabilities_table_stats", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_TABLE_STATS, "Table statistics", HFILL }},
+
+        { &ofp_switch_features_capabilities[2],
+          { "  Port statistics", "of.sf_capabilities_port_stats", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_PORT_STATS, "Port statistics", HFILL }},
+
+        { &ofp_switch_features_capabilities[3],
+          { "  802.11d spanning tree", "of.sf_capabilities_stp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_STP, "802.11d spanning tree", HFILL }},
+
+        { &ofp_switch_features_capabilities[4],
+          { "  Supports transmitting through multiple physical interface", "of.sf_capabilities_multi_phy_tx", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_MULTI_PHY_TX,  "Supports transmitting through multiple physical interface", HFILL }},
+
+        { &ofp_switch_features_actions_hdr,
+          { "Actions", "of.sf_actions", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Actions", HFILL }},
+
+        { &ofp_switch_features_actions[0],
+          { "  Output to switch port", "of.sf_actions_output", FT_UINT32, BASE_DEC, VALS(names_choice), OFPAT_OUTPUT, "Output to switch port", HFILL }},
+
+        { &ofp_switch_features_actions[1],
+          { "  VLAN", "of.sf_actions_vlan", FT_UINT32, BASE_DEC, VALS(names_choice), OFPAT_SET_DL_VLAN, "VLAN", HFILL }},
+
+        { &ofp_switch_features_actions[2],
+          { "  Ethernet source address", "of.sf_actions_eth_src_addr", FT_UINT32, BASE_DEC, VALS(names_choice), OFPAT_SET_DL_SRC, "Ethernet source address", HFILL }},
+
+        { &ofp_switch_features_actions[3],
+          { "  Ethernet destination address", "of.sf_actions_eth_dst_addr", FT_UINT32, BASE_DEC, VALS(names_choice), OFPAT_SET_DL_DST, "Ethernet destination address", HFILL }},
+
+        { &ofp_switch_features_actions[4],
+          { "  IP source address", "of.sf_actions_ip_src_addr", FT_UINT32, BASE_DEC, VALS(names_choice), OFPAT_SET_NW_SRC, "IP source address", HFILL }},
+
+        { &ofp_switch_features_actions[5],
+          { "  IP destination address", "of.sf_actions_ip_dst_addr", FT_UINT32, BASE_DEC, VALS(names_choice), OFPAT_SET_NW_DST, "IP destination address", HFILL }},
+
+        { &ofp_switch_features_actions[6],
+          { "  TCP/UDP source", "of.sf_actions_src_port", FT_UINT32, BASE_DEC, VALS(names_choice), OFPAT_SET_TP_SRC, "TCP/UDP source port", HFILL }},
+
+        { &ofp_switch_features_actions[7],
+          { "  TCP/UDP destination", "of.sf_actions_dst_port", FT_UINT32, BASE_DEC, VALS(names_choice), OFPAT_SET_TP_DST, "TCP/UDP destination port", HFILL }},
+
+        { &ofp_switch_features_ports,
+          { "Port Definitions", "of.sf_ports", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port Definitions", HFILL }},
+
 
         /* CSM: Get Config Request */
 
@@ -561,134 +545,30 @@ void proto_register_openflow()
     static gint *ett[] = {
         &ett_ofp,
         &ett_ofp_header,
-        &ett_ofp_header_version,
-        &ett_ofp_header_type,
-        &ett_ofp_header_length,
-        &ett_ofp_header_xid,
-        &ett_ofp_header_warn_ver,
-        &ett_ofp_header_warn_type,
         &ett_ofp_phy_port,
-        &ett_ofp_phy_port_port_no,
-        &ett_ofp_phy_port_hw_addr,
-        &ett_ofp_phy_port_name,
-        &ett_ofp_phy_port_flags,
-        &ett_ofp_phy_port_speed,
-        &ett_ofp_phy_port_features,
         &ett_ofp_match,
-        &ett_ofp_match_wildcards,
-        &ett_ofp_match_in_port,
-        &ett_ofp_match_dl_src,
-        &ett_ofp_match_dl_dst,
-        &ett_ofp_match_dl_vlan,
-        &ett_ofp_match_dl_type,
-        &ett_ofp_match_nw_src,
-        &ett_ofp_match_nw_dst,
-        &ett_ofp_match_nw_proto,
-        &ett_ofp_match_pad,
-        &ett_ofp_match_tp_src,
-        &ett_ofp_match_tp_dst,
         &ett_ofp_action,
-        &ett_ofp_action_type,
-        &ett_ofp_action_output,
-        &ett_ofp_action_vlan_id,
-        &ett_ofp_action_dl_addr,
-        &ett_ofp_action_nw_addr,
-        &ett_ofp_action_tp,
-        &ett_ofp_action_output_max_len,
-        &ett_ofp_action_output_port,
         &ett_ofp_switch_features,
-        &ett_ofp_switch_features_datapath_id,
-        &ett_ofp_switch_features_n_exact,
-        &ett_ofp_switch_features_n_compression,
-        &ett_ofp_switch_features_n_general,
-        &ett_ofp_switch_features_buffer_mb,
-        &ett_ofp_switch_features_n_buffers,
-        &ett_ofp_switch_features_capabilities,
-        &ett_ofp_switch_features_actions,
-        &ett_ofp_switch_features_ports,
+        &ett_ofp_switch_features_table_info_hdr,
+        &ett_ofp_switch_features_buffer_limits_hdr,
+        &ett_ofp_switch_features_capabilities_hdr,
+        &ett_ofp_switch_features_actions_hdr,
         &ett_ofp_switch_config,
-        &ett_ofp_switch_config_flags,
-        &ett_ofp_switch_config_miss_send_len,
         &ett_ofp_flow_mod,
-        &ett_ofp_flow_mod_match,
-        &ett_ofp_flow_mod_command,
-        &ett_ofp_flow_mod_max_idle,
-        &ett_ofp_flow_mod_buffer_id,
-        &ett_ofp_flow_mod_priority,
-        &ett_ofp_flow_mod_pad,
-        &ett_ofp_flow_mod_reserved,
-        &ett_ofp_flow_mod_actions,
         &ett_ofp_port_mod,
-        &ett_ofp_port_mod_desc,
         &ett_ofp_stats_request,
-        &ett_ofp_stats_request_type,
-        &ett_ofp_stats_request_flags,
-        &ett_ofp_stats_request_body,
         &ett_ofp_stats_reply,
-        &ett_ofp_stats_reply_type,
-        &ett_ofp_stats_reply_flags,
-        &ett_ofp_stats_reply_body,
         &ett_ofp_flow_stats_request,
-        &ett_ofp_flow_stats_request_table_id,
-        &ett_ofp_flow_stats_request_pad,
         &ett_ofp_flow_stats,
-        &ett_ofp_flow_stats_length,
-        &ett_ofp_flow_stats_table_id,
-        &ett_ofp_flow_stats_pad,
-        &ett_ofp_flow_stats_match,
-        &ett_ofp_flow_stats_duration,
-        &ett_ofp_flow_stats_packet_count,
-        &ett_ofp_flow_stats_byte_count,
-        &ett_ofp_flow_stats_priority,
-        &ett_ofp_flow_stats_max_idle,
-        &ett_ofp_flow_stats_actions,
         &ett_ofp_aggregate_stats_request,
-        &ett_ofp_aggregate_stats_request_table_id,
-        &ett_ofp_aggregate_stats_request_pad,
         &ett_ofp_aggregate_stats_reply,
-        &ett_ofp_aggregate_stats_reply_packet_count,
-        &ett_ofp_aggregate_stats_reply_byte_count,
-        &ett_ofp_aggregate_stats_reply_flow_count,
         &ett_ofp_table_stats,
-        &ett_ofp_table_stats_table_id,
-        &ett_ofp_table_stats_pad,
-        &ett_ofp_table_stats_name,
-        &ett_ofp_table_stats_max_entries,
-        &ett_ofp_table_stats_active_count,
-        &ett_ofp_table_stats_matched_count,
         &ett_ofp_port_stats,
-        &ett_ofp_port_stats_port_no,
-        &ett_ofp_port_stats_pad,
-        &ett_ofp_port_stats_rx_count,
-        &ett_ofp_port_stats_tx_count,
-        &ett_ofp_port_stats_drop_count,
         &ett_ofp_packet_out,
-        &ett_ofp_packet_out_buffer_id,
-        &ett_ofp_packet_out_in_port,
-        &ett_ofp_packet_out_out_port,
-        &ett_ofp_packet_out_actions,
-        &ett_ofp_packet_out_data,
         &ett_ofp_packet_in,
-        &ett_ofp_packet_buffer_id,
-        &ett_ofp_packet_total_len,
-        &ett_ofp_packet_in_port,
-        &ett_ofp_packet_reason,
-        &ett_ofp_packet_pad,
-        &ett_ofp_packet_data,
         &ett_ofp_flow_expired,
-        &ett_ofp_flow_expired_priority,
-        &ett_ofp_flow_expired_pad,
-        &ett_ofp_flow_expired_duration,
-        &ett_ofp_flow_expired_packet_count,
-        &ett_ofp_flow_expired_byte_count,
         &ett_ofp_port_status,
-        &ett_ofp_port_status_reason,
-        &ett_ofp_port_status_pad,
-        &ett_ofp_port_status_desc,
         &ett_ofp_error_msg,
-        &ett_ofp_error_msg_type,
-        &ett_ofp_error_msg_code,
-        &ett_ofp_error_msg_data
     };
 
     proto_openflow = proto_register_protocol( "OpenFlow Protocol",
@@ -768,16 +648,25 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
     if (tree) { /* we are being asked for details */
         proto_item *item        = NULL;
         proto_item *sub_item    = NULL;
-        proto_tree *ofp_tree     = NULL;
+        proto_tree *ofp_tree    = NULL;
         proto_tree *header_tree = NULL;
         guint32 offset = 0;
 #       define STR_LEN 1024
         char str[STR_LEN];
+        proto_item *sf_item  = NULL;
+        proto_tree *sf_tree  = NULL;
+        proto_item *sf_ti_item = NULL;
+        proto_tree *sf_ti_tree = NULL;
+        proto_item *sf_bl_item = NULL;
+        proto_tree *sf_bl_tree = NULL;
+        proto_item *sf_cap_item = NULL;
+        proto_tree *sf_cap_tree = NULL;
+        proto_item *sf_act_item = NULL;
+        proto_tree *sf_act_tree = NULL;
 
         /* consume the entire tvb for the openflow packet, and add it to the tree */
         item = proto_tree_add_item(tree, proto_openflow, tvb, 0, -1, FALSE);
         ofp_tree = proto_item_add_subtree(item, ett_ofp);
-        header_tree = proto_item_add_subtree(item, ett_ofp);
 
         /* put the header in its own node as a child of the openflow node */
         sub_item = proto_tree_add_item( ofp_tree, ofp_header, tvb, offset, -1, FALSE );
@@ -797,12 +686,49 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         add_child( header_tree, ofp_header_length,  tvb, &offset, 2 );
         add_child( header_tree, ofp_header_xid,     tvb, &offset, 4 );
 
+        guint i;
         switch( type ) {
         case OFPT_FEATURES_REQUEST:
-
+            /* nothing else in this packet type */
             break;
 
         case OFPT_FEATURES_REPLY:
+            sf_item = proto_tree_add_item(ofp_tree, ofp_switch_features, tvb, offset, -1, FALSE);
+            sf_tree = proto_item_add_subtree(sf_item, ett_ofp_switch_features);
+
+            /* fields we'll put directly in the subtree */
+            add_child(sf_tree, ofp_switch_features_datapath_id, tvb, &offset, 8);
+
+            /* Table info */
+            sf_ti_item = proto_tree_add_item(sf_tree, ofp_switch_features_table_info_hdr, tvb, offset, 12, FALSE);
+            sf_ti_tree = proto_item_add_subtree(sf_ti_item, ett_ofp_switch_features_table_info_hdr);
+            add_child(sf_ti_tree, ofp_switch_features_n_exact, tvb, &offset, 4);
+            add_child(sf_ti_tree, ofp_switch_features_n_compression, tvb, &offset, 4);
+            add_child(sf_ti_tree, ofp_switch_features_n_general, tvb, &offset, 4);
+
+            /* Buffer limits */
+            sf_bl_item = proto_tree_add_item(sf_tree, ofp_switch_features_buffer_limits_hdr, tvb, offset, 8, FALSE);
+            sf_bl_tree = proto_item_add_subtree(sf_bl_item, ett_ofp_switch_features_buffer_limits_hdr);
+            add_child(sf_bl_tree, ofp_switch_features_buffer_mb, tvb, &offset, 4);
+            add_child(sf_bl_tree, ofp_switch_features_n_buffers, tvb, &offset, 4);
+
+            /* capabilities */
+            sf_cap_item = proto_tree_add_item(sf_tree, ofp_switch_features_capabilities_hdr, tvb, offset, 4, FALSE);
+            sf_cap_tree = proto_item_add_subtree(sf_cap_item, ett_ofp_switch_features_capabilities_hdr);
+            for(i=0; i<NUM_CAPABILITIES; i++) {
+                add_child_const(sf_cap_tree, ofp_switch_features_capabilities[i], tvb, offset, 4);
+            }
+            offset += 4;
+
+            /* actions */
+            sf_act_item = proto_tree_add_item(sf_tree, ofp_switch_features_actions_hdr, tvb, offset, 4, FALSE);
+            sf_act_tree = proto_item_add_subtree(sf_act_item, ett_ofp_switch_features_actions_hdr);
+            for(i=0; i<NUM_ACTIONS; i++) {
+                add_child_const(sf_act_tree, ofp_switch_features_actions[i], tvb, offset, 4);
+            }
+            offset += 4;
+
+            /* handle ports */
 
             break;
 
@@ -860,8 +786,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
         default:
             /* add a warning if we encounter an unrecognized packet type */
-            snprintf( str, STR_LEN, "Dissector does not recognize type %u", type );
-            add_child_str( header_tree, ofp_header_warn_type, tvb, &offset, 0, str );
+            snprintf(str, STR_LEN, "Dissector does not recognize type %u", type);
+            add_child_str(tree, ofp_header_warn_type, tvb, &offset, 0, str);
         }
     }
 }
