@@ -8,16 +8,16 @@ CLEAN_PLUGIN_DIRS = $(foreach dir,$(PLUGIN_DIRS),clean$(dir))
 
 # build all the plugins
 all:
-	@make $(PLUGIN_DIRS)
+	@$(MAKE) --no-print-directory $(PLUGIN_DIRS)
 
 # cleanup all the byproducts (including the plugin itself)
 clean:
-	@make $(CLEAN_PLUGIN_DIRS)
+	@$(MAKE) --no-print-directory $(CLEAN_PLUGIN_DIRS)
 
 # build the plugin in the specified directory using its default rule
 $(PLUGIN_DIRS):
-	@gmake --no-print-directory -C $@
+	@$(MAKE) --no-print-directory -C $@
 
 # cleans up the plugin in the specified directory using its 'clean' rule
 $(CLEAN_PLUGIN_DIRS):
-	@gmake --no-print-directory -C `echo $@ | sed -e "s#^clean##"` clean
+	@$(MAKE) --no-print-directory -C `echo $@ | sed -e "s#^clean##"` clean

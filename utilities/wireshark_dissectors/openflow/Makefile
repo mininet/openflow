@@ -5,8 +5,14 @@ CC     = gcc
 OBJS   = $(foreach src, $(SRCS), $(src:.c=.o))
 
 PLUGIN_NAME = packet-openflow
-PLUGIN_DIR  = ~/.wireshark/plugins
-PLUGIN      = $(PLUGIN_DIR)/$(PLUGIN_NAME).so
+
+# local installation path
+LOCAL_PLUGIN_DIR  = ~/.wireshark/plugins
+
+# determine global installation path (use latest plugin version path)
+GLOBAL_PLUGIN_DIR_PARTIAL=/usr/local/lib/wireshark/plugins
+GLOBAL_PLUGIN_VER=$(shell ls $(GLOBAL_PLUGIN_DIR_PARTIAL) | sort --reverse | head -n 1)
+GLOBAL_PLUGIN_DIR=$(GLOBAL_PLUGIN_DIR_PARTIAL)/$(GLOBAL_PLUGIN_VER)
 
 # specify the port on which event capture packets will be destined
 DISSECT_PORT = -DOPENFLOW_DST_TCP_PORT=975
@@ -27,12 +33,26 @@ CFLAGS = $(INC_DIRS) -DHAVE_CONFIG_H -I$(WIRESHARK_SRC_DIR) -I/usr/local/include
 
 LDFLAGS = -Wl,--rpath -Wl,/usr/local/lib -Wl,--rpath -Wl,/usr/local/lib -L/usr/local/lib -L$(WIRESHARK_SRC_DIR)/epan -L. -lgmodule-2.0 -ldl -lglib-2.0  -pthread -Wl,--export-dynamic -Wl,-soname -Wl,$(PLUGIN_NAME).so
 
-$(PLUGIN) : $(OBJS)
-	mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared $(OBJS) $(LDFLAGS) -o $@
+.PHONY: plugin clean
+
+plugin : $(OBJS) $(SRCS)
+	@if [ `id -u` -eq 0 ]; then \
+	  if [ -d "$(GLOBAL_PLUGIN_DIR)" ]; then \
+	    target=$(GLOBAL_PLUGIN_DIR)/$(PLUGIN_NAME).so; \
+	    res="*** Installed plugin for ALL users ($$target)"; \
+	  else \
+	    echo "*** Error: global plugin directory $(GLOBAL_PLUGIN_DIR) does not exist"; \
+	    exit 1; \
+	  fi; \
+	else \
+	  mkdir -p $(LOCAL_PLUGIN_DIR); \
+	  target=$(LOCAL_PLUGIN_DIR)/$(PLUGIN_NAME).so; \
+	  res="*** Installed plugin for user "`id | cut -d\( -f2 | cut -d\) -f1`" ($$target)"; \
+	fi; \
+	$(CC) -shared $(OBJS) $(LDFLAGS) -o "$$target" && echo "" && echo "$$res"
 
 plugin.c: moduleinfo.h Makefile.am Makefile.common
-	make -f Makefile.am
+	$(MAKE) -f Makefile.am
 
 %.o : %.c openflow.h
 	$(CC) -c $(CFLAGS) $< -o $@
