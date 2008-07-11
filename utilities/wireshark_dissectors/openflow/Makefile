@@ -7,7 +7,7 @@ OBJS   = $(foreach src, $(SRCS), $(src:.c=.o))
 PLUGIN_NAME = packet-openflow
 
 # local installation path
-LOCAL_PLUGIN_DIR  = ~/.wireshark/plugins
+LOCAL_PLUGIN_DIR  = /home/$(shell whoami)/.wireshark/plugins
 
 # determine global installation path (use latest plugin version path)
 GLOBAL_PLUGIN_DIR_PARTIAL=/usr/local/lib/wireshark/plugins
@@ -33,23 +33,26 @@ CFLAGS = $(INC_DIRS) -DHAVE_CONFIG_H -I$(WIRESHARK_SRC_DIR) -I/usr/local/include
 
 LDFLAGS = -Wl,--rpath -Wl,/usr/local/lib -Wl,--rpath -Wl,/usr/local/lib -L/usr/local/lib -L$(WIRESHARK_SRC_DIR)/epan -L. -lgmodule-2.0 -ldl -lglib-2.0  -pthread -Wl,--export-dynamic -Wl,-soname -Wl,$(PLUGIN_NAME).so
 
-.PHONY: plugin clean
+.PHONY: clean install
 
-plugin : $(OBJS) $(SRCS)
+$(PLUGIN_NAME).so : $(OBJS) $(SRCS)
+	$(CC) -shared $(OBJS) $(LDFLAGS) -o $@
+
+install: $(PLUGIN_NAME).so
 	@if [ `id -u` -eq 0 ]; then \
 	  if [ -d "$(GLOBAL_PLUGIN_DIR)" ]; then \
-	    target=$(GLOBAL_PLUGIN_DIR)/$(PLUGIN_NAME).so; \
+	    target="$(GLOBAL_PLUGIN_DIR)/$<"; \
 	    res="*** Installed plugin for ALL users ($$target)"; \
 	  else \
 	    echo "*** Error: global plugin directory $(GLOBAL_PLUGIN_DIR) does not exist"; \
 	    exit 1; \
 	  fi; \
 	else \
-	  mkdir -p $(LOCAL_PLUGIN_DIR); \
-	  target=$(LOCAL_PLUGIN_DIR)/$(PLUGIN_NAME).so; \
+	  mkdir -p "$(LOCAL_PLUGIN_DIR)/"; \
+	  target="$(LOCAL_PLUGIN_DIR)/$<"; \
 	  res="*** Installed plugin for user "`id | cut -d\( -f2 | cut -d\) -f1`" ($$target)"; \
 	fi; \
-	$(CC) -shared $(OBJS) $(LDFLAGS) -o "$$target" && echo "" && echo "$$res"
+	cp $< "$$target" && echo "" && echo "$$res"
 
 plugin.c: moduleinfo.h Makefile.am Makefile.common
 	$(MAKE) -f Makefile.am
