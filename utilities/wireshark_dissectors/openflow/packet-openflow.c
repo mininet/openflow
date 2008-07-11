@@ -3,6 +3,7 @@
  * Author:   David Underhill
  * Updated:  2008-Jul-10
  * Purpose:  define a Wireshark 1.0.2 dissector for the OpenFlow protocol
+ *           version 0x83
  */
 
 #ifdef HAVE_CONFIG_H
@@ -19,6 +20,9 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <openflow.h>
+
+/** the version of openflow this dissector was written for */
+#define DISSECTOR_OPENFLOW_VERSION 0x83
 
 #define PROTO_TAG_OPENFLOW	"OPENFLOW"
 
@@ -164,6 +168,7 @@ static gint ofp_header_version = -1;
 static gint ofp_header_type    = -1;
 static gint ofp_header_length  = -1;
 static gint ofp_header_xid     = -1;
+static gint ofp_header_warn    = -1;
 
 /* Common Structures */
 static gint ofp_phy_port          = -1;
@@ -324,6 +329,7 @@ static gint ett_ofp_header_version = -1;
 static gint ett_ofp_header_type    = -1;
 static gint ett_ofp_header_length  = -1;
 static gint ett_ofp_header_xid     = -1;
+static gint ett_ofp_header_warn    = -1;
 
 /* Common Structures */
 static gint ett_ofp_phy_port          = -1;
@@ -510,6 +516,9 @@ void proto_register_openflow()
 
         { &ofp_header_xid,
           { "Transaction ID", "of.id", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Transaction ID", HFILL }},
+
+        { &ofp_header_warn,
+          { "Warning", "of.warn", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Version Warning", HFILL }},
     };
 
     static gint *ett[] = {
@@ -519,6 +528,7 @@ void proto_register_openflow()
         &ett_ofp_header_type,
         &ett_ofp_header_length,
         &ett_ofp_header_xid,
+        &ett_ofp_header_warn,
         &ett_ofp_phy_port,
         &ett_ofp_phy_port_port_no,
         &ett_ofp_phy_port_hw_addr,
@@ -732,6 +742,13 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         /* put the header in its own node as a child of the openflow node */
         sub_item = proto_tree_add_item( ofp_tree, ofp_header, tvb, offset, -1, FALSE );
         header_tree = proto_item_add_subtree(sub_item, ett_ofp_header);
+
+        /* add a warning if the version is what the plugin was written to handle */
+        if( ver != DISSECTOR_OPENFLOW_VERSION ) {
+            char str_warn[1024];
+            snprintf( str_warn, 1024, "Dissector written for OpenFlow v0x%0X (differs from this packet's version v0x%0X)", DISSECTOR_OPENFLOW_VERSION, ver );
+            add_child_str( header_tree, ofp_header_warn, tvb, &offset, 0, str_warn );
+        }
 
         /* add the headers field as children of the header node */
         add_child( header_tree, ofp_header_version, tvb, &offset, 1 );
