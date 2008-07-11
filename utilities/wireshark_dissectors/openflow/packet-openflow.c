@@ -494,13 +494,22 @@ void proto_register_openflow()
     static hf_register_info hf[] = {
         /* header fields */
         { &ofp,
-          { "Data", "of.data", FT_NONE,   BASE_NONE, NO_STRINGS, NO_MASK,  "OpenFlow PDU", HFILL }},
+          { "Data", "of.data", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "OpenFlow PDU", HFILL }},
 
         { &ofp_header,
-          { "Header", "of.header", FT_NONE,   BASE_NONE, NO_STRINGS, NO_MASK,  "OpenFlow Header", HFILL }},
+          { "Header", "of.header", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "OpenFlow Header", HFILL }},
 
         { &ofp_header_version,
-          { "Version", "of.ver", FT_UINT8,  BASE_DEC,  NO_STRINGS, NO_MASK,  "Version", HFILL }},
+          { "Version", "of.ver", FT_UINT8, BASE_HEX, NO_STRINGS, NO_MASK, "Version", HFILL }},
+
+        { &ofp_header_type,
+          { "Type", "of.type", FT_UINT8, BASE_DEC, VALS(names_ofp_type), NO_MASK, "Type", HFILL }},
+
+        { &ofp_header_length,
+          { "Length (B)", "of.len", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Length (bytes)", HFILL }},
+
+        { &ofp_header_xid,
+          { "Transaction ID", "of.id", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Transaction ID", HFILL }},
     };
 
     static gint *ett[] = {
@@ -634,7 +643,7 @@ void proto_register_openflow()
         &ett_ofp_error_msg_data
     };
 
-    proto_openflow = proto_register_protocol( "NetFPGA Event Capture Protocol",
+    proto_openflow = proto_register_protocol( "OpenFlow Protocol",
                                               "OPENFLOW",
                                               "of" ); /* abbreviation for filters */
 
@@ -694,7 +703,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
     /* clarify protocol name display with version, length, and type information */
     if (check_col(pinfo->cinfo, COL_INFO)) {
         col_add_fstr( pinfo->cinfo, COL_INFO,
-                      "OpenFlow v%u (%uB): %s",
+                      "v0x%0X (%uB): %s",
                       ver, len, ofp_type_to_string(type) );
     }
 
