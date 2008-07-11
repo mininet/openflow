@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <glib.h>
+#include <epan/emem.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <string.h>
@@ -26,7 +27,7 @@ static dissector_handle_t openflow_handle;
 static void dissect_openflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 
 /* traffic will arrive with TCP port OPENFLOW_DST_TCP_PORT */
-#define UDP_PORT_FILTER "tcp.port"
+#define TCP_PORT_FILTER "tcp.port"
 static int global_openflow_proto = OPENFLOW_DST_TCP_PORT;
 
 /* AM=Async message, CSM=Control/Switch Message */
@@ -63,7 +64,7 @@ static const value_string names_ofp_port[] = {
     { OFPP_NORMAL,     "Process with normal L2/L3 switching" },
     { OFPP_FLOOD,      "All physical ports except input port and those disabled by STP" },
     { OFPP_ALL,        "All physical ports except input port" },
-    { OFPP_CONTROLLER, "Send to controller"
+    { OFPP_CONTROLLER, "Send to controller" },
     { OFPP_LOCAL,      "Local openflow 'port'" },
     { OFPP_NONE,       "Not associated with a physical port" },
     { 0,               NULL }
@@ -115,7 +116,7 @@ static const value_string names_ofp_capabilities[] = {
     { OFPC_TABLE_STATS,  "Table statistics" },
     { OFPC_PORT_STATS,   "Port statistics" },
     { OFPC_STP,          "802.11d spanning tree" },
-    { OFPC_MULTI_PHY_TX  "Supports transmitting through multiple physical interface" },
+    { OFPC_MULTI_PHY_TX, "Supports transmitting through multiple physical interface" },
     { 0,                 NULL }
 };
 
@@ -132,7 +133,7 @@ static const value_string names_stats_types[] = {
     { OFPST_FLOW,      "Individual flow statistics. The request body is struct ofp_flow_stats_request. The reply body is an array of struct ofp_flow_stats." },
     { OFPST_AGGREGATE, "Aggregate flow statistics. The request body is struct ofp_aggregate_stats_request. The reply body is struct ofp_aggregate_stats_reply." },
     { OFPST_TABLE,     "Flow table statistics. The request body is empty. The reply body is an array of struct ofp_table_stats." },
-    { OFPST_PORT       "Physical port statistics. The request body is empty. The reply body is an array of struct ofp_port_stats." },
+    { OFPST_PORT,      "Physical port statistics. The request body is empty. The reply body is an array of struct ofp_port_stats." },
     { 0, NULL }
 };
 
@@ -194,9 +195,9 @@ static gint ofp_action_dl_addr = -1;
 static gint ofp_action_nw_addr = -1;
 static gint ofp_action_tp      = -1;
 
-static gint ofp_action_output  = -1;
-static gint ofp_action_max_len = -1;
-static gint ofp_action_port    = -1;
+/* type: ofp_action_output */
+static gint ofp_action_output_max_len = -1;
+static gint ofp_action_output_port    = -1;
 
 /* Controller/Switch Messages */
 static gint ofp_switch_features               = -1;
@@ -354,9 +355,8 @@ static gint ett_ofp_action_dl_addr = -1;
 static gint ett_ofp_action_nw_addr = -1;
 static gint ett_ofp_action_tp      = -1;
 
-static gint ett_ofp_action_output  = -1;
-static gint ett_ofp_action_max_len = -1;
-static gint ett_ofp_action_port    = -1;
+static gint ett_ofp_action_output_max_len = -1;
+static gint ett_ofp_action_output_port    = -1;
 
 /* Controller/Switch Messages */
 static gint ett_ofp_switch_features               = -1;
@@ -490,9 +490,9 @@ void proto_register_openflow()
     * array of register_info structures, each of which are of the format
     * {&(field id), {name, abbrev, type, display, strings, bitmask, blurb, HFILL}}.
     */
-    static register_info hf[] = {
+    static hf_register_info hf[] = {
         /* header fields */
-        { &of,
+        { &ofp,
           { "Data", "of.data", FT_NONE,   BASE_NONE, NO_STRINGS, NO_MASK,  "OpenFlow PDU", HFILL }},
 
         { &ofp_header,
@@ -536,9 +536,8 @@ void proto_register_openflow()
         &ett_ofp_action_dl_addr,
         &ett_ofp_action_nw_addr,
         &ett_ofp_action_tp,
-        &ett_ofp_action_output,
-        &ett_ofp_action_max_len,
-        &ett_ofp_action_port,
+        &ett_ofp_action_output_max_len,
+        &ett_ofp_action_output_port,
         &ett_ofp_switch_features,
         &ett_ofp_switch_features_datapath_id,
         &ett_ofp_switch_features_n_exact,
@@ -691,7 +690,7 @@ dissect_openflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if (check_col(pinfo->cinfo, COL_INFO)) {
         col_add_fstr( pinfo->cinfo, COL_INFO,
                       "OpenFlow v%u (%uB): %s",
-                      ver, ofp_type_to_string(type), len );
+                      ver, len, ofp_type_to_string(type) );
     }
 
     if (tree) { /* we are being asked for details */
