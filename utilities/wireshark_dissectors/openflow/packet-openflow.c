@@ -2,7 +2,7 @@
  * Filename: packet-openflow.c
  * Author:   David Underhill
  * Updated:  2008-Jul-10
- * Purpose:  define a Wireshark 1.0.2 dissector for the OpenFlow protocol
+ * Purpose:  define a Wireshark 1.0.0+ dissector for the OpenFlow protocol
  *           version 0x83
  */
 
@@ -168,7 +168,8 @@ static gint ofp_header_version = -1;
 static gint ofp_header_type    = -1;
 static gint ofp_header_length  = -1;
 static gint ofp_header_xid     = -1;
-static gint ofp_header_warn    = -1;
+static gint ofp_header_warn_ver = -1;
+static gint ofp_header_warn_type = -1;
 
 /* Common Structures */
 static gint ofp_phy_port          = -1;
@@ -329,7 +330,8 @@ static gint ett_ofp_header_version = -1;
 static gint ett_ofp_header_type    = -1;
 static gint ett_ofp_header_length  = -1;
 static gint ett_ofp_header_xid     = -1;
-static gint ett_ofp_header_warn    = -1;
+static gint ett_ofp_header_warn_ver = -1;
+static gint ett_ofp_header_warn_type = -1;
 
 /* Common Structures */
 static gint ett_ofp_phy_port          = -1;
@@ -517,8 +519,43 @@ void proto_register_openflow()
         { &ofp_header_xid,
           { "Transaction ID", "of.id", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Transaction ID", HFILL }},
 
-        { &ofp_header_warn,
-          { "Warning", "of.warn", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Version Warning", HFILL }},
+        { &ofp_header_warn_ver,
+          { "Warning", "of.warn_ver", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Version Warning", HFILL }},
+
+        { &ofp_header_warn_type,
+          { "Warning", "of.warn_type", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Type Warning", HFILL }},
+
+        /* CSM: Features Request */
+        /* nothing beyond the header */
+
+        /* CSM: Features Reply */
+
+        /* CSM: Get Config Request */
+
+        /* CSM: Get Config Reply */
+
+        /* CSM: Set Config */
+
+        /* AM:  Packet In */
+
+        /* CSM: Packet Out */
+
+        /* CSM: Flow Mod */
+
+        /* AM:  Flow Expired */
+
+        /* CSM: Table */
+
+        /* CSM: Port Mod */
+
+        /* AM:  Port Status */
+
+        /* CSM: Stats Request */
+
+        /* CSM: Stats Reply */
+
+        /* AM:  Error Message */
+
     };
 
     static gint *ett[] = {
@@ -528,7 +565,8 @@ void proto_register_openflow()
         &ett_ofp_header_type,
         &ett_ofp_header_length,
         &ett_ofp_header_xid,
-        &ett_ofp_header_warn,
+        &ett_ofp_header_warn_ver,
+        &ett_ofp_header_warn_type,
         &ett_ofp_phy_port,
         &ett_ofp_phy_port_port_no,
         &ett_ofp_phy_port_hw_addr,
@@ -733,6 +771,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         proto_tree *ofp_tree     = NULL;
         proto_tree *header_tree = NULL;
         guint32 offset = 0;
+#       define STR_LEN 1024
+        char str[STR_LEN];
 
         /* consume the entire tvb for the openflow packet, and add it to the tree */
         item = proto_tree_add_item(tree, proto_openflow, tvb, 0, -1, FALSE);
@@ -745,9 +785,10 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
         /* add a warning if the version is what the plugin was written to handle */
         if( ver != DISSECTOR_OPENFLOW_VERSION ) {
-            char str_warn[1024];
-            snprintf( str_warn, 1024, "Dissector written for OpenFlow v0x%0X (differs from this packet's version v0x%0X)", DISSECTOR_OPENFLOW_VERSION, ver );
-            add_child_str( header_tree, ofp_header_warn, tvb, &offset, 0, str_warn );
+            snprintf( str, STR_LEN,
+                      "Dissector written for OpenFlow v0x%0X (differs from this packet's version v0x%0X)",
+                      DISSECTOR_OPENFLOW_VERSION, ver );
+            add_child_str( header_tree, ofp_header_warn_ver, tvb, &offset, 0, str );
         }
 
         /* add the headers field as children of the header node */
@@ -755,6 +796,73 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         add_child( header_tree, ofp_header_type,    tvb, &offset, 1 );
         add_child( header_tree, ofp_header_length,  tvb, &offset, 2 );
         add_child( header_tree, ofp_header_xid,     tvb, &offset, 4 );
+
+        switch( type ) {
+        case OFPT_FEATURES_REQUEST:
+
+            break;
+
+        case OFPT_FEATURES_REPLY:
+
+            break;
+
+        case OFPT_GET_CONFIG_REQUEST:
+
+            break;
+
+        case OFPT_GET_CONFIG_REPLY:
+
+            break;
+
+        case OFPT_SET_CONFIG:
+
+            break;
+
+        case OFPT_PACKET_IN:
+
+            break;
+
+        case OFPT_PACKET_OUT:
+
+            break;
+
+        case OFPT_FLOW_MOD:
+
+            break;
+
+        case OFPT_FLOW_EXPIRED:
+
+            break;
+
+        case OFPT_TABLE:
+
+            break;
+
+        case OFPT_PORT_MOD:
+
+            break;
+
+        case OFPT_PORT_STATUS:
+
+            break;
+
+        case OFPT_STATS_REQUEST:
+
+            break;
+
+        case OFPT_STATS_REPLY:
+
+            break;
+
+        case OFPT_ERROR_MSG:
+
+            break;
+
+        default:
+            /* add a warning if we encounter an unrecognized packet type */
+            snprintf( str, STR_LEN, "Dissector does not recognize type %u", type );
+            add_child_str( header_tree, ofp_header_warn_type, tvb, &offset, 0, str );
+        }
     }
 }
 
