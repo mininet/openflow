@@ -1,8 +1,8 @@
 /**
  * Filename: packet-openflow.c
  * Author:   David Underhill
- * Updated:  2008-Jul-09
- * Purpose:  define a Wireshark 0.99.x-1.x dissector for the OpenFlow protocol
+ * Updated:  2008-Jul-10
+ * Purpose:  define a Wireshark 1.0.2 dissector for the OpenFlow protocol
  */
 
 #ifdef HAVE_CONFIG_H
@@ -14,6 +14,7 @@
 #include <glib.h>
 #include <epan/emem.h>
 #include <epan/packet.h>
+#include <epan/dissectors/packet-tcp.h>
 #include <epan/prefs.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -669,8 +670,12 @@ static void add_child_const( proto_item* tree, gint hf, tvbuff_t *tvb, guint32 o
     proto_tree_add_item( tree, hf, tvb, offset, len, FALSE );
 }
 
-static void
-dissect_openflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+/** returns the length of a PDU which starts at the specified offset in tvb. */
+static guint get_openflow_message_len(packet_info *pinfo, tvbuff_t *tvb, int offset) {
+    return (guint)tvb_get_ntohs(tvb, offset+2); /* length is at offset 2 in the header */
+}
+
+static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     /* display our protocol text if the protocol column is visible */
     if (check_col(pinfo->cinfo, COL_PROTOCOL))
@@ -715,4 +720,10 @@ dissect_openflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         add_child_const( header_tree, ofp_header_length,  tvb, offset, 2 );
         add_child_const( header_tree, ofp_header_xid,     tvb, offset, 4 );
     }
+}
+
+static void dissect_openflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+    /* have wireshark reassemble our PDUs; call dissect_openflow_when full PDU assembled */
+    tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 4, get_openflow_message_len, dissect_openflow_message);
 }
