@@ -1668,10 +1668,43 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             switch( type ) {
             case OFPST_FLOW: {
+                /* process each flow stats struct in the packet */
+                while( offset < len ) {
+                    proto_item* flow_item = proto_tree_add_item(type_tree, ofp_flow_stats_reply, tvb, offset, -1, FALSE);
+                    proto_tree* flow_tree = proto_item_add_subtree(flow_item, ett_ofp_flow_stats_reply);
+
+                    /* just get the length of this part of the packet; no need
+                       to put it in the tree */
+                    guint16 total_len = tvb_get_ntohs( tvb, offset );
+                    guint offset_start = offset;
+                    offset += 2;
+
+                    add_child(flow_tree, ofp_flow_stats_reply_table_id, tvb, &offset, 2);
+#if SHOW_PADDING
+                    add_child(flow_tree, ofp_flow_stats_reply_pad, tvb, &offset, 1);
+#else
+                    offset += 1;
+#endif
+                    dissect_match(flow_tree, flow_item, tvb, pinfo, &offset);
+                    add_child(flow_tree, ofp_flow_stats_reply_duration, tvb, &offset, 4);
+                    add_child(flow_tree, ofp_flow_stats_reply_packet_count, tvb, &offset, 8);
+                    add_child(flow_tree, ofp_flow_stats_reply_byte_count, tvb, &offset, 8);
+                    add_child(flow_tree, ofp_flow_stats_reply_priority, tvb, &offset, 2);
+                    add_child(flow_tree, ofp_flow_stats_reply_max_idle, tvb, &offset, 2);
+
+                    /* parse the actions for this flow */
+                    dissect_action_array(tvb, pinfo, flow_tree, total_len + offset_start, offset);
+                }
                 break;
             }
 
             case OFPST_AGGREGATE: {
+                proto_item* aggregate_item = proto_tree_add_item(type_tree, ofp_aggregate_stats_reply, tvb, offset, -1, FALSE);
+                proto_tree* aggregate_tree = proto_item_add_subtree(aggregate_item, ett_ofp_aggregate_stats_reply);
+
+                add_child(aggregate_tree, ofp_aggregate_stats_reply_packet_count, tvb, &offset, 8);
+                add_child(aggregate_tree, ofp_aggregate_stats_reply_byte_count, tvb, &offset, 8);
+                add_child(aggregate_tree, ofp_aggregate_stats_reply_flow_count, tvb, &offset, 4);
                 break;
             }
 
