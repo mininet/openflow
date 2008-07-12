@@ -1,7 +1,7 @@
 /**
  * Filename: packet-openflow.c
  * Author:   David Underhill
- * Updated:  2008-Jul-10
+ * Updated:  2008-Jul-11
  * Purpose:  define a Wireshark 1.0.0+ dissector for the OpenFlow protocol
  *           version 0x83
  */
@@ -888,6 +888,32 @@ static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pa
     }
 }
 
+static void dissect_action_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint len, guint offset)
+{
+    guint total_len = len - offset;
+    proto_item* action_item = proto_tree_add_item(tree, ofp_action_output, tvb, offset, -1, FALSE);
+    proto_tree* action_tree = proto_item_add_subtree(action_item, ett_ofp_action_output);
+
+    if( total_len == 0 )
+        add_child_str(action_tree, ofp_action_warn, tvb, &offset, 0, "No actions were specified");
+    else if( offset > len ) {
+        /* not enough bytes => wireshark will already have reported the error */
+    }
+    else {
+        guint offset_action_start = offset;
+        guint num_actions = 0;
+        while( total_len > 0 ) {
+            num_actions += 1;
+            int ret = dissect_action(action_tree, action_item, tvb, pinfo, &offset);
+            if( ret < 0 )
+                break; /* stop if we run into an action we couldn't dissect */
+            else
+                total_len -= ret;
+        }
+        proto_tree_add_uint(action_tree, ofp_action_num, tvb, offset_action_start, 0, num_actions);
+    }
+}
+
 static void dissect_ethernet(tvbuff_t *next_tvb, packet_info *pinfo, proto_tree *data_tree) {
     /* add seperators to existing column strings */
     if (check_col(pinfo->cinfo, COL_PROTOCOL))
@@ -1123,28 +1149,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             }
             else {
                 /* handle actions */
-                proto_item* action_item = proto_tree_add_item(type_tree, ofp_action_output, tvb, offset, -1, FALSE);
-                proto_tree* action_tree = proto_item_add_subtree(action_item, ett_ofp_action_output);
-                if( total_len == 0 ) {
-                    snprintf(str, STR_LEN, "No actions were specified");
-                    add_child_str(action_tree, ofp_action_warn, tvb, &offset, 0, str);
-                }
-                else if( offset > len ) {
-                    /* not enough bytes => wireshark will already have reported the error */
-                }
-                else {
-                    guint offset_action_start = offset;
-                    guint num_actions = 0;
-                    while( total_len > 0 ) {
-                        num_actions += 1;
-                        int ret = dissect_action(action_tree, action_item, tvb, pinfo, &offset);
-                        if( ret < 0 )
-                            break; /* stop if we run into an action we couldn't dissect */
-                        else
-                            total_len -= ret;
-                    }
-                    proto_tree_add_uint(action_tree, ofp_action_num, tvb, offset_action_start, 0, num_actions);
-                }
+                dissect_action_array(tvb, pinfo, type_tree, len, offset);
             }
 
             break;
