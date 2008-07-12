@@ -2,9 +2,12 @@
  * Filename: packet-openflow.c
  * Author:   David Underhill
  * Updated:  2008-Jul-12
- * Purpose:  define a Wireshark 1.0.0+ dissector for the OpenFlow protocol
- *           version 0x83
+ *
+ * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x83.
  */
+
+/** the version of openflow this dissector was written for */
+#define DISSECTOR_OPENFLOW_VERSION 0x83
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
@@ -23,9 +26,6 @@
 
 /** if 0, padding bytes will not be shown in the dissector */
 #define SHOW_PADDING 0
-
-/** the version of openflow this dissector was written for */
-#define DISSECTOR_OPENFLOW_VERSION 0x83
 
 #define PROTO_TAG_OPENFLOW	"OPENFLOW"
 
@@ -63,54 +63,6 @@ static const value_string names_ofp_type[] = {
 };
 #define OFP_TYPE_MAX_VALUE OFPT_ERROR_MSG
 
-/** names of flags in ofp_port_flags */
-static const value_string names_ofp_port_flags[] = {
-    { OFPPFL_NO_FLOOD, "Do not include this port when flooding" },
-    { 0,               NULL }
-};
-#define NUM_PORT_FLAGS 1
-
-/** names from ofp_port */
-static const value_string names_ofp_port[] = {
-    { OFPP_TABLE,      "Perform actions in flow table" },
-    { OFPP_NORMAL,     "Process with normal L2/L3 switching" },
-    { OFPP_FLOOD,      "All physical ports except input port and those disabled by STP" },
-    { OFPP_ALL,        "All physical ports except input port" },
-    { OFPP_CONTROLLER, "Send to controller" },
-    { OFPP_LOCAL,      "Local openflow 'port'" },
-    { OFPP_NONE,       "Not associated with a physical port" },
-    { 0,               NULL }
-};
-
-/** names from ofp_port_features */
-static const value_string names_ofp_port_features[] = {
-    { OFPPF_10MB_HD,   " 10 Mb half-duplex rate support" },
-    { OFPPF_10MB_FD,   " 10 Mb full-duplex rate support" },
-    { OFPPF_100MB_HD,  "100 Mb half-duplex rate support" },
-    { OFPPF_100MB_FD,  "100 Mb full-duplex rate support" },
-    { OFPPF_1GB_HD,    "  1 Gb half-duplex rate support" },
-    { OFPPF_1GB_FD,    "  1 Gb full-duplex rate support" },
-    { OFPPF_10GB_FD,   " 10 Gb full-duplex rate support" },
-    { 0, NULL }
-};
-#define NUM_PORT_FEATURES 7
-
-/** names from ofp_flow_wildcards */
-static const value_string names_ofp_flow_wildcards[] = {
-    { OFPFW_IN_PORT,  "Switch input port" },
-    { OFPFW_DL_VLAN,  "VLAN" },
-    { OFPFW_DL_SRC,   "Ethernet source address" },
-    { OFPFW_DL_DST,   "Ethernet destination address" },
-    { OFPFW_DL_TYPE,  "Ethernet frame type" },
-    { OFPFW_NW_SRC,   "IP source address" },
-    { OFPFW_NW_DST,   "IP destination address" },
-    { OFPFW_NW_PROTO, "IP protocol" },
-    { OFPFW_TP_SRC,   "TCP/UDP source port" },
-    { OFPFW_TP_DST,   "TCP/UDP destination port" },
-    { 0, NULL }
-};
-#define NUM_WILDCARDS 10
-
 /** names from ofp_action_type */
 static const value_string names_ofp_action_type[] = {
     { OFPAT_OUTPUT,      "Output to switch port" },
@@ -124,16 +76,9 @@ static const value_string names_ofp_action_type[] = {
     { 0,                 NULL }
 };
 #define NUM_ACTIONS 8
-
-/** names from ofp_capabilities */
-static const value_string names_ofp_capabilities[] = {
-    { OFPC_FLOW_STATS,   "Flow statistics" },
-    { OFPC_TABLE_STATS,  "Table statistics" },
-    { OFPC_PORT_STATS,   "Port statistics" },
-    { OFPC_STP,          "802.11d spanning tree" },
-    { OFPC_MULTI_PHY_TX, "Supports transmitting through multiple physical interface" },
-    { 0,                 NULL }
-};
+#define NUM_PORT_FLAGS 1
+#define NUM_PORT_FEATURES 7
+#define NUM_WILDCARDS 10
 #define NUM_CAPABILITIES 5
 
 /** yes/no for bitfields field */
