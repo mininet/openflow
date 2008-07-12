@@ -181,6 +181,7 @@ static const value_string names_ofp_port_reason[] = {
  * set when we call proto_register_field_array() in proto_register_openflow()
  */
 static gint ofp                = -1;
+static gint ofp_pad = -1;
 
 /* Open Flow Header */
 static gint ofp_header         = -1;
@@ -213,7 +214,6 @@ static gint ofp_match_dl_type   = -1;
 static gint ofp_match_nw_src    = -1;
 static gint ofp_match_nw_dst    = -1;
 static gint ofp_match_nw_proto  = -1;
-static gint ofp_match_pad       = -1;
 static gint ofp_match_tp_src    = -1;
 static gint ofp_match_tp_dst    = -1;
 
@@ -260,7 +260,6 @@ static gint ofp_flow_mod_command   = -1;
 static gint ofp_flow_mod_max_idle  = -1;
 static gint ofp_flow_mod_buffer_id = -1;
 static gint ofp_flow_mod_priority  = -1;
-static gint ofp_flow_mod_pad       = -1;
 static gint ofp_flow_mod_reserved  = -1;
 
 static gint ofp_port_mod      = -1;
@@ -280,12 +279,10 @@ static gint ofp_stats_reply_body  = -1;
 static gint ofp_flow_stats_request          = -1;
 /* field: ofp_match */
 static gint ofp_flow_stats_request_table_id = -1;
-static gint ofp_flow_stats_request_pad      = -1;
 
 static gint ofp_flow_stats_reply              = -1;
 /* length won't be put in the tree */
 static gint ofp_flow_stats_reply_table_id     = -1;
-static gint ofp_flow_stats_reply_pad          = -1;
 /* field: ofp_match */
 static gint ofp_flow_stats_reply_duration     = -1;
 static gint ofp_flow_stats_reply_packet_count = -1;
@@ -297,7 +294,6 @@ static gint ofp_flow_stats_reply_max_idle     = -1;
 static gint ofp_aggregate_stats_request          = -1;
 /* field: ofp_match */
 static gint ofp_aggregate_stats_request_table_id = -1;
-static gint ofp_aggregate_stats_request_pad      = -1;
 
 static gint ofp_aggregate_stats_reply              = -1;
 static gint ofp_aggregate_stats_reply_packet_count = -1;
@@ -306,7 +302,6 @@ static gint ofp_aggregate_stats_reply_flow_count   = -1;
 
 static gint ofp_table_stats               = -1;
 static gint ofp_table_stats_table_id      = -1;
-static gint ofp_table_stats_pad           = -1;
 static gint ofp_table_stats_name          = -1;
 static gint ofp_table_stats_max_entries   = -1;
 static gint ofp_table_stats_active_count  = -1;
@@ -314,7 +309,6 @@ static gint ofp_table_stats_matched_count = -1;
 
 static gint ofp_port_stats            = -1;
 static gint ofp_port_stats_port_no    = -1;
-static gint ofp_port_stats_pad        = -1;
 static gint ofp_port_stats_rx_count   = -1;
 static gint ofp_port_stats_tx_count   = -1;
 static gint ofp_port_stats_drop_count = -1;
@@ -332,20 +326,17 @@ static gint ofp_packet_in_buffer_id = -1;
 static gint ofp_packet_in_total_len = -1;
 static gint ofp_packet_in_in_port   = -1;
 static gint ofp_packet_in_reason    = -1;
-static gint ofp_packet_in_pad       = -1;
 static gint ofp_packet_in_data_hdr  = -1;
 
 static gint ofp_flow_expired              = -1;
 /* field: ofp_match */
 static gint ofp_flow_expired_priority     = -1;
-static gint ofp_flow_expired_pad          = -1;
 static gint ofp_flow_expired_duration     = -1;
 static gint ofp_flow_expired_packet_count = -1;
 static gint ofp_flow_expired_byte_count   = -1;
 
 static gint ofp_port_status        = -1;
 static gint ofp_port_status_reason = -1;
-static gint ofp_port_status_pad    = -1;
 /* field: ofp_phy_port */
 
 static gint ofp_error_msg      = -1;
@@ -451,6 +442,9 @@ void proto_register_openflow()
         /* header fields */
         { &ofp,
           { "Data", "of.data", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "OpenFlow PDU", HFILL }},
+
+        { &ofp_pad,
+          { "Pad", "of.pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL }},
 
         { &ofp_header,
           { "Header", "of.header", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "OpenFlow Header", HFILL }},
@@ -581,9 +575,6 @@ void proto_register_openflow()
 
         { &ofp_match_nw_proto,
           { "IP Protocol", "of.match_", FT_UINT8, BASE_HEX, NO_STRINGS, NO_MASK, "IP Protocol", HFILL }},
-
-        { &ofp_match_pad,
-          { "Pad", "of.match_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL }},
 
         { &ofp_match_tp_src,
           { "TCP/UDP Src Port", "of.match_tp_src", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Source Port", HFILL }},
@@ -750,9 +741,6 @@ void proto_register_openflow()
         { &ofp_packet_in_reason,
           { "Reason Sent", "of.pktin_reason", FT_UINT8, BASE_DEC, VALS(names_ofp_reason), NO_MASK, "Reason Packet Sent", HFILL }},
 
-        { &ofp_packet_in_pad,
-          { "Padding", "of.pktin_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL }},
-
         { &ofp_packet_in_data_hdr,
           { "Frame Data", "of.pktin_data", FT_BYTES, BASE_NONE, NO_STRINGS, NO_MASK, "Frame Data", HFILL }},
 
@@ -793,9 +781,6 @@ void proto_register_openflow()
         { &ofp_flow_mod_priority,
           { "Priority", "of.fm_priority", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Priority", HFILL } },
 
-        { &ofp_flow_mod_pad,
-          { "Pad", "of.fm_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
-
         { &ofp_flow_mod_reserved,
           { "Reserved", "of.fm_reserved", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Reserved", HFILL } },
 
@@ -806,9 +791,6 @@ void proto_register_openflow()
 
         { &ofp_flow_expired_priority,
           { "Priority", "of.fe_priority", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Priority", HFILL } },
-
-        { &ofp_flow_expired_pad,
-          { "Pad", "of.fe_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
 
         { &ofp_flow_expired_duration,
           { "Flow Duration (sec)", "of.fe_duration", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Time Flow was Alive (sec)", HFILL } },
@@ -835,9 +817,6 @@ void proto_register_openflow()
 
         { &ofp_port_status_reason,
           { "Reason", "of.ps_reason", FT_UINT8, BASE_DEC, VALS(names_ofp_port_reason), NO_MASK, "Reason", HFILL } },
-
-        { &ofp_port_status_pad,
-          { "Pad", "of.ps_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
 
 
         /* CSM: Stats Request */
@@ -878,18 +857,12 @@ void proto_register_openflow()
         { &ofp_flow_stats_request_table_id,
           { "Table ID", "of.stats_flow_table_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
 
-        { &ofp_flow_stats_request_pad,
-          { "Pad", "of.stats_flow_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
-
         /* CSM: Stats: Flow: Reply */
         { &ofp_flow_stats_reply,
           { "Flow Stats Reply", "of.stats_flow_", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flow Statistics Reply", HFILL } },
 
         { &ofp_flow_stats_reply_table_id,
           { "Table ID", "of.stats_flow_table_id", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
-
-        { &ofp_flow_stats_reply_pad,
-          { "Pad", "of.stats_flow_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
 
         { &ofp_flow_stats_reply_duration,
           { "Flow Duration (sec)", "of.stats_flow_duration", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Time Flow has Been Alive (sec)", HFILL } },
@@ -913,9 +886,6 @@ void proto_register_openflow()
         { &ofp_aggregate_stats_request_table_id,
           { "Table ID", "of.stats_aggr_table_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
 
-        { &ofp_aggregate_stats_request_pad,
-          { "Pad", "of.stats_aggr_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
-
         /* CSM: Stats: Aggregate: Reply */
         { &ofp_aggregate_stats_reply,
           { "Aggregate Stats Reply", "of.stats_aggr", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Aggregate Statistics Reply", HFILL } },
@@ -936,9 +906,6 @@ void proto_register_openflow()
         { &ofp_port_stats_port_no,
           { "Port #", "of.stats_port_port_no", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL } },
 
-        { &ofp_port_stats_pad,
-          { "Pad", "of.stats_port_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL } },
-
         { &ofp_port_stats_rx_count,
           { "# Packets Recv  ", "of.stats_port_rx_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Number of Packets Received", HFILL } },
 
@@ -954,9 +921,6 @@ void proto_register_openflow()
 
         { &ofp_table_stats_table_id,
           { "Table ID", "of.stats_table_table_id", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
-
-        { &ofp_table_stats_pad,
-          { "Pad", "of.stats_table_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
 
         { &ofp_table_stats_name,
           { "Name", "of.stats_table_name", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Name", HFILL } },
@@ -1074,6 +1038,16 @@ static guint get_openflow_message_len(packet_info *pinfo, tvbuff_t *tvb, int off
     return (guint)tvb_get_ntohs(tvb, offset+2); /* length is at offset 2 in the header */
 }
 
+static void dissect_pad(proto_tree* tree, guint32 *offset, guint pad_byte_count) {
+#if SHOW_PADDING
+    guint i;
+    for( i=0; i<pad_byte_count; i++ )
+        add_child(tree, ofp_pad, tvb, offset, 1);
+#else
+    *offset += pad_byte_count;
+#endif
+}
+
 static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset, guint num_ports)
 {
     proto_item *port_item;
@@ -1167,13 +1141,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 1;
 
-#if SHOW_PADDING
-    add_child(match_tree, ofp_match_pad, tvb, offset, 1);
-    add_child(match_tree, ofp_match_pad, tvb, offset, 1);
-    add_child(match_tree, ofp_match_pad, tvb, offset, 1);
-#else
-    *offset += 3;
-#endif
+    dissect_pad(match_tree, offset, 3);
 
     if( wildcards & OFPFW_TP_SRC )
         add_child(match_tree, ofp_match_tp_src, tvb, offset, 2);
@@ -1451,11 +1419,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             add_child(type_tree, ofp_packet_in_in_port, tvb, &offset, 2);
             add_child(type_tree, ofp_packet_in_reason, tvb, &offset, 1);
-#if SHOW_PADDING
-            add_child(type_tree, ofp_packet_in_pad, tvb, &offset, 1);
-#else
-            offset += 1;
-#endif
+            dissect_pad(type_tree, &offset, 1);
 
             /* continue the dissection with the Ethernet dissector */
             if( data_ethernet ) {
@@ -1528,12 +1492,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(type_tree, ofp_flow_mod_max_idle, tvb, &offset, 2);
             add_child(type_tree, ofp_flow_mod_buffer_id, tvb, &offset, 4);
             add_child(type_tree, ofp_flow_mod_priority, tvb, &offset, 2);
-#if SHOW_PADDING
-            add_child(type_tree, ofp_flow_mod_pad, tvb, &offset, 1);
-            add_child(type_tree, ofp_flow_mod_pad, tvb, &offset, 1);
-#else
-            offset += 2;
-#endif
+            dissect_pad(type_tree, &offset, 2);
             add_child(type_tree, ofp_flow_mod_reserved, tvb, &offset, 4);
             dissect_action_array(tvb, pinfo, type_tree, len, offset);
             break;
@@ -1545,12 +1504,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             dissect_match(type_tree, type_item, tvb, pinfo, &offset);
             add_child(type_tree, ofp_flow_expired_priority, tvb, &offset, 2);
-#if SHOW_PADDING
-            add_child(type_tree, ofp_flow_expired_pad, tvb, &offset, 1);
-            add_child(type_tree, ofp_flow_expired_pad, tvb, &offset, 1);
-#else
-            offset += 2;
-#endif
+            dissect_pad(type_tree, &offset, 2);
             add_child(type_tree, ofp_flow_expired_duration, tvb, &offset, 4);
             add_child(type_tree, ofp_flow_expired_packet_count, tvb, &offset, 8);
             add_child(type_tree, ofp_flow_expired_byte_count, tvb, &offset, 8);
@@ -1577,13 +1531,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             type_tree = proto_item_add_subtree(type_item, ett_ofp_port_status);
 
             add_child(type_tree, ofp_port_status_reason, tvb, &offset, 1);
-#if SHOW_PADDING
-                add_child(table_tree, ofp_table_stats_pad, tvb, &offset, 1);
-                add_child(table_tree, ofp_table_stats_pad, tvb, &offset, 1);
-                add_child(table_tree, ofp_table_stats_pad, tvb, &offset, 1);
-#else
-                offset += 3;
-#endif
+            dissect_pad(type_tree, &offset, 3);
             dissect_phy_ports(type_tree, type_item, tvb, pinfo, &offset, 1);
             break;
         }
@@ -1611,13 +1559,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     add_child_str(flow_tree, ofp_flow_stats_request_table_id, tvb, &offset, 1, str);
                 }
 
-#if SHOW_PADDING
-                add_child(table_tree, ofp_flow_stats_request_pad, tvb, &offset, 1);
-                add_child(table_tree, ofp_flow_stats_request_pad, tvb, &offset, 1);
-                add_child(table_tree, ofp_flow_stats_request_pad, tvb, &offset, 1);
-#else
-                offset += 3;
-#endif
+                dissect_pad(flow_tree, &offset, 3);
                 break;
             }
 
@@ -1635,13 +1577,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     add_child_str(aggregate_tree, ofp_aggregate_stats_request_table_id, tvb, &offset, 1, str);
                 }
 
-#if SHOW_PADDING
-                add_child(table_tree, ofp_aggregate_stats_request_pad, tvb, &offset, 1);
-                add_child(table_tree, ofp_aggregate_stats_request_pad, tvb, &offset, 1);
-                add_child(table_tree, ofp_aggregate_stats_request_pad, tvb, &offset, 1);
-#else
-                offset += 3;
-#endif
+                dissect_pad(aggregate_tree, &offset, 3);
                 break;
             }
 
@@ -1680,11 +1616,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     offset += 2;
 
                     add_child(flow_tree, ofp_flow_stats_reply_table_id, tvb, &offset, 2);
-#if SHOW_PADDING
-                    add_child(flow_tree, ofp_flow_stats_reply_pad, tvb, &offset, 1);
-#else
-                    offset += 1;
-#endif
+                    dissect_pad(flow_tree, &offset, 1);
                     dissect_match(flow_tree, flow_item, tvb, pinfo, &offset);
                     add_child(flow_tree, ofp_flow_stats_reply_duration, tvb, &offset, 4);
                     add_child(flow_tree, ofp_flow_stats_reply_packet_count, tvb, &offset, 8);
@@ -1715,13 +1647,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     proto_tree *table_tree = proto_item_add_subtree(table_item, ett_ofp_table_stats);
 
                     add_child(table_tree, ofp_table_stats_table_id, tvb, &offset, 1);
-#if SHOW_PADDING
-                    add_child(table_tree, ofp_table_stats_pad, tvb, &offset, 1);
-                    add_child(table_tree, ofp_table_stats_pad, tvb, &offset, 1);
-                    add_child(table_tree, ofp_table_stats_pad, tvb, &offset, 1);
-#else
-                    offset += 3;
-#endif
+                    dissect_pad(table_tree, &offset, 3);
                     add_child(table_tree, ofp_table_stats_name, tvb, &offset, OFP_MAX_TABLE_NAME_LEN);
                     add_child(table_tree, ofp_table_stats_max_entries, tvb, &offset, 4);
                     add_child(table_tree, ofp_table_stats_active_count, tvb, &offset, 4);
@@ -1737,12 +1663,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     proto_tree *port_tree = proto_item_add_subtree(port_item, ett_ofp_port_stats);
 
                     add_child(port_tree, ofp_port_stats_port_no, tvb, &offset, 2);
-#if SHOW_PADDING
-                    add_child(port_tree, ofp_port_stats_pad, tvb, &offset, 1);
-                    add_child(port_tree, ofp_port_stats_pad, tvb, &offset, 1);
-#else
-                    offset += 2;
-#endif
+                    dissect_pad(port_tree, &offset, 2);
                     add_child(port_tree, ofp_port_stats_rx_count, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_tx_count, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_drop_count, tvb, &offset, 8);
