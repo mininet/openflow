@@ -263,7 +263,7 @@ static gint ofp_flow_mod_pad       = -1;
 static gint ofp_flow_mod_reserved  = -1;
 
 static gint ofp_port_mod      = -1;
-static gint ofp_port_mod_desc = -1;
+/* field: ofp_phy_port */
 
 static gint ofp_stats_request       = -1;
 static gint ofp_stats_request_type  = -1;
@@ -840,8 +840,29 @@ void proto_register_openflow()
 
 
         /* CSM: Port Mod */
+        { &ofp_port_mod,
+          { "Port Modification", "of.pm", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Modification", HFILL } },
 
-        /* AM:  Port Status */
+
+        /* AM: Port Stats */
+        { &ofp_port_stats,
+          { "Port Stats", "of.ps", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Stats", HFILL } },
+
+        { &ofp_port_stats_port_no,
+          { "Port #", "of.ps_port_no", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL } },
+
+        { &ofp_port_stats_pad,
+          { "Pad", "of.ps_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL } },
+
+        { &ofp_port_stats_rx_count,
+          { "# Packets Recv  ", "of.ps_rx_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Number of Packets Received", HFILL } },
+
+        { &ofp_port_stats_tx_count,
+          { "# Packets Sent  ", "of.ps_tx_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Number of Packets Sent", HFILL } },
+
+        { &ofp_port_stats_drop_count,
+          { "# Packets Dropped", "of.ps_drop_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Number of Packets Dropped", HFILL } },
+
 
         /* CSM: Stats Request */
 
@@ -1442,13 +1463,29 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             break;
         }
 
-        case OFPT_PORT_MOD:
-
+        case OFPT_PORT_MOD: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_port_mod, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_port_mod);
+            dissect_phy_ports(type_tree, type_item, tvb, pinfo, &offset, 1);
             break;
+        }
 
-        case OFPT_PORT_STATUS:
+        case OFPT_PORT_STATUS: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_port_stats, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_port_stats);
 
+            add_child(type_tree, ofp_port_stats_port_no, tvb, &offset, 2);
+#if SHOW_PADDING
+            add_child(type_tree, ofp_port_stats_pad, tvb, &offset, 1);
+            add_child(type_tree, ofp_port_stats_pad, tvb, &offset, 1);
+#else
+            offset += 2;
+#endif
+            add_child(type_tree, ofp_port_stats_rx_count, tvb, &offset, 8);
+            add_child(type_tree, ofp_port_stats_tx_count, tvb, &offset, 8);
+            add_child(type_tree, ofp_port_stats_drop_count, tvb, &offset, 8);
             break;
+        }
 
         case OFPT_STATS_REQUEST:
 
