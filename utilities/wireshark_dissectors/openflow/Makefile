@@ -70,7 +70,7 @@ install: $(PLUGIN_NAME).so
 	  target="$(LOCAL_PLUGIN_DIR)/$<"; \
 	  res="*** Installed plugin for user "`id | cut -d\( -f2 | cut -d\) -f1`" ($$target)"; \
 	fi; \
-	cp $< "$$target" && echo "" && echo "$$res"
+	install --mode=644 $< "$$target" && echo "" && echo "$$res"
 
 plugin.c: moduleinfo.h Makefile.am Makefile.common
 	$(MAKE) -f Makefile.am
