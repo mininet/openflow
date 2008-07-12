@@ -175,6 +175,8 @@ static const value_string names_ofp_port_reason[] = {
     { 0,            NULL }
 };
 
+#define NUM_REPLIES 1
+
 /* These variables are used to hold the IDs of our fields; they are
  * set when we call proto_register_field_array() in proto_register_openflow()
  */
@@ -214,7 +216,6 @@ static gint ofp_match_nw_proto  = -1;
 static gint ofp_match_pad       = -1;
 static gint ofp_match_tp_src    = -1;
 static gint ofp_match_tp_dst    = -1;
-static gint ofp_match_unknown   = -1;
 
 static gint ofp_action         = -1;
 static gint ofp_action_type    = -1;
@@ -273,6 +274,7 @@ static gint ofp_stats_request_body  = -1;
 static gint ofp_stats_reply       = -1;
 static gint ofp_stats_reply_type  = -1;
 static gint ofp_stats_reply_flags = -1;
+static gint ofp_stats_reply_flag[NUM_REPLIES];
 static gint ofp_stats_reply_body  = -1;
 
 static gint ofp_flow_stats_request          = -1;
@@ -380,6 +382,7 @@ static gint ett_ofp_flow_mod = -1;
 static gint ett_ofp_port_mod = -1;
 static gint ett_ofp_stats_request = -1;
 static gint ett_ofp_stats_reply = -1;
+static gint ett_ofp_stats_reply_flags = -1;
 static gint ett_ofp_flow_stats_request = -1;
 static gint ett_ofp_flow_stats = -1;
 static gint ett_ofp_aggregate_stats_request = -1;
@@ -435,6 +438,9 @@ void proto_register_openflow()
     }
     for( i=0; i<NUM_WILDCARDS; i++ ) {
         ofp_match_wildcard[i] = -1;
+    }
+    for( i=0; i<NUM_REPLIES; i++ ) {
+        ofp_stats_reply_flag[i] = -1;
     }
 
     /* A header field is something you can search/filter on.
@@ -865,11 +871,49 @@ void proto_register_openflow()
 
 
         /* CSM: Stats Request */
+        { &ofp_stats_request,
+          { "Stats Request", "of.sreq", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Statistics Request", HFILL } },
+
+        { &ofp_stats_request_type,
+          { "Type", "of.sreq_type", FT_UINT16, BASE_HEX, VALS(names_stats_types), NO_MASK, "Type", HFILL } },
+
+        { &ofp_stats_request_flags,
+          { "Flags", "of.sreq_flags", FT_UINT16, BASE_HEX, NO_STRINGS, NO_MASK, "Flags", HFILL } },
+
+        { &ofp_stats_request_body,
+          { "Body", "of.sreq_body", FT_BYTES, BASE_NONE, NO_STRINGS, NO_MASK, "Body", HFILL } },
+
+
 
         /* CSM: Stats Reply */
+        { &ofp_stats_reply,
+          { "Stats Reply", "of.srep", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Statistics Reply", HFILL } },
+
+        { &ofp_stats_reply_type,
+          { "Type", "of.srep_type", FT_UINT16, BASE_HEX, VALS(names_stats_types), NO_MASK, "Type", HFILL } },
+
+        { &ofp_stats_reply_flags,
+          { "Flags", "of.srep_flags", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Flags", HFILL } },
+
+        { &ofp_stats_reply_flag[0],
+          { "  More replies to follow", "of.srep_more", FT_UINT16, BASE_DEC, VALS(names_choice), OFPSF_REPLY_MORE, "More replies to follow", HFILL }},
+
+        { &ofp_stats_reply_body,
+          { "Body", "of.srep_body", FT_BYTES, BASE_NONE, NO_STRINGS, NO_MASK, "Body", HFILL } },
+
 
         /* AM:  Error Message */
+        { &ofp_error_msg,
+          { "Error Message", "of.err", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Error Message", HFILL } },
 
+        { &ofp_error_msg_type,
+          { "Type", "of.err_type", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Type", HFILL } },
+
+        { &ofp_error_msg_code,
+          { "Code", "of.err_code", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Code", HFILL } },
+
+        { &ofp_error_msg_data,
+          { "Data", "of.err_data", FT_BYTES, BASE_NONE, NO_STRINGS, NO_MASK, "Data", HFILL } },
     };
 
     static gint *ett[] = {
@@ -893,6 +937,7 @@ void proto_register_openflow()
         &ett_ofp_port_mod,
         &ett_ofp_stats_request,
         &ett_ofp_stats_reply,
+        &ett_ofp_stats_reply_flags,
         &ett_ofp_flow_stats_request,
         &ett_ofp_flow_stats,
         &ett_ofp_aggregate_stats_request,
@@ -1487,17 +1532,35 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             break;
         }
 
-        case OFPT_STATS_REQUEST:
+        case OFPT_STATS_REQUEST: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_stats_request, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_stats_request);
 
+            add_child(type_tree, ofp_stats_request_type, tvb, &offset, 2);
+            add_child(type_tree, ofp_stats_request_flags, tvb, &offset, 2);
+            add_child(type_tree, ofp_stats_request_body, tvb, &offset, len - offset);
             break;
+        }
 
-        case OFPT_STATS_REPLY:
+        case OFPT_STATS_REPLY: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_stats_reply, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_stats_reply);
 
+            add_child(type_tree, ofp_stats_reply_type, tvb, &offset, 2);
+            add_child(type_tree, ofp_stats_reply_flags, tvb, &offset, 2);
+            add_child(type_tree, ofp_stats_reply_body, tvb, &offset, len - offset);
             break;
+        }
 
-        case OFPT_ERROR_MSG:
+        case OFPT_ERROR_MSG: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_error_msg, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_error_msg);
 
+            add_child(type_tree, ofp_error_msg_type, tvb, &offset, 2);
+            add_child(type_tree, ofp_error_msg_code, tvb, &offset, 2);
+            add_child(type_tree, ofp_error_msg_data, tvb, &offset, len - offset);
             break;
+        }
 
         default:
             /* add a warning if we encounter an unrecognized packet type */
