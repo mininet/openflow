@@ -251,7 +251,7 @@ static gint ofp_switch_features_ports_num = -1;
 static gint ofp_switch_features_ports_warn = -1;
 
 static gint ofp_switch_config               = -1;
-static gint ofp_switch_config_flags         = -1;
+/* flags handled by ofp_switch_features_capabilities */
 static gint ofp_switch_config_miss_send_len = -1;
 
 static gint ofp_flow_mod           = -1;
@@ -630,6 +630,7 @@ void proto_register_openflow()
         /* CSM: Features Request */
         /* nothing beyond the header */
 
+
         /* CSM: Features Reply */
         { &ofp_switch_features,
           { "Switch Features", "of.sf", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Switch Features", HFILL }},
@@ -659,7 +660,7 @@ void proto_register_openflow()
           { "Max Packets Buffered", "of.sf_", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL }},
 
         { &ofp_switch_features_capabilities_hdr,
-          { "Capabilities", "of.sf_capabilities", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Capabilities", HFILL }},
+          { "Capabilities", "of.sf_capabilities", FT_UINT32, BASE_HEX, NO_STRINGS, NO_MASK, "Capabilities", HFILL }},
 
         { &ofp_switch_features_capabilities[0],
           { "  Flow statistics", "of.sf_capabilities_flow_stats", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_FLOW_STATS, "Flow statistics", HFILL }},
@@ -717,10 +718,17 @@ void proto_register_openflow()
 
 
         /* CSM: Get Config Request */
+        /* nothing beyond the header */
+
 
         /* CSM: Get Config Reply */
-
         /* CSM: Set Config */
+        { &ofp_switch_config,
+          { "Switch Configuration", "of.sc", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Switch Configuration", HFILL } },
+
+        { &ofp_switch_config_miss_send_len,
+          { "Max Bytes of New Flow to Send to Controller", "of.sc_", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Max Bytes of New Flow to Send to Controller", HFILL } },
+
 
         /* AM:  Packet In */
         { &ofp_packet_in,
@@ -1107,6 +1115,14 @@ static void dissect_action_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     }
 }
 
+static void dissect_capability_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, guint field_size) {
+    proto_item *sf_cap_item = proto_tree_add_item(tree, ofp_switch_features_capabilities_hdr, tvb, offset, field_size, FALSE);
+    proto_tree *sf_cap_tree = proto_item_add_subtree(sf_cap_item, ett_ofp_switch_features_capabilities_hdr);
+    gint i;
+    for(i=0; i<NUM_CAPABILITIES; i++)
+        add_child_const(sf_cap_tree, ofp_switch_features_capabilities[i], tvb, offset, field_size);
+}
+
 static void dissect_ethernet(tvbuff_t *next_tvb, packet_info *pinfo, proto_tree *data_tree) {
     /* add seperators to existing column strings */
     if (check_col(pinfo->cinfo, COL_PROTOCOL))
@@ -1187,8 +1203,6 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             proto_tree *sf_ti_tree = NULL;
             proto_item *sf_bl_item = NULL;
             proto_tree *sf_bl_tree = NULL;
-            proto_item *sf_cap_item = NULL;
-            proto_tree *sf_cap_tree = NULL;
             proto_item *sf_act_item = NULL;
             proto_tree *sf_act_tree = NULL;
             proto_item *sf_port_item = NULL;
@@ -1216,11 +1230,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(sf_bl_tree, ofp_switch_features_n_buffers, tvb, &offset, 4);
 
             /* capabilities */
-            sf_cap_item = proto_tree_add_item(type_tree, ofp_switch_features_capabilities_hdr, tvb, offset, 4, FALSE);
-            sf_cap_tree = proto_item_add_subtree(sf_cap_item, ett_ofp_switch_features_capabilities_hdr);
-            for(i=0; i<NUM_CAPABILITIES; i++) {
-                add_child_const(sf_cap_tree, ofp_switch_features_capabilities[i], tvb, offset, 4);
-            }
+            dissect_capability_array(tvb, pinfo, type_tree, offset, 4);
             offset += 4;
 
             /* actions */
@@ -1260,16 +1270,18 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         }
 
         case OFPT_GET_CONFIG_REQUEST:
-
+            /* nothing else in this packet type */
             break;
 
         case OFPT_GET_CONFIG_REPLY:
-
+        case OFPT_SET_CONFIG: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_switch_config, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_switch_config);
+            dissect_capability_array(tvb, pinfo, type_tree, offset, 2);
+            offset += 2;
+            add_child(type_tree, ofp_switch_config_miss_send_len, tvb, &offset, 2);
             break;
-
-        case OFPT_SET_CONFIG:
-
-            break;
+        }
 
         case OFPT_PACKET_IN: {
             type_item = proto_tree_add_item(ofp_tree, ofp_packet_in, tvb, offset, -1, FALSE);
