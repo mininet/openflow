@@ -21,6 +21,9 @@
 #include <arpa/inet.h>
 #include <openflow.h>
 
+/** if 0, padding bytes will not be shown in the dissector */
+#define SHOW_PADDING 0
+
 /** the version of openflow this dissector was written for */
 #define DISSECTOR_OPENFLOW_VERSION 0x83
 
@@ -106,6 +109,7 @@ static const value_string names_ofp_flow_wildcards[] = {
     { OFPFW_TP_DST,   "TCP/UDP destination port" },
     { 0, NULL }
 };
+#define NUM_WILDCARDS 10
 
 /** names from ofp_action_type */
 static const value_string names_ofp_action_type[] = {
@@ -198,6 +202,7 @@ static gint ofp_phy_port_features[NUM_PORT_FEATURES];
 
 static gint ofp_match           = -1;
 static gint ofp_match_wildcards = -1;
+static gint ofp_match_wildcard[NUM_WILDCARDS];
 static gint ofp_match_in_port   = -1;
 static gint ofp_match_dl_src    = -1;
 static gint ofp_match_dl_dst    = -1;
@@ -209,6 +214,7 @@ static gint ofp_match_nw_proto  = -1;
 static gint ofp_match_pad       = -1;
 static gint ofp_match_tp_src    = -1;
 static gint ofp_match_tp_dst    = -1;
+static gint ofp_match_unknown   = -1;
 
 static gint ofp_action         = -1;
 static gint ofp_action_type    = -1;
@@ -249,14 +255,12 @@ static gint ofp_switch_config_flags         = -1;
 static gint ofp_switch_config_miss_send_len = -1;
 
 static gint ofp_flow_mod           = -1;
-static gint ofp_flow_mod_match     = -1;
 static gint ofp_flow_mod_command   = -1;
 static gint ofp_flow_mod_max_idle  = -1;
 static gint ofp_flow_mod_buffer_id = -1;
 static gint ofp_flow_mod_priority  = -1;
 static gint ofp_flow_mod_pad       = -1;
 static gint ofp_flow_mod_reserved  = -1;
-static gint ofp_flow_mod_actions   = -1;
 
 static gint ofp_port_mod      = -1;
 static gint ofp_port_mod_desc = -1;
@@ -358,6 +362,7 @@ static gint ett_ofp_phy_port = -1;
 static gint ett_ofp_phy_port_flags_hdr = -1;
 static gint ett_ofp_phy_port_features_hdr = -1;
 static gint ett_ofp_match = -1;
+static gint ett_ofp_match_wildcards = -1;
 static gint ett_ofp_action = -1;
 static gint ett_ofp_action_output = -1;
 
@@ -427,6 +432,9 @@ void proto_register_openflow()
     }
     for( i=0; i<NUM_PORT_FEATURES; i++ ) {
         ofp_phy_port_features[i] = -1;
+    }
+    for( i=0; i<NUM_WILDCARDS; i++ ) {
+        ofp_match_wildcard[i] = -1;
     }
 
     /* A header field is something you can search/filter on.
@@ -507,6 +515,77 @@ void proto_register_openflow()
 
         { &ofp_phy_port_features[6],
           { "   10 Gb full-duplex rate support", "of.port_features_10gb_hd",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10GB_FD, "10 Gb full-duplex rate support", HFILL }},
+
+
+        /* CS: match */
+        { &ofp_match,
+          { "Match", "of.match", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Match", HFILL }},
+
+        { &ofp_match_wildcards,
+          { "Match Types", "of.wildcards", FT_UINT16, BASE_HEX, NO_STRINGS, NO_MASK, "Match Types (Wildcards)", HFILL }},
+
+        { &ofp_match_wildcard[0],
+          { "  Input port", "of.wildcard_in_port" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_IN_PORT, "Input Port", HFILL }},
+
+        { &ofp_match_wildcard[1],
+          { "  VLAN", "of.wildcard_dl_vlan" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_DL_VLAN, "VLAN", HFILL }},
+
+        { &ofp_match_wildcard[2],
+          { "  Ethernet Src Addr", "of.wildcard_dl_src" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_DL_SRC, "Ethernet Source Address", HFILL }},
+
+        { &ofp_match_wildcard[3],
+          { "  Ethernet Dst Addr", "of.wildcard_dl_dst" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_DL_DST, "Ethernet Destination Address", HFILL }},
+
+        { &ofp_match_wildcard[4],
+          { "  Ethernet Type", "of.wildcard_dl_type" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_DL_TYPE, "Ethernet Type", HFILL }},
+
+        { &ofp_match_wildcard[5],
+          { "  IP Src Addr", "of.wildcard_nw_src" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_NW_SRC, "IP Source Address", HFILL }},
+
+        { &ofp_match_wildcard[6],
+          { "  IP Dst Addr", "of.wildcard_nw_dst" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_NW_DST, "IP Destination Address", HFILL }},
+
+        { &ofp_match_wildcard[7],
+          { "  IP Protocol", "of.wildcard_nw_proto" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_NW_PROTO, "IP Protocol", HFILL }},
+
+        { &ofp_match_wildcard[8],
+          { "  TCP/UDP Src Port", "of.wildcard_tp_src" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_TP_SRC, "TCP/UDP Source Port", HFILL }},
+
+        { &ofp_match_wildcard[9],
+          { "  TCP/UDP Dst Port", "of.wildcard_tp_dst" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_TP_DST, "TCP/UDP Destinatoin Port", HFILL }},
+
+        { &ofp_match_in_port,
+          { "Input Port", "of.match_in_port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Input Port", HFILL }},
+
+        { &ofp_match_dl_src,
+          { "Ethernet Src Addr", "of.match_dl_src", FT_ETHER, BASE_NONE, NO_STRINGS, NO_MASK, "Source MAC Address", HFILL }},
+
+        { &ofp_match_dl_dst,
+          { "Ethernet Dst Addr", "of.match_dl_dst", FT_ETHER, BASE_NONE, NO_STRINGS, NO_MASK, "Destination MAC Address", HFILL }},
+
+        { &ofp_match_dl_vlan,
+          { "Input VLAN", "of.match_dl_vlan", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Input VLAN", HFILL }},
+
+        { &ofp_match_dl_type,
+          { "Ethernet Type", "of.match_dl_type", FT_UINT16, BASE_HEX, NO_STRINGS, NO_MASK, "Ethernet Type", HFILL }},
+
+        { &ofp_match_nw_src,
+          { "IP Src Addr", "of.match_nw_src", FT_IPv4, BASE_DEC, NO_STRINGS, NO_MASK, "Source IP Address", HFILL }},
+
+        { &ofp_match_nw_dst,
+          { "IP Dst Addr", "of.match_nw_dst", FT_IPv4, BASE_DEC, NO_STRINGS, NO_MASK, "Destination IP Address", HFILL }},
+
+        { &ofp_match_nw_proto,
+          { "IP Protocol", "of.match_", FT_UINT8, BASE_HEX, NO_STRINGS, NO_MASK, "IP Protocol", HFILL }},
+
+        { &ofp_match_pad,
+          { "Pad", "of.match_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL }},
+
+        { &ofp_match_tp_src,
+          { "TCP/UDP Src Port", "of.match_tp_src", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Source Port", HFILL }},
+
+        { &ofp_match_tp_dst,
+          { "TCP/UDP Dst Port", "of.match_tp_dst", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Destination Port", HFILL }},
 
 
         /* CS: active type */
@@ -687,6 +766,26 @@ void proto_register_openflow()
 
 
         /* CSM: Flow Mod */
+        { &ofp_flow_mod,
+          { "Flow Modification", "of.fm", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flow Modification", HFILL } },
+
+        { &ofp_flow_mod_command,
+          { "Command", "of.fm_command", FT_UINT16, BASE_DEC, VALS(names_flow_mod_command), NO_MASK, "Command", HFILL } },
+
+        { &ofp_flow_mod_max_idle,
+          { "Idle Time (sec) Before Discarding", "of.fm_max_idle", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Idle Time (sec) Before Discarding", HFILL } },
+
+        { &ofp_flow_mod_buffer_id,
+          { "Buffer ID", "of.fm_buffer_id", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Buffer ID", HFILL } },
+
+        { &ofp_flow_mod_priority,
+          { "Priority", "of.fm_priority", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Priority", HFILL } },
+
+        { &ofp_flow_mod_pad,
+          { "Pad", "of.fm_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
+
+        { &ofp_flow_mod_reserved,
+          { "Reserved", "of.fm_reserved", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Reserved", HFILL } },
 
         /* AM:  Flow Expired */
 
@@ -711,6 +810,7 @@ void proto_register_openflow()
         &ett_ofp_phy_port_flags_hdr,
         &ett_ofp_phy_port_features_hdr,
         &ett_ofp_match,
+        &ett_ofp_match_wildcards,
         &ett_ofp_action,
         &ett_ofp_action_output,
         &ett_ofp_switch_features,
@@ -827,6 +927,80 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
         }
         *offset += 4;
     }
+}
+
+static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
+{
+    int i;
+    proto_item *match_item = proto_tree_add_item(tree, ofp_match, tvb, *offset, sizeof(struct ofp_match), FALSE);
+    proto_tree *match_tree = proto_item_add_subtree(match_item, ett_ofp_match);
+
+    /* add wildcard subtree */
+    guint16 wildcards = tvb_get_ntohs( tvb, *offset );
+    proto_item *wild_item = proto_tree_add_item(match_tree, ofp_match_wildcards, tvb, *offset, 2, FALSE);
+    proto_tree *wild_tree = proto_item_add_subtree(wild_item, ett_ofp_match_wildcards);
+    for(i=0; i<NUM_WILDCARDS; i++)
+        add_child_const(wild_tree, ofp_match_wildcard[i], tvb, *offset, 2 );
+    *offset += 2;
+
+    /* show only items whose corresponding wildcard bit is set */
+    if( wildcards & OFPFW_IN_PORT )
+        add_child(match_tree, ofp_match_in_port, tvb, offset, 2);
+    else
+        *offset += 2;
+
+    if( wildcards & OFPFW_DL_SRC )
+        add_child(match_tree, ofp_match_dl_src, tvb, offset, 6);
+    else
+        *offset += 6;
+
+    if( wildcards & OFPFW_DL_DST )
+        add_child(match_tree, ofp_match_dl_dst, tvb, offset, 6);
+    else
+        *offset += 6;
+
+    if( wildcards & OFPFW_DL_VLAN )
+        add_child(match_tree, ofp_match_dl_vlan, tvb, offset, 2);
+    else
+        *offset += 2;
+
+    if( wildcards & OFPFW_DL_TYPE )
+        add_child(match_tree, ofp_match_dl_type, tvb, offset, 2);
+    else
+        *offset += 2;
+
+    if( wildcards & OFPFW_NW_SRC )
+        add_child(match_tree, ofp_match_nw_src, tvb, offset, 4);
+    else
+        *offset += 4;
+
+    if( wildcards & OFPFW_NW_DST )
+        add_child(match_tree, ofp_match_nw_dst, tvb, offset, 4);
+    else
+        *offset += 4;
+
+    if( wildcards & OFPFW_NW_PROTO )
+        add_child(match_tree, ofp_match_nw_proto, tvb, offset, 1);
+    else
+        *offset += 1;
+
+#if SHOW_PADDING
+    add_child(match_tree, ofp_match_pad, tvb, offset, 1);
+    add_child(match_tree, ofp_match_pad, tvb, offset, 1);
+    add_child(match_tree, ofp_match_pad, tvb, offset, 1);
+#else
+    *offset += 3;
+#endif
+
+    if( wildcards & OFPFW_TP_SRC )
+        add_child(match_tree, ofp_match_tp_src, tvb, offset, 2);
+    else
+        *offset += 2;
+
+    if( wildcards & OFPFW_TP_DST )
+        add_child(match_tree, ofp_match_tp_dst, tvb, offset, 2);
+    else
+        *offset += 2;
 }
 
 static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offset)
@@ -1091,7 +1265,11 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             add_child(type_tree, ofp_packet_in_in_port, tvb, &offset, 2);
             add_child(type_tree, ofp_packet_in_reason, tvb, &offset, 1);
+#if SHOW_PADDING
             add_child(type_tree, ofp_packet_in_pad, tvb, &offset, 1);
+#else
+            offset += 1;
+#endif
 
             /* continue the dissection with the Ethernet dissector */
             if( data_ethernet ) {
@@ -1133,9 +1311,9 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             add_child(type_tree, ofp_packet_out_out_port, tvb, &offset, 2);
 
-            guint total_len = len - offset;
             if( buffer_id == -1 ) {
                 /* continue the dissection with the Ethernet dissector */
+                guint total_len = len - offset;
                 if( data_ethernet ) {
                     proto_item *data_item = proto_tree_add_item(type_tree, ofp_packet_out_data_hdr, tvb, offset, -1, FALSE);
                     proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_packet_out_data_hdr);
@@ -1155,9 +1333,25 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             break;
         }
 
-        case OFPT_FLOW_MOD:
+        case OFPT_FLOW_MOD: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_flow_mod, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_flow_mod);
 
+            dissect_match(type_tree, type_item, tvb, pinfo, &offset);
+            add_child(type_tree, ofp_flow_mod_command, tvb, &offset, 2);
+            add_child(type_tree, ofp_flow_mod_max_idle, tvb, &offset, 2);
+            add_child(type_tree, ofp_flow_mod_buffer_id, tvb, &offset, 4);
+            add_child(type_tree, ofp_flow_mod_priority, tvb, &offset, 2);
+#if SHOW_PADDING
+            add_child(type_tree, ofp_flow_mod_pad, tvb, &offset, 1);
+            add_child(type_tree, ofp_flow_mod_pad, tvb, &offset, 1);
+#else
+            offset += 2;
+#endif
+            add_child(type_tree, ofp_flow_mod_reserved, tvb, &offset, 4);
+            dissect_action_array(tvb, pinfo, type_tree, len, offset);
             break;
+        }
 
         case OFPT_FLOW_EXPIRED:
 
