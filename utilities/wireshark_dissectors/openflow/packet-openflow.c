@@ -1,7 +1,7 @@
 /**
  * Filename: packet-openflow.c
  * Author:   David Underhill
- * Updated:  2008-Jul-11
+ * Updated:  2008-Jul-12
  * Purpose:  define a Wireshark 1.0.0+ dissector for the OpenFlow protocol
  *           version 0x83
  */
@@ -817,6 +817,27 @@ void proto_register_openflow()
 
 
         /* CSM: Table */
+        { &ofp_table_stats,
+          { "Table Stats", "of.ts", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Table Stats", HFILL } },
+
+        { &ofp_table_stats_table_id,
+          { "Table ID", "of.ts_table_id", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
+
+        { &ofp_table_stats_pad,
+          { "Pad", "of.ts_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
+
+        { &ofp_table_stats_name,
+          { "Name", "of.ts_name", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Name", HFILL } },
+
+        { &ofp_table_stats_max_entries,
+          { "Max Supported Entries", "of.ts_max_entries", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Max Supported Entries", HFILL } },
+
+        { &ofp_table_stats_active_count,
+          { "Active Entry Count", "of.ts_active_count", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Active Entry Count", HFILL } },
+
+        { &ofp_table_stats_matched_count,
+          { "Packet Match Count", "of.ts_match_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Packet Match Count", HFILL } },
+
 
         /* CSM: Port Mod */
 
@@ -1402,9 +1423,24 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             break;
         }
 
-        case OFPT_TABLE:
+        case OFPT_TABLE: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_table_stats, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_table_stats);
 
+            add_child(type_tree, ofp_table_stats_table_id, tvb, &offset, 1);
+#if SHOW_PADDING
+            add_child(type_tree, ofp_table_stats_pad, tvb, &offset, 1);
+            add_child(type_tree, ofp_table_stats_pad, tvb, &offset, 1);
+            add_child(type_tree, ofp_table_stats_pad, tvb, &offset, 1);
+#else
+            offset += 3;
+#endif
+            add_child(type_tree, ofp_table_stats_name, tvb, &offset, OFP_MAX_TABLE_NAME_LEN);
+            add_child(type_tree, ofp_table_stats_max_entries, tvb, &offset, 4);
+            add_child(type_tree, ofp_table_stats_active_count, tvb, &offset, 4);
+            add_child(type_tree, ofp_table_stats_matched_count, tvb, &offset, 8);
             break;
+        }
 
         case OFPT_PORT_MOD:
 
