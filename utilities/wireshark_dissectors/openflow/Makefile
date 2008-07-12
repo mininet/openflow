@@ -10,9 +10,27 @@ PLUGIN_NAME = packet-openflow
 LOCAL_PLUGIN_DIR  = /home/$(shell whoami)/.wireshark/plugins
 
 # determine global installation path (use latest plugin version path)
-GLOBAL_PLUGIN_DIR_PARTIAL=/usr/local/lib/wireshark/plugins
-GLOBAL_PLUGIN_VER=$(shell ls $(GLOBAL_PLUGIN_DIR_PARTIAL) | sort --reverse | head -n 1)
-GLOBAL_PLUGIN_DIR=$(GLOBAL_PLUGIN_DIR_PARTIAL)/$(GLOBAL_PLUGIN_VER)
+ifneq ($(wildcard /usr/lib/wireshark/plugins),)
+	GLOBAL_PLUGIN_DIR_PARTIAL=/usr/lib/wireshark/plugins
+else ifneq ($(wildcard /usr/local/lib/wireshark/plugins),)
+	GLOBAL_PLUGIN_DIR_PARTIAL=/usr/local/lib/wireshark/plugins
+endif
+
+# Work out if there are version-specific subdirectories
+GLOBAL_PLUGIN_DIR_FILES := $(wildcard $(GLOBAL_PLUGIN_DIR_PARTIAL)/*)
+GLOBAL_PLUGIN_DIR_SUBDIRS := $(foreach file,$(GLOBAL_PLUGIN_DIR_FILES),$(dir $(wildcard $(file)/.)))
+GLOBAL_PLUGIN_DIR_SUBDIRS := $(subst $(GLOBAL_PLUGIN_DIR_PARTIAL)/,,$(GLOBAL_PLUGIN_DIR_SUBDIRS))
+GLOBAL_PLUGIN_DIR_SUBDIRS := $(subst /,,$(GLOBAL_PLUGIN_DIR_SUBDIRS))
+
+# Assume that the "last" directory is the one we ant to use if it exists
+GLOBAL_PLUGIN_VER := $(lastword $(sort $(GLOBAL_PLUGIN_DIR_SUBDIRS)))
+
+# Create the actual global plugin dir to use
+ifneq ($(GLOBAL_PLUGIN_VER),)
+	GLOBAL_PLUGIN_DIR=$(GLOBAL_PLUGIN_DIR_PARTIAL)/$(GLOBAL_PLUGIN_VER)
+else
+	GLOBAL_PLUGIN_DIR=$(GLOBAL_PLUGIN_DIR_PARTIAL)
+endif
 
 # specify the port on which event capture packets will be destined
 DISSECT_PORT = -DOPENFLOW_DST_TCP_PORT=975
