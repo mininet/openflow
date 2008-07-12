@@ -35,6 +35,9 @@ static void dissect_openflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
 #define TCP_PORT_FILTER "tcp.port"
 static int global_openflow_proto = OPENFLOW_DST_TCP_PORT;
 
+/* try to find the ethernet dissector to dissect encapsulated Ethernet data */
+static dissector_handle_t data_ethernet;
+
 /* AM=Async message, CSM=Control/Switch Message */
 /** names to bind to various values in the type field */
 static const value_string names_ofp_type[] = {
@@ -316,12 +319,12 @@ static gint ofp_packet_out_data      = -1;
 
 /* Asynchronous Messages */
 static gint ofp_packet_in        = -1;
-static gint ofp_packet_buffer_id = -1;
-static gint ofp_packet_total_len = -1;
-static gint ofp_packet_in_port   = -1;
-static gint ofp_packet_reason    = -1;
-static gint ofp_packet_pad       = -1;
-static gint ofp_packet_data      = -1;
+static gint ofp_packet_in_buffer_id = -1;
+static gint ofp_packet_in_total_len = -1;
+static gint ofp_packet_in_in_port   = -1;
+static gint ofp_packet_in_reason    = -1;
+static gint ofp_packet_in_pad       = -1;
+static gint ofp_packet_in_data_hdr  = -1;
 
 static gint ofp_flow_expired              = -1;
 /* field: ofp_match */
@@ -378,6 +381,7 @@ static gint ett_ofp_packet_out = -1;
 
 /* Asynchronous Messages */
 static gint ett_ofp_packet_in = -1;
+static gint ett_ofp_packet_in_data_hdr = -1;
 static gint ett_ofp_flow_expired = -1;
 static gint ett_ofp_port_status = -1;
 static gint ett_ofp_error_msg = -1;
@@ -402,6 +406,8 @@ static inline char* indent( char* str ) {
 
 void proto_register_openflow()
 {
+    data_ethernet = find_dissector("eth");
+
     /* initialize uninitialized header fields */
     int i;
     for( i=0; i<NUM_CAPABILITIES; i++ ) {
@@ -592,6 +598,27 @@ void proto_register_openflow()
         /* CSM: Set Config */
 
         /* AM:  Packet In */
+        { &ofp_packet_in,
+          { "Packet In", "of.pktin", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Packet In", HFILL }},
+
+        { &ofp_packet_in_buffer_id,
+          { "Buffer ID", "of.pktin_buffer_id", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Buffer ID", HFILL }},
+
+        { &ofp_packet_in_total_len,
+          { "Frame Total Length", "of.pktin_total_len", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Frame Total Length (B)", HFILL }},
+
+        { &ofp_packet_in_in_port,
+          { "Frame Recv Port", "of.pktin_in_port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Port Frame was Received On", HFILL }},
+
+        { &ofp_packet_in_reason,
+          { "Reason Sent", "of.pktin_reason", FT_UINT8, BASE_DEC, VALS(names_ofp_reason), NO_MASK, "Reason Packet Sent", HFILL }},
+
+        { &ofp_packet_in_pad,
+          { "Padding", "of.pktin_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL }},
+
+        { &ofp_packet_in_data_hdr,
+          { "Frame Data", "of.pktin_data", FT_BYTES, BASE_NONE, NO_STRINGS, NO_MASK, "Frame Data", HFILL }},
+
 
         /* CSM: Packet Out */
 
@@ -640,6 +667,7 @@ void proto_register_openflow()
         &ett_ofp_port_stats,
         &ett_ofp_packet_out,
         &ett_ofp_packet_in,
+        &ett_ofp_packet_in_data_hdr,
         &ett_ofp_flow_expired,
         &ett_ofp_port_status,
         &ett_ofp_error_msg,
@@ -765,18 +793,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         guint32 offset = 0;
 #       define STR_LEN 1024
         char str[STR_LEN];
-        proto_item *sf_item  = NULL;
-        proto_tree *sf_tree  = NULL;
-        proto_item *sf_ti_item = NULL;
-        proto_tree *sf_ti_tree = NULL;
-        proto_item *sf_bl_item = NULL;
-        proto_tree *sf_bl_tree = NULL;
-        proto_item *sf_cap_item = NULL;
-        proto_tree *sf_cap_tree = NULL;
-        proto_item *sf_act_item = NULL;
-        proto_tree *sf_act_tree = NULL;
-        proto_item *sf_port_item = NULL;
-        proto_tree *sf_port_tree = NULL;
+        proto_item *type_item  = NULL;
+        proto_tree *type_tree  = NULL;
 
         /* consume the entire tvb for the openflow packet, and add it to the tree */
         item = proto_tree_add_item(tree, proto_openflow, tvb, 0, -1, FALSE);
@@ -800,35 +818,46 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         add_child( header_tree, ofp_header_length,  tvb, &offset, 2 );
         add_child( header_tree, ofp_header_xid,     tvb, &offset, 4 );
 
-        guint i, num_ports;
-        gint sz;
         switch( type ) {
         case OFPT_FEATURES_REQUEST:
             /* nothing else in this packet type */
             break;
 
-        case OFPT_FEATURES_REPLY:
-            sf_item = proto_tree_add_item(ofp_tree, ofp_switch_features, tvb, offset, -1, FALSE);
-            sf_tree = proto_item_add_subtree(sf_item, ett_ofp_switch_features);
+        case OFPT_FEATURES_REPLY: {
+            proto_item *sf_ti_item = NULL;
+            proto_tree *sf_ti_tree = NULL;
+            proto_item *sf_bl_item = NULL;
+            proto_tree *sf_bl_tree = NULL;
+            proto_item *sf_cap_item = NULL;
+            proto_tree *sf_cap_tree = NULL;
+            proto_item *sf_act_item = NULL;
+            proto_tree *sf_act_tree = NULL;
+            proto_item *sf_port_item = NULL;
+            proto_tree *sf_port_tree = NULL;
+            guint i, num_ports;
+            gint sz;
+
+            type_item = proto_tree_add_item(ofp_tree, ofp_switch_features, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_switch_features);
 
             /* fields we'll put directly in the subtree */
-            add_child(sf_tree, ofp_switch_features_datapath_id, tvb, &offset, 8);
+            add_child(type_tree, ofp_switch_features_datapath_id, tvb, &offset, 8);
 
             /* Table info */
-            sf_ti_item = proto_tree_add_item(sf_tree, ofp_switch_features_table_info_hdr, tvb, offset, 12, FALSE);
+            sf_ti_item = proto_tree_add_item(type_tree, ofp_switch_features_table_info_hdr, tvb, offset, 12, FALSE);
             sf_ti_tree = proto_item_add_subtree(sf_ti_item, ett_ofp_switch_features_table_info_hdr);
             add_child(sf_ti_tree, ofp_switch_features_n_exact, tvb, &offset, 4);
             add_child(sf_ti_tree, ofp_switch_features_n_compression, tvb, &offset, 4);
             add_child(sf_ti_tree, ofp_switch_features_n_general, tvb, &offset, 4);
 
             /* Buffer limits */
-            sf_bl_item = proto_tree_add_item(sf_tree, ofp_switch_features_buffer_limits_hdr, tvb, offset, 8, FALSE);
+            sf_bl_item = proto_tree_add_item(type_tree, ofp_switch_features_buffer_limits_hdr, tvb, offset, 8, FALSE);
             sf_bl_tree = proto_item_add_subtree(sf_bl_item, ett_ofp_switch_features_buffer_limits_hdr);
             add_child(sf_bl_tree, ofp_switch_features_buffer_mb, tvb, &offset, 4);
             add_child(sf_bl_tree, ofp_switch_features_n_buffers, tvb, &offset, 4);
 
             /* capabilities */
-            sf_cap_item = proto_tree_add_item(sf_tree, ofp_switch_features_capabilities_hdr, tvb, offset, 4, FALSE);
+            sf_cap_item = proto_tree_add_item(type_tree, ofp_switch_features_capabilities_hdr, tvb, offset, 4, FALSE);
             sf_cap_tree = proto_item_add_subtree(sf_cap_item, ett_ofp_switch_features_capabilities_hdr);
             for(i=0; i<NUM_CAPABILITIES; i++) {
                 add_child_const(sf_cap_tree, ofp_switch_features_capabilities[i], tvb, offset, 4);
@@ -836,7 +865,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             offset += 4;
 
             /* actions */
-            sf_act_item = proto_tree_add_item(sf_tree, ofp_switch_features_actions_hdr, tvb, offset, 4, FALSE);
+            sf_act_item = proto_tree_add_item(type_tree, ofp_switch_features_actions_hdr, tvb, offset, 4, FALSE);
             sf_act_tree = proto_item_add_subtree(sf_act_item, ett_ofp_switch_features_actions_hdr);
             if( ver < 0x90 ) {
                 /* add warning: meaningless until v0x90 */
@@ -848,7 +877,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             offset += 4;
 
             /* handle ports */
-            sf_port_item = proto_tree_add_item(sf_tree, ofp_switch_features_ports_hdr, tvb, offset, -1, FALSE);
+            sf_port_item = proto_tree_add_item(type_tree, ofp_switch_features_ports_hdr, tvb, offset, -1, FALSE);
             sf_port_tree = proto_item_add_subtree(sf_port_item, ett_ofp_switch_features_ports_hdr);
             sz = len - sizeof(struct ofp_switch_features);
             if( sz > 0 ) {
@@ -869,6 +898,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 add_child_str(sf_port_tree, ofp_switch_features_ports_warn, tvb, &offset, 0, str);
             }
             break;
+        }
 
         case OFPT_GET_CONFIG_REQUEST:
 
@@ -882,9 +912,42 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             break;
 
-        case OFPT_PACKET_IN:
+        case OFPT_PACKET_IN: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_packet_in, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_packet_in);
+
+            add_child(type_tree, ofp_packet_in_buffer_id, tvb, &offset, 4);
+
+            /* specially process total length to remove the 2 fake bytes at the
+               start of the data (so we show the REAL Ethernet frame length) */
+            guint16 total_len = tvb_get_ntohs( tvb, offset );
+            proto_tree_add_uint(type_tree, ofp_packet_in_total_len, tvb, offset, 2, total_len);
+            offset += 2;
+
+            add_child(type_tree, ofp_packet_in_in_port, tvb, &offset, 2);
+            add_child(type_tree, ofp_packet_in_reason, tvb, &offset, 1);
+            add_child(type_tree, ofp_packet_in_pad, tvb, &offset, 1);
+
+            /* continue the dissection with the Ethernet dissector */
+            if( data_ethernet ) {
+                proto_item *data_item = proto_tree_add_item(type_tree, ofp_packet_in_data_hdr, tvb, offset, -1, FALSE);
+                proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_packet_in_data_hdr);
+                tvbuff_t *next_tvb = tvb_new_subset(tvb, offset, -1, total_len);
+                if (check_col(pinfo->cinfo, COL_PROTOCOL))
+                    col_append_str( pinfo->cinfo, COL_PROTOCOL, "+" );
+                if(check_col(pinfo->cinfo,COL_INFO))
+                    col_append_str( pinfo->cinfo, COL_INFO, " => " );
+                col_set_fence(pinfo->cinfo, COL_PROTOCOL);
+                col_set_fence(pinfo->cinfo, COL_INFO);
+                call_dissector(data_ethernet, next_tvb, pinfo, data_tree);
+            }
+            else {
+                /* if we couldn't load the ethernet dissector, just display the bytes */
+                add_child(type_tree, ofp_packet_in_data_hdr, tvb, &offset, total_len);
+            }
 
             break;
+        }
 
         case OFPT_PACKET_OUT:
 
