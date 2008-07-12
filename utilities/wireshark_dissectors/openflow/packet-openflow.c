@@ -212,13 +212,16 @@ static gint ofp_match_tp_dst    = -1;
 
 static gint ofp_action         = -1;
 static gint ofp_action_type    = -1;
-static gint ofp_action_output  = -1;
 static gint ofp_action_vlan_id = -1;
 static gint ofp_action_dl_addr = -1;
 static gint ofp_action_nw_addr = -1;
 static gint ofp_action_tp      = -1;
+static gint ofp_action_unknown = -1;
+static gint ofp_action_warn    = -1;
+static gint ofp_action_num     = -1;
 
 /* type: ofp_action_output */
+static gint ofp_action_output         = -1;
 static gint ofp_action_output_max_len = -1;
 static gint ofp_action_output_port    = -1;
 
@@ -314,8 +317,8 @@ static gint ofp_packet_out           = -1;
 static gint ofp_packet_out_buffer_id = -1;
 static gint ofp_packet_out_in_port   = -1;
 static gint ofp_packet_out_out_port  = -1;
-static gint ofp_packet_out_actions   = -1;
-static gint ofp_packet_out_data      = -1;
+static gint ofp_packet_out_actions_hdr = -1;
+static gint ofp_packet_out_data_hdr  = -1;
 
 /* Asynchronous Messages */
 static gint ofp_packet_in        = -1;
@@ -356,6 +359,7 @@ static gint ett_ofp_phy_port_flags_hdr = -1;
 static gint ett_ofp_phy_port_features_hdr = -1;
 static gint ett_ofp_match = -1;
 static gint ett_ofp_action = -1;
+static gint ett_ofp_action_output = -1;
 
 /* Controller/Switch Messages */
 static gint ett_ofp_switch_features = -1;
@@ -378,6 +382,8 @@ static gint ett_ofp_aggregate_stats_reply = -1;
 static gint ett_ofp_table_stats = -1;
 static gint ett_ofp_port_stats = -1;
 static gint ett_ofp_packet_out = -1;
+static gint ett_ofp_packet_out_actions_hdr = -1;
+static gint ett_ofp_packet_out_data_hdr  = -1;
 
 /* Asynchronous Messages */
 static gint ett_ofp_packet_in = -1;
@@ -455,7 +461,8 @@ void proto_register_openflow()
         { &ofp_header_warn_type,
           { "Warning", "of.warn_type", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Type Warning", HFILL }},
 
-        /* Common Structures */
+        /* CS: Common Structures */
+        /* CS: Physical Port Information */
         { &ofp_phy_port,
           { "Physical Port", "of.port", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Physical Port", HFILL }},
 
@@ -500,6 +507,45 @@ void proto_register_openflow()
 
         { &ofp_phy_port_features[6],
           { "   10 Gb full-duplex rate support", "of.port_features_10gb_hd",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10GB_FD, "10 Gb full-duplex rate support", HFILL }},
+
+
+        /* CS: active type */
+        { &ofp_action,
+          { "Action", "of.action", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Action", HFILL }},
+
+        { &ofp_action_type,
+          { "Type", "of.action_type", FT_UINT16, BASE_DEC, VALS(names_ofp_action_type), NO_MASK, "Action Type", HFILL }},
+
+        { &ofp_action_vlan_id,
+          { "VLAN ID", "of.action_vland_id", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "VLAN ID", HFILL }},
+
+        { &ofp_action_dl_addr,
+          { "MAC Addr", "of.action_dl_addr", FT_ETHER, BASE_NONE, NO_STRINGS, NO_MASK, "MAC Addr", HFILL }},
+
+        { &ofp_action_nw_addr,
+          { "IP Addr", "of.action_nw_addr", FT_IPv4, BASE_NONE, NO_STRINGS, NO_MASK, "IP Addr", HFILL }},
+
+        { &ofp_action_tp,
+          { "Port", "of.action_port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Port", HFILL }},
+
+        { &ofp_action_unknown,
+          { "Unknown Action Type", "of.action_unknown", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Unknown Action Type", HFILL }},
+
+        { &ofp_action_warn,
+          { "Warning", "of.action_warn", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Warning", HFILL }},
+
+        { &ofp_action_num,
+          { "# of Actions", "of.action_num", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Number of Actions", HFILL }},
+
+        /* CS: ofp_action_output */
+        { &ofp_action_output,
+          { "Output Action", "of.action_output", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Output Action", HFILL }},
+
+        { &ofp_action_output_max_len,
+          { "Max Bytes to Send", "of.action_output_max_len", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Maximum Bytes to Send", HFILL }},
+
+        { &ofp_action_output_port,
+          { "Port", "of.action_output_port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Port", HFILL }},
 
 
         /* CSM: Features Request */
@@ -602,7 +648,7 @@ void proto_register_openflow()
           { "Packet In", "of.pktin", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Packet In", HFILL }},
 
         { &ofp_packet_in_buffer_id,
-          { "Buffer ID", "of.pktin_buffer_id", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Buffer ID", HFILL }},
+          { "Buffer ID", "of.pktin_buffer_id", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Buffer ID", HFILL }},
 
         { &ofp_packet_in_total_len,
           { "Frame Total Length", "of.pktin_total_len", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Frame Total Length (B)", HFILL }},
@@ -621,6 +667,24 @@ void proto_register_openflow()
 
 
         /* CSM: Packet Out */
+       { &ofp_packet_out,
+          { "Packet Out", "of.pktout", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Packet Out", HFILL }},
+
+        { &ofp_packet_out_buffer_id,
+          { "Buffer ID", "of.pktout_buffer_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Buffer ID", HFILL }},
+
+        { &ofp_packet_out_in_port,
+          { "Frame Recv Port", "of.pktout_in_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port Frame was Received On", HFILL }},
+
+        { &ofp_packet_out_out_port,
+          { "Frame Output Port", "of.pktout_out_port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Port Frame was Sent Out", HFILL }},
+
+        { &ofp_packet_out_actions_hdr,
+          { "Actions to Apply", "of.pktout_actions", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Actions to Apply to Packet", HFILL }},
+
+        { &ofp_packet_out_data_hdr,
+          { "Frame Data", "of.pktout_data", FT_BYTES, BASE_NONE, NO_STRINGS, NO_MASK, "Frame Data", HFILL }},
+
 
         /* CSM: Flow Mod */
 
@@ -648,6 +712,7 @@ void proto_register_openflow()
         &ett_ofp_phy_port_features_hdr,
         &ett_ofp_match,
         &ett_ofp_action,
+        &ett_ofp_action_output,
         &ett_ofp_switch_features,
         &ett_ofp_switch_features_table_info_hdr,
         &ett_ofp_switch_features_buffer_limits_hdr,
@@ -666,6 +731,8 @@ void proto_register_openflow()
         &ett_ofp_table_stats,
         &ett_ofp_port_stats,
         &ett_ofp_packet_out,
+        &ett_ofp_packet_out_data_hdr,
+        &ett_ofp_packet_out_actions_hdr,
         &ett_ofp_packet_in,
         &ett_ofp_packet_in_data_hdr,
         &ett_ofp_flow_expired,
@@ -762,6 +829,81 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
     }
 }
 
+static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offset)
+{
+    /* determine the maximum number of bytes to send (0 =>  no limit) */
+    guint16 max_bytes = tvb_get_ntohs( tvb, *offset );
+    if( max_bytes ) {
+        char str[11];
+        snprintf( str, 11, "%u", max_bytes );
+        add_child_str( tree, ofp_action_output_max_len, tvb, offset, 2, str );
+    }
+    else
+        add_child_str( tree, ofp_action_output_max_len, tvb, offset, 2, "entire packet (no limit)" );
+
+
+
+    /* add the output port */
+    add_child( tree, ofp_action_output_port, tvb, offset, 2 );
+}
+
+/** returns the number of bytes dissected (-1 if an unknown action type is encountered) */
+static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
+{
+    int i;
+    proto_item *action_item = proto_tree_add_item(tree, ofp_action, tvb, *offset, sizeof(struct ofp_action), FALSE);
+    proto_tree *action_tree = proto_item_add_subtree(action_item, ett_ofp_action);
+
+    guint16 type = tvb_get_ntohs( tvb, *offset );
+    add_child( action_tree, ofp_action_type, tvb, offset, 2 );
+
+    switch( type ) {
+    case OFPAT_OUTPUT: {
+        dissect_action_output(action_tree, tvb, offset);
+        return 4;
+    }
+
+    case OFPAT_SET_DL_VLAN:
+        add_child( action_tree, ofp_action_vlan_id, tvb, offset, 2 );
+        return 2;
+
+    case OFPAT_SET_DL_SRC:
+    case OFPAT_SET_DL_DST:
+        add_child( action_tree, ofp_action_dl_addr, tvb, offset, 6 );
+        return 6;
+
+    case OFPAT_SET_NW_SRC:
+    case OFPAT_SET_NW_DST:
+        add_child( action_tree, ofp_action_nw_addr, tvb, offset, 4 );
+        return 4;
+
+    case OFPAT_SET_TP_SRC:
+    case OFPAT_SET_TP_DST:
+        add_child( action_tree, ofp_action_tp, tvb, offset, 2 );
+        return 2;
+
+    default:
+        add_child( action_tree, ofp_action_unknown, tvb, offset, 0 );
+        return -1;
+    }
+}
+
+static void dissect_ethernet(tvbuff_t *next_tvb, packet_info *pinfo, proto_tree *data_tree) {
+    /* add seperators to existing column strings */
+    if (check_col(pinfo->cinfo, COL_PROTOCOL))
+        col_append_str( pinfo->cinfo, COL_PROTOCOL, "+" );
+
+    if(check_col(pinfo->cinfo,COL_INFO))
+        col_append_str( pinfo->cinfo, COL_INFO, " => " );
+
+    /* set up fences so ethernet dissectors only appends to our column info */
+    col_set_fence(pinfo->cinfo, COL_PROTOCOL);
+    col_set_fence(pinfo->cinfo, COL_INFO);
+
+    /* continue the dissection with the ethernet dissector */
+    call_dissector(data_ethernet, next_tvb, pinfo, data_tree);
+}
+
 static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     /* display our protocol text if the protocol column is visible */
@@ -769,9 +911,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTO_TAG_OPENFLOW);
 
     /* Clear out stuff in the info column */
-    if(check_col(pinfo->cinfo,COL_INFO)){
+    if(check_col(pinfo->cinfo,COL_INFO))
         col_clear(pinfo->cinfo,COL_INFO);
-    }
 
     /* get some of the header fields' values for later use */
     guint8  ver  = tvb_get_guint8( tvb, 0 );
@@ -779,11 +920,10 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
     guint16 len  = tvb_get_ntohs(  tvb, 2 );
 
     /* clarify protocol name display with version, length, and type information */
-    if (check_col(pinfo->cinfo, COL_INFO)) {
+    if (check_col(pinfo->cinfo, COL_INFO))
         col_add_fstr( pinfo->cinfo, COL_INFO,
                       "v0x%0X (%uB): %s",
                       ver, len, ofp_type_to_string(type) );
-    }
 
     if (tree) { /* we are being asked for details */
         proto_item *item        = NULL;
@@ -918,8 +1058,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             add_child(type_tree, ofp_packet_in_buffer_id, tvb, &offset, 4);
 
-            /* specially process total length to remove the 2 fake bytes at the
-               start of the data (so we show the REAL Ethernet frame length) */
+            /* explicitly pull out the length so we can use it to determine data's size */
             guint16 total_len = tvb_get_ntohs( tvb, offset );
             proto_tree_add_uint(type_tree, ofp_packet_in_total_len, tvb, offset, 2, total_len);
             offset += 2;
@@ -933,13 +1072,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 proto_item *data_item = proto_tree_add_item(type_tree, ofp_packet_in_data_hdr, tvb, offset, -1, FALSE);
                 proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_packet_in_data_hdr);
                 tvbuff_t *next_tvb = tvb_new_subset(tvb, offset, -1, total_len);
-                if (check_col(pinfo->cinfo, COL_PROTOCOL))
-                    col_append_str( pinfo->cinfo, COL_PROTOCOL, "+" );
-                if(check_col(pinfo->cinfo,COL_INFO))
-                    col_append_str( pinfo->cinfo, COL_INFO, " => " );
-                col_set_fence(pinfo->cinfo, COL_PROTOCOL);
-                col_set_fence(pinfo->cinfo, COL_INFO);
-                call_dissector(data_ethernet, next_tvb, pinfo, data_tree);
+                dissect_ethernet(next_tvb, pinfo, data_tree);
             }
             else {
                 /* if we couldn't load the ethernet dissector, just display the bytes */
@@ -949,9 +1082,73 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             break;
         }
 
-        case OFPT_PACKET_OUT:
+        case OFPT_PACKET_OUT: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_packet_out, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_packet_out);
+
+            /* explicitly pull out the buffer id so we can use it to determine
+               what the last field is */
+            guint32 buffer_id = tvb_get_ntohl( tvb, offset );
+            if( buffer_id == 0xFFFFFFFF )
+                add_child_str(type_tree, ofp_packet_out_buffer_id, tvb, &offset, 4, "-1");
+            else {
+                snprintf(str, STR_LEN, "%u", buffer_id);
+                add_child_str(type_tree, ofp_packet_out_buffer_id, tvb, &offset, 4, str);
+            }
+
+            /* check whether in_port exists */
+            guint16 in_port = tvb_get_ntohs( tvb, offset );
+            if( in_port == OFPP_NONE )
+                add_child_str(type_tree, ofp_packet_out_in_port, tvb, &offset, 2, "none");
+            else {
+                snprintf(str, STR_LEN, "%u", in_port);
+                add_child_str(type_tree, ofp_packet_out_in_port, tvb, &offset, 2, str);
+            }
+
+            add_child(type_tree, ofp_packet_out_out_port, tvb, &offset, 2);
+
+            guint total_len = len - offset;
+            if( buffer_id == -1 ) {
+                /* continue the dissection with the Ethernet dissector */
+                if( data_ethernet ) {
+                    proto_item *data_item = proto_tree_add_item(type_tree, ofp_packet_out_data_hdr, tvb, offset, -1, FALSE);
+                    proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_packet_out_data_hdr);
+                    tvbuff_t *next_tvb = tvb_new_subset(tvb, offset, -1, total_len);
+                    dissect_ethernet(next_tvb, pinfo, data_tree);
+                }
+                else {
+                    /* if we couldn't load the ethernet dissector, just display the bytes */
+                    add_child(type_tree, ofp_packet_out_data_hdr, tvb, &offset, total_len);
+                }
+            }
+            else {
+                /* handle actions */
+                proto_item* action_item = proto_tree_add_item(type_tree, ofp_action_output, tvb, offset, -1, FALSE);
+                proto_tree* action_tree = proto_item_add_subtree(action_item, ett_ofp_action_output);
+                if( total_len == 0 ) {
+                    snprintf(str, STR_LEN, "No actions were specified");
+                    add_child_str(action_tree, ofp_action_warn, tvb, &offset, 0, str);
+                }
+                else if( offset > len ) {
+                    /* not enough bytes => wireshark will already have reported the error */
+                }
+                else {
+                    guint offset_action_start = offset;
+                    guint num_actions = 0;
+                    while( total_len > 0 ) {
+                        num_actions += 1;
+                        int ret = dissect_action(action_tree, action_item, tvb, pinfo, &offset);
+                        if( ret < 0 )
+                            break; /* stop if we run into an action we couldn't dissect */
+                        else
+                            total_len -= ret;
+                    }
+                    proto_tree_add_uint(action_tree, ofp_action_num, tvb, offset_action_start, 0, num_actions);
+                }
+            }
 
             break;
+        }
 
         case OFPT_FLOW_MOD:
 
