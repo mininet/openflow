@@ -787,7 +787,26 @@ void proto_register_openflow()
         { &ofp_flow_mod_reserved,
           { "Reserved", "of.fm_reserved", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Reserved", HFILL } },
 
+
         /* AM:  Flow Expired */
+        { &ofp_flow_expired,
+          { "Flow Expired", "of.fe", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flow Expired", HFILL } },
+
+        { &ofp_flow_expired_priority,
+          { "Priority", "of.fe_priority", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Priority", HFILL } },
+
+        { &ofp_flow_expired_pad,
+          { "Pad", "of.fe_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
+
+        { &ofp_flow_expired_duration,
+          { "Flow Duration (sec)", "of.fe_duration", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Time Flow was Alive (sec)", HFILL } },
+
+        { &ofp_flow_expired_packet_count,
+          { "Packet Count", "of.fe_packet_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Packet Cout", HFILL } },
+
+        { &ofp_flow_expired_byte_count,
+          { "Byte Count", "of.fe_byte_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Byte Count", HFILL } },
+
 
         /* CSM: Table */
 
@@ -1353,9 +1372,23 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             break;
         }
 
-        case OFPT_FLOW_EXPIRED:
+        case OFPT_FLOW_EXPIRED: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_flow_expired, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_flow_expired);
 
+            dissect_match(type_tree, type_item, tvb, pinfo, &offset);
+            add_child(type_tree, ofp_flow_expired_priority, tvb, &offset, 2);
+#if SHOW_PADDING
+            add_child(type_tree, ofp_flow_expired_pad, tvb, &offset, 1);
+            add_child(type_tree, ofp_flow_expired_pad, tvb, &offset, 1);
+#else
+            offset += 2;
+#endif
+            add_child(type_tree, ofp_flow_expired_duration, tvb, &offset, 4);
+            add_child(type_tree, ofp_flow_expired_packet_count, tvb, &offset, 8);
+            add_child(type_tree, ofp_flow_expired_byte_count, tvb, &offset, 8);
             break;
+        }
 
         case OFPT_TABLE:
 
