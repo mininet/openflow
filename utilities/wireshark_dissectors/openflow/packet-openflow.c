@@ -282,16 +282,16 @@ static gint ofp_flow_stats_request          = -1;
 static gint ofp_flow_stats_request_table_id = -1;
 static gint ofp_flow_stats_request_pad      = -1;
 
-static gint ofp_flow_stats              = -1;
+static gint ofp_flow_stats_reply              = -1;
 /* length won't be put in the tree */
-static gint ofp_flow_stats_table_id     = -1;
-static gint ofp_flow_stats_pad          = -1;
+static gint ofp_flow_stats_reply_table_id     = -1;
+static gint ofp_flow_stats_reply_pad          = -1;
 /* field: ofp_match */
-static gint ofp_flow_stats_duration     = -1;
-static gint ofp_flow_stats_packet_count = -1;
-static gint ofp_flow_stats_byte_count   = -1;
-static gint ofp_flow_stats_priority     = -1;
-static gint ofp_flow_stats_max_idle     = -1;
+static gint ofp_flow_stats_reply_duration     = -1;
+static gint ofp_flow_stats_reply_packet_count = -1;
+static gint ofp_flow_stats_reply_byte_count   = -1;
+static gint ofp_flow_stats_reply_priority     = -1;
+static gint ofp_flow_stats_reply_max_idle     = -1;
 /* field: ofp_actions */
 
 static gint ofp_aggregate_stats_request          = -1;
@@ -382,7 +382,7 @@ static gint ett_ofp_stats_request = -1;
 static gint ett_ofp_stats_reply = -1;
 static gint ett_ofp_stats_reply_flags = -1;
 static gint ett_ofp_flow_stats_request = -1;
-static gint ett_ofp_flow_stats = -1;
+static gint ett_ofp_flow_stats_reply = -1;
 static gint ett_ofp_aggregate_stats_request = -1;
 static gint ett_ofp_aggregate_stats_reply = -1;
 static gint ett_ofp_table_stats = -1;
@@ -876,34 +876,34 @@ void proto_register_openflow()
           { "Flow Stats Request", "of.stats_flow", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flow Statistics Request", HFILL } },
 
         { &ofp_flow_stats_request_table_id,
-          { "Table ID", "of.stats_flow_table_id", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
+          { "Table ID", "of.stats_flow_table_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
 
         { &ofp_flow_stats_request_pad,
           { "Pad", "of.stats_flow_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
 
         /* CSM: Stats: Flow: Reply */
-        { &ofp_flow_stats,
+        { &ofp_flow_stats_reply,
           { "Flow Stats Reply", "of.stats_flow_", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flow Statistics Reply", HFILL } },
 
-        { &ofp_flow_stats_table_id,
+        { &ofp_flow_stats_reply_table_id,
           { "Table ID", "of.stats_flow_table_id", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
 
-        { &ofp_flow_stats_pad,
+        { &ofp_flow_stats_reply_pad,
           { "Pad", "of.stats_flow_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
 
-        { &ofp_flow_stats_duration,
+        { &ofp_flow_stats_reply_duration,
           { "Flow Duration (sec)", "of.stats_flow_duration", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Time Flow has Been Alive (sec)", HFILL } },
 
-        { &ofp_flow_stats_packet_count,
+        { &ofp_flow_stats_reply_packet_count,
           { "Packet Count", "of.stats_flow_packet_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Packet Count", HFILL } },
 
-        { &ofp_flow_stats_byte_count,
+        { &ofp_flow_stats_reply_byte_count,
           { "Byte Count", "of.stats_flow_byte_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Byte Count", HFILL } },
 
-        { &ofp_flow_stats_priority,
+        { &ofp_flow_stats_reply_priority,
           { "Priority", "of.stats_flow_priority", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Priority", HFILL } },
 
-        { &ofp_flow_stats_max_idle,
+        { &ofp_flow_stats_reply_max_idle,
           { "Idle Time (sec) Before Discarding", "of.stats_flow_max_idle", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Idle Time (sec) Before Discarding", HFILL } },
 
         /* CSM: Stats: Aggregate: Request */
@@ -911,7 +911,7 @@ void proto_register_openflow()
           { "Aggregate Stats Request", "of.stats_aggr", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Aggregate Statistics Request", HFILL } },
 
         { &ofp_aggregate_stats_request_table_id,
-          { "Table ID", "of.stats_aggr_table_id", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
+          { "Table ID", "of.stats_aggr_table_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
 
         { &ofp_aggregate_stats_request_pad,
           { "Pad", "of.stats_aggr_pad", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Pad", HFILL } },
@@ -1008,7 +1008,7 @@ void proto_register_openflow()
         &ett_ofp_stats_reply,
         &ett_ofp_stats_reply_flags,
         &ett_ofp_flow_stats_request,
-        &ett_ofp_flow_stats,
+        &ett_ofp_flow_stats_reply,
         &ett_ofp_aggregate_stats_request,
         &ett_ofp_aggregate_stats_reply,
         &ett_ofp_table_stats,
@@ -1598,10 +1598,50 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             switch( type ) {
             case OFPST_FLOW: {
+                proto_item *flow_item = proto_tree_add_item(type_tree, ofp_flow_stats_request, tvb, offset, -1, FALSE);
+                proto_tree *flow_tree = proto_item_add_subtree(flow_item, ett_ofp_flow_stats_request);
+
+                dissect_match(flow_tree, flow_item, tvb, pinfo, &offset);
+
+                guint8 id = tvb_get_guint8( tvb, offset );
+                if( id == 0xFF )
+                    add_child_str(flow_tree, ofp_flow_stats_request_table_id, tvb, &offset, 1, "All Tables");
+                else {
+                    snprintf(str, STR_LEN, "%u", id);
+                    add_child_str(flow_tree, ofp_flow_stats_request_table_id, tvb, &offset, 1, str);
+                }
+
+#if SHOW_PADDING
+                add_child(table_tree, ofp_flow_stats_request_pad, tvb, &offset, 1);
+                add_child(table_tree, ofp_flow_stats_request_pad, tvb, &offset, 1);
+                add_child(table_tree, ofp_flow_stats_request_pad, tvb, &offset, 1);
+#else
+                offset += 3;
+#endif
                 break;
             }
 
             case OFPST_AGGREGATE: {
+                proto_item *aggregate_item = proto_tree_add_item(type_tree, ofp_aggregate_stats_request, tvb, offset, -1, FALSE);
+                proto_tree *aggregate_tree = proto_item_add_subtree(aggregate_item, ett_ofp_aggregate_stats_request);
+
+                dissect_match(aggregate_tree, aggregate_item, tvb, pinfo, &offset);
+
+                guint8 id = tvb_get_guint8( tvb, offset );
+                if( id == 0xFF )
+                    add_child_str(aggregate_tree, ofp_aggregate_stats_request_table_id, tvb, &offset, 1, "All Tables");
+                else {
+                    snprintf(str, STR_LEN, "%u", id);
+                    add_child_str(aggregate_tree, ofp_aggregate_stats_request_table_id, tvb, &offset, 1, str);
+                }
+
+#if SHOW_PADDING
+                add_child(table_tree, ofp_aggregate_stats_request_pad, tvb, &offset, 1);
+                add_child(table_tree, ofp_aggregate_stats_request_pad, tvb, &offset, 1);
+                add_child(table_tree, ofp_aggregate_stats_request_pad, tvb, &offset, 1);
+#else
+                offset += 3;
+#endif
                 break;
             }
 
