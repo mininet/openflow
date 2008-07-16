@@ -7,7 +7,9 @@
  */
 
 /** the version of openflow this dissector was written for */
-#define DISSECTOR_OPENFLOW_VERSION 0x83
+#define DISSECTOR_OPENFLOW_MIN_VERSION 0x83
+#define DISSECTOR_OPENFLOW_MAX_VERSION 0x84
+#define DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD 0x84
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
@@ -41,7 +43,15 @@ static int global_openflow_proto = OPENFLOW_DST_TCP_PORT;
 /* try to find the ethernet dissector to dissect encapsulated Ethernet data */
 static dissector_handle_t data_ethernet;
 
-/* AM=Async message, CSM=Control/Switch Message */
+/* defines new types in 0x84 if not in the header file in our tree yet */
+#ifndef OFPT_ECHO_REQUEST
+#    define OFPT_ECHO_REQUEST (OFPT_STATS_REPLY+1)
+#    define OFPT_ECHO_REPLY   (OFPT_ECHO_REQUEST+1)
+#else
+#    warning Do not need #defines for OFPT_ECHO_* types anymore.
+#endif
+
+/* AM=Async message, CSM=Control/Switch Message, SM=Symmetric Message */
 /** names to bind to various values in the type field */
 static const value_string names_ofp_type[] = {
     { OFPT_FEATURES_REQUEST,    "CSM: Features Request" },
@@ -59,6 +69,8 @@ static const value_string names_ofp_type[] = {
     { OFPT_ERROR_MSG,           "AM:  Error Message" },
     { OFPT_STATS_REQUEST,       "CSM: Stats Request" },
     { OFPT_STATS_REPLY,         "CSM: Stats Reply" },
+    { OFPT_ECHO_REQUEST,        "SM:  Echo Request" },
+    { OFPT_ECHO_REPLY,          "SM:  Echo Reply" },
     { 0,                        NULL }
 };
 #define OFP_TYPE_MAX_VALUE OFPT_ERROR_MSG
@@ -1315,10 +1327,18 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         header_tree = proto_item_add_subtree(sub_item, ett_ofp_header);
 
         /* add a warning if the version is what the plugin was written to handle */
-        if( ver != DISSECTOR_OPENFLOW_VERSION ) {
-            snprintf( str, STR_LEN,
-                      "Dissector written for OpenFlow v0x%0X (differs from this packet's version v0x%0X)",
-                      DISSECTOR_OPENFLOW_VERSION, ver );
+        if( ver < DISSECTOR_OPENFLOW_MIN_VERSION || ver > DISSECTOR_OPENFLOW_MAX_VERSION || ver >= DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD ) {
+            if( ver>=DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD && ver<=DISSECTOR_OPENFLOW_MAX_VERSION )
+                snprintf( str, STR_LEN, "DRAFT Dissector written for this OpenFlow version v0x%0X", ver );
+            else if( DISSECTOR_OPENFLOW_MIN_VERSION == DISSECTOR_OPENFLOW_MAX_VERSION )
+                snprintf( str, STR_LEN,
+                          "Dissector written for OpenFlow v0x%0X (differs from this packet's version v0x%0X)",
+                          DISSECTOR_OPENFLOW_MIN_VERSION, ver );
+            else
+                snprintf( str, STR_LEN,
+                          "Dissector written for OpenFlow v0x%0X-v0x%0X (differs from this packet's version v0x%0X)",
+                          DISSECTOR_OPENFLOW_MIN_VERSION, DISSECTOR_OPENFLOW_MAX_VERSION, ver );
+
             add_child_str( header_tree, ofp_header_warn_ver, tvb, &offset, 0, str );
         }
 
