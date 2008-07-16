@@ -54,23 +54,23 @@ static dissector_handle_t data_ethernet;
 /* AM=Async message, CSM=Control/Switch Message, SM=Symmetric Message */
 /** names to bind to various values in the type field */
 static const value_string names_ofp_type[] = {
-    { OFPT_FEATURES_REQUEST,    "CSM: Features Request" },
-    { OFPT_FEATURES_REPLY,      "CSM: Features Reply" },
-    { OFPT_GET_CONFIG_REQUEST,  "CSM: Get Config Request" },
-    { OFPT_GET_CONFIG_REPLY,    "CSM: Get Config Reply" },
-    { OFPT_SET_CONFIG,          "CSM: Set Config" },
-    { OFPT_PACKET_IN,           "AM:  Packet In" },
-    { OFPT_PACKET_OUT,          "CSM: Packet Out" },
-    { OFPT_FLOW_MOD,            "CSM: Flow Mod" },
-    { OFPT_FLOW_EXPIRED,        "AM:  Flow Expired" },
-    { OFPT_TABLE,               "CSM: Table" },
-    { OFPT_PORT_MOD,            "CSM: Port Mod" },
-    { OFPT_PORT_STATUS,         "AM:  Port Status" },
-    { OFPT_ERROR_MSG,           "AM:  Error Message" },
-    { OFPT_STATS_REQUEST,       "CSM: Stats Request" },
-    { OFPT_STATS_REPLY,         "CSM: Stats Reply" },
-    { OFPT_ECHO_REQUEST,        "SM:  Echo Request" },
-    { OFPT_ECHO_REPLY,          "SM:  Echo Reply" },
+    { OFPT_FEATURES_REQUEST,    "Features Request (CSM)" },
+    { OFPT_FEATURES_REPLY,      "Features Reply (CSM)" },
+    { OFPT_GET_CONFIG_REQUEST,  "Get Config Request (CSM)" },
+    { OFPT_GET_CONFIG_REPLY,    "Get Config Reply (CSM)" },
+    { OFPT_SET_CONFIG,          "Set Config (CSM)" },
+    { OFPT_PACKET_IN,           "Packet In (AM)" },
+    { OFPT_PACKET_OUT,          "Packet Out (CSM)" },
+    { OFPT_FLOW_MOD,            "Flow Mod (CSM)" },
+    { OFPT_FLOW_EXPIRED,        "Flow Expired (AM)" },
+    { OFPT_TABLE,               "Table (CSM)" },
+    { OFPT_PORT_MOD,            "Port Mod (CSM)" },
+    { OFPT_PORT_STATUS,         "Port Status (AM)" },
+    { OFPT_ERROR_MSG,           "Error Message (AM)" },
+    { OFPT_STATS_REQUEST,       "Stats Request (CSM)" },
+    { OFPT_STATS_REPLY,         "Stats Reply (CSM)" },
+    { OFPT_ECHO_REQUEST,        "Echo Request (SM)" },
+    { OFPT_ECHO_REPLY,          "Echo Reply (SM)" },
     { 0,                        NULL }
 };
 #define OFP_TYPE_MAX_VALUE OFPT_ERROR_MSG
@@ -1288,6 +1288,9 @@ static void dissect_ethernet(tvbuff_t *next_tvb, packet_info *pinfo, proto_tree 
 
 static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
+#   define STR_LEN 1024
+    char str[STR_LEN];
+
     /* display our protocol text if the protocol column is visible */
     if (check_col(pinfo->cinfo, COL_PROTOCOL))
         col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTO_TAG_OPENFLOW);
@@ -1301,11 +1304,31 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
     guint8  type = tvb_get_guint8( tvb, 1 );
     guint16 len  = tvb_get_ntohs(  tvb, 2 );
 
+    /* add a warning if the version is what the plugin was written to handle */
+    guint8 ver_warning = 0;
+    if( ver < DISSECTOR_OPENFLOW_MIN_VERSION || ver > DISSECTOR_OPENFLOW_MAX_VERSION || ver >= DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD ) {
+        if( ver>=DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD && ver<=DISSECTOR_OPENFLOW_MAX_VERSION )
+            snprintf( str, STR_LEN, "DRAFT Dissector written for this OpenFlow version v0x%0X", ver );
+        else {
+            ver_warning = 1;
+            if( DISSECTOR_OPENFLOW_MIN_VERSION == DISSECTOR_OPENFLOW_MAX_VERSION )
+                snprintf( str, STR_LEN,
+                          "Dissector written for OpenFlow v0x%0X (differs from this packet's version v0x%0X)",
+                          DISSECTOR_OPENFLOW_MIN_VERSION, ver );
+            else
+                snprintf( str, STR_LEN,
+                          "Dissector written for OpenFlow v0x%0X-v0x%0X (differs from this packet's version v0x%0X)",
+                          DISSECTOR_OPENFLOW_MIN_VERSION, DISSECTOR_OPENFLOW_MAX_VERSION, ver );
+        }
+    }
+
     /* clarify protocol name display with version, length, and type information */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_fstr( pinfo->cinfo, COL_INFO,
-                      "v0x%0X (%uB): %s",
-                      ver, len, ofp_type_to_string(type) );
+    if (check_col(pinfo->cinfo, COL_INFO)) {
+        if( ver_warning )
+            col_add_fstr( pinfo->cinfo, COL_INFO, "%s (%uB) Ver Warning!", ofp_type_to_string(type), len );
+        else
+            col_add_fstr( pinfo->cinfo, COL_INFO, "%s (%uB)", ofp_type_to_string(type), len );
+    }
 
     if (tree) { /* we are being asked for details */
         proto_item *item        = NULL;
@@ -1313,8 +1336,6 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         proto_tree *ofp_tree    = NULL;
         proto_tree *header_tree = NULL;
         guint32 offset = 0;
-#       define STR_LEN 1024
-        char str[STR_LEN];
         proto_item *type_item  = NULL;
         proto_tree *type_tree  = NULL;
 
@@ -1326,21 +1347,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         sub_item = proto_tree_add_item( ofp_tree, ofp_header, tvb, offset, -1, FALSE );
         header_tree = proto_item_add_subtree(sub_item, ett_ofp_header);
 
-        /* add a warning if the version is what the plugin was written to handle */
-        if( ver < DISSECTOR_OPENFLOW_MIN_VERSION || ver > DISSECTOR_OPENFLOW_MAX_VERSION || ver >= DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD ) {
-            if( ver>=DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD && ver<=DISSECTOR_OPENFLOW_MAX_VERSION )
-                snprintf( str, STR_LEN, "DRAFT Dissector written for this OpenFlow version v0x%0X", ver );
-            else if( DISSECTOR_OPENFLOW_MIN_VERSION == DISSECTOR_OPENFLOW_MAX_VERSION )
-                snprintf( str, STR_LEN,
-                          "Dissector written for OpenFlow v0x%0X (differs from this packet's version v0x%0X)",
-                          DISSECTOR_OPENFLOW_MIN_VERSION, ver );
-            else
-                snprintf( str, STR_LEN,
-                          "Dissector written for OpenFlow v0x%0X-v0x%0X (differs from this packet's version v0x%0X)",
-                          DISSECTOR_OPENFLOW_MIN_VERSION, DISSECTOR_OPENFLOW_MAX_VERSION, ver );
-
+        if( ver_warning )
             add_child_str( header_tree, ofp_header_warn_ver, tvb, &offset, 0, str );
-        }
 
         /* add the headers field as children of the header node */
         add_child( header_tree, ofp_header_version, tvb, &offset, 1 );
