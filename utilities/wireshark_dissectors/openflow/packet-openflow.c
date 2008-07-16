@@ -127,6 +127,7 @@ static const value_string names_ofp_port_reason[] = {
  */
 static gint ofp                = -1;
 static gint ofp_pad = -1;
+static gint ofp_port = -1;
 
 /* Open Flow Header */
 static gint ofp_header         = -1;
@@ -413,12 +414,15 @@ void proto_register_openflow()
           { "Warning", "of.warn_type", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Type Warning", HFILL }},
 
         /* CS: Common Structures */
+        { &ofp_port,
+          { "Port #", "of.port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Port #", HFILL }}, /* for searching numerically */
+
         /* CS: Physical Port Information */
         { &ofp_phy_port,
           { "Physical Port", "of.port", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Physical Port", HFILL }},
 
         { &ofp_phy_port_port_no,
-          { "Port #", "of.port_no", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Port #", HFILL }},
+          { "Port #", "of.port_no", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port #", HFILL }},
 
         { &ofp_phy_port_hw_addr,
           { "MAC Address", "of.port_hw_addr", FT_ETHER, BASE_NONE, NO_STRINGS, NO_MASK, "MAC Address", HFILL }},
@@ -498,7 +502,7 @@ void proto_register_openflow()
           { "  TCP/UDP Dst Port", "of.wildcard_tp_dst" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_TP_DST, "TCP/UDP Destinatoin Port", HFILL }},
 
         { &ofp_match_in_port,
-          { "Input Port", "of.match_in_port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Input Port", HFILL }},
+          { "Input Port", "of.match_in_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Input Port", HFILL }},
 
         { &ofp_match_dl_src,
           { "Ethernet Src Addr", "of.match_dl_src", FT_ETHER, BASE_NONE, NO_STRINGS, NO_MASK, "Source MAC Address", HFILL }},
@@ -558,13 +562,13 @@ void proto_register_openflow()
 
         /* CS: ofp_action_output */
         { &ofp_action_output,
-          { "Output Action", "of.action_output", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Output Action", HFILL }},
+          { "Output Action(s)", "of.action_output", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Output Action(s)", HFILL }},
 
         { &ofp_action_output_max_len,
           { "Max Bytes to Send", "of.action_output_max_len", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Maximum Bytes to Send", HFILL }},
 
         { &ofp_action_output_port,
-          { "Port", "of.action_output_port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Port", HFILL }},
+          { "Port", "of.action_output_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port", HFILL }},
 
 
         /* CSM: Features Request */
@@ -701,7 +705,7 @@ void proto_register_openflow()
           { "Frame Recv Port", "of.pktout_in_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port Frame was Received On", HFILL }},
 
         { &ofp_packet_out_out_port,
-          { "Frame Output Port", "of.pktout_out_port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Port Frame was Sent Out", HFILL }},
+          { "Frame Output Port", "of.pktout_out_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port Frame was Sent Out", HFILL }},
 
         { &ofp_packet_out_actions_hdr,
           { "Actions to Apply", "of.pktout_actions", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Actions to Apply to Packet", HFILL }},
@@ -846,10 +850,10 @@ void proto_register_openflow()
 
         /* CSM: Stats: Port */
         { &ofp_port_stats,
-          { "Port Stats", "of.stats_port", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Stats", HFILL } },
+          { "Port Stats", "of.stats_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port Stats", HFILL } },
 
         { &ofp_port_stats_port_no,
-          { "Port #", "of.stats_port_port_no", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL } },
+          { "Port #", "of.stats_port_port_no", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "", HFILL } },
 
         { &ofp_port_stats_rx_count,
           { "# Packets Recv  ", "of.stats_port_rx_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Number of Packets Received", HFILL } },
@@ -993,6 +997,55 @@ static void dissect_pad(proto_tree* tree, guint32 *offset, guint pad_byte_count)
 #endif
 }
 
+static void dissect_port(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offset) {
+    /* get the port number */
+    guint16 port = tvb_get_ntohs( tvb, *offset );
+
+    /* save the numeric searchable field, but don't show it on the GUI */
+    proto_tree_add_item_hidden( tree, ofp_port, tvb, *offset, 2, FALSE );
+
+    /* check to see if the port is special (e.g. the name of a fake output ports defined by ofp_port) */
+    const char* str_port = NULL;
+    char str_num[6];
+    switch( port ) {
+    case OFPP_TABLE:
+        str_port = "Table  (perform actions in flow table; only allowed for dst port packet out messages)";
+        break;
+
+    case OFPP_NORMAL:
+        str_port = "Normal  (process with normal L2/L3 switching)";
+        break;
+
+    case OFPP_FLOOD:
+        str_port = "Flood  (all physical ports except input port and those disabled by STP)";
+        break;
+
+    case OFPP_ALL:
+        str_port = "All  (all physical ports except input port)";
+        break;
+
+    case OFPP_CONTROLLER:
+        str_port = "Controller  (send to controller)";
+        break;
+
+    case OFPP_LOCAL:
+        str_port = "Local  (local openflow \"port\")";
+        break;
+
+    case OFPP_NONE:
+        str_port = "None  (not associated with a physical port)";
+        break;
+
+    default:
+        /* no special name, so just use the number */
+        str_port = str_num;
+        snprintf(str_num, 6, "%u", port);
+    }
+
+    /* put the string-representation in the GUI tree */
+    add_child_str( tree, hf, tvb, offset, 2, str_port );
+}
+
 static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset, guint num_ports)
 {
     proto_item *port_item;
@@ -1007,7 +1060,7 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
         port_item = proto_tree_add_item(tree, ofp_phy_port, tvb, *offset, sizeof(struct ofp_phy_port), FALSE);
         port_tree = proto_item_add_subtree(port_item, ett_ofp_phy_port);
 
-        add_child( port_tree, ofp_phy_port_port_no, tvb, offset, 2 );
+        dissect_port( port_tree, ofp_phy_port_port_no, tvb, offset );
         add_child( port_tree, ofp_phy_port_hw_addr, tvb, offset, 6 );
         add_child( port_tree, ofp_phy_port_name, tvb, offset, OFP_MAX_PORT_NAME_LEN );
 
@@ -1047,7 +1100,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
 
     /* show only items whose corresponding wildcard bit is set */
     if( wildcards & OFPFW_IN_PORT )
-        add_child(match_tree, ofp_match_in_port, tvb, offset, 2);
+        dissect_port(match_tree, ofp_match_in_port, tvb, offset);
     else
         *offset += 2;
 
@@ -1112,7 +1165,7 @@ static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offs
         add_child_str( tree, ofp_action_output_max_len, tvb, offset, 2, "entire packet (no limit)" );
 
     /* add the output port */
-    add_child( tree, ofp_action_output_port, tvb, offset, 2 );
+    dissect_port( tree, ofp_action_output_port, tvb, offset );
 }
 
 /** returns the number of bytes dissected (-1 if an unknown action type is
@@ -1410,15 +1463,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             }
 
             /* check whether in_port exists */
-            guint16 in_port = tvb_get_ntohs( tvb, offset );
-            if( in_port == OFPP_NONE )
-                add_child_str(type_tree, ofp_packet_out_in_port, tvb, &offset, 2, "none");
-            else {
-                snprintf(str, STR_LEN, "%u", in_port);
-                add_child_str(type_tree, ofp_packet_out_in_port, tvb, &offset, 2, str);
-            }
-
-            add_child(type_tree, ofp_packet_out_out_port, tvb, &offset, 2);
+            dissect_port(type_tree, ofp_packet_out_in_port,  tvb, &offset);
+            dissect_port(type_tree, ofp_packet_out_out_port, tvb, &offset);
 
             if( buffer_id == -1 ) {
                 /* continue the dissection with the Ethernet dissector */
@@ -1621,7 +1667,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     proto_item *port_item = proto_tree_add_item(type_tree, ofp_port_stats, tvb, offset, -1, FALSE);
                     proto_tree *port_tree = proto_item_add_subtree(port_item, ett_ofp_port_stats);
 
-                    add_child(port_tree, ofp_port_stats_port_no, tvb, &offset, 2);
+                    dissect_port(port_tree, ofp_port_stats_port_no, tvb, &offset);
                     dissect_pad(port_tree, &offset, 2);
                     add_child(port_tree, ofp_port_stats_rx_count, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_tx_count, tvb, &offset, 8);
