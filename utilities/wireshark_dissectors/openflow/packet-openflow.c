@@ -56,9 +56,9 @@ static const value_string names_ofp_type[] = {
     { OFPT_TABLE,               "CSM: Table" },
     { OFPT_PORT_MOD,            "CSM: Port Mod" },
     { OFPT_PORT_STATUS,         "AM:  Port Status" },
+    { OFPT_ERROR_MSG,           "AM:  Error Message" },
     { OFPT_STATS_REQUEST,       "CSM: Stats Request" },
     { OFPT_STATS_REPLY,         "CSM: Stats Reply" },
-    { OFPT_ERROR_MSG,           "AM:  Error Message" },
     { 0,                        NULL }
 };
 #define OFP_TYPE_MAX_VALUE OFPT_ERROR_MSG
@@ -1111,50 +1111,64 @@ static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offs
     else
         add_child_str( tree, ofp_action_output_max_len, tvb, offset, 2, "entire packet (no limit)" );
 
-
-
     /* add the output port */
     add_child( tree, ofp_action_output_port, tvb, offset, 2 );
 }
 
-/** returns the number of bytes dissected (-1 if an unknown action type is encountered) */
+/** returns the number of bytes dissected (-1 if an unknown action type is
+ *  encountered; and 12 for all other actions as of 0x83) */
 static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
 {
     proto_item *action_item = proto_tree_add_item(tree, ofp_action, tvb, *offset, sizeof(struct ofp_action), FALSE);
     proto_tree *action_tree = proto_item_add_subtree(action_item, ett_ofp_action);
 
+    guint32 offset_start = *offset;
     guint16 type = tvb_get_ntohs( tvb, *offset );
     add_child( action_tree, ofp_action_type, tvb, offset, 2 );
+
+    /* two bytes of pad follows the type field (not shown in spec doc 0x83) */
+    dissect_pad(action_tree, offset, 2);
 
     switch( type ) {
     case OFPAT_OUTPUT: {
         dissect_action_output(action_tree, tvb, offset);
-        return 4;
+        dissect_pad(action_tree, offset, 2);
+        break;
     }
 
     case OFPAT_SET_DL_VLAN:
         add_child( action_tree, ofp_action_vlan_id, tvb, offset, 2 );
-        return 2;
+        dissect_pad(action_tree, offset, 4);
+        break;
 
     case OFPAT_SET_DL_SRC:
     case OFPAT_SET_DL_DST:
         add_child( action_tree, ofp_action_dl_addr, tvb, offset, 6 );
-        return 6;
+        /* no padding; eth addr uses up all six bytes */
+        break;
 
     case OFPAT_SET_NW_SRC:
     case OFPAT_SET_NW_DST:
         add_child( action_tree, ofp_action_nw_addr, tvb, offset, 4 );
-        return 4;
+        dissect_pad(action_tree, offset, 2);
+        break;
 
     case OFPAT_SET_TP_SRC:
     case OFPAT_SET_TP_DST:
         add_child( action_tree, ofp_action_tp, tvb, offset, 2 );
-        return 2;
+        dissect_pad(action_tree, offset, 4);
+        break;
 
     default:
         add_child( action_tree, ofp_action_unknown, tvb, offset, 0 );
         return -1;
     }
+
+    /* two bytes pad at the end of each action (not shown in spec doc 0x83) */
+    dissect_pad(action_tree, offset, 2);
+
+    /* return the number of bytes which were consumed */
+    return *offset - offset_start;
 }
 
 static void dissect_action_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint len, guint offset)
