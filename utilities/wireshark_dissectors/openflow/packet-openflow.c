@@ -29,7 +29,7 @@
 /** if 0, padding bytes will not be shown in the dissector */
 #define SHOW_PADDING 0
 
-#define PROTO_TAG_OPENFLOW	"OPENFLOW"
+#define PROTO_TAG_OPENFLOW	"OFP"
 
 /* Wireshark ID of the OPENFLOW protocol */
 static int proto_openflow = -1;
@@ -949,7 +949,7 @@ void proto_register_openflow()
     };
 
     proto_openflow = proto_register_protocol( "OpenFlow Protocol",
-                                              "OPENFLOW",
+                                              "OFP",
                                               "of" ); /* abbreviation for filters */
 
     proto_register_field_array(proto_openflow, hf, array_length(hf));
