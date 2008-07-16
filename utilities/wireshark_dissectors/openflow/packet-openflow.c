@@ -1,7 +1,7 @@
 /**
  * Filename: packet-openflow.c
  * Author:   David Underhill
- * Updated:  2008-Jul-12
+ * Updated:  2008-Jul-15
  *
  * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x83.
  */
@@ -1324,10 +1324,19 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
     /* clarify protocol name display with version, length, and type information */
     if (check_col(pinfo->cinfo, COL_INFO)) {
+        /* special handling so we can put buffer IDs in the description */
+        char str_extra[32];
+        str_extra[0] = '\0';
+        if( type==OFPT_PACKET_IN || type==OFPT_PACKET_OUT ) {
+            guint32 bid = tvb_get_ntohl(tvb, sizeof(struct ofp_header));
+            if( bid != 0xFFFFFFFF )
+                snprintf(str_extra, 32, "(BufID=%u) ", bid);
+        }
+
         if( ver_warning )
-            col_add_fstr( pinfo->cinfo, COL_INFO, "%s (%uB) Ver Warning!", ofp_type_to_string(type), len );
+            col_add_fstr( pinfo->cinfo, COL_INFO, "%s %s(%uB) Ver Warning!", ofp_type_to_string(type), str_extra, len );
         else
-            col_add_fstr( pinfo->cinfo, COL_INFO, "%s (%uB)", ofp_type_to_string(type), len );
+            col_add_fstr( pinfo->cinfo, COL_INFO, "%s %s(%uB)", ofp_type_to_string(type), str_extra, len );
     }
 
     if (tree) { /* we are being asked for details */
@@ -1484,7 +1493,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                what the last field is */
             guint32 buffer_id = tvb_get_ntohl( tvb, offset );
             if( buffer_id == 0xFFFFFFFF )
-                add_child_str(type_tree, ofp_packet_out_buffer_id, tvb, &offset, 4, "-1");
+                add_child_str(type_tree, ofp_packet_out_buffer_id, tvb, &offset, 4, "None");
             else {
                 snprintf(str, STR_LEN, "%u", buffer_id);
                 add_child_str(type_tree, ofp_packet_out_buffer_id, tvb, &offset, 4, str);
