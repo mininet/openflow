@@ -13,6 +13,11 @@ man_MANS = ofp-pki.8
 dpctl_SOURCES = dpctl.c
 dpctl_LDADD = ../lib/libopenflow.la
 
+if HAVE_CURSES
+LIBS += -lncurses
+endif
+
+
 vlogconf_SOURCES = vlogconf.c
 vlogconf_LDADD = ../lib/libopenflow.la
 

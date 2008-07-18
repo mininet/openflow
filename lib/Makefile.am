@@ -33,6 +33,11 @@ libopenflow_la_SOURCES += \
 	vconn-netlink.c
 endif
 
+if HAVE_CURSES
+libopenflow_la_SOURCES += \
+	ofp-printw.c
+endif
+
 if HAVE_OPENSSL
 libopenflow_la_SOURCES += \
 	vconn-ssl.c 

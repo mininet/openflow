@@ -28,4 +28,5 @@ noinst_HEADERS = \
 	vconn-ssl.h \
 	vlog-socket.h \
 	vlog.h \
-	xtoxll.h
+	xtoxll.h \
+	ofp-printw.h
