@@ -1111,54 +1111,54 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     *offset += 2;
 
     /* show only items whose corresponding wildcard bit is set */
-    if( wildcards & OFPFW_IN_PORT )
+    if( ~wildcards & OFPFW_IN_PORT )
         dissect_port(match_tree, ofp_match_in_port, tvb, offset);
     else
         *offset += 2;
 
-    if( wildcards & OFPFW_DL_SRC )
+    if( ~wildcards & OFPFW_DL_SRC )
         add_child(match_tree, ofp_match_dl_src, tvb, offset, 6);
     else
         *offset += 6;
 
-    if( wildcards & OFPFW_DL_DST )
+    if( ~wildcards & OFPFW_DL_DST )
         add_child(match_tree, ofp_match_dl_dst, tvb, offset, 6);
     else
         *offset += 6;
 
-    if( wildcards & OFPFW_DL_VLAN )
+    if( ~wildcards & OFPFW_DL_VLAN )
         add_child(match_tree, ofp_match_dl_vlan, tvb, offset, 2);
     else
         *offset += 2;
 
-    if( wildcards & OFPFW_DL_TYPE )
+    if( ~wildcards & OFPFW_DL_TYPE )
         add_child(match_tree, ofp_match_dl_type, tvb, offset, 2);
     else
         *offset += 2;
 
-    if( wildcards & OFPFW_NW_SRC )
+    if( ~wildcards & OFPFW_NW_SRC )
         add_child(match_tree, ofp_match_nw_src, tvb, offset, 4);
     else
         *offset += 4;
 
-    if( wildcards & OFPFW_NW_DST )
+    if( ~wildcards & OFPFW_NW_DST )
         add_child(match_tree, ofp_match_nw_dst, tvb, offset, 4);
     else
         *offset += 4;
 
-    if( wildcards & OFPFW_NW_PROTO )
+    if( ~wildcards & OFPFW_NW_PROTO )
         add_child(match_tree, ofp_match_nw_proto, tvb, offset, 1);
     else
         *offset += 1;
 
     dissect_pad(match_tree, offset, 3);
 
-    if( wildcards & OFPFW_TP_SRC )
+    if( ~wildcards & OFPFW_TP_SRC )
         add_child(match_tree, ofp_match_tp_src, tvb, offset, 2);
     else
         *offset += 2;
 
-    if( wildcards & OFPFW_TP_DST )
+    if( ~wildcards & OFPFW_TP_DST )
         add_child(match_tree, ofp_match_tp_dst, tvb, offset, 2);
     else
         *offset += 2;
