@@ -8,7 +8,7 @@
 
 /** the version of openflow this dissector was written for */
 #define DISSECTOR_OPENFLOW_MIN_VERSION 0x83
-#define DISSECTOR_OPENFLOW_MAX_VERSION 0x84
+#define DISSECTOR_OPENFLOW_MAX_VERSION 0x85
 #define DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD 0x84
 
 #ifdef HAVE_CONFIG_H
@@ -29,7 +29,7 @@
 /** if 0, padding bytes will not be shown in the dissector */
 #define SHOW_PADDING 0
 
-#define PROTO_TAG_OPENFLOW	"OFP"
+#define PROTO_TAG_OPENFLOW  "OFP"
 
 /* Wireshark ID of the OPENFLOW protocol */
 static int proto_openflow = -1;
@@ -1417,6 +1417,11 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             }
             offset += 4;
 
+            /* pad */
+            if (OFP_VERSION >= 0x85) {
+                dissect_pad(type_tree, &offset, 4);
+            }
+
             /* handle ports */
             sf_port_item = proto_tree_add_item(type_tree, ofp_switch_features_ports_hdr, tvb, offset, -1, FALSE);
             sf_port_tree = proto_item_add_subtree(sf_port_item, ett_ofp_switch_features_ports_hdr);
@@ -1548,6 +1553,9 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(type_tree, ofp_flow_expired_priority, tvb, &offset, 2);
             dissect_pad(type_tree, &offset, 2);
             add_child(type_tree, ofp_flow_expired_duration, tvb, &offset, 4);
+            if (OFP_VERSION >= 0x85) {
+                dissect_pad(type_tree, &offset, 2);
+            }
             add_child(type_tree, ofp_flow_expired_packet_count, tvb, &offset, 8);
             add_child(type_tree, ofp_flow_expired_byte_count, tvb, &offset, 8);
             break;
@@ -1661,10 +1669,17 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     dissect_pad(flow_tree, &offset, 1);
                     dissect_match(flow_tree, flow_item, tvb, pinfo, &offset);
                     add_child(flow_tree, ofp_flow_stats_reply_duration, tvb, &offset, 4);
-                    add_child(flow_tree, ofp_flow_stats_reply_packet_count, tvb, &offset, 8);
-                    add_child(flow_tree, ofp_flow_stats_reply_byte_count, tvb, &offset, 8);
+                    if (OFP_VERSION <= 0x84) {
+                        add_child(flow_tree, ofp_flow_stats_reply_packet_count, tvb, &offset, 8);
+                        add_child(flow_tree, ofp_flow_stats_reply_byte_count, tvb, &offset, 8);
+                    }
                     add_child(flow_tree, ofp_flow_stats_reply_priority, tvb, &offset, 2);
                     add_child(flow_tree, ofp_flow_stats_reply_max_idle, tvb, &offset, 2);
+
+                    if (OFP_VERSION >= 0x85) {
+                        add_child(flow_tree, ofp_flow_stats_reply_packet_count, tvb, &offset, 8);
+                        add_child(flow_tree, ofp_flow_stats_reply_byte_count, tvb, &offset, 8);
+                    }
 
                     /* parse the actions for this flow */
                     dissect_action_array(tvb, pinfo, flow_tree, total_len + offset_start, offset);
@@ -1679,6 +1694,10 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 add_child(aggr_tree, ofp_aggr_stats_reply_packet_count, tvb, &offset, 8);
                 add_child(aggr_tree, ofp_aggr_stats_reply_byte_count, tvb, &offset, 8);
                 add_child(aggr_tree, ofp_aggr_stats_reply_flow_count, tvb, &offset, 4);
+
+                if (OFP_VERSION >= 0x85) {
+                    dissect_pad(aggr_tree, &offset, 4);
+                }
                 break;
             }
 
@@ -1693,6 +1712,9 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     add_child(table_tree, ofp_table_stats_name, tvb, &offset, OFP_MAX_TABLE_NAME_LEN);
                     add_child(table_tree, ofp_table_stats_max_entries, tvb, &offset, 4);
                     add_child(table_tree, ofp_table_stats_active_count, tvb, &offset, 4);
+                    if (OFP_VERSION >= 0x85) {
+                        dissect_pad(table_tree, &offset, 2);
+                    }
                     add_child(table_tree, ofp_table_stats_matched_count, tvb, &offset, 8);
                 }
                 break;
@@ -1705,7 +1727,12 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     proto_tree *port_tree = proto_item_add_subtree(port_item, ett_ofp_port_stats);
 
                     dissect_port(port_tree, ofp_port_stats_port_no, tvb, &offset);
-                    dissect_pad(port_tree, &offset, 2);
+                    if (OFP_VERSION <= 0x84) {
+                        dissect_pad(port_tree, &offset, 2);
+                    }
+                    else if (OFP_VERSION >= 0x85) {
+                        dissect_pad(port_tree, &offset, 6);
+                    }
                     add_child(port_tree, ofp_port_stats_rx_count, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_tx_count, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_drop_count, tvb, &offset, 8);
