@@ -8,8 +8,8 @@
 # Copyright 1998 Gerald Combs
 
 srcdir = .
-top_srcdir = wireshark-1.0.0-includes
-includedir = wireshark-1.0.0-includes
+top_srcdir = ../wireshark-1.0.0-includes
+includedir = ../wireshark-1.0.0-includes
 INCLUDES = -I$(top_srcdir) -I$(includedir)
 
 include Makefile.common
