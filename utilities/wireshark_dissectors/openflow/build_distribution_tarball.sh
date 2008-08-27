@@ -49,7 +49,7 @@ cat ../README | sed -e "s#<VERSION>#Plugin Version: $version#g" > ../tmp
 cat ../tmp | sed -e "s#<DATE>#Distribution Creation Date: $date#g" > ../README
 
 # make a tarball from the build folder
-tarball="openflow_wireshark_dissector-$version.tgz"
+tarball="openflow_wireshark_dissector-v$version.tar.gz"
 cd ../../
 tar -zcf "$tarball" "$topdir"
 
