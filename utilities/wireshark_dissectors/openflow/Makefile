@@ -10,10 +10,10 @@ PLUGIN_NAME = packet-openflow
 LOCAL_PLUGIN_DIR  = /home/$(shell whoami)/.wireshark/plugins
 
 # determine global installation path (use latest plugin version path)
-ifneq ($(wildcard /usr/lib/wireshark/plugins),)
-	GLOBAL_PLUGIN_DIR_PARTIAL=/usr/lib/wireshark/plugins
-else ifneq ($(wildcard /usr/local/lib/wireshark/plugins),)
+ifneq ($(wildcard /usr/local/lib/wireshark/plugins),)
 	GLOBAL_PLUGIN_DIR_PARTIAL=/usr/local/lib/wireshark/plugins
+else ifneq ($(wildcard /usr/lib/wireshark/plugins),)
+	GLOBAL_PLUGIN_DIR_PARTIAL=/usr/lib/wireshark/plugins
 endif
 
 # Work out if there are version-specific subdirectories
@@ -70,7 +70,7 @@ install: $(PLUGIN_NAME).so
 	  target="$(LOCAL_PLUGIN_DIR)/$<"; \
 	  res="*** Installed plugin for user "`id | cut -d\( -f2 | cut -d\) -f1`" ($$target)"; \
 	fi; \
-	install --mode=644 $< "$$target" && echo "" && echo "$$res"
+	install --mode=644 $< "$$target" && echo "" && echo "" && echo "$$res" && echo "" && echo ""
 
 plugin.c: moduleinfo.h Makefile.am Makefile.common
 	$(MAKE) -f Makefile.am
