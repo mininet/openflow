@@ -1,9 +1,9 @@
 /**
  * Filename: packet-openflow.c
  * Author:   David Underhill
- * Updated:  2008-Jul-15
+ * Updated:  2008-Aug-26
  *
- * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x83.
+ * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x83-0x85.
  */
 
 /** the version of openflow this dissector was written for */
