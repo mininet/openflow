@@ -75,8 +75,5 @@ install: $(PLUGIN_NAME).so
 plugin.c: moduleinfo.h Makefile.am Makefile.common
 	$(MAKE) -f Makefile.am
 
-%.o : %.c openflow.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
 clean:
 	rm -f $(PLUGIN) $(OBJS)
