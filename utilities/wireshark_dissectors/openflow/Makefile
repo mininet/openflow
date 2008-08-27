@@ -76,4 +76,4 @@ plugin.c: moduleinfo.h Makefile.am Makefile.common
 	$(MAKE) -f Makefile.am
 
 clean:
-	rm -f $(PLUGIN) $(OBJS)
+	rm -f $(PLUGIN) $(OBJS) $(PLUGIN_NAME).so
