@@ -5,12 +5,13 @@ README: OpenFlow Wireshark Plugin
 ----------------------------------------
 I) Installation
 
-1) Install wireshark v1.0.0 or greater
-2) tar -zxvf openflow_wireshark_dissector-X.Y.Z.tgz
-3) cd wireshark_dissectors/openflow
-4) make
-5) sudo make install
-5a) Note that this prints out where the plugin was installed.
+1) Install glib-devel; on Debian this can be done with 'sudo apt-get install libgtk2.0-dev'
+2) Install wireshark v1.0.0 or greater
+3) tar -zxvf openflow_wireshark_dissector-X.Y.Z.tgz
+4) cd wireshark_dissectors/openflow
+5) make
+6) sudo make install
+6a) Note that this prints out where the plugin was installed.
 
 
 ----------------------------------------
