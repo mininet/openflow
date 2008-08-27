@@ -45,8 +45,8 @@ version=`grep '#define VERSION' moduleinfo.h | cut -d\" -f2`
 
 # replace <DATE> tag in README with date information'
 date=`date`
-mv ../README ../tmp
-cat ../tmp | sed -e "s#<DATE>#Distribution Creation Date: $date#" > ../README
+cat ../README | sed -e "s#<VERSION>#Plugin Version: $version#g" > ../tmp
+cat ../tmp | sed -e "s#<DATE>#Distribution Creation Date: $date#g" > ../README
 
 # make a tarball from the build folder
 tarball="openflow_wireshark_dissector-$version.tgz"

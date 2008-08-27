@@ -1,4 +1,5 @@
 README: OpenFlow Wireshark Plugin
+<VERSION>
 <DATE>
 
 ----------------------------------------
@@ -20,6 +21,7 @@ II) Installation Verification
 3) Select the "Plugins" tab
 4) Click the "Name" header to the plugins by name
 5) Verify that "packet-openflow.so" appears in the list.
+6) Verify that its version is listed as <VERSION>.
 
 
 ----------------------------------------
