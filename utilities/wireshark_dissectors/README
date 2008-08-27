@@ -1,0 +1,30 @@
+README: OpenFlow Wireshark Plugin
+<DATE>
+
+----------------------------------------
+I) Installation
+
+1) Install wireshark v1.0.0 or greater
+2) tar -zxvf openflow_wireshark_dissector-X.Y.Z.tgz
+3) cd wireshark_dissectors/openflow
+4) make
+5) sudo make install
+5a) Note that this prints out where the plugin was installed.
+
+
+----------------------------------------
+II) Installation Verification
+
+1) Run wireshark
+2) Open the "Help" --> "About" menu
+3) Select the "Plugins" tab
+4) Click the "Name" header to the plugins by name
+5) Verify that "packet-openflow.so" appears in the list.
+
+
+----------------------------------------
+III) Feedback and Bug Reporting
+
+Please post a message on the OpenFlow forums at openflowswitch.org or email
+David Underhill at dgu@cs.stanford.edu if you have any feedback or discover any
+bugs.
