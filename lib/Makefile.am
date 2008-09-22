@@ -40,7 +40,7 @@ libopenflow_a_SOURCES += \
 endif
 
 if HAVE_CURSES
-libopenflow_la_SOURCES += \
+libopenflow_a_SOURCES += \
 	ofp-printw.c
 endif
 
