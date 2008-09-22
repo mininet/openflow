@@ -40,6 +40,7 @@
 #include <string.h>
 #include "buffer.h"
 #include "chain.h"
+#include "csum.h"
 #include "flow.h"
 #include "netdev.h"
 #include "packets.h"
@@ -167,24 +168,13 @@ static int port_no(struct datapath *dp, struct sw_port *p)
     return p - dp->ports;
 }
 
-/* Generates a unique datapath id.  It incorporates the datapath index
- * and a hardware address, if available.  If not, it generates a random
- * one.
- */
+/* Generates and returns a random datapath id. */
 static uint64_t
 gen_datapath_id(void)
 {
-    /* Choose a random datapath id. */
-    uint64_t id = 0;
-    int i;
-
-    srand(time(0));
-
-    for (i = 0; i < ETH_ADDR_LEN; i++) {
-        id |= (uint64_t)(rand() & 0xff) << (8*(ETH_ADDR_LEN-1 - i));
-    }
-
-    return id;
+    uint8_t ea[ETH_ADDR_LEN];
+    eth_addr_random(ea);
+    return eth_addr_to_uint64(ea);
 }
 
 int
@@ -225,11 +215,11 @@ dp_add_port(struct datapath *dp, const char *name)
     struct sw_port *p;
     int error;
 
-    error = netdev_open(name, &netdev);
+    error = netdev_open(name, NETDEV_ETH_TYPE_ANY, &netdev);
     if (error) {
         return error;
     }
-    error = netdev_set_flags(netdev, NETDEV_UP | NETDEV_PROMISC);
+    error = netdev_set_flags(netdev, NETDEV_UP | NETDEV_PROMISC, false);
     if (error) {
         VLOG_ERR("Couldn't set promiscuous mode on %s device", name);
         netdev_close(netdev);
@@ -573,19 +563,11 @@ dp_output_port(struct datapath *dp, struct buffer *buffer,
 }
 
 static void *
-alloc_openflow_buffer(struct datapath *dp, size_t openflow_len, uint8_t type,
-                      const struct sender *sender, struct buffer **bufferp)
+make_openflow_reply(size_t openflow_len, uint8_t type,
+                    const struct sender *sender, struct buffer **bufferp)
 {
-    struct buffer *buffer;
-    struct ofp_header *oh;
-
-    buffer = *bufferp = buffer_new(openflow_len);
-    oh = buffer_put_uninit(buffer, openflow_len);
-    oh->version = OFP_VERSION;
-    oh->type = type;
-    oh->length = 0;             /* Filled in by send_openflow_buffer(). */
-    oh->xid = sender ? sender->xid : 0;
-    return oh;
+    return make_openflow_xid(openflow_len, type, sender ? sender->xid : 0,
+                             bufferp);
 }
 
 static int
@@ -594,12 +576,9 @@ send_openflow_buffer(struct datapath *dp, struct buffer *buffer,
 {
     struct remote *remote = sender ? sender->remote : dp->controller;
     struct rconn *rconn = remote->rconn;
-    struct ofp_header *oh;
     int retval;
 
-    oh = buffer_at_assert(buffer, 0, sizeof *oh);
-    oh->length = htons(buffer->size);
-
+    update_openflow_length(buffer);
     retval = rconn_send(rconn, buffer);
     if (retval) {
         VLOG_WARN("send to %s failed: %s",
@@ -662,8 +641,8 @@ dp_send_features_reply(struct datapath *dp, const struct sender *sender)
     struct ofp_switch_features *ofr;
     struct sw_port *p;
 
-    ofr = alloc_openflow_buffer(dp, sizeof *ofr, OFPT_FEATURES_REPLY,
-                                sender, &buffer);
+    ofr = make_openflow_reply(sizeof *ofr, OFPT_FEATURES_REPLY,
+                               sender, &buffer);
     ofr->datapath_id    = htonll(dp->id); 
     ofr->n_exact        = htonl(2 * TABLE_HASH_MAX_FLOWS);
     ofr->n_compression  = 0;         /* Not supported */
@@ -701,8 +680,7 @@ send_port_status(struct sw_port *p, uint8_t status)
 {
     struct buffer *buffer;
     struct ofp_port_status *ops;
-    ops = alloc_openflow_buffer(p->dp, sizeof *ops, OFPT_PORT_STATUS, NULL,
-                                &buffer);
+    ops = make_openflow_xid(sizeof *ops, OFPT_PORT_STATUS, 0, &buffer);
     ops->reason = status;
     memset(ops->pad, 0, sizeof ops->pad);
     fill_port_desc(p->dp, p, &ops->desc);
@@ -715,8 +693,7 @@ send_flow_expired(struct datapath *dp, struct sw_flow *flow)
 {
     struct buffer *buffer;
     struct ofp_flow_expired *ofe;
-    ofe = alloc_openflow_buffer(dp, sizeof *ofe, OFPT_FLOW_EXPIRED, NULL,
-                                &buffer);
+    ofe = make_openflow_xid(sizeof *ofe, OFPT_FLOW_EXPIRED, 0, &buffer);
     flow_fill_match(&ofe->match, &flow->key);
 
     memset(ofe->pad, 0, sizeof ofe->pad);
@@ -734,8 +711,8 @@ dp_send_error_msg(struct datapath *dp, const struct sender *sender,
 {
     struct buffer *buffer;
     struct ofp_error_msg *oem;
-    oem = alloc_openflow_buffer(dp, sizeof(*oem)+len, OFPT_ERROR_MSG, 
-                                sender, &buffer);
+    oem = make_openflow_reply(sizeof(*oem)+len, OFPT_ERROR_MSG, 
+                              sender, &buffer);
     oem->type = htons(type);
     oem->code = htons(code);
     memcpy(oem->data, data, len);
@@ -869,34 +846,6 @@ execute_actions(struct datapath *dp, struct buffer *buffer,
         buffer_delete(buffer);
 }
 
-/* Returns the new checksum for a packet in which the checksum field previously
- * contained 'old_csum' and in which a field that contained 'old_u16' was
- * changed to contain 'new_u16'. */
-static uint16_t
-recalc_csum16(uint16_t old_csum, uint16_t old_u16, uint16_t new_u16)
-{
-    /* Ones-complement arithmetic is endian-independent, so this code does not
-     * use htons() or ntohs().
-     *
-     * See RFC 1624 for formula and explanation. */
-    uint16_t hc_complement = ~old_csum;
-    uint16_t m_complement = ~old_u16;
-    uint16_t m_prime = new_u16;
-    uint32_t sum = hc_complement + m_complement + m_prime;
-    uint16_t hc_prime_complement = sum + (sum >> 16);
-    return ~hc_prime_complement;
-}
-
-/* Returns the new checksum for a packet in which the checksum field previously
- * contained 'old_csum' and in which a field that contained 'old_u32' was
- * changed to contain 'new_u32'. */
-static uint16_t
-recalc_csum32(uint16_t old_csum, uint32_t old_u32, uint32_t new_u32)
-{
-    return recalc_csum16(recalc_csum16(old_csum, old_u32, new_u32),
-                         old_u32 >> 16, new_u32 >> 16);
-}
-
 static void modify_nh(struct buffer *buffer, uint16_t eth_proto,
                       uint8_t nw_proto, const struct ofp_action *a)
 {
@@ -952,12 +901,12 @@ modify_vlan(struct buffer *buffer,
     uint16_t new_id = a->arg.vlan_id;
     struct vlan_eth_header *veh;
 
-    if (new_id != OFP_VLAN_NONE) {
+    if (new_id != htons(OFP_VLAN_NONE)) {
         if (key->flow.dl_vlan != htons(OFP_VLAN_NONE)) {
             /* Modify vlan id, but maintain other TCI values */
             veh = buffer->l2;
             veh->veth_tci &= ~htons(VLAN_VID);
-            veh->veth_tci |= htons(new_id);
+            veh->veth_tci |= new_id;
         } else {
             /* Insert new vlan id. */
             struct eth_header *eh = buffer->l2;
@@ -1005,8 +954,8 @@ recv_get_config_request(struct datapath *dp, const struct sender *sender,
     struct buffer *buffer;
     struct ofp_switch_config *osc;
 
-    osc = alloc_openflow_buffer(dp, sizeof *osc, OFPT_GET_CONFIG_REPLY,
-                                sender, &buffer);
+    osc = make_openflow_reply(sizeof *osc, OFPT_GET_CONFIG_REPLY,
+                              sender, &buffer);
 
     assert(sizeof *osc == sizeof dp->config);
     memcpy(((char *)osc) + sizeof osc->header,
@@ -1085,7 +1034,8 @@ add_flow(struct datapath *dp, const struct ofp_flow_mod *ofm)
         const struct ofp_action *a = &ofm->actions[i];
 
         if (a->type == htons(OFPAT_OUTPUT)
-                    && a->arg.output.port == htons(OFPP_TABLE)) {
+                    && (a->arg.output.port == htons(OFPP_TABLE)
+                        || a->arg.output.port == htons(OFPP_NONE))) {
             /* xxx Send fancy new error message? */
             goto error;
         }
@@ -1419,8 +1369,8 @@ stats_dump(struct datapath *dp, void *cb_)
         return 0;
     }
 
-    osr = alloc_openflow_buffer(dp, sizeof *osr, OFPT_STATS_REPLY, &cb->sender,
-                                &buffer);
+    osr = make_openflow_reply(sizeof *osr, OFPT_STATS_REPLY, &cb->sender,
+                              &buffer);
     osr->type = htons(cb->s - stats);
     osr->flags = 0;
 
@@ -1504,6 +1454,20 @@ error:
     return err;
 }
 
+static int
+recv_echo_request(struct datapath *dp, const struct sender *sender,
+                  const void *oh)
+{
+    return send_openflow_buffer(dp, make_echo_reply(oh), sender);
+}
+
+static int
+recv_echo_reply(struct datapath *dp UNUSED, const struct sender *sender UNUSED,
+                  const void *oh UNUSED)
+{
+    return 0;
+}
+
 /* 'msg', which is 'length' bytes long, was received from the control path.
  * Apply it to 'chain'. */
 int
@@ -1544,14 +1508,22 @@ fwd_control_input(struct datapath *dp, const struct sender *sender,
             sizeof (struct ofp_stats_request),
             recv_stats_request,
         },
+        [OFPT_ECHO_REQUEST] = {
+            sizeof (struct ofp_header),
+            recv_echo_request,
+        },
+        [OFPT_ECHO_REPLY] = {
+            sizeof (struct ofp_header),
+            recv_echo_reply,
+        },
     };
 
     const struct openflow_packet *pkt;
     struct ofp_header *oh;
 
     oh = (struct ofp_header *) msg;
-    if (oh->version != OFP_VERSION || oh->type >= ARRAY_SIZE(packets)
-        || ntohs(oh->length) > length)
+    assert(oh->version == OFP_VERSION);
+    if (oh->type >= ARRAY_SIZE(packets) || ntohs(oh->length) > length)
         return -EINVAL;
 
     pkt = &packets[oh->type];

@@ -31,6 +31,7 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include <errno.h>
 #include <getopt.h>
 #include <inttypes.h>
@@ -57,12 +58,17 @@
 #ifdef HAVE_CURSES
 #include "ofp-printw.h"
 #endif
+#include "random.h"
+#include "signal.h"
 #include "vconn.h"
 #include "vconn-ssl.h"
 
 #include "vlog.h"
 
 #define THIS_MODULE VLM_dpctl
+
+#define DEFAULT_MAX_IDLE 60
+#define MAX_ADD_ACTS 5
 
 static const char* ifconfigbin = "/sbin/ifconfig";
 
@@ -115,6 +121,7 @@ static void
 parse_options(int argc, char *argv[])
 {
     static struct option long_options[] = {
+        {"timeout", required_argument, 0, 't'},
         {"verbose", optional_argument, 0, 'v'},
         {"help", no_argument, 0, 'h'},
         {"version", no_argument, 0, 'V'},
@@ -124,15 +131,30 @@ parse_options(int argc, char *argv[])
     char *short_options = long_options_to_short_options(long_options);
 
     for (;;) {
-        int indexptr;
+        unsigned long int timeout;
         int c;
 
-        c = getopt_long(argc, argv, short_options, long_options, &indexptr);
+        c = getopt_long(argc, argv, short_options, long_options, NULL);
         if (c == -1) {
             break;
         }
 
         switch (c) {
+        case 't':
+            timeout = strtoul(optarg, NULL, 10);
+            if (timeout <= 0) {
+                fatal(0, "value %s on -t or --timeout is not at least 1",
+                      optarg);
+            } else if (timeout < UINT_MAX) {
+                /* Add 1 because historical implementations allow an alarm to
+                 * occur up to a second early. */
+                alarm(timeout + 1);
+            } else {
+                alarm(UINT_MAX);
+            }
+            signal(SIGALRM, SIG_DFL);
+            break;
+
         case 'h':
             usage();
 
@@ -162,15 +184,14 @@ usage(void)
     printf("%s: OpenFlow switch management utility\n"
            "usage: %s [OPTIONS] COMMAND [ARG...]\n"
 #ifdef HAVE_NETLINK
-           "\nCommands that apply to local datapaths only:\n"
+           "\nFor local datapaths only:\n"
            "  adddp nl:DP_ID              add a new local datapath DP_ID\n"
            "  deldp nl:DP_ID              delete local datapath DP_ID\n"
            "  addif nl:DP_ID IFACE        add IFACE as a port on DP_ID\n"
            "  delif nl:DP_ID IFACE        delete IFACE as a port on DP_ID\n"
            "  monitor nl:DP_ID            print packets received\n"
-           "  benchmark-nl nl:DP_ID N SIZE   send N packets of SIZE bytes\n"
 #endif
-           "\nCommands that apply to local datapaths and remote switches:\n"
+           "\nFor local datapaths and remote switches:\n"
            "  show SWITCH                 show information\n"
            "  dump-tables SWITCH          print table stats\n"
            "  dump-ports SWITCH           print port statistics\n"
@@ -178,17 +199,23 @@ usage(void)
            "  dump-flows SWITCH FLOW      print matching FLOWs\n"
            "  dump-aggregate SWITCH       print aggregate flow statistics\n"
            "  dump-aggregate SWITCH FLOW  print aggregate stats for FLOWs\n"
+           "  add-flow SWITCH FLOW        add flow described by FLOW\n"
            "  add-flows SWITCH FILE       add flows from FILE\n"
            "  del-flows SWITCH FLOW       delete matching FLOWs\n"
 #ifdef HAVE_CURSES
            "  table-mtr SWITCH            monitor table for FLOWs\n"
            "  table-mtr SWITCH FLOW       monitor table \n"
 #endif
+           "\nFor local datapaths, remote switches, and controllers:\n"
+           "  probe VCONN                 probe whether VCONN is up\n"
+           "  ping VCONN [N]              latency of N-byte echos\n"
+           "  benchmark VCONN N COUNT     bandwidth of COUNT N-byte echos\n"
            "where each SWITCH is an active OpenFlow connection method.\n",
            program_name, program_name);
     vconn_usage(true, false);
     printf("\nOptions:\n"
-           "  -v, --verbose=MODULE:FACILITY:LEVEL  configure logging levels\n"
+           "  -t, --timeout=SECS          give up after SECS seconds\n"
+           "  -v, --verbose=MODULE[:FACILITY[:LEVEL]]  set logging levels\n"
            "  -v, --verbose               set maximum verbosity level\n"
            "  -h, --help                  display this help message\n"
            "  -V, --version               display version information\n");
@@ -318,86 +345,16 @@ static void do_monitor(int argc UNUSED, char *argv[], int indicator UNUSED)
         buffer_delete(b);
     }
 }
-
-#define BENCHMARK_INCR   100
-
-static void do_benchmark_nl(int argc UNUSED, char *argv[], int indicator UNUSED)
-{
-    struct dpif dp;
-    uint32_t num_packets, i, milestone;
-    struct timeval start, end;
-
-    open_nl_vconn(argv[1], false, &dp);
-    num_packets = atoi(argv[2]);
-    milestone = BENCHMARK_INCR;
-    run(dpif_benchmark_nl(&dp, num_packets, atoi(argv[3])), "benchmark_nl");
-    if (gettimeofday(&start, NULL) == -1) {
-        run(errno, "gettimeofday");
-    }
-    for (i = 0; i < num_packets;i++) {
-        struct buffer *b;
-        run(dpif_recv_openflow(&dp, &b, true), "dpif_recv_openflow");
-        if (i == milestone) {
-            gettimeofday(&end, NULL);
-            printf("%u packets received in %f ms\n",
-                   BENCHMARK_INCR,
-                   (1000*(double)(end.tv_sec - start.tv_sec))
-                   + (.001*(end.tv_usec - start.tv_usec)));
-            milestone += BENCHMARK_INCR;
-            start = end;
-        }
-        buffer_delete(b);
-    }
-    gettimeofday(&end, NULL);
-    printf("%u packets received in %f ms\n",
-           i - (milestone - BENCHMARK_INCR),
-           (1000*(double)(end.tv_sec - start.tv_sec))
-           + (.001*(end.tv_usec - start.tv_usec)));
-
-    dpif_close(&dp);
-}
 #endif /* HAVE_NETLINK */
-
+
 /* Generic commands. */
-
-static uint32_t
-random_xid(void)
-{
-    static bool inited = false;
-    if (!inited) {
-        struct timeval tv;
-        inited = true;
-        if (gettimeofday(&tv, NULL) < 0) {
-            fatal(errno, "gettimeofday");
-        }
-        srand(tv.tv_sec ^ tv.tv_usec);
-    }
-    return rand();
-}
-
-static void *
-alloc_openflow_buffer(size_t openflow_len, uint8_t type,
-                      struct buffer **bufferp)
-{
-	struct buffer *buffer;
-	struct ofp_header *oh;
-
-	buffer = *bufferp = buffer_new(openflow_len);
-	oh = buffer_put_uninit(buffer, openflow_len);
-    memset(oh, 0, openflow_len);
-	oh->version = OFP_VERSION;
-	oh->type = type;
-	oh->length = 0;
-	oh->xid = random_xid();
-	return oh;
-}
 
 static void *
 alloc_stats_request(size_t body_len, uint16_t type, struct buffer **bufferp)
 {
     struct ofp_stats_request *rq;
-    rq = alloc_openflow_buffer((offsetof(struct ofp_stats_request, body)
-                                + body_len), OFPT_STATS_REQUEST, bufferp);
+    rq = make_openflow((offsetof(struct ofp_stats_request, body)
+                        + body_len), OFPT_STATS_REQUEST, bufferp);
     rq->type = htons(type);
     rq->flags = htons(0);
     return rq->body;
@@ -406,57 +363,36 @@ alloc_stats_request(size_t body_len, uint16_t type, struct buffer **bufferp)
 static void
 send_openflow_buffer(struct vconn *vconn, struct buffer *buffer)
 {
-    struct ofp_header *oh;
-
-    oh = buffer_at_assert(buffer, 0, sizeof *oh);
-    oh->length = htons(buffer->size);
-
+    update_openflow_length(buffer);
     run(vconn_send_block(vconn, buffer), "failed to send packet to switch");
 }
 
-static struct buffer *
-transact_openflow(struct vconn *vconn, struct buffer *request)
-{
-    uint32_t send_xid = ((struct ofp_header *) request->data)->xid;
-
-    send_openflow_buffer(vconn, request);
-    for (;;) {
-        uint32_t recv_xid;
-        struct buffer *reply;
-
-        run(vconn_recv_block(vconn, &reply), "OpenFlow packet receive failed");
-        recv_xid = ((struct ofp_header *) reply->data)->xid;
-        if (send_xid == recv_xid) {
-            return reply;
-        }
-
-        VLOG_DBG("received reply with xid %08"PRIx32" != expected %08"PRIx32,
-                 recv_xid, send_xid);
-        buffer_delete(reply);
-    }
-}
-
 static void
-dump_transaction(const char *vconn_name, struct buffer *request, int indicator)
+dump_transaction(const char *vconn_name, struct buffer *request)
 {
     struct vconn *vconn;
     struct buffer *reply;
 
+    update_openflow_length(request);
     if (indicator) {
 #ifdef HAVE_CURSES
-      runw(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
+        runw(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
+        runw(vconn_transact(vconn, request, &reply), "talking to %s", vconn_name);
 #endif
     }
-    else run(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
+    else {
+        run(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
+        run(vconn_transact(vconn, request, &reply), "talking to %s", vconn_name);
+    }
 
-    reply = transact_openflow(vconn, request);
     if (indicator){
 #ifdef HAVE_CURSES
-      ofp_printw(stdout, reply->data, reply->size, 1);
+        ofp_printw(stdout, reply->data, reply->size, 1);
 #endif
     }
-    else 
-      ofp_print(stdout, reply->data, reply->size, 1);
+    else {
+        ofp_print(stdout, reply->data, reply->size, 1);
+    }
     vconn_close(vconn);
 }
 
@@ -464,8 +400,8 @@ static void
 dump_trivial_transaction(const char *vconn_name, uint8_t request_type, int indicator)
 {
     struct buffer *request;
-    alloc_openflow_buffer(sizeof(struct ofp_header), request_type, &request);
-    dump_transaction(vconn_name, request, indicator);
+    make_openflow(sizeof(struct ofp_header), request_type, &request);
+    dump_transaction(vconn_name, request);
 }
 
 static void
@@ -573,33 +509,77 @@ str_to_ip(const char *str, uint32_t *ip)
 }
 
 static void
-str_to_action(const char *str, struct ofp_action *action) 
+str_to_action(char *str, struct ofp_action *action, int *n_actions) 
 {
     uint16_t port;
+    int i;
+    int max_actions = *n_actions;
+    char *act, *arg;
+    char *saveptr = NULL;
+    
+    memset(action, 0, sizeof(*action) * max_actions);
+    for (i=0, act = strtok_r(str, ", \t\r\n", &saveptr); 
+         i<max_actions && act;
+         i++, act = strtok_r(NULL, ", \t\r\n", &saveptr)) 
+    {
+        port = OFPP_MAX;
 
-    if (!strcasecmp(str, "normal")) {
-        port = OFPP_NORMAL;
-    } else if (!strcasecmp(str, "flood")) {
-        port = OFPP_FLOOD;
-    } else if (!strcasecmp(str, "all")) {
-        port = OFPP_ALL;
-    } else if (!strcasecmp(str, "controller")) {
-        port = OFPP_CONTROLLER;
-    } else if (!strcasecmp(str, "local")) {
-        port = OFPP_LOCAL;
-    } else {
-        port = str_to_int(str);
+        /* Arguments are separated by colons */
+        arg = strchr(act, ':');
+        if (arg) {
+            *arg = '\0';
+            arg++;
+        } 
+
+        if (!strcasecmp(act, "mod_vlan")) {
+            action[i].type = htons(OFPAT_SET_DL_VLAN);
+
+            if (!strcasecmp(arg, "strip")) {
+                action[i].arg.vlan_id = htons(OFP_VLAN_NONE);
+            } else {
+                action[i].arg.vlan_id = htons(str_to_int(arg));
+            }
+        } else if (!strcasecmp(act, "output")) {
+            port = str_to_int(arg);
+        } else if (!strcasecmp(act, "TABLE")) {
+            port = OFPP_TABLE;
+        } else if (!strcasecmp(act, "NORMAL")) {
+            port = OFPP_NORMAL;
+        } else if (!strcasecmp(act, "FLOOD")) {
+            port = OFPP_FLOOD;
+        } else if (!strcasecmp(act, "ALL")) {
+            port = OFPP_ALL;
+        } else if (!strcasecmp(act, "CONTROLLER")) {
+            port = OFPP_CONTROLLER;
+            if (arg) {
+                if (!strcasecmp(arg, "all")) {
+                    action[i].arg.output.max_len= htons(0);
+                } else {
+                    action[i].arg.output.max_len= htons(str_to_int(arg));
+                }
+            }
+        } else if (!strcasecmp(act, "LOCAL")) {
+            port = OFPP_LOCAL;
+        } else if (strspn(act, "0123456789") == strlen(act)) {
+            port = str_to_int(act);
+        } else {
+            fatal(0, "Unknown action: %s", act);
+        }
+
+        if (port != OFPP_MAX) {
+            action[i].type = htons(OFPAT_OUTPUT);
+            action[i].arg.output.port = htons(port);
+        }
     }
 
-    memset(action, 0, sizeof *action);
-    action->type = OFPAT_OUTPUT;
-    action->arg.output.port = htons(port);
+    *n_actions = i;
 }
 
 
 static void
-str_to_flow(char *string, struct ofp_match *match, struct ofp_action *action,
-            uint8_t *table_idx, uint16_t *priority)
+str_to_flow(char *string, struct ofp_match *match, 
+        struct ofp_action *action, int *n_actions, uint8_t *table_idx, 
+        uint16_t *priority, uint16_t *max_idle)
 {
     struct field {
         const char *name;
@@ -624,13 +604,32 @@ str_to_flow(char *string, struct ofp_match *match, struct ofp_action *action,
 
     char *name, *value;
     uint32_t wildcards;
-    bool got_action = false;
+    char *act_str;
 
     if (table_idx) {
         *table_idx = 0xff;
     }
     if (priority) {
         *priority = OFP_DEFAULT_PRIORITY;
+    }
+    if (max_idle) {
+        *max_idle = DEFAULT_MAX_IDLE;
+    }
+    if (action) {
+        act_str = strstr(string, "action");
+        if (!act_str) {
+            fatal(0, "must specify an action");
+        }
+        *(act_str-1) = '\0';
+
+        act_str = strchr(act_str, '=');
+        if (!act_str) {
+            fatal(0, "must specify an action");
+        }
+
+        act_str++;
+
+        str_to_action(act_str, action, n_actions);
     }
     memset(match, 0, sizeof *match);
     wildcards = OFPFW_ALL;
@@ -641,12 +640,6 @@ str_to_flow(char *string, struct ofp_match *match, struct ofp_action *action,
         const struct field *f;
         void *data;
 
-        if (action && !strcmp(name, "action")) {
-            got_action = true;
-            str_to_action(value, action);
-            continue;
-        }
-
         if (table_idx && !strcmp(name, "table")) {
             *table_idx = atoi(value);
             continue;
@@ -654,6 +647,11 @@ str_to_flow(char *string, struct ofp_match *match, struct ofp_action *action,
 
         if (priority && !strcmp(name, "priority")) {
             *priority = atoi(value);
+            continue;
+        }
+
+        if (max_idle && !strcmp(name, "max_idle")) {
+            *max_idle = atoi(value);
             continue;
         }
 
@@ -695,9 +693,6 @@ str_to_flow(char *string, struct ofp_match *match, struct ofp_action *action,
     if (name && !value) {
         fatal(0, "field %s missing value", name);
     }
-    if (action && !got_action) {
-        fatal(0, "must specify an action");
-    }
     match->wildcards = htons(wildcards);
 }
 
@@ -707,8 +702,8 @@ static void do_dump_flows(int argc, char *argv[], int indicator)
     struct buffer *request;
 
     req = alloc_stats_request(sizeof *req, OFPST_FLOW, &request);
-    str_to_flow(argc > 2 ? argv[2] : "", &req->match, NULL, &req->table_id, 
-            NULL);
+    str_to_flow(argc > 2 ? argv[2] : "", &req->match, NULL, 0, 
+            &req->table_id, NULL, NULL);
     memset(req->pad, 0, sizeof req->pad);
 
     dump_stats_transaction(argv[1], request, indicator);
@@ -720,14 +715,43 @@ static void do_dump_aggregate(int argc, char *argv[], int indicator)
     struct buffer *request;
 
     req = alloc_stats_request(sizeof *req, OFPST_AGGREGATE, &request);
-    str_to_flow(argc > 2 ? argv[2] : "", &req->match, NULL, &req->table_id,
-                NULL);
+    str_to_flow(argc > 2 ? argv[2] : "", &req->match, NULL, 0,
+            &req->table_id, NULL, NULL);
     memset(req->pad, 0, sizeof req->pad);
 
     dump_stats_transaction(argv[1], request, indicator);
 }
 
-static void do_add_flows(int argc, char *argv[],  int indicator UNUSED)
+static void do_add_flow(int argc, char *argv[])
+{
+    struct vconn *vconn;
+    struct buffer *buffer;
+    struct ofp_flow_mod *ofm;
+    uint16_t priority, max_idle;
+    size_t size;
+    int n_actions = MAX_ADD_ACTS;
+
+    run(vconn_open_block(argv[1], &vconn), "connecting to %s", argv[1]);
+
+    /* Parse and send. */
+    size = sizeof *ofm + (sizeof ofm->actions[0] * MAX_ADD_ACTS);
+    ofm = make_openflow(size, OFPT_FLOW_MOD, &buffer);
+    str_to_flow(argv[2], &ofm->match, &ofm->actions[0], &n_actions, 
+            NULL, &priority, &max_idle);
+    ofm->command = htons(OFPFC_ADD);
+    ofm->max_idle = htons(max_idle);
+    ofm->buffer_id = htonl(UINT32_MAX);
+    ofm->priority = htons(priority);
+    ofm->reserved = htonl(0);
+
+    /* xxx Should we use the buffer library? */
+    buffer->size -= (MAX_ADD_ACTS - n_actions) * sizeof ofm->actions[0];
+
+    send_openflow_buffer(vconn, buffer);
+    vconn_close(vconn);
+}
+
+static void do_add_flows(int argc, char *argv[])
 {
     struct vconn *vconn;
 
@@ -743,8 +767,9 @@ static void do_add_flows(int argc, char *argv[],  int indicator UNUSED)
     while (fgets(line, sizeof line, file)) {
         struct buffer *buffer;
         struct ofp_flow_mod *ofm;
-        uint16_t priority;
+        uint16_t priority, max_idle;
         size_t size;
+        int n_actions = MAX_ADD_ACTS;
 
         char *comment;
 
@@ -760,14 +785,18 @@ static void do_add_flows(int argc, char *argv[],  int indicator UNUSED)
         }
 
         /* Parse and send. */
-        size = sizeof *ofm + sizeof ofm->actions[0];
-        ofm = alloc_openflow_buffer(size, OFPT_FLOW_MOD, &buffer);
-        str_to_flow(line, &ofm->match, &ofm->actions[0], NULL, &priority);
+        size = sizeof *ofm + (sizeof ofm->actions[0] * MAX_ADD_ACTS);
+        ofm = make_openflow(size, OFPT_FLOW_MOD, &buffer);
+        str_to_flow(line, &ofm->match, &ofm->actions[0], &n_actions, 
+                    NULL, &priority, &max_idle);
         ofm->command = htons(OFPFC_ADD);
-        ofm->max_idle = htons(50);
+        ofm->max_idle = htons(max_idle);
         ofm->buffer_id = htonl(UINT32_MAX);
         ofm->priority = htons(priority);
         ofm->reserved = htonl(0);
+
+        /* xxx Should we use the buffer library? */
+        buffer->size -= (MAX_ADD_ACTS - n_actions) * sizeof ofm->actions[0];
 
         send_openflow_buffer(vconn, buffer);
     }
@@ -787,8 +816,9 @@ static void do_del_flows(int argc, char *argv[],  int indicator UNUSED)
 
     /* Parse and send. */
     size = sizeof *ofm;
-    ofm = alloc_openflow_buffer(size, OFPT_FLOW_MOD, &buffer);
-    str_to_flow(argc > 2 ? argv[2] : "", &ofm->match, NULL, NULL, &priority);
+    ofm = make_openflow(size, OFPT_FLOW_MOD, &buffer);
+    str_to_flow(argc > 2 ? argv[2] : "", &ofm->match, NULL, 0, NULL, 
+                &priority, NULL);
     ofm->command = htons(OFPFC_DELETE);
     ofm->max_idle = htons(0);
     ofm->buffer_id = htonl(UINT32_MAX);
@@ -807,7 +837,114 @@ do_dump_ports(int argc, char *argv[], int indicator)
   dump_trivial_stats_transaction(argv[1], OFPST_PORT, indicator);
 }
 
-static void do_help(int argc UNUSED, char *argv[] UNUSED,  int indicator UNUSED)
+static void
+do_probe(int argc, char *argv[])
+{
+    struct buffer *request;
+    struct vconn *vconn;
+    struct buffer *reply;
+
+    make_openflow(sizeof(struct ofp_header), OFPT_ECHO_REQUEST, &request);
+    run(vconn_open_block(argv[1], &vconn), "connecting to %s", argv[1]);
+    run(vconn_transact(vconn, request, &reply), "talking to %s", argv[1]);
+    if (reply->size != request->size) {
+        fatal(0, "reply does not match request");
+    }
+    buffer_delete(reply);
+    vconn_close(vconn);
+}
+
+static void
+do_ping(int argc, char *argv[])
+{
+    size_t max_payload = 65535 - sizeof(struct ofp_header);
+    unsigned int payload;
+    struct vconn *vconn;
+    int i;
+
+    payload = argc > 2 ? atoi(argv[2]) : 64;
+    if (payload > max_payload) {
+        fatal(0, "payload must be between 0 and %zu bytes", max_payload);
+    }
+
+    run(vconn_open_block(argv[1], &vconn), "connecting to %s", argv[1]);
+    for (i = 0; i < 10; i++) {
+        struct timeval start, end;
+        struct buffer *request, *reply;
+        struct ofp_header *rq_hdr, *rpy_hdr;
+
+        rq_hdr = make_openflow(sizeof(struct ofp_header) + payload,
+                               OFPT_ECHO_REQUEST, &request);
+        random_bytes(rq_hdr + 1, payload);
+
+        gettimeofday(&start, NULL);
+        run(vconn_transact(vconn, buffer_clone(request), &reply), "transact");
+        gettimeofday(&end, NULL);
+
+        rpy_hdr = reply->data;
+        if (reply->size != request->size
+            || memcmp(rpy_hdr + 1, rq_hdr + 1, payload)
+            || rpy_hdr->xid != rq_hdr->xid
+            || rpy_hdr->type != OFPT_ECHO_REPLY) {
+            printf("Reply does not match request.  Request:\n");
+            ofp_print(stdout, request, request->size, 2);
+            printf("Reply:\n");
+            ofp_print(stdout, reply, reply->size, 2);
+        }
+        printf("%d bytes from %s: xid=%08"PRIx32" time=%.1f ms\n",
+               reply->size - sizeof *rpy_hdr, argv[1], rpy_hdr->xid,
+                   (1000*(double)(end.tv_sec - start.tv_sec))
+                   + (.001*(end.tv_usec - start.tv_usec)));
+        buffer_delete(request);
+        buffer_delete(reply);
+    }
+    vconn_close(vconn);
+}
+
+static void
+do_benchmark(int argc, char *argv[])
+{
+    size_t max_payload = 65535 - sizeof(struct ofp_header);
+    struct timeval start, end;
+    unsigned int payload_size, message_size;
+    struct vconn *vconn;
+    double duration;
+    int count;
+    int i;
+
+    payload_size = atoi(argv[2]);
+    if (payload_size > max_payload) {
+        fatal(0, "payload must be between 0 and %zu bytes", max_payload);
+    }
+    message_size = sizeof(struct ofp_header) + payload_size;
+
+    count = atoi(argv[3]);
+
+    printf("Sending %d packets * %u bytes (with header) = %u bytes total\n",
+           count, message_size, count * message_size);
+
+    run(vconn_open_block(argv[1], &vconn), "connecting to %s", argv[1]);
+    gettimeofday(&start, NULL);
+    for (i = 0; i < count; i++) {
+        struct buffer *request, *reply;
+        struct ofp_header *rq_hdr;
+
+        rq_hdr = make_openflow(message_size, OFPT_ECHO_REQUEST, &request);
+        memset(rq_hdr + 1, 0, payload_size);
+        run(vconn_transact(vconn, request, &reply), "transact");
+        buffer_delete(reply);
+    }
+    gettimeofday(&end, NULL);
+    vconn_close(vconn);
+
+    duration = ((1000*(double)(end.tv_sec - start.tv_sec))
+                + (.001*(end.tv_usec - start.tv_usec)));
+    printf("Finished in %.1f ms (%.0f packets/s) (%.0f bytes/s)\n",
+           duration, count / (duration / 1000.0),
+           count * message_size / (duration / 1000.0));
+}
+
+static void do_help(int argc UNUSED, char *argv[] UNUSED)
 {
     usage();
 }
@@ -879,7 +1016,6 @@ static struct command all_commands[] = {
     { "deldp", 1, 1, do_del_dp },
     { "addif", 2, 2, do_add_port },
     { "delif", 2, 2, do_del_port },
-    { "benchmark-nl", 3, 3, do_benchmark_nl },
 #endif
 
     { "show", 1, 1, do_show },
@@ -889,11 +1025,15 @@ static struct command all_commands[] = {
     { "dump-tables", 1, 1, do_dump_tables },
     { "dump-flows", 1, 2, do_dump_flows },
     { "dump-aggregate", 1, 2, do_dump_aggregate },
+    { "add-flow", 2, 2, do_add_flow },
     { "add-flows", 2, 2, do_add_flows },
     { "del-flows", 1, 2, do_del_flows },
     { "dump-ports", 1, 1, do_dump_ports },
 #ifdef HAVE_CURSES
     { "table-mtr", 1, 2, do_table_monitoring },
 #endif
+    { "probe", 1, 1, do_probe },
+    { "ping", 1, 2, do_ping },
+    { "benchmark", 3, 3, do_benchmark },
     { NULL, 0, 0, NULL },
 };

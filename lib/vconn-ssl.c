@@ -31,10 +31,12 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "vconn-ssl.h"
 #include "dhparams.h"
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <string.h>
 #include <netinet/tcp.h>
 #include <openssl/err.h>
@@ -45,6 +47,7 @@
 #include "socket-util.h"
 #include "util.h"
 #include "openflow.h"
+#include "packets.h"
 #include "poll-loop.h"
 #include "ofp-print.h"
 #include "socket-util.h"
@@ -171,7 +174,8 @@ want_to_poll_events(int want)
 
 static int
 new_ssl_vconn(const char *name, int fd, enum session_type type,
-              enum ssl_state state, struct vconn **vconnp)
+              enum ssl_state state, const struct sockaddr_in *sin,
+              struct vconn **vconnp)
 {
     struct ssl_vconn *sslv;
     SSL *ssl = NULL;
@@ -220,6 +224,7 @@ new_ssl_vconn(const char *name, int fd, enum session_type type,
     sslv = xmalloc(sizeof *sslv);
     sslv->vconn.class = &ssl_vconn_class;
     sslv->vconn.connect_status = EAGAIN;
+    sslv->vconn.ip = sin->sin_addr.s_addr;
     sslv->state = state;
     sslv->type = type;
     sslv->fd = fd;
@@ -266,7 +271,8 @@ ssl_open(const char *name, char *suffix, struct vconn **vconnp)
     host_name = strtok_r(suffix, "::", &save_ptr);
     port_string = strtok_r(NULL, "::", &save_ptr);
     if (!host_name) {
-        fatal(0, "%s: bad peer name format", name);
+        error(0, "%s: bad peer name format", name);
+        return EAFNOSUPPORT;
     }
 
     memset(&sin, 0, sizeof sin);
@@ -294,7 +300,7 @@ ssl_open(const char *name, char *suffix, struct vconn **vconnp)
     if (retval < 0) {
         if (errno == EINPROGRESS) {
             return new_ssl_vconn(name, fd, CLIENT, STATE_TCP_CONNECTING,
-                                 vconnp);
+                                 &sin, vconnp);
         } else {
             int error = errno;
             VLOG_ERR("%s: connect: %s", name, strerror(error));
@@ -303,7 +309,7 @@ ssl_open(const char *name, char *suffix, struct vconn **vconnp)
         }
     } else {
         return new_ssl_vconn(name, fd, CLIENT, STATE_SSL_CONNECTING,
-                             vconnp);
+                             &sin, vconnp);
     }
 }
 
@@ -330,8 +336,9 @@ ssl_connect(struct vconn *vconn)
             if (retval < 0 && ssl_wants_io(error)) {
                 return EAGAIN;
             } else {
+                int unused;
                 interpret_ssl_error((sslv->type == CLIENT ? "SSL_connect"
-                                     : "SSL_accept"), retval, error, NULL);
+                                     : "SSL_accept"), retval, error, &unused);
                 shutdown(sslv->fd, SHUT_RDWR);
                 return EPROTO;
             }
@@ -453,7 +460,7 @@ again:
             return 0;
         }
     }
-    buffer_reserve_tailroom(rx, want_bytes);
+    buffer_prealloc_tailroom(rx, want_bytes);
 
     /* Behavior of zero-byte SSL_read is poorly defined. */
     assert(want_bytes > 0);
@@ -732,10 +739,13 @@ static int
 pssl_accept(struct vconn *vconn, struct vconn **new_vconnp)
 {
     struct pssl_vconn *pssl = pssl_vconn_cast(vconn);
+    struct sockaddr_in sin;
+    socklen_t sin_len = sizeof sin;
+    char name[128];
     int new_fd;
     int error;
 
-    new_fd = accept(pssl->fd, NULL, NULL);
+    new_fd = accept(pssl->fd, &sin, &sin_len);
     if (new_fd < 0) {
         int error = errno;
         if (error != EAGAIN) {
@@ -750,8 +760,12 @@ pssl_accept(struct vconn *vconn, struct vconn **new_vconnp)
         return error;
     }
 
-    return new_ssl_vconn("ssl" /* FIXME */, new_fd,
-                         SERVER, STATE_SSL_CONNECTING, new_vconnp);
+    sprintf(name, "ssl:"IP_FMT, IP_ARGS(&sin.sin_addr));
+    if (sin.sin_port != htons(OFP_SSL_PORT)) {
+        sprintf(strchr(name, '\0'), ":%"PRIu16, ntohs(sin.sin_port));
+    }
+    return new_ssl_vconn(name, new_fd, SERVER, STATE_SSL_CONNECTING, &sin,
+                         new_vconnp);
 }
 
 static void
@@ -853,6 +867,13 @@ tmp_dh_callback(SSL *ssl, int is_export UNUSED, int keylength)
     }
     VLOG_ERR("no Diffie-Hellman parameters for key length %d", keylength);
     return NULL;
+}
+
+/* Returns true if SSL is at least partially configured. */
+bool
+vconn_ssl_is_configured(void) 
+{
+    return has_private_key || has_certificate || has_ca_cert;
 }
 
 void

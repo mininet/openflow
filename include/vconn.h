@@ -35,11 +35,13 @@
 #define VCONN_H 1
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 struct buffer;
 struct flow;
 struct pollfd;
+struct ofp_header;
 
 /* Client interface. */
 
@@ -47,16 +49,19 @@ struct pollfd;
 struct vconn {
     struct vconn_class *class;
     int connect_status;
+    uint32_t ip;
 };
 
 void vconn_usage(bool active, bool passive);
 int vconn_open(const char *name, struct vconn **);
 void vconn_close(struct vconn *);
 bool vconn_is_passive(const struct vconn *);
+uint32_t vconn_get_ip(const struct vconn *);
 int vconn_connect(struct vconn *);
 int vconn_accept(struct vconn *, struct vconn **);
 int vconn_recv(struct vconn *, struct buffer **);
 int vconn_send(struct vconn *, struct buffer *);
+int vconn_transact(struct vconn *, struct buffer *, struct buffer **);
 
 int vconn_open_block(const char *name, struct vconn **);
 int vconn_send_block(struct vconn *, struct buffer *);
@@ -74,12 +79,19 @@ void vconn_accept_wait(struct vconn *);
 void vconn_recv_wait(struct vconn *);
 void vconn_send_wait(struct vconn *);
 
+void *make_openflow(size_t openflow_len, uint8_t type, struct buffer **);
+void *make_openflow_xid(size_t openflow_len, uint8_t type,
+                        uint32_t xid, struct buffer **);
+void update_openflow_length(struct buffer *);
 struct buffer *make_add_simple_flow(const struct flow *,
-                                    uint32_t buffer_id, uint16_t out_port);
+                                    uint32_t buffer_id, uint16_t out_port,
+                                    uint16_t max_idle);
 struct buffer *make_buffered_packet_out(uint32_t buffer_id,
                                         uint16_t in_port, uint16_t out_port);
 struct buffer *make_unbuffered_packet_out(const struct buffer *packet,
                                           uint16_t in_port, uint16_t out_port);
+struct buffer *make_echo_request(void);
+struct buffer *make_echo_reply(const struct ofp_header *rq);
 
 /* Provider interface. */
 
@@ -161,6 +173,8 @@ struct vconn_class {
 
 extern struct vconn_class tcp_vconn_class;
 extern struct vconn_class ptcp_vconn_class;
+extern struct vconn_class unix_vconn_class;
+extern struct vconn_class punix_vconn_class;
 #ifdef HAVE_OPENSSL
 extern struct vconn_class ssl_vconn_class;
 extern struct vconn_class pssl_vconn_class;

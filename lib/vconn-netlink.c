@@ -31,6 +31,7 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "vconn.h"
 #include <arpa/inet.h>
 #include <assert.h>
@@ -77,12 +78,14 @@ netlink_open(const char *name, char *suffix, struct vconn **vconnp)
 
     subscribe = 1;
     if (sscanf(suffix, "%d:%d", &dp_idx, &subscribe) < 1) {
-        fatal(0, "%s: syntax error", name);
+        error(0, "%s: syntax error", name);
+        return EAFNOSUPPORT;
     }
 
     netlink = xmalloc(sizeof *netlink);
     netlink->vconn.class = &netlink_vconn_class;
     netlink->vconn.connect_status = 0;
+    netlink->vconn.ip = 0;
     retval = dpif_open(dp_idx, subscribe, &netlink->dp);
     if (retval) {
         free(netlink);

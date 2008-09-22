@@ -31,6 +31,7 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "util.h"
 #include <stdarg.h>
 #include <stdio.h>
@@ -84,9 +85,18 @@ xmemdup(const void *p_, size_t size)
 }
 
 char *
+xmemdup0(const char *p_, size_t length)
+{
+    char *p = xmalloc(length + 1);
+    memcpy(p, p_, length);
+    p[length] = '\0';
+    return p;
+}
+
+char *
 xstrdup(const char *s) 
 {
-    return xmemdup(s, strlen(s) + 1);
+    return xmemdup0(s, strlen(s));
 }
 
 char *

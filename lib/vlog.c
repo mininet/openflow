@@ -31,6 +31,7 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "vlog.h"
 #include <assert.h>
 #include <errno.h>
@@ -40,8 +41,11 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <syslog.h>
+#include <time.h>
 #include "dynamic-string.h"
 #include "util.h"
+
+#define THIS_MODULE VLM_vlog
 
 /* Name for each logging level. */
 static const char *level_names[VLL_N_LEVELS] = {
@@ -171,7 +175,7 @@ vlog_set_levels(enum vlog_module module, enum vlog_facility facility,
 
 /* Set debugging levels:
  *
- *  mod:facility:level mod2:facility:level ...
+ *  mod[:facility[:level]] mod2[:facility[:level]] ...
  *
  * Return null if successful, otherwise an error message that the caller must
  * free().
@@ -191,10 +195,6 @@ vlog_set_levels_from_string(const char *s_)
 
         facility = strtok_r(NULL, ":", &save_ptr);
         level = strtok_r(NULL, ":", &save_ptr);
-        if (level == NULL || facility == NULL) {
-            free(s);
-            return xstrdup("syntax error in level string");
-        }
 
         if (!strcmp(module, "ANY")) {
             e_module = VLM_ANY_MODULE;
@@ -207,7 +207,7 @@ vlog_set_levels_from_string(const char *s_)
             }
         }
 
-        if (!strcmp(facility, "ANY")) {
+        if (!facility || !strcmp(facility, "ANY")) {
             e_facility = VLF_ANY_FACILITY;
         } else {
             e_facility = vlog_get_facility_val(facility);
@@ -218,7 +218,7 @@ vlog_set_levels_from_string(const char *s_)
             }
         }
 
-        e_level = vlog_get_level_val(level);
+        e_level = level ? vlog_get_level_val(level) : VLL_DBG;
         if (e_level >= VLL_N_LEVELS) {
             char *msg = xasprintf("unknown level \"%s\"", level);
             free(s);
@@ -232,13 +232,17 @@ vlog_set_levels_from_string(const char *s_)
 }
 
 /* If 'arg' is null, configure maximum verbosity.  Otherwise, sets
- * configuration according to 'arg' (see vlog_set_levels_from_string()).  If
- * parsing fails, default to maximum verbosity. */
+ * configuration according to 'arg' (see vlog_set_levels_from_string()). */
 void
 vlog_set_verbosity(const char *arg)
 {
-    if (arg == NULL || !vlog_set_levels_from_string(arg)) {
-        vlog_set_levels(VLM_ANY_MODULE, VLF_CONSOLE, VLL_DBG);
+    if (arg) {
+        char *msg = vlog_set_levels_from_string(arg);
+        if (msg) {
+            fatal(0, "processing \"%s\": %s", arg, msg);
+        }
+    } else {
+        vlog_set_levels(VLM_ANY_MODULE, VLF_ANY_FACILITY, VLL_DBG);
     }
 }
 
@@ -246,8 +250,20 @@ vlog_set_verbosity(const char *arg)
 void
 vlog_init(void) 
 {
+    time_t now;
+
     openlog(program_name, LOG_NDELAY, LOG_DAEMON);
-    vlog_set_levels(VLM_ANY_MODULE, VLF_CONSOLE, VLL_WARN);
+    vlog_set_levels(VLM_ANY_MODULE, VLF_ANY_FACILITY, VLL_WARN);
+
+    now = time(0);
+    if (now < 0) {
+        struct tm tm;
+        char s[128];
+
+        localtime_r(&now, &tm);
+        strftime(s, sizeof s, "%a, %d %b %Y %H:%M:%S %z", &tm);
+        VLOG_ERR("current time is negative: %s (%ld)", s, (long int) now);
+    }
 }
 
 /* Closes the logging subsystem. */
@@ -301,11 +317,18 @@ vlog(enum vlog_module module, enum vlog_level level, const char *message, ...)
         static int msg_num;
         const char *module_name = vlog_get_module_name(module);
         const char *level_name = vlog_get_level_name(level);
+        time_t now;
+        struct tm tm;
         va_list args;
         char s[1024];
-        size_t len;
+        size_t len, time_len;
 
-        len = sprintf(s, "%05d|%s|%s:", ++msg_num, module_name, level_name);
+        now = time(0);
+        localtime_r(&now, &tm);
+
+        len = time_len = strftime(s, sizeof s, "%b %d %H:%M:%S|", &tm);
+        len += sprintf(s + len, "%05d|%s|%s:",
+                       ++msg_num, module_name, level_name);
         va_start(args, message);
         len += vsnprintf(s + len, sizeof s - len, message, args);
         va_end(args);
@@ -322,13 +345,18 @@ vlog(enum vlog_module module, enum vlog_level level, const char *message, ...)
 
         if (log_syslog) {
             static const int syslog_levels[VLL_N_LEVELS] = {
-                [VLL_EMER] = LOG_EMERG,
+                [VLL_EMER] = LOG_ALERT,
                 [VLL_ERR] = LOG_ERR,
                 [VLL_WARN] = LOG_WARNING,
                 [VLL_DBG] = LOG_DEBUG,
             };
+            char *save_ptr = NULL;
+            char *line;
 
-            syslog(syslog_levels[level], "%s", s);
+            for (line = strtok_r(s + time_len, "\n", &save_ptr); line != NULL;
+                 line = strtok_r(NULL, "\n", &save_ptr)) {
+                syslog(syslog_levels[level], "%s", line);
+            }
         }
         errno = save_errno;
     }

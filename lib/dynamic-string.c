@@ -31,6 +31,7 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "dynamic-string.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -43,6 +44,12 @@ ds_init(struct ds *ds)
     ds->string = NULL;
     ds->length = 0;
     ds->allocated = 0;
+}
+
+void
+ds_clear(struct ds *ds) 
+{
+    ds->length = 0;
 }
 
 void

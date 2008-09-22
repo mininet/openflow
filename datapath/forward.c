@@ -87,10 +87,16 @@ void execute_actions(struct datapath *dp, struct sk_buff *skb,
 			max_len = ntohs(a->arg.output.max_len);
 		} else {
 			if (!make_writable(&skb)) {
-				printk("make_writable failed\n");
+				if (net_ratelimit())
+				    printk("make_writable failed\n");
 				break;
 			}
 			skb = execute_setter(skb, eth_proto, key, a);
+			if (!skb) {
+				if (net_ratelimit())
+					printk("execute_setter lost skb\n");
+				return;
+			}
 		}
 	}
 	if (prev_port != -1)
@@ -199,17 +205,23 @@ static struct sk_buff *vlan_pull_tag(struct sk_buff *skb)
 static struct sk_buff *modify_vlan(struct sk_buff *skb, 
 		const struct sw_flow_key *key, const struct ofp_action *a)
 {
-	uint16_t new_id = a->arg.vlan_id;
+	uint16_t new_id = ntohs(a->arg.vlan_id);
 
 	if (new_id != OFP_VLAN_NONE) {
 		if (key->dl_vlan != htons(OFP_VLAN_NONE)) {
 			/* Modify vlan id, but maintain other TCI values */
 			struct vlan_ethhdr *vh = vlan_eth_hdr(skb);
 			vh->h_vlan_TCI = (vh->h_vlan_TCI 
-					& ~(htons(VLAN_VID_MASK))) | htons(new_id);
+					& ~(htons(VLAN_VID_MASK))) | a->arg.vlan_id;
 		} else  {
 			/* Add vlan header */
-			skb = vlan_put_tag(skb, new_id);
+
+			/* xxx The vlan_put_tag function, doesn't seem to work
+			 * xxx reliably when it attempts to use the hardware-accelerated
+			 * xxx version.  We'll directly use the software version
+			 * xxx until the problem can be diagnosed.
+			 */
+			skb = __vlan_put_tag(skb, new_id);
 		}
 	} else  {
 		/* Remove an existing vlan header if it exists */
@@ -343,6 +355,20 @@ recv_port_mod(struct sw_chain *chain, const struct sender *sender,
 }
 
 static int
+recv_echo_request(struct sw_chain *chain, const struct sender *sender,
+		  const void *msg) 
+{
+	return dp_send_echo_reply(chain->dp, sender, msg);
+}
+
+static int
+recv_echo_reply(struct sw_chain *chain, const struct sender *sender,
+		  const void *msg) 
+{
+	return 0;
+}
+
+static int
 add_flow(struct sw_chain *chain, const struct ofp_flow_mod *ofm)
 {
 	int error = -ENOMEM;
@@ -359,7 +385,8 @@ add_flow(struct sw_chain *chain, const struct ofp_flow_mod *ofm)
 		const struct ofp_action *a = &ofm->actions[i];
 
 		if (a->type == htons(OFPAT_OUTPUT) 
-					&& a->arg.output.port == htons(OFPP_TABLE)) {
+					&& (a->arg.output.port == htons(OFPP_TABLE) 
+						|| a->arg.output.port == htons(OFPP_NONE))) {
 			/* xxx Send fancy new error message? */
 			goto error;
 		}
@@ -379,7 +406,6 @@ add_flow(struct sw_chain *chain, const struct ofp_flow_mod *ofm)
 	flow->init_time = jiffies;
 	flow->byte_count = 0;
 	flow->packet_count = 0;
-	atomic_set(&flow->deleted, 0);
 	spin_lock_init(&flow->lock);
 	memcpy(flow->actions, ofm->actions, n_acts * sizeof *flow->actions);
 
@@ -470,6 +496,14 @@ fwd_control_input(struct sw_chain *chain, const struct sender *sender,
 		[OFPT_PORT_MOD] = {
 			sizeof (struct ofp_port_mod),
 			recv_port_mod,
+		},
+		[OFPT_ECHO_REQUEST] = {
+			sizeof (struct ofp_header),
+			recv_echo_request,
+		},
+		[OFPT_ECHO_REPLY] = {
+			sizeof (struct ofp_header),
+			recv_echo_reply,
 		},
 	};
 
@@ -603,7 +637,7 @@ make_writable(struct sk_buff **pskb)
 	if (skb_shared(*pskb) || skb_cloned(*pskb))
 		goto copy_skb;
 
-	return pskb_may_pull(*pskb, 64); /* FIXME? */
+	return pskb_may_pull(*pskb, 40); /* FIXME? */
 
 copy_skb:
 	nskb = skb_copy(*pskb, GFP_ATOMIC);

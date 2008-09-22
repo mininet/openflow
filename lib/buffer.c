@@ -31,6 +31,7 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "buffer.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -50,7 +51,7 @@ buffer_use(struct buffer *b, void *base, size_t allocated)
     b->base = b->data = base;
     b->allocated = allocated;
     b->size = 0;
-    b->l2 = b->l3 = b->l4 = NULL;
+    b->l2 = b->l3 = b->l4 = b->l7 = NULL;
     b->next = NULL;
 }
 
@@ -128,7 +129,7 @@ buffer_tailroom(struct buffer *b)
 /* Ensures that 'b' has room for at least 'size' bytes at its tail end,
  * reallocating and copying its data if necessary. */
 void
-buffer_reserve_tailroom(struct buffer *b, size_t size) 
+buffer_prealloc_tailroom(struct buffer *b, size_t size) 
 {
     if (size > buffer_tailroom(b)) {
         size_t new_allocated = b->allocated + MAX(size, 64);
@@ -148,11 +149,14 @@ buffer_reserve_tailroom(struct buffer *b, size_t size)
         if (b->l4) {
             b->l4 += base_delta;
         }
+        if (b->l7) {
+            b->l7 += base_delta;
+        }
     }
 }
 
 void
-buffer_reserve_headroom(struct buffer *b, size_t size) 
+buffer_prealloc_headroom(struct buffer *b, size_t size) 
 {
     assert(size <= buffer_headroom(b));
 }
@@ -164,7 +168,7 @@ void *
 buffer_put_uninit(struct buffer *b, size_t size) 
 {
     void *p;
-    buffer_reserve_tailroom(b, size);
+    buffer_prealloc_tailroom(b, size);
     p = buffer_tail(b);
     b->size += size;
     return p;
@@ -181,13 +185,31 @@ buffer_put(struct buffer *b, const void *p, size_t size)
     return dst;
 }
 
+/* Reserves 'size' bytes of headroom so that they can be later allocated with
+ * buffer_push_uninit() without reallocating the buffer. */
+void
+buffer_reserve(struct buffer *b, size_t size) 
+{
+    assert(!b->size);
+    buffer_prealloc_tailroom(b, size);
+    b->data += size;
+}
+
 void *
 buffer_push_uninit(struct buffer *b, size_t size) 
 {
-    buffer_reserve_headroom(b, size);
+    buffer_prealloc_headroom(b, size);
     b->data -= size;
     b->size += size;
     return b->data;
+}
+
+void *
+buffer_push(struct buffer *b, const void *p, size_t size) 
+{
+    void *dst = buffer_push_uninit(b, size);
+    memcpy(dst, p, size);
+    return dst;
 }
 
 /* If 'b' contains at least 'offset + size' bytes of data, returns a pointer to
@@ -231,12 +253,22 @@ buffer_clear(struct buffer *b)
 }
 
 /* Removes 'size' bytes from the head end of 'b', which must contain at least
- * 'size' bytes of data. */
-void
+ * 'size' bytes of data.  Returns the first byte of data removed. */
+void *
 buffer_pull(struct buffer *b, size_t size) 
 {
+    void *data = b->data;
     assert(b->size >= size);
     b->data += size;
     b->size -= size;
+    return data;
 }
 
+/* If 'b' has at least 'size' bytes of data, removes that many bytes from the
+ * head end of 'b' and returns the first byte removed.  Otherwise, returns a
+ * null pointer without modifying 'b'. */
+void *
+buffer_try_pull(struct buffer *b, size_t size) 
+{
+    return b->size >= size ? buffer_pull(b, size) : NULL;
+}

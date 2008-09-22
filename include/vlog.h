@@ -66,6 +66,8 @@ enum vlog_facility vlog_get_facility_val(const char *name);
         VLOG_MODULE(ctlpath)                    \
         VLOG_MODULE(daemon)                     \
         VLOG_MODULE(datapath)                   \
+        VLOG_MODULE(dhcp)                       \
+        VLOG_MODULE(dhcp_client)                \
         VLOG_MODULE(dpif)                       \
         VLOG_MODULE(dpctl)                      \
         VLOG_MODULE(fault)                      \
@@ -74,6 +76,7 @@ enum vlog_facility vlog_get_facility_val(const char *name);
         VLOG_MODULE(mac_learning)               \
         VLOG_MODULE(netdev)                     \
         VLOG_MODULE(netlink)                    \
+        VLOG_MODULE(ofp_discover)               \
         VLOG_MODULE(poll_loop)                  \
         VLOG_MODULE(secchan)                    \
         VLOG_MODULE(rconn)                      \
@@ -82,7 +85,10 @@ enum vlog_facility vlog_get_facility_val(const char *name);
         VLOG_MODULE(vconn_netlink)              \
         VLOG_MODULE(vconn_tcp)                  \
         VLOG_MODULE(vconn_ssl)                  \
+        VLOG_MODULE(vconn_stream)               \
+        VLOG_MODULE(vconn_unix)                 \
         VLOG_MODULE(vconn)                      \
+        VLOG_MODULE(vlog)                       \
 
 /* VLM_ constant for each vlog module. */
 enum vlog_module {
@@ -113,7 +119,7 @@ void vlog(enum vlog_module, enum vlog_level, const char *format, ...)
 /* Convenience macros.  To use these, define THIS_MODULE as a macro that
  * expands to the module used by the current source file, e.g.
  *      #include "vlog.h"
- *      #define THIS_MODULE VLM_NETLINK
+ *      #define THIS_MODULE VLM_netlink
  * Guaranteed to preserve errno.
  */
 #define VLOG_EMER(...) vlog(THIS_MODULE, VLL_EMER, __VA_ARGS__)

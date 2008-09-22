@@ -48,6 +48,7 @@ struct buffer {
     void *l2;                   /* Link-level header. */
     void *l3;                   /* Network-level header. */
     void *l4;                   /* Transport-level header. */
+    void *l7;                   /* Application data. */
 
     struct buffer *next;        /* Next in a list of buffers. */
 };
@@ -69,13 +70,17 @@ void *buffer_end(const struct buffer *);
 
 void *buffer_put_uninit(struct buffer *, size_t);
 void *buffer_put(struct buffer *, const void *, size_t);
+void buffer_reserve(struct buffer *, size_t);
 void *buffer_push_uninit(struct buffer *b, size_t);
+void *buffer_push(struct buffer *b, const void *, size_t);
 
 size_t buffer_headroom(struct buffer *);
 size_t buffer_tailroom(struct buffer *);
-void buffer_reserve_tailroom(struct buffer *, size_t);
+void buffer_prealloc_headroom(struct buffer *, size_t);
+void buffer_prealloc_tailroom(struct buffer *, size_t);
 
 void buffer_clear(struct buffer *);
-void buffer_pull(struct buffer *, size_t);
+void *buffer_pull(struct buffer *, size_t);
+void *buffer_try_pull(struct buffer *, size_t);
 
 #endif /* buffer.h */

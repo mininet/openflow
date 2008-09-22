@@ -31,8 +31,10 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "daemon.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -48,15 +50,27 @@ static bool detach;
 /* Name of pidfile (null if none). */
 static char *pidfile;
 
+/* Returns the file name that would be used for a pidfile if 'name' were
+ * provided to set_pidfile().  The caller must free the returned string. */
+char *
+make_pidfile_name(const char *name) 
+{
+    return (!name ? xasprintf("%s/%s.pid", RUNDIR, program_name)
+            : *name == '/' ? xstrdup(name)
+            : xasprintf("%s/%s", RUNDIR, name));
+}
+
 /* Sets up a following call to daemonize() to create a pidfile named 'name'.
  * If 'name' begins with '/', then it is treated as an absolute path.
  * Otherwise, it is taken relative to RUNDIR, which is $(prefix)/var/run by
- * default. */
+ * default.
+ *
+ * If 'name' is null, then program_name followed by ".pid" is used. */
 void
 set_pidfile(const char *name)
 {
     free(pidfile);
-    pidfile = *name == '/' ? xstrdup(name) : xasprintf("%s/%s", RUNDIR, name);
+    pidfile = make_pidfile_name(name);
 }
 
 /* Sets up a following call to daemonize() to detach from the foreground
@@ -67,25 +81,56 @@ set_detach(void)
     detach = true;
 }
 
-/* If a pidfile has been configured, creates it and stores 'pid' in it.  It is
- * the caller's responsibility to make sure that the pidfile will eventually
- * be deleted. */
+/* If a pidfile has been configured, creates it and stores the running process'
+ * pid init.  Ensures that the pidfile will be deleted when the process
+ * exits. */
 static void
-make_pidfile(pid_t pid)
+make_pidfile(void)
 {
     if (pidfile) {
-        FILE *file;
+        /* Create pidfile via temporary file, so that observers never see an
+         * empty pidfile or an unlocked pidfile. */
+        long int pid = getpid();
+        char *tmpfile;
+        int fd;
 
-        file = fopen(pidfile, "w");
-        if (file) {
-            fprintf(file, "%ld\n", (long int) pid);
-            fclose(file);
+        tmpfile = xasprintf("%s.tmp%ld", pidfile, pid);
+        fatal_signal_add_file_to_unlink(tmpfile);
+        fd = open(tmpfile, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+        if (fd >= 0) {
+            struct flock lck;
+            lck.l_type = F_WRLCK;
+            lck.l_whence = SEEK_SET;
+            lck.l_start = 0;
+            lck.l_len = 0;
+            if (fcntl(fd, F_SETLK, &lck) >= 0) {
+                char *text = xasprintf("%ld\n", pid);
+                if (write(fd, text, strlen(text)) == strlen(text)) {
+                    fatal_signal_add_file_to_unlink(pidfile);
+                    if (rename(tmpfile, pidfile) < 0) {
+                        VLOG_ERR("failed to rename \"%s\" to \"%s\": %s",
+                                 tmpfile, pidfile, strerror(errno));
+                        fatal_signal_remove_file_to_unlink(pidfile);
+                        close(fd);
+                    } else {
+                        /* Keep 'fd' open to retain the lock. */
+                    }
+                } else {
+                    VLOG_ERR("%s: write failed: %s", tmpfile, strerror(errno));
+                    close(fd);
+                }
+            } else {
+                VLOG_ERR("%s: fcntl failed: %s", tmpfile, strerror(errno));
+                close(fd);
+            }
         } else {
-            VLOG_ERR("failed to create \"%s\": %s", pidfile, strerror(errno));
+            VLOG_ERR("%s: create failed: %s", tmpfile, strerror(errno));
         }
-        free(pidfile);
-        pidfile = NULL;
+        fatal_signal_remove_file_to_unlink(tmpfile);
+        free(tmpfile);
     }
+    free(pidfile);
+    pidfile = NULL;
 }
 
 /* If configured with set_pidfile() or set_detach(), creates the pid file and
@@ -94,28 +139,37 @@ void
 daemonize(void)
 {
     if (detach) {
-        pid_t pid;
+        char c = 0;
+        int fds[2];
+        if (pipe(fds) < 0) {
+            fatal(errno, "pipe failed");
+        }
 
-        /* Fork and exit from the parent. */
-        pid = fork();
-        if (pid < 0) {
-            fatal(errno, "could not fork");
-        } else if (pid) {
+        switch (fork()) {
+        default:
+            /* Parent process: wait for child to create pidfile, then exit. */
+            close(fds[1]);
             fatal_signal_fork();
-            make_pidfile(pid);
+            read(fds[0], &c, 1);
             exit(0);
-        }
 
-        if (pidfile) {
-            fatal_signal_add_file_to_unlink(pidfile);
+        case 0:
+            /* Child process. */
+            close(fds[0]);
+            make_pidfile();
+            write(fds[1], &c, 1);
+            close(fds[1]);
+            setsid();
+            chdir("/");
+            break;
+
+        case -1:
+            /* Error. */
+            fatal(errno, "could not fork");
+            break;
         }
-        setsid();
-        chdir("/");
     } else {
-        if (pidfile) {
-            fatal_signal_add_file_to_unlink(pidfile);
-        }
-        make_pidfile(getpid());
+        make_pidfile();
     }
 }
 

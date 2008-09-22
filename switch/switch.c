@@ -31,8 +31,10 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include <errno.h>
 #include <getopt.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,11 +63,16 @@ static struct datapath *dp;
 static uint64_t dpid = UINT64_MAX;
 static char *port_list;
 
+/* --max-backoff: Maximum interval between controller connection attempts, in
+ * seconds. */
+static int max_backoff = 15;
+
 static void add_ports(struct datapath *dp, char *port_list);
 
 int
 main(int argc, char *argv[])
 {
+    struct rconn *rconn;
     int error;
 
     set_program_name(argv[0]);
@@ -77,7 +84,12 @@ main(int argc, char *argv[])
         fatal(0, "missing controller argument; use --help for usage");
     }
 
-    error = dp_new(&dp, dpid, rconn_new(argv[optind], 128));
+    rconn = rconn_create(128, 60, max_backoff);
+    error = rconn_connect(rconn, argv[optind]);
+    if (error == EAFNOSUPPORT) {
+        fatal(0, "no support for %s vconn", argv[optind]);
+    }
+    error = dp_new(&dp, dpid, rconn);
     if (listen_vconn_name) {
         struct vconn *listen_vconn;
         int retval;
@@ -135,9 +147,14 @@ add_ports(struct datapath *dp, char *port_list)
 static void
 parse_options(int argc, char *argv[])
 {
+    enum {
+        OPT_MAX_BACKOFF = UCHAR_MAX + 1
+    };
+
     static struct option long_options[] = {
         {"interfaces",  required_argument, 0, 'i'},
         {"datapath-id", required_argument, 0, 'd'},
+        {"max-backoff", required_argument, 0, OPT_MAX_BACKOFF},
         {"listen",      required_argument, 0, 'l'},
         {"detach",      no_argument, 0, 'D'},
         {"pidfile",     optional_argument, 0, 'P'},
@@ -183,7 +200,7 @@ parse_options(int argc, char *argv[])
             break;
 
         case 'P':
-            set_pidfile(optarg ? optarg : "switch.pid");
+            set_pidfile(optarg);
             break;
 
         case 'v':
@@ -195,6 +212,15 @@ parse_options(int argc, char *argv[])
                 port_list = optarg;
             } else {
                 port_list = xasprintf("%s,%s", port_list, optarg);
+            }
+            break;
+
+        case OPT_MAX_BACKOFF:
+            max_backoff = atoi(optarg);
+            if (max_backoff < 1) {
+                fatal(0, "--max-backoff argument must be at least 1");
+            } else if (max_backoff > 3600) {
+                max_backoff = 3600;
             }
             break;
 
@@ -230,12 +256,14 @@ usage(void)
            "                          add specified initial switch ports\n"
            "  -d, --datapath-id=ID    Use ID as the OpenFlow switch ID\n"
            "                          (ID must consist of 12 hex digits)\n"
+           "  --max-backoff=SECS      max time between controller connection\n"
+           "                          attempts (default: 15 seconds)\n"
            "  -l, --listen=METHOD     allow management connections on METHOD\n"
            "                          (a passive OpenFlow connection method)\n"
            "\nOther options:\n"
            "  -D, --detach            run in background as daemon\n"
            "  -P, --pidfile[=FILE]    create pidfile (default: %s/switch.pid)\n"
-           "  -v, --verbose=MODULE:FACILITY:LEVEL  configure logging levels\n"
+           "  -v, --verbose=MODULE[:FACILITY[:LEVEL]]  set logging levels\n"
            "  -v, --verbose           set maximum verbosity level\n"
            "  -h, --help              display this help message\n"
            "  -V, --version           display version information\n",

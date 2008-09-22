@@ -31,6 +31,7 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "learning-switch.h"
 
 #include <errno.h>
@@ -53,7 +54,11 @@
 #include "vlog.h"
 
 struct lswitch {
-    bool setup_flows; /* Set up flows? (or controller processes all packets) */
+    /* If nonnegative, the switch sets up flows that expire after the given
+     * number of seconds (or never expire, if the value is OFP_FLOW_PERMANENT).
+     * Otherwise, the switch processes every packet. */
+    int max_idle;
+
     uint64_t datapath_id;
     time_t last_features_request;
     struct mac_learning *ml;    /* NULL to act as hub instead of switch. */
@@ -63,24 +68,27 @@ static void queue_tx(struct lswitch *, struct rconn *, struct buffer *);
 static void send_features_request(struct lswitch *, struct rconn *);
 static void process_packet_in(struct lswitch *, struct rconn *,
                               struct ofp_packet_in *);
+static void process_echo_request(struct lswitch *, struct rconn *,
+                                 struct ofp_header *);
 
 /* Creates and returns a new learning switch.
  *
  * If 'learn_macs' is true, the new switch will learn the ports on which MAC
  * addresses appear.  Otherwise, the new switch will flood all packets.
  *
- * If 'setup_flows' is true, the new switch will set up flows.  Otherwise, the
- * new switch will process every packet.
+ * If 'max_idle' is nonnegative, the new switch will set up flows that expire
+ * after the given number of seconds (or never expire, if 'max_idle' is
+ * OFP_FLOW_PERMANENT).  Otherwise, the new switch will process every packet.
  *
  * 'rconn' is used to send out an OpenFlow features request. */
 struct lswitch *
-lswitch_create(struct rconn *rconn, bool learn_macs, bool setup_flows)
+lswitch_create(struct rconn *rconn, bool learn_macs, int max_idle)
 {
     struct lswitch *sw = xmalloc(sizeof *sw);
     memset(sw, 0, sizeof *sw);
-    sw->setup_flows = setup_flows;
+    sw->max_idle = max_idle;
     sw->datapath_id = 0;
-    sw->last_features_request = 0;
+    sw->last_features_request = time(0) - 1;
     sw->ml = learn_macs ? mac_learning_create() : NULL;
     send_features_request(sw, rconn);
     return sw;
@@ -119,7 +127,9 @@ lswitch_process_packet(struct lswitch *sw, struct rconn *rconn,
         return;
     }
 
-    if (oh->type == OFPT_FEATURES_REPLY) {
+    if (oh->type == OFPT_ECHO_REQUEST) {
+        process_echo_request(sw, rconn, msg->data);
+    } else if (oh->type == OFPT_FEATURES_REPLY) {
         struct ofp_switch_features *osf = msg->data;
         sw->datapath_id = osf->datapath_id;
     } else if (sw->datapath_id == 0) {
@@ -213,11 +223,15 @@ process_packet_in(struct lswitch *sw, struct rconn *rconn,
         out_port = mac_learning_lookup(sw->ml, flow.dl_dst);
     }
 
-    if (sw->setup_flows && (!sw->ml || out_port != OFPP_FLOOD)) {
+    if (in_port == out_port) {
+        /* The input port and output port match, so just drop the packet 
+         * by returning. */
+        return;
+    } else if (sw->max_idle >= 0 && (!sw->ml || out_port != OFPP_FLOOD)) {
         /* The output port is known, or we always flood everything, so add a
          * new flow. */
         queue_tx(sw, rconn, make_add_simple_flow(&flow, ntohl(opi->buffer_id),
-                                                 out_port));
+                                                 out_port, sw->max_idle));
 
         /* If the switch didn't buffer the packet, we need to send a copy. */
         if (ntohl(opi->buffer_id) == UINT32_MAX) {
@@ -236,4 +250,11 @@ process_packet_in(struct lswitch *sw, struct rconn *rconn,
         }
         queue_tx(sw, rconn, b);
     }
+}
+
+static void
+process_echo_request(struct lswitch *sw, struct rconn *rconn,
+                     struct ofp_header *rq)
+{
+    queue_tx(sw, rconn, make_echo_reply(rq));
 }

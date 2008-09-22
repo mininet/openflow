@@ -35,9 +35,14 @@
 
 #include <stdint.h>
 #include <string.h>
+#include "compiler.h"
+#include "random.h"
 #include "util.h"
 
 #define ETH_ADDR_LEN           6
+
+static const uint8_t eth_addr_broadcast[ETH_ADDR_LEN] UNUSED
+    = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 static inline bool eth_addr_is_broadcast(const uint8_t ea[6])
 {
@@ -51,11 +56,38 @@ static inline bool eth_addr_is_local(const uint8_t ea[6])
 {
     return ea[0] & 2;
 }
+static inline bool eth_addr_is_zero(const uint8_t ea[6]) 
+{
+    return !(ea[0] | ea[1] | ea[2] | ea[3] | ea[4] | ea[5]);
+}
 static inline bool eth_addr_equals(const uint8_t a[ETH_ADDR_LEN],
                                    const uint8_t b[ETH_ADDR_LEN]) 
 {
     return !memcmp(a, b, ETH_ADDR_LEN);
 }
+static inline uint64_t eth_addr_to_uint64(const uint8_t ea[ETH_ADDR_LEN])
+{
+    return (((uint64_t) ea[0] << 40)
+            | ((uint64_t) ea[1] << 32)
+            | ((uint64_t) ea[2] << 24)
+            | ((uint64_t) ea[3] << 16)
+            | ((uint64_t) ea[4] << 8)
+            | ea[5]);
+}
+static inline void eth_addr_from_uint64(uint64_t x, uint8_t ea[ETH_ADDR_LEN])
+{
+    ea[0] = x >> 40;
+    ea[1] = x >> 32;
+    ea[2] = x >> 24;
+    ea[3] = x >> 16;
+    ea[4] = x >> 8;
+    ea[5] = x;
+}
+static inline void eth_addr_random(uint8_t ea[ETH_ADDR_LEN])
+{
+    random_bytes(ea, ETH_ADDR_LEN);
+}
+
 #define ETH_ADDR_FMT                                                    \
     "%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8
 #define ETH_ADDR_ARGS(ea)                                   \
@@ -67,8 +99,10 @@ static inline bool eth_addr_equals(const uint8_t a[ETH_ADDR_LEN],
 
 #define ETH_HEADER_LEN 14
 #define ETH_PAYLOAD_MIN 46
+#define ETH_PAYLOAD_MAX 1500
 #define ETH_TOTAL_MIN (ETH_HEADER_LEN + ETH_PAYLOAD_MIN)
-#define ETH_TOTAL_MAX (ETH_HEADER_LEN + VLAN_HEADER_LEN + 1500)
+#define ETH_TOTAL_MAX (ETH_HEADER_LEN + ETH_PAYLOAD_MAX)
+#define ETH_VLAN_TOTAL_MAX (ETH_HEADER_LEN + VLAN_HEADER_LEN + ETH_PAYLOAD_MAX)
 struct eth_header {
     uint8_t eth_dst[ETH_ADDR_LEN];
     uint8_t eth_src[ETH_ADDR_LEN];
@@ -132,9 +166,18 @@ BUILD_ASSERT_DECL(VLAN_ETH_HEADER_LEN == sizeof(struct vlan_eth_header));
 
 #define IP_VER(ip_ihl_ver) ((ip_ihl_ver) >> 4)
 #define IP_IHL(ip_ihl_ver) ((ip_ihl_ver) & 15)
+#define IP_IHL_VER(ihl, ver) (((ver) << 4) | (ihl))
 
 #define IP_TYPE_TCP 6
 #define IP_TYPE_UDP 17
+
+#define IP_VERSION 4
+
+#define IP_DONT_FRAGMENT  0x4000 /* Don't fragment. */
+#define IP_MORE_FRAGMENTS 0x2000 /* More fragments. */
+#define IP_FRAG_OFF_MASK  0x1fff /* Fragment offset. */
+#define IP_IS_FRAGMENT(ip_frag_off) \
+        (ntohs(ip_frag_off) & (IP_MORE_FRAGMENTS | IP_FRAG_OFF_MASK))
 
 #define IP_HEADER_LEN 20
 struct ip_header {

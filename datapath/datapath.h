@@ -3,6 +3,7 @@
 #ifndef DATAPATH_H
 #define DATAPATH_H 1
 
+#include <linux/mutex.h>
 #include <linux/netlink.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
@@ -67,6 +68,8 @@ struct sender {
 	uint32_t seq;		/* Netlink sequence ID of request. */
 };
 
+extern struct mutex dp_mutex;
+
 int dp_output_port(struct datapath *, struct sk_buff *, int out_port);
 int dp_output_control(struct datapath *, struct sk_buff *, uint32_t, 
 			size_t, int);
@@ -77,6 +80,8 @@ int dp_send_flow_expired(struct datapath *, struct sw_flow *);
 int dp_send_error_msg(struct datapath *, const struct sender *, 
 			uint16_t, uint16_t, const uint8_t *, size_t);
 int dp_update_port_flags(struct datapath *dp, const struct ofp_phy_port *opp);
+int dp_send_echo_reply(struct datapath *, const struct sender *,
+		       const struct ofp_header *);
 
 /* Should hold at least RCU read lock when calling */
 struct datapath *dp_get(int dp_idx);

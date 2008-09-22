@@ -31,9 +31,11 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "vconn.h"
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <stdlib.h>
@@ -43,6 +45,7 @@
 #include "ofp-print.h"
 #include "openflow.h"
 #include "poll-loop.h"
+#include "random.h"
 #include "util.h"
 
 #define THIS_MODULE VLM_vconn
@@ -58,6 +61,8 @@ static struct vconn_class *vconn_classes[] = {
     &ssl_vconn_class,
     &pssl_vconn_class,
 #endif
+    &unix_vconn_class,
+    &punix_vconn_class,
 };
 
 /* Check the validity of the vconn class structures. */
@@ -71,11 +76,16 @@ check_vconn_classes(void)
         struct vconn_class *class = vconn_classes[i];
         assert(class->name != NULL);
         assert(class->open != NULL);
-        assert(class->close != NULL);
-        assert(class->accept
-               ? !class->recv && !class->send
-               :  class->recv && class->send);
-        assert(class->wait != NULL);
+        if (class->close || class->accept || class->recv || class->send
+            || class->wait) {
+            assert(class->close != NULL);
+            assert(class->accept
+                   ? !class->recv && !class->send
+                   :  class->recv && class->send);
+            assert(class->wait != NULL);
+        } else {
+            /* This class delegates to another one. */
+        }
     }
 #endif
 }
@@ -102,6 +112,7 @@ vconn_usage(bool active, bool passive)
         printf("  ssl:HOST[:PORT]         "
                "SSL PORT (default: %d) on remote HOST\n", OFP_SSL_PORT);
 #endif
+        printf("  unix:FILE               Unix domain socket named FILE\n");
     }
 
     if (passive) {
@@ -114,6 +125,8 @@ vconn_usage(bool active, bool passive)
                "listen for SSL on PORT (default: %d)\n",
                OFP_SSL_PORT);
 #endif
+        printf("  punix:FILE              "
+               "listen on Unix domain socket FILE\n");
     }
 
 #ifdef HAVE_OPENSSL
@@ -141,7 +154,8 @@ vconn_open(const char *name, struct vconn **vconnp)
 
     prefix_len = strcspn(name, ":");
     if (prefix_len == strlen(name)) {
-        fatal(0, "`%s' not correct format for peer name", name);
+        error(0, "`%s' not correct format for peer name", name);
+        return EAFNOSUPPORT;
     }
     for (i = 0; i < ARRAY_SIZE(vconn_classes); i++) {
         struct vconn_class *class = vconn_classes[i];
@@ -159,8 +173,8 @@ vconn_open(const char *name, struct vconn **vconnp)
             return retval;
         }
     }
-    fatal(0, "unknown peer type `%.*s'", (int) prefix_len, name);
-    abort();
+    error(0, "unknown peer type `%.*s'", (int) prefix_len, name);
+    return EAFNOSUPPORT;
 }
 
 int
@@ -202,6 +216,14 @@ bool
 vconn_is_passive(const struct vconn *vconn)
 {
     return vconn->class->accept != NULL;
+}
+
+/* Returns the IP address of the peer, or 0 if the peer is not connected over
+ * an IP-based protocol or if its IP address is not yet known. */
+uint32_t
+vconn_get_ip(const struct vconn *vconn) 
+{
+    return vconn->ip;
 }
 
 /* Tries to complete the connection on 'vconn', which must be an active
@@ -254,10 +276,24 @@ vconn_recv(struct vconn *vconn, struct buffer **msgp)
     int retval = vconn_connect(vconn);
     if (!retval) {
         retval = (vconn->class->recv)(vconn, msgp);
-        if (VLOG_IS_DBG_ENABLED() && !retval) {
-            char *s = ofp_to_string((*msgp)->data, (*msgp)->size, 1);
-            VLOG_DBG("received: %s", s);
-            free(s);
+        if (!retval) {
+            struct ofp_header *oh;
+
+            if (VLOG_IS_DBG_ENABLED()) {
+                char *s = ofp_to_string((*msgp)->data, (*msgp)->size, 1);
+                VLOG_DBG("received: %s", s);
+                free(s);
+            }
+
+            oh = buffer_at_assert(*msgp, 0, sizeof *oh);
+            if (oh->version != OFP_VERSION) {
+                VLOG_ERR("received OpenFlow version %02"PRIx8" "
+                         "!= expected %02x",
+                         oh->version, OFP_VERSION);
+                buffer_delete(*msgp);
+                *msgp = NULL;
+                return EPROTO;
+            }
         }
     }
     if (retval) {
@@ -282,6 +318,8 @@ vconn_send(struct vconn *vconn, struct buffer *msg)
 {
     int retval = vconn_connect(vconn);
     if (!retval) {
+        assert(msg->size >= sizeof(struct ofp_header));
+        assert(((struct ofp_header *) msg->data)->length == htons(msg->size));
         if (!VLOG_IS_DBG_ENABLED()) { 
             retval = (vconn->class->send)(vconn, msg);
         } else {
@@ -320,6 +358,45 @@ vconn_recv_block(struct vconn *vconn, struct buffer **msgp)
         poll_block();
     }
     return retval;
+}
+
+/* Sends 'request' to 'vconn' and blocks until it receives a reply with a
+ * matching transaction ID.  Returns 0 if successful, in which case the reply
+ * is stored in '*replyp' for the caller to examine and free.  Otherwise
+ * returns a positive errno value, or EOF, and sets '*replyp' to null.
+ *
+ * 'request' is always destroyed, regardless of the return value. */
+int
+vconn_transact(struct vconn *vconn, struct buffer *request,
+               struct buffer **replyp)
+{
+    uint32_t send_xid = ((struct ofp_header *) request->data)->xid;
+    int error;
+
+    *replyp = NULL;
+    error = vconn_send_block(vconn, request);
+    if (error) {
+        buffer_delete(request);
+        return error;
+    }
+    for (;;) {
+        uint32_t recv_xid;
+        struct buffer *reply;
+
+        error = vconn_recv_block(vconn, &reply);
+        if (error) {
+            return error;
+        }
+        recv_xid = ((struct ofp_header *) reply->data)->xid;
+        if (send_xid == recv_xid) {
+            *replyp = reply;
+            return 0;
+        }
+
+        VLOG_DBG("received reply with xid %08"PRIx32" != expected %08"PRIx32,
+                 recv_xid, send_xid);
+        buffer_delete(reply);
+    }
 }
 
 void
@@ -368,9 +445,51 @@ vconn_send_wait(struct vconn *vconn)
     vconn_wait(vconn, WAIT_SEND);
 }
 
+/* Allocates and returns the first byte of a buffer 'openflow_len' bytes long,
+ * containing an OpenFlow header with the given 'type' and a random transaction
+ * id.  Stores the new buffer in '*bufferp'.  The caller must free the buffer
+ * when it is no longer needed. */
+void *
+make_openflow(size_t openflow_len, uint8_t type, struct buffer **bufferp) 
+{
+    return make_openflow_xid(openflow_len, type, random_uint32(), bufferp);
+}
+
+/* Allocates and returns the first byte of a buffer 'openflow_len' bytes long,
+ * containing an OpenFlow header with the given 'type' and transaction id
+ * 'xid'.  Stores the new buffer in '*bufferp'.  The caller must free the
+ * buffer when it is no longer needed. */
+void *
+make_openflow_xid(size_t openflow_len, uint8_t type, uint32_t xid,
+                  struct buffer **bufferp)
+{
+    struct buffer *buffer;
+    struct ofp_header *oh;
+
+    assert(openflow_len >= sizeof *oh);
+    assert(openflow_len <= UINT16_MAX);
+    buffer = *bufferp = buffer_new(openflow_len);
+    oh = buffer_put_uninit(buffer, openflow_len);
+    memset(oh, 0, openflow_len);
+    oh->version = OFP_VERSION;
+    oh->type = type;
+    oh->length = htons(openflow_len);
+    oh->xid = xid;
+    return oh;
+}
+
+/* Updates the 'length' field of the OpenFlow message in 'buffer' to
+ * 'buffer->size'. */
+void
+update_openflow_length(struct buffer *buffer) 
+{
+    struct ofp_header *oh = buffer_at_assert(buffer, 0, sizeof *oh);
+    oh->length = htons(buffer->size); 
+}
+
 struct buffer *
 make_add_simple_flow(const struct flow *flow,
-                     uint32_t buffer_id, uint16_t out_port)
+                     uint32_t buffer_id, uint16_t out_port, uint16_t max_idle)
 {
     struct ofp_flow_mod *ofm;
     size_t size = sizeof *ofm + sizeof ofm->actions[0];
@@ -392,7 +511,7 @@ make_add_simple_flow(const struct flow *flow,
     ofm->match.tp_src = flow->tp_src;
     ofm->match.tp_dst = flow->tp_dst;
     ofm->command = htons(OFPFC_ADD);
-    ofm->max_idle = htons(60);
+    ofm->max_idle = htons(max_idle);
     ofm->buffer_id = htonl(buffer_id);
     ofm->actions[0].type = htons(OFPAT_OUTPUT);
     ofm->actions[0].arg.output.max_len = htons(0);
@@ -440,3 +559,28 @@ make_buffered_packet_out(uint32_t buffer_id,
     return out;
 }
 
+/* Creates and returns an OFPT_ECHO_REQUEST message with an empty payload. */
+struct buffer *
+make_echo_request(void)
+{
+    struct ofp_header *rq;
+    struct buffer *out = buffer_new(sizeof *rq);
+    rq = buffer_put_uninit(out, sizeof *rq);
+    rq->version = OFP_VERSION;
+    rq->type = OFPT_ECHO_REQUEST;
+    rq->length = htons(sizeof *rq);
+    rq->xid = 0;
+    return out;
+}
+
+/* Creates and returns an OFPT_ECHO_REPLY message matching the
+ * OFPT_ECHO_REQUEST message in 'rq'. */
+struct buffer *
+make_echo_reply(const struct ofp_header *rq)
+{
+    size_t size = ntohs(rq->length);
+    struct buffer *out = buffer_new(size);
+    struct ofp_header *reply = buffer_put(out, rq, size);
+    reply->type = OFPT_ECHO_REPLY;
+    return out;
+}

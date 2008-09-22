@@ -2,7 +2,10 @@ noinst_HEADERS = \
 	buffer.h \
 	command-line.h \
 	compiler.h \
+	csum.h \
 	daemon.h \
+	dhcp-client.h \
+	dhcp.h \
 	dynamic-string.h \
 	dpif.h \
 	fatal-signal.h \
@@ -21,11 +24,15 @@ noinst_HEADERS = \
 	packets.h \
 	poll-loop.h \
 	queue.h \
+	random.h \
 	rconn.h \
 	socket-util.h \
+	type-props.h \
+	timeval.h \
 	util.h \
 	vconn.h \
 	vconn-ssl.h \
+	vconn-stream.h \
 	vlog-socket.h \
 	vlog.h \
 	xtoxll.h \

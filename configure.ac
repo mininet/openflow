@@ -1,10 +1,12 @@
 AC_PREREQ(2.59)
 AC_INIT(openflow, v0.8.1, info@openflowswitch.org)
+AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE
 
 AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_LD
+AC_PROG_RANLIB
 
 AC_ARG_VAR([PERL], [path to Perl interpreter])
 AC_PATH_PROG([PERL], perl, no)
@@ -13,8 +15,6 @@ if test "$PERL" = no; then
 fi
 
 AC_USE_SYSTEM_EXTENSIONS
-
-AC_PROG_LIBTOOL
 
 AC_ARG_ENABLE(
   [ndebug],
@@ -132,8 +132,9 @@ if test "$HAVE_OPENSSL" = yes; then
 fi
 
 AC_CHECK_LIB([socket], [connect])
-AC_CHECK_LIB([resolv], [gethostbyname])
-AC_CHECK_LIB([dl], [dladdr])
+AC_SEARCH_LIBS([gethostbyname], [resolv], [RESOLVER_LIBS=-lresolv])
+AC_CHECK_LIB([dl], [dladdr], [FAULT_LIBS=-ldl])
+AC_SUBST([FAULT_LIBS])
 
 CFLAGS="$CFLAGS -Wall -Wno-sign-compare"
 

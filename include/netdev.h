@@ -52,20 +52,32 @@ enum netdev_flags {
     NETDEV_PROMISC = 0x0002     /* Promiscuous mode? */
 };
 
+enum netdev_pseudo_ethertype {
+    NETDEV_ETH_TYPE_NONE = -128, /* Receive no frames. */
+    NETDEV_ETH_TYPE_ANY,         /* Receive all frames. */
+    NETDEV_ETH_TYPE_802_2        /* Receive all IEEE 802.2 frames. */
+};
+
 struct netdev;
-int netdev_open(const char *name, struct netdev **);
+int netdev_open(const char *name, int ethertype, struct netdev **);
 void netdev_close(struct netdev *);
 int netdev_recv(struct netdev *, struct buffer *);
 void netdev_recv_wait(struct netdev *);
-int netdev_send(struct netdev *, struct buffer *);
+void netdev_drain(struct netdev *);
+int netdev_send(struct netdev *, const struct buffer *);
 const uint8_t *netdev_get_etheraddr(const struct netdev *);
 const char *netdev_get_name(const struct netdev *);
 int netdev_get_mtu(const struct netdev *);
 int netdev_get_speed(const struct netdev *);
 uint32_t netdev_get_features(const struct netdev *);
 bool netdev_get_in4(const struct netdev *, struct in_addr *);
+int netdev_set_in4(struct netdev *, struct in_addr addr, struct in_addr mask);
+int netdev_add_router(struct netdev *, struct in_addr router);
 bool netdev_get_in6(const struct netdev *, struct in6_addr *);
 int netdev_get_flags(const struct netdev *, enum netdev_flags *);
-int netdev_set_flags(struct netdev *, enum netdev_flags);
+int netdev_set_flags(struct netdev *, enum netdev_flags, bool permanent);
+int netdev_turn_flags_on(struct netdev *, enum netdev_flags, bool permanent);
+int netdev_turn_flags_off(struct netdev *, enum netdev_flags, bool permanent);
+int netdev_arp_lookup(const struct netdev *, uint32_t ip, uint8_t mac[6]);
 
 #endif /* netdev.h */

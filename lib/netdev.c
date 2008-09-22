@@ -31,6 +31,7 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "netdev.h"
 
 #include <assert.h>
@@ -64,6 +65,7 @@
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <net/if_packet.h>
+#include <net/route.h>
 #include <netinet/in.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,6 +77,7 @@
 #include "openflow.h"
 #include "packets.h"
 #include "poll-loop.h"
+#include "socket-util.h"
 
 /* This doesn't seem to be defined in the linux/ethtool.h for linux 2.4 */
 #ifndef SPEED_2500 
@@ -88,6 +91,7 @@
 struct netdev {
     struct list node;
     char *name;
+    int ifindex;
     int fd;
     uint8_t etheraddr[ETH_ADDR_LEN];
     int speed;
@@ -95,10 +99,14 @@ struct netdev {
     uint32_t features;
     struct in_addr in4;
     struct in6_addr in6;
-    int save_flags;
+    int save_flags;             /* Initial device flags. */
+    int changed_flags;          /* Flags that we changed. */
 };
 
 static struct list netdev_list = LIST_INITIALIZER(&netdev_list);
+
+/* An AF_INET socket (used for ioctl operations). */
+static int af_inet_sock = -1;
 
 static void init_netdev(void);
 static int restore_flags(struct netdev *netdev);
@@ -110,25 +118,17 @@ static int set_flags(struct netdev *, int flags);
 static bool
 get_ipv4_address(const char *name, struct in_addr *in4)
 {
-    int sock;
     struct ifreq ifr;
-
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        VLOG_WARN("socket(AF_INET): %s", strerror(errno));
-        return false;
-    }
 
     strncpy(ifr.ifr_name, name, sizeof ifr.ifr_name);
     ifr.ifr_addr.sa_family = AF_INET;
-    if (ioctl(sock, SIOCGIFADDR, &ifr) == 0) {
+    if (ioctl(af_inet_sock, SIOCGIFADDR, &ifr) == 0) {
         struct sockaddr_in *sin = (struct sockaddr_in *) &ifr.ifr_addr;
         *in4 = sin->sin_addr;
     } else {
         in4->s_addr = INADDR_ANY;
     }
 
-    close(sock);
     return true;
 }
 
@@ -236,16 +236,19 @@ do_ethtool(struct netdev *netdev)
 
 /* Opens the network device named 'name' (e.g. "eth0") and returns zero if
  * successful, otherwise a positive errno value.  On success, sets '*netdev'
- * to the new network device, otherwise to null. */
+ * to the new network device, otherwise to null.
+ *
+ * 'ethertype' may be a 16-bit Ethernet protocol value in host byte order to
+ * capture frames of that type received on the device.  It may also be one of
+ * the 'enum netdev_pseudo_ethertype' values to receive frames in one of those
+ * categories. */
 int
-netdev_open(const char *name, struct netdev **netdev_)
+netdev_open(const char *name, int ethertype, struct netdev **netdev_)
 {
     int fd;
-    struct sockaddr sa;
+    struct sockaddr_ll sll;
     struct ifreq ifr;
     unsigned int ifindex;
-    socklen_t rcvbuf_len;
-    size_t rcvbuf;
     uint8_t etheraddr[ETH_ADDR_LEN];
     struct in_addr in4;
     struct in6_addr in6;
@@ -256,45 +259,14 @@ netdev_open(const char *name, struct netdev **netdev_)
     *netdev_ = NULL;
     init_netdev();
 
-    /* Create raw socket.
-     *
-     * We have to use SOCK_PACKET, despite its deprecation, because only
-     * SOCK_PACKET lets us set the hardware source address of outgoing
-     * packets. */
-    fd = socket(PF_PACKET, SOCK_PACKET, htons(ETH_P_ALL));
+    /* Create raw socket. */
+    fd = socket(PF_PACKET, SOCK_RAW,
+                htons(ethertype == NETDEV_ETH_TYPE_NONE ? 0
+                      : ethertype == NETDEV_ETH_TYPE_ANY ? ETH_P_ALL
+                      : ethertype == NETDEV_ETH_TYPE_802_2 ? ETH_P_802_2
+                      : ethertype));
     if (fd < 0) {
         return errno;
-    }
-
-    /* Bind to specific ethernet device. */
-    memset(&sa, 0, sizeof sa);
-    sa.sa_family = AF_UNSPEC;
-    strncpy((char *) sa.sa_data, name, sizeof sa.sa_data);
-    if (bind(fd, &sa, sizeof sa) < 0) {
-        VLOG_ERR("bind to %s failed: %s", name, strerror(errno));
-        goto error;
-    }
-
-    /* Between the socket() and bind() calls above, the socket receives all
-     * packets on all system interfaces.  We do not want to receive that
-     * data, but there is no way to avoid it.  So we must now drain out the
-     * receive queue.  There is no way to know how long the receive queue is,
-     * but we know that the total number of bytes queued does not exceed the
-     * receive buffer size, so we pull packets until none are left or we've
-     * read that many bytes. */
-    rcvbuf_len = sizeof rcvbuf;
-    if (getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, &rcvbuf_len) < 0) {
-        VLOG_ERR("getsockopt(SO_RCVBUF) on %s device failed: %s",
-                 name, strerror(errno));
-        goto error;
-    }
-    while (rcvbuf > 0) {
-        char buffer;
-        ssize_t n_bytes = recv(fd, &buffer, 1, MSG_TRUNC | MSG_DONTWAIT);
-        if (n_bytes <= 0) {
-            break;
-        }
-        rcvbuf -= n_bytes;
     }
 
     /* Get ethernet device index. */
@@ -305,6 +277,26 @@ netdev_open(const char *name, struct netdev **netdev_)
         goto error;
     }
     ifindex = ifr.ifr_ifindex;
+
+    /* Bind to specific ethernet device. */
+    memset(&sll, 0, sizeof sll);
+    sll.sll_family = AF_PACKET;
+    sll.sll_ifindex = ifindex;
+    if (bind(fd, (struct sockaddr *) &sll, sizeof sll) < 0) {
+        VLOG_ERR("bind to %s failed: %s", name, strerror(errno));
+        goto error;
+    }
+
+    if (ethertype != NETDEV_ETH_TYPE_NONE) {
+        /* Between the socket() and bind() calls above, the socket receives all
+         * packets of the requested type on all system interfaces.  We do not
+         * want to receive that data, but there is no way to avoid it.  So we
+         * must now drain out the receive queue. */
+        error = drain_rcvbuf(fd);
+        if (error) {
+            goto error;
+        }
+    }
 
     /* Get MAC address. */
     if (ioctl(fd, SIOCGIFHWADDR, &ifr) < 0) {
@@ -335,6 +327,7 @@ netdev_open(const char *name, struct netdev **netdev_)
     /* Allocate network device. */
     netdev = xmalloc(sizeof *netdev);
     netdev->name = xstrdup(name);
+    netdev->ifindex = ifindex;
     netdev->fd = fd;
     memcpy(netdev->etheraddr, etheraddr, sizeof etheraddr);
     netdev->mtu = mtu;
@@ -349,6 +342,7 @@ netdev_open(const char *name, struct netdev **netdev_)
     if (error) {
         goto preset_error;
     }
+    netdev->changed_flags = 0;
     fatal_signal_block();
     list_push_back(&netdev_list, &netdev->node);
     fatal_signal_unblock();
@@ -450,37 +444,38 @@ netdev_recv_wait(struct netdev *netdev)
     poll_fd_wait(netdev->fd, POLLIN);
 }
 
+/* Discards all packets waiting to be received from 'netdev'. */
+void
+netdev_drain(struct netdev *netdev)
+{
+    drain_rcvbuf(netdev->fd);
+}
+
 /* Sends 'buffer' on 'netdev'.  Returns 0 if successful, otherwise a positive
  * errno value.  Returns EAGAIN without blocking if the packet cannot be queued
  * immediately.  Returns EMSGSIZE if a partial packet was transmitted or if
- * the packet is too big to transmit on the device.
+ * the packet is too big or too small to transmit on the device.
+ *
+ * The caller retains ownership of 'buffer' in all cases.
  *
  * The kernel maintains a packet transmission queue, so the caller is not
  * expected to do additional queuing of packets. */
 int
-netdev_send(struct netdev *netdev, struct buffer *buffer)
+netdev_send(struct netdev *netdev, const struct buffer *buffer)
 {
     ssize_t n_bytes;
     const struct eth_header *eh;
-    struct sockaddr_pkt spkt;
 
-    /* Ensure packet is long enough.  (Although all incoming packets are at
-     * least ETH_TOTAL_MIN bytes long, we could have trimmed some data off a
-     * minimum-size packet, e.g. by dropping a vlan header.)
-     *
-     * The kernel does not require this, but it ensures that we always access
-     * valid memory in grabbing the sockaddr below. */
-    pad_to_minimum_length(buffer);
-
-    /* Construct packet sockaddr, which SOCK_PACKET requires. */
-    spkt.spkt_family = AF_PACKET;
-    strncpy((char *) spkt.spkt_device, netdev->name, sizeof spkt.spkt_device);
+    /* Pull out the Ethernet header. */
+    if (buffer->size < ETH_HEADER_LEN) {
+        VLOG_WARN("cannot send %zu-byte frame on %s",
+                  buffer->size, netdev->name);
+        return EMSGSIZE;
+    }
     eh = buffer_at_assert(buffer, 0, sizeof *eh);
-    spkt.spkt_protocol = eh->eth_type;
 
     do {
-        n_bytes = sendto(netdev->fd, buffer->data, buffer->size, 0,
-                         (const struct sockaddr *) &spkt, sizeof spkt);
+        n_bytes = sendto(netdev->fd, buffer->data, buffer->size, 0, NULL, 0);
     } while (n_bytes < 0 && errno == EINTR);
 
     if (n_bytes < 0) {
@@ -557,22 +552,95 @@ netdev_get_features(const struct netdev *netdev)
     return netdev->features;
 }
 
-/* If 'netdev' has an assigned IPv4 address, sets '*in4' to that address and
- * returns true.  Otherwise, returns false. */
+/* If 'netdev' has an assigned IPv4 address, sets '*in4' to that address (if
+ * 'in4' is non-null) and returns true.  Otherwise, returns false. */
 bool
 netdev_get_in4(const struct netdev *netdev, struct in_addr *in4)
 {
-    *in4 = netdev->in4;
-    return in4->s_addr != INADDR_ANY;
+    if (in4) {
+        *in4 = netdev->in4; 
+    }
+    return netdev->in4.s_addr != INADDR_ANY;
 }
 
-/* If 'netdev' has an assigned IPv6 address, sets '*in6' to that address and
- * returns true.  Otherwise, returns false. */
+static void
+make_in4_sockaddr(struct sockaddr *sa, struct in_addr addr)
+{
+    struct sockaddr_in sin;
+    memset(&sin, 0, sizeof sin);
+    sin.sin_family = AF_INET;
+    sin.sin_addr = addr;
+    sin.sin_port = 0;
+
+    memset(sa, 0, sizeof *sa);
+    memcpy(sa, &sin, sizeof sin);
+}
+
+static int
+do_set_addr(struct netdev *netdev, int sock,
+            int ioctl_nr, const char *ioctl_name, struct in_addr addr)
+{
+    struct ifreq ifr;
+    int error;
+
+    strncpy(ifr.ifr_name, netdev->name, sizeof ifr.ifr_name);
+    make_in4_sockaddr(&ifr.ifr_addr, addr);
+    error = ioctl(sock, ioctl_nr, &ifr) < 0 ? errno : 0;
+    if (error) {
+        VLOG_WARN("ioctl(%s): %s", ioctl_name, strerror(error));
+    }
+    return error;
+}
+
+/* Assigns 'addr' as 'netdev''s IPv4 address and 'mask' as its netmask.  If
+ * 'addr' is INADDR_ANY, 'netdev''s IPv4 address is cleared.  Returns a
+ * positive errno value. */
+int
+netdev_set_in4(struct netdev *netdev, struct in_addr addr, struct in_addr mask)
+{
+    int error;
+
+    error = do_set_addr(netdev, af_inet_sock,
+                        SIOCSIFADDR, "SIOCSIFADDR", addr);
+    if (!error) {
+        netdev->in4 = addr;
+        if (addr.s_addr != INADDR_ANY) {
+            error = do_set_addr(netdev, af_inet_sock,
+                                SIOCSIFNETMASK, "SIOCSIFNETMASK", mask);
+        }
+    }
+    return error;
+}
+
+/* Adds 'router' as a default gateway for 'netdev''s IP address. */
+int
+netdev_add_router(struct netdev *netdev, struct in_addr router)
+{
+    struct in_addr any = { INADDR_ANY };
+    struct rtentry rt;
+    int error;
+
+    memset(&rt, 0, sizeof rt);
+    make_in4_sockaddr(&rt.rt_dst, any);
+    make_in4_sockaddr(&rt.rt_gateway, router);
+    make_in4_sockaddr(&rt.rt_genmask, any);
+    rt.rt_flags = RTF_UP | RTF_GATEWAY;
+    error = ioctl(af_inet_sock, SIOCADDRT, &rt) < 0 ? errno : 0;
+    if (error) {
+        VLOG_WARN("ioctl(SIOCADDRT): %s", strerror(error));
+    }
+    return error;
+}
+
+/* If 'netdev' has an assigned IPv6 address, sets '*in6' to that address (if
+ * 'in6' is non-null) and returns true.  Otherwise, returns false. */
 bool
 netdev_get_in6(const struct netdev *netdev, struct in6_addr *in6)
 {
-    *in6 = netdev->in6;
-    return memcmp(in6, &in6addr_any, sizeof *in6) != 0;
+    if (in6) {
+        *in6 = netdev->in6;
+    }
+    return memcmp(&netdev->in6, &in6addr_any, sizeof netdev->in6) != 0;
 }
 
 /* Obtains the current flags for 'netdev' and stores them into '*flagsp'.
@@ -597,10 +665,26 @@ netdev_get_flags(const struct netdev *netdev, enum netdev_flags *flagsp)
     return 0;
 }
 
-/* Sets the flags for 'netdev' to 'nd_flags'.
- * Returns 0 if successful, otherwise a positive errno value. */
-int
-netdev_set_flags(struct netdev *netdev, enum netdev_flags nd_flags)
+static int
+nd_to_iff_flags(enum netdev_flags nd)
+{
+    int iff = 0;
+    if (nd & NETDEV_UP) {
+        iff |= IFF_UP;
+    }
+    if (nd & NETDEV_PROMISC) {
+        iff |= IFF_PROMISC;
+    }
+    return iff;
+}
+
+/* On 'netdev', turns off the flags in 'off' and then turns on the flags in
+ * 'on'.  If 'permanent' is true, the changes will persist; otherwise, they
+ * will be reverted when 'netdev' is closed or the program exits.  Returns 0 if
+ * successful, otherwise a positive errno value. */
+static int
+do_update_flags(struct netdev *netdev, enum netdev_flags off,
+                enum netdev_flags on, bool permanent)
 {
     int old_flags, new_flags;
     int error;
@@ -610,17 +694,77 @@ netdev_set_flags(struct netdev *netdev, enum netdev_flags nd_flags)
         return error;
     }
 
-    new_flags = old_flags & ~(IFF_UP | IFF_PROMISC);
-    if (nd_flags & NETDEV_UP) {
-        new_flags |= IFF_UP;
-    }
-    if (nd_flags & NETDEV_PROMISC) {
-        new_flags |= IFF_PROMISC;
+    new_flags = (old_flags & ~nd_to_iff_flags(off)) | nd_to_iff_flags(on);
+    if (!permanent) {
+        netdev->changed_flags |= new_flags ^ old_flags; 
     }
     if (new_flags != old_flags) {
         error = set_flags(netdev, new_flags);
     }
     return error;
+}
+
+/* Sets the flags for 'netdev' to 'flags'.
+ * If 'permanent' is true, the changes will persist; otherwise, they
+ * will be reverted when 'netdev' is closed or the program exits.
+ * Returns 0 if successful, otherwise a positive errno value. */
+int
+netdev_set_flags(struct netdev *netdev, enum netdev_flags flags,
+                 bool permanent)
+{
+    return do_update_flags(netdev, -1, flags, permanent);
+}
+
+/* Turns on the specified 'flags' on 'netdev'.
+ * If 'permanent' is true, the changes will persist; otherwise, they
+ * will be reverted when 'netdev' is closed or the program exits.
+ * Returns 0 if successful, otherwise a positive errno value. */
+int
+netdev_turn_flags_on(struct netdev *netdev, enum netdev_flags flags,
+                     bool permanent)
+{
+    return do_update_flags(netdev, 0, flags, permanent);
+}
+
+/* Turns off the specified 'flags' on 'netdev'.
+ * If 'permanent' is true, the changes will persist; otherwise, they
+ * will be reverted when 'netdev' is closed or the program exits.
+ * Returns 0 if successful, otherwise a positive errno value. */
+int
+netdev_turn_flags_off(struct netdev *netdev, enum netdev_flags flags,
+                      bool permanent)
+{
+    return do_update_flags(netdev, flags, 0, permanent);
+}
+
+/* Looks up the ARP table entry for 'ip' on 'netdev'.  If one exists and can be
+ * successfully retrieved, it stores the corresponding MAC address in 'mac' and
+ * returns 0.  Otherwise, it returns a positive errno value; in particular,
+ * ENXIO indicates that there is not ARP table entry for 'ip' on 'netdev'. */
+int
+netdev_arp_lookup(const struct netdev *netdev,
+                  uint32_t ip, uint8_t mac[ETH_ADDR_LEN]) 
+{
+    struct arpreq r;
+    struct sockaddr_in *pa;
+    int retval;
+
+    memset(&r, 0, sizeof r);
+    pa = (struct sockaddr_in *) &r.arp_pa;
+    pa->sin_family = AF_INET;
+    pa->sin_addr.s_addr = ip;
+    pa->sin_port = 0;
+    r.arp_ha.sa_family = ARPHRD_ETHER;
+    r.arp_flags = 0;
+    strncpy(r.arp_dev, netdev->name, sizeof r.arp_dev);
+    retval = ioctl(af_inet_sock, SIOCGARP, &r) < 0 ? errno : 0;
+    if (!retval) {
+        memcpy(mac, r.arp_ha.sa_data, ETH_ADDR_LEN);
+    } else if (retval != ENXIO) {
+        VLOG_WARN("%s: could not look up ARP entry for "IP_FMT": %s",
+                  netdev->name, IP_ARGS(&ip), strerror(retval));
+    }
+    return retval;
 }
 
 static void restore_all_flags(void *aux);
@@ -634,6 +778,10 @@ init_netdev(void)
     if (!inited) {
         inited = true;
         fatal_signal_add_hook(restore_all_flags, NULL);
+        af_inet_sock = socket(AF_INET, SOCK_DGRAM, 0);
+        if (af_inet_sock < 0) {
+            fatal(errno, "socket(AF_INET)");
+        }
     }
 }
 
@@ -646,6 +794,7 @@ static int
 restore_flags(struct netdev *netdev)
 {
     struct ifreq ifr;
+    int restore_flags;
 
     /* Get current flags. */
     strncpy(ifr.ifr_name, netdev->name, sizeof ifr.ifr_name);
@@ -654,9 +803,10 @@ restore_flags(struct netdev *netdev)
     }
 
     /* Restore flags that we might have changed, if necessary. */
-    if ((ifr.ifr_flags ^ netdev->save_flags) & (IFF_PROMISC | IFF_UP)) {
-        ifr.ifr_flags &= ~(IFF_PROMISC | IFF_UP);
-        ifr.ifr_flags |= netdev->save_flags & (IFF_PROMISC | IFF_UP);
+    restore_flags = netdev->changed_flags & (IFF_PROMISC | IFF_UP);
+    if ((ifr.ifr_flags ^ netdev->save_flags) & restore_flags) {
+        ifr.ifr_flags &= ~restore_flags;
+        ifr.ifr_flags |= netdev->save_flags & restore_flags;
         if (ioctl(netdev->fd, SIOCSIFFLAGS, &ifr) < 0) {
             return errno;
         }

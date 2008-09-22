@@ -1,11 +1,14 @@
 include ../Make.vars
 
-noinst_LTLIBRARIES = libopenflow.la
+noinst_LIBRARIES = libopenflow.a
 
-libopenflow_la_SOURCES = \
+libopenflow_a_SOURCES = \
 	buffer.c \
 	command-line.c \
+	csum.c \
 	daemon.c \
+	dhcp-client.c \
+	dhcp.c \
 	dynamic-string.c \
 	fatal-signal.c \
 	fault.c \
@@ -18,16 +21,19 @@ libopenflow_la_SOURCES = \
 	ofp-print.c \
 	poll-loop.c \
 	queue.c \
+	random.c \
 	rconn.c \
 	socket-util.c \
 	util.c \
 	vconn-tcp.c \
+	vconn-unix.c \
+	vconn-stream.c \
 	vconn.c \
 	vlog-socket.c \
 	vlog.c
 
 if HAVE_NETLINK
-libopenflow_la_SOURCES += \
+libopenflow_a_SOURCES += \
 	dpif.c \
 	netlink.c \
 	vconn-netlink.c
@@ -39,9 +45,9 @@ libopenflow_la_SOURCES += \
 endif
 
 if HAVE_OPENSSL
-libopenflow_la_SOURCES += \
+libopenflow_a_SOURCES += \
 	vconn-ssl.c 
-nodist_libopenflow_la_SOURCES = dhparams.c
+nodist_libopenflow_a_SOURCES = dhparams.c
 dhparams.c: dh1024.pem dh2048.pem dh4096.pem
 	(echo '#include "dhparams.h"' &&			\
 	 openssl dhparam -C -in $(srcdir)/dh1024.pem -noout &&	\

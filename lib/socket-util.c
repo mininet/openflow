@@ -31,14 +31,20 @@
  * derivatives without specific, written prior permission.
  */
 
+#include <config.h>
 #include "socket-util.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <poll.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include "fatal-signal.h"
+#include "util.h"
 
 #include "vlog.h"
 #define THIS_MODULE VLM_socket_util
@@ -117,4 +123,130 @@ check_connection_completion(int fd)
     } else {
         return EAGAIN;
     }
+}
+
+/* Drain all the data currently in the receive queue of a datagram socket (and
+ * possibly additional data).  There is no way to know how many packets are in
+ * the receive queue, but we do know that the total number of bytes queued does
+ * not exceed the receive buffer size, so we pull packets until none are left
+ * or we've read that many bytes. */
+int
+drain_rcvbuf(int fd)
+{
+    socklen_t rcvbuf_len;
+    size_t rcvbuf;
+
+    rcvbuf_len = sizeof rcvbuf;
+    if (getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, &rcvbuf_len) < 0) {
+        VLOG_ERR("getsockopt(SO_RCVBUF) failed: %s", strerror(errno));
+        return errno;
+    }
+    while (rcvbuf > 0) {
+        /* In Linux, specifying MSG_TRUNC in the flags argument causes the
+         * datagram length to be returned, even if that is longer than the
+         * buffer provided.  Thus, we can use a 1-byte buffer to discard the
+         * incoming datagram and still be able to account how many bytes were
+         * removed from the receive buffer.
+         *
+         * On other Unix-like OSes, MSG_TRUNC has no effect in the flags
+         * argument. */
+#ifdef __linux__
+#define BUFFER_SIZE 1
+#else
+#define BUFFER_SIZE 2048
+#endif
+        char buffer[BUFFER_SIZE];
+        ssize_t n_bytes = recv(fd, buffer, sizeof buffer,
+                               MSG_TRUNC | MSG_DONTWAIT);
+        if (n_bytes <= 0 || n_bytes >= rcvbuf) {
+            break;
+        }
+        rcvbuf -= n_bytes;
+    }
+    return 0;
+}
+
+/* Stores in '*un' a sockaddr_un that refers to file 'name'.  Stores in
+ * '*un_len' the size of the sockaddr_un. */
+static void
+make_sockaddr_un(const char *name, struct sockaddr_un* un, socklen_t *un_len)
+{
+    un->sun_family = AF_UNIX;
+    strncpy(un->sun_path, name, sizeof un->sun_path);
+    un->sun_path[sizeof un->sun_path - 1] = '\0';
+    *un_len = (offsetof(struct sockaddr_un, sun_path)
+                + strlen (un->sun_path) + 1);
+}
+
+/* Creates a Unix domain socket in the given 'style' (either SOCK_DGRAM or
+ * SOCK_STREAM) that is bound to '*bind_path' (if 'bind_path' is non-null) and
+ * connected to '*connect_path' (if 'connect_path' is non-null).  If 'nonblock'
+ * is true, the socket is made non-blocking.  If 'passcred' is true, the socket
+ * is configured to receive SCM_CREDENTIALS control messages.
+ *
+ * Returns the socket's fd if successful, otherwise a negative errno value. */
+int
+make_unix_socket(int style, bool nonblock, bool passcred UNUSED,
+                 const char *bind_path, const char *connect_path)
+{
+    int error;
+    int fd;
+
+    fd = socket(PF_UNIX, style, 0);
+    if (fd < 0) {
+        return -errno;
+    }
+
+    if (nonblock) {
+        int flags = fcntl(fd, F_GETFL, 0);
+        if (flags == -1) {
+            goto error;
+        }
+        if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+            goto error;
+        }
+    }
+
+    if (bind_path) {
+        struct sockaddr_un un;
+        socklen_t un_len;
+        make_sockaddr_un(bind_path, &un, &un_len);
+        if (unlink(un.sun_path) && errno != ENOENT) {
+            VLOG_WARN("unlinking \"%s\": %s\n", un.sun_path, strerror(errno));
+        }
+        fatal_signal_add_file_to_unlink(bind_path);
+        if (bind(fd, (struct sockaddr*) &un, un_len)
+            || fchmod(fd, S_IRWXU)) {
+            goto error;
+        }
+    }
+
+    if (connect_path) {
+        struct sockaddr_un un;
+        socklen_t un_len;
+        make_sockaddr_un(connect_path, &un, &un_len);
+        if (connect(fd, (struct sockaddr*) &un, un_len)
+            && errno != EINPROGRESS) {
+            goto error;
+        }
+    }
+
+#ifdef SCM_CREDENTIALS
+    if (passcred) {
+        int enable = 1;
+        if (setsockopt(fd, SOL_SOCKET, SO_PASSCRED, &enable, sizeof(enable))) {
+            goto error;
+        }
+    }
+#endif
+
+    return fd;
+
+error:
+    if (bind_path) {
+        fatal_signal_remove_file_to_unlink(bind_path);
+    }
+    error = errno;
+    close(fd);
+    return -error;
 }
