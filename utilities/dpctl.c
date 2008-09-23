@@ -41,7 +41,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/time.h>
+#ifdef HAVE_CURSES
 #include <curses.h>
+#endif
 
 #include "command-line.h"
 #include "compiler.h"
@@ -374,25 +376,15 @@ dump_transaction(const char *vconn_name, struct buffer *request)
     struct buffer *reply;
 
     update_openflow_length(request);
-    if (indicator) {
 #ifdef HAVE_CURSES
         runw(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
         runw(vconn_transact(vconn, request, &reply), "talking to %s", vconn_name);
-#endif
-    }
-    else {
+        ofp_printw(stdout, reply->data, reply->size, 1);
+#else
         run(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
         run(vconn_transact(vconn, request, &reply), "talking to %s", vconn_name);
-    }
-
-    if (indicator){
-#ifdef HAVE_CURSES
-        ofp_printw(stdout, reply->data, reply->size, 1);
-#endif
-    }
-    else {
         ofp_print(stdout, reply->data, reply->size, 1);
-    }
+#endif
     vconn_close(vconn);
 }
 
@@ -411,7 +403,11 @@ dump_stats_transaction(const char *vconn_name, struct buffer *request, int indic
     struct vconn *vconn;
     bool done = false;
     int y, x;
-    if (indicator) runw(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
+    if (indicator) {
+#ifdef HAVE_CURSES
+        runw(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
+#endif
+    }
     else run(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
     
     send_openflow_buffer(vconn, request);
