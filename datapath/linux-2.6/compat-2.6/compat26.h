@@ -26,4 +26,9 @@
 
 #endif /* linux kernel <= 2.6.22 */
 
+/* For CentOS / RHEL kernel compatibility */
+#ifndef RHEL_RELEASE_VERSION
+#define RHEL_RELEASE_VERSION(X,Y) ( 0 )
+#endif
+
 #endif /* compat26.h */

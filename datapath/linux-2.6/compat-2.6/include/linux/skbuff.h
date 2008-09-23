@@ -6,7 +6,7 @@
 #include <linux/version.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
-/* Emulate Linux 2.6.17 and later behavior, in which kfree_skb silently ignores 
+/* Emulate Linux 2.6.17 and later behavior, in which kfree_skb silently ignores
  * null pointer arguments. */
 #define kfree_skb(skb) kfree_skb_maybe_null(skb)
 static inline void kfree_skb_maybe_null(struct sk_buff *skb)
@@ -20,6 +20,7 @@ static inline void kfree_skb_maybe_null(struct sk_buff *skb)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 /* Note that CHECKSUM_PARTIAL is not implemented, but this allows us to at
  * least test against it: see update_csum() in forward.c. */
+#undef CHECKSUM_PARTIAL
 #define CHECKSUM_PARTIAL 3
 #define CHECKSUM_COMPLETE CHECKSUM_HW
 #endif /* linux kernel < 2.6.19 */
@@ -29,6 +30,8 @@ static inline void kfree_skb_maybe_null(struct sk_buff *skb)
 
 #define mac_header mac.raw
 #define network_header nh.raw
+
+#if RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,2)
 
 static inline unsigned char *skb_transport_header(const struct sk_buff *skb)
 {
@@ -70,6 +73,8 @@ static inline int skb_transport_offset(const struct sk_buff *skb)
 {
     return skb_transport_header(skb) - skb->data;
 }
+#endif /* rhel version < 5.2 */
+
 #endif /* linux kernel < 2.6.22 */
 
 #endif
