@@ -8,8 +8,11 @@ use OF::Includes;
 sub my_test {
 	
 	my ($sock, $options_ref) = @_;
-	
-	my $pkt = get_default_black_box_pkt_len( 0, 1, 256);
+
+	my $in_port = $$options_ref{'port_base'};
+	my $out_port = $in_port + 1;
+
+	my $pkt = get_default_black_box_pkt_len( $in_port, $out_port, 256);
 
 	nftest_send( 'eth1', $pkt->packed);
 
@@ -30,11 +33,12 @@ sub my_test {
 
 	# total len should be full length of original sent frame
 	compare("total len", $$msg{'total_len'}, '==', length($pkt->packed));
-	compare("in_port", $$msg{'in_port'}, '==', 0);
+	compare("in_port", $$msg{'in_port'}, '==', $in_port);
 	compare("reason", $$msg{'reason'}, '==', $enums{'OFPR_NO_MATCH'});
 
 	# verify packet was unchanged!
 	my $recvd_pkt_data = substr ($recvd_mesg, $ofp->offsetof('ofp_packet_in', 'data'));
+	
 	# trim to MISS_SEND_LEN
 	my $pkt_trimmed = substr ($pkt->packed, 0, get_of_miss_send_len_default());
 	if ($recvd_pkt_data ne $pkt_trimmed) {

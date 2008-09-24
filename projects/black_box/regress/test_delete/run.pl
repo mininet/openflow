@@ -6,7 +6,11 @@ use OF::Includes;
 
 sub send_expect_exact_with_wildcard {
 
-	my ( $ofp, $sock, $in_port, $out_port, $out_port2, $max_idle, $pkt_len ) = @_;
+	my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $out_port2_offset, $max_idle, $pkt_len ) = @_;
+
+	my $in_port = $in_port_offset + $$options_ref{'port_base'};
+	my $out_port = $out_port_offset + $$options_ref{'port_base'};
+	my $out_port2 = $out_port2_offset + $$options_ref{'port_base'};
 
 	my $test_pkt_args = {
 		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
@@ -48,24 +52,32 @@ sub send_expect_exact_with_wildcard {
 	# Send 'flow_mod' message
 	print $sock $flow_mod_exact_pkt;
 	print "sent flow_mod message (create exact match entry)\n";
-	usleep(100000);
+
+	# Give OF switch time to process the flow mod
+	usleep($$options_ref{'send_delay'});
 
 	print $sock $flow_mod_wildcard_pkt;
 	print "sent flow_mod message (create wildcard entry)\n";
-	usleep(100000);
+	
+	# Give OF switch time to process the flow mod
+	usleep($$options_ref{'send_delay'});
 
 	# Send a packet - ensure packet comes out desired port
 	print "Verify packets are forwarded correctly\n";
-	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt->packed );
-	nftest_expect( "eth" . ( $out_port + 1 ), $test_pkt->packed );
+	nftest_send( "eth" . ( $in_port_offset + 1 ), $test_pkt->packed );
+	nftest_expect( "eth" . ( $out_port_offset + 1 ), $test_pkt->packed );
 
-	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt2->packed );
-	nftest_expect( "eth" . ( $out_port2 + 1 ), $test_pkt2->packed );
+	nftest_send( "eth" . ( $in_port_offset + 1 ), $test_pkt2->packed );
+	nftest_expect( "eth" . ( $out_port2_offset + 1 ), $test_pkt2->packed );
 }
 
 sub delete_send_expect {
 
-	my ( $ofp, $sock, $in_port, $out_port, $out_port2, $max_idle, $pkt_len ) = @_;
+	my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $out_port2_offset, $max_idle, $pkt_len ) = @_;
+
+	my $in_port = $in_port_offset + $$options_ref{'port_base'};
+	my $out_port = $out_port_offset + $$options_ref{'port_base'};
+	my $out_port2 = $out_port2_offset + $$options_ref{'port_base'};
 
 	# in_port refers to the flow mod entry's input
 	my $test_pkt_args = {
@@ -103,12 +115,14 @@ sub delete_send_expect {
 	# Send 'flow_mod' message (delete wildcard entry without STRICT)
 	print $sock $flow_mod_wildcard_pkt;
 	print "sent flow_mod message (delete wildcard entry)\n";
-	usleep(100000);
+
+	# Give OF switch time to process the flow mod
+	usleep($$options_ref{'send_delay'});
 
 	# Send a packet
 	print "Verify packets are forwarded correctly i.e., fwded to contoller\n";
-	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt->packed );
-	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt2->packed );
+	nftest_send( "eth" . ( $in_port_offset + 1 ), $test_pkt->packed );
+	nftest_send( "eth" . ( $in_port_offset + 1 ), $test_pkt2->packed );
 
 	# both pkts should go to the controller
 	wait_for_one_packet_in( $ofp, $sock, $pkt_len, $test_pkt->packed );
@@ -131,11 +145,11 @@ sub my_test {
 			if ( $i != $j ) {
 				my $o_port2 = ( ( $j + 1 ) % 4 );
 				print "sending from $i to $j & $i to $o_port2 -- both should match\n";
-				send_expect_exact_with_wildcard( $ofp, $sock, $i, $j, $o_port2, $max_idle,
+				send_expect_exact_with_wildcard( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle,
 					$pkt_len );
 
 				print "delete wildcard entry (without STRICT) and send packets again\n";
-				delete_send_expect( $ofp, $sock, $i, $j, $o_port2, $max_idle, $pkt_len );
+				delete_send_expect( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle, $pkt_len );
 
 			}
 		}

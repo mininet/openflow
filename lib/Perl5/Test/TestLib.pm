@@ -172,13 +172,17 @@ sub nftest_init {
 	my @ARGV = @$argv_ref;
 
 	my %options = ();
-	
+
+	$options{'port_base'} = 0;
+	$options{'send_delay'} = 1000000; # delay in us
+
 	unless (
 		GetOptions( 
 			\%options, 
 			"map=s",
-			"one-indexed",
-			"controller=s"
+			"controller=s",
+			"port_base=i",
+			"num_ports=i"
 			)
 		) 
 	{
@@ -186,10 +190,16 @@ sub nftest_init {
 		exit 1;		
 	}
 
+	# probably don't need to be changed
 	$options{'pkt_len'} = 64;
 	$options{'pkt_total'} = 1;
-	$options{'max_idle'} = 1;
+	$options{'max_idle'} = 2;
 
+	# next in line for generalizing the tests
+	$options{'num_ports'} = 4;
+	
+	if ( not defined ($options{'controller'})) { die "please define controller\n"};
+	
 	# Process the mappings if specified, else use defaults
 	if ( defined( $options{'map'} ) ) {
 		nftest_process_iface_map( $options{'map'} );

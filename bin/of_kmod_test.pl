@@ -21,6 +21,6 @@ sub INT_Handler {
 	exit(1);
 }
 
-push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=kmod";
+push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=kmod", "--controller=localhost:975";
 
 run_regress_test( \&INT_Handler, @ARGV );

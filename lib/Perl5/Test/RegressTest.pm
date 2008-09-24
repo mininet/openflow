@@ -59,6 +59,8 @@ my $rootOverride   = '';
 my $commonSetup    = $setup;
 my $commonTeardown = $teardown;
 my $commonSTArgs   = '';  
+my $controller	   = '';
+my $portBase	   = '';
 
 sub run_regress_test {
 
@@ -80,7 +82,9 @@ sub run_regress_test {
 			"common-setup=s"    => \$commonSetup,
 			"common-teardown=s" => \$commonTeardown,
 			"common-st-args=s"  => \$commonSTArgs,
-			"root=s"            => \$rootOverride
+			"root=s"            => \$rootOverride,
+			"controller=s"		=> \$controller,
+			"port_base=s"		=> \$portBase
 		)
 		and ( $help eq '' )
 	  )
@@ -487,15 +491,23 @@ sub runRegressionSuite {
 sub runTest {
 	my $project = shift;
 	my $test    = shift;
+    my $args = '';
+    
+	if ( defined($controller) ) {
+		$args .= " --controller=$controller";
+	}
+	if ( defined($portBase) ) {
+		$args .= " --port_base=$portBase";
+	}
 
 	if ( -d "$_ROOT_DIR/$projectRoot/$project/$regressRoot/$test" ) {
-		return runScript( $project, $test, $run, REQUIRED );
+		return runScript( $project, $test, $run, REQUIRED, $args );
 	}
 	else {
 		if ( $test =~ /(.*)\/([^\/]*)/ ) {
 			my $dir      = $1;
 			my $fileName = $2;
-			return runScript( $project, $dir, $fileName, REQUIRED );
+			return runScript( $project, $dir, $fileName, REQUIRED, $args );
 		}
 		my_die "Error finding test file: $test\n";
 	}

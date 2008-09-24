@@ -4,84 +4,6 @@
 use strict;
 use OF::Includes;
 
-sub send_tcp_op_expect_exact {
-
-	my ( $ofp, $sock, $in_port, $out_port, $max_idle, $pkt_len ) = @_;
-
-	my $src_tcp_port = 70;
-	my $dst_tcp_port = 80;
-
-	# in_port refers to the flow mod entry's input
-	my @tcp_payload = (    # 30 bytes
-		0x00, 0x46, 0x00, 0x50,    # $src_tcp_port, $dst_tcp_port (should set automatically)
-		0x01, 0x23, 0x45, 0x67,    #Seq
-		0x01, 0x23, 0x45, 0x00,    #Ack
-		0x18, 0x23, 0x00, 0x11,    #Offset, Flag, Win
-		0xaa, 0xbb, 0x00, 0x00,    #Chksum, Urgent
-		0x03, 0x03, 0x02, 0x00,    #TCP Option
-		0xaa, 0xbb, 0xcc, 0xdd,    #TCP Content
-		0xee, 0xff                 #TCP Content
-	);
-	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
-		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
-		src_ip => "192.168.200." .     ( $in_port + 1 ),
-		dst_ip => "192.168.201." .     ( $out_port + 1 ),
-		ttl    => 64,
-		len    => $pkt_len,
-		proto => 6,                # TCP protocol id
-		ttl   => 64,
-		len   => $pkt_len
-	};
-
-	my $test_pkt = new NF2::IP_pkt(%$test_pkt_args);
-	my $payload  = $test_pkt->{'payload'};
-	$$payload->set_bytes(@tcp_payload);
-
-	#print HexDump ( $test_pkt->packed );
-
-	my $wildcards = 0x0;           # exact match
-
-	my $flow_mod_pkt =
-	  create_flow_mod_from_ip( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards,
-		$src_tcp_port, $dst_tcp_port );
-
-	#print HexDump($flow_mod_pkt);
-
-	# Send 'flow_mod' message
-	print $sock $flow_mod_pkt;
-	print "sent flow_mod message\n";
-	usleep(100000);
-
-	# Send a packet - ensure packet comes out desired port
-	nftest_send( "eth" . ( $in_port + 1 ), $test_pkt->packed );
-	nftest_expect( "eth" . ( $out_port + 1 ), $test_pkt->packed );
-}
-
-sub my_test {
-
-	my ( $sock, $options_ref ) = @_;
-
-	enable_flow_expirations( $ofp, $sock );
-
-	my $max_idle = $$options_ref{'max_idle'};
-	#my $pkt_len = $$options_ref{'pkt_len'};
-	my $pkt_len = 64;    # len = 14(Ethr_hdr)+ 20(IP_header)+ 30(TCP_header+Option)
-	                     # = 64 (IPlen = 50)
-	my $pkt_total = $$options_ref{'pkt_total'};
-
-	# send from every port to every other port
-	for ( my $i = 0 ; $i < 4 ; $i++ ) {
-		for ( my $j = 0 ; $j < 4 ; $j++ ) {
-			if ( $i != $j ) {
-				print "sending from $i to $j\n";
-				send_tcp_op_expect_exact( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
-				wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
-			}
-		}
-	}
-}
-
 sub create_flow_mod_from_ip {
 
 	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $s_port, $d_port ) = @_;
@@ -89,7 +11,7 @@ sub create_flow_mod_from_ip {
 	my $hdr_args = {
 		version => get_of_ver(),
 		type    => $enums{'OFPT_FLOW_MOD'},
-		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action'),
+		length  => $ofp->sizeof('ofp_flow_mod') + 8, #$ofp->sizeof('ofp_action'), #, #!!!
 		xid     => 0x0000000
 	};
 
@@ -148,7 +70,10 @@ sub create_flow_mod_from_ip {
 		type => $enums{'OFPAT_OUTPUT'},
 		arg  => { output => $action_output_args }
 	};
-	my $action = $ofp->pack( 'ofp_action', $action_args );
+	#!!! temporary fix - until we can pull from openflow.h to get the correct structure size. 
+	#my $action = $ofp->pack( 'ofp_action', $action_args );
+	#my $action = pack("SSSS", $enums{'OFPAT_OUTPUT'}, 0, $out_port, 0xbb);
+	my $action = pack("nnnn", $enums{'OFPAT_OUTPUT'}, 0, $out_port, 0xbbbb);
 
 	my $flow_mod_args = {
 		header    => $hdr_args,
@@ -163,6 +88,91 @@ sub create_flow_mod_from_ip {
 	my $flow_mod_pkt = $flow_mod . $action;
 
 	return $flow_mod_pkt;
+}
+
+
+sub send_tcp_op_expect_exact {
+
+	my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $max_idle, $pkt_len ) = @_;
+
+	my $in_port = $in_port_offset + $$options_ref{'port_base'};
+	my $out_port = $out_port_offset + $$options_ref{'port_base'};		
+
+	my $src_tcp_port = 70;
+	my $dst_tcp_port = 80;
+
+	# in_port refers to the flow mod entry's input
+	my @tcp_payload = (    # 30 bytes
+		0x00, 0x46, 0x00, 0x50,    # $src_tcp_port, $dst_tcp_port (should set automatically)
+		0x01, 0x23, 0x45, 0x67,    #Seq
+		0x01, 0x23, 0x45, 0x00,    #Ack
+		0x18, 0x23, 0x00, 0x11,    #Offset, Flag, Win
+		0xaa, 0xbb, 0x00, 0x00,    #Chksum, Urgent
+		0x03, 0x03, 0x02, 0x00,    #TCP Option
+		0xaa, 0xbb, 0xcc, 0xdd,    #TCP Content
+		0xee, 0xff                 #TCP Content
+	);
+	my $test_pkt_args = {
+		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
+		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
+		src_ip => "192.168.200." .     ( $in_port + 1 ),
+		dst_ip => "192.168.201." .     ( $out_port + 1 ),
+		ttl    => 64,
+		len    => $pkt_len,
+		proto => 6,                # TCP protocol id
+		ttl   => 64,
+		len   => $pkt_len
+	};
+
+	my $test_pkt = new NF2::IP_pkt(%$test_pkt_args);
+	my $payload  = $test_pkt->{'payload'};
+	$$payload->set_bytes(@tcp_payload);
+
+	#print HexDump ( $test_pkt->packed );
+
+	my $wildcards = 0x0;           # exact match
+
+	my $flow_mod_pkt =
+	  create_flow_mod_from_ip( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards,
+		$src_tcp_port, $dst_tcp_port );
+
+	#print HexDump($flow_mod_pkt);
+
+	# Send 'flow_mod' message
+	print $sock $flow_mod_pkt;
+	print "sent flow_mod message\n";
+	usleep($$options_ref{'send_delay'});
+
+	# Send a packet - ensure packet comes out desired port
+	nftest_send( "eth" . ( $in_port_offset + 1), $test_pkt->packed );
+	nftest_expect( "eth" . ( $out_port_offset + 1 ), $test_pkt->packed );
+}
+
+sub my_test {
+
+	my ( $sock, $options_ref ) = @_;
+
+	my $max_idle = $$options_ref{'max_idle'};
+	#my $pkt_len = $$options_ref{'pkt_len'};
+	my $pkt_len = 64;    # len = 14(Ethr_hdr)+ 20(IP_header)+ 30(TCP_header+Option)
+	                     # = 64 (IPlen = 50)
+	my $pkt_total = $$options_ref{'pkt_total'};
+
+    my $port_base = $$options_ref{'port_base'};
+	my $num_ports = $$options_ref{'num_ports'};
+
+	enable_flow_expirations( $ofp, $sock );
+
+	# send from every port to every other port
+	for ( my $i = 0 ; $i < $num_ports ; $i++ ) {
+		for ( my $j = 0 ; $j < $num_ports ; $j++ ) {
+			if ( $i != $j ) {
+				print "sending from offset $i to $j\n";
+				send_tcp_op_expect_exact( $ofp, $sock, $options_ref, $i, $j, $max_idle, $pkt_len );
+				wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+			}
+		}
+	}
 }
 
 run_black_box_test( \&my_test, \@ARGV );

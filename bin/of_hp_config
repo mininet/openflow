@@ -1,4 +1,0 @@
-#!/bin/sh
-
-snmpwalk -v2c -c public 10.9.8.250 iso.org.dod.internet.private.enterprises.11.2.14.11.5.1.7.1.5
-

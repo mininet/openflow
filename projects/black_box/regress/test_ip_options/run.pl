@@ -1,12 +1,15 @@
 #!/usr/bin/perl -w
-# test_forward_any_port
+# test_ip_options
 
 use strict;
 use OF::Includes;
 
 sub send_expect_exact {
 
-	my ( $ofp, $sock, $in_port, $out_port, $max_idle, $pkt_len ) = @_;
+	my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $max_idle, $pkt_len ) = @_;
+
+	my $in_port = $in_port_offset + $$options_ref{'port_base'};
+	my $out_port = $out_port_offset + $$options_ref{'port_base'};		
 
 	# in_port refers to the flow mod entry's input
 
@@ -40,11 +43,13 @@ sub send_expect_exact {
 	# Send 'flow_mod' message
 	print $sock $flow_mod_pkt;
 	print "sent flow_mod message\n";
-	usleep(100000);
+	
+	# Give OF switch time to process the flow mod
+	usleep($$options_ref{'send_delay'});
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send("eth" . ( $in_port + 1 ), $test_pkt->packed );
-	nftest_expect( "eth" . ( $out_port + 1 ), $test_pkt->packed );
+	nftest_send("eth" . ( $in_port_offset + 1 ), $test_pkt->packed );
+	nftest_expect( "eth" . ( $out_port_offset + 1 ), $test_pkt->packed );
 }
 
 sub my_test {
@@ -56,14 +61,17 @@ sub my_test {
 	my $pkt_len   = 68;
 	my $pkt_total = $$options_ref{'pkt_total'};
 
+    my $port_base = $$options_ref{'port_base'};
+	my $num_ports = $$options_ref{'num_ports'};
+
 	enable_flow_expirations( $ofp, $sock );
 
 	# send from every port to every other port
-	for ( my $i = 0 ; $i < 4 ; $i++ ) {
-		for ( my $j = 0 ; $j < 4 ; $j++ ) {
+	for ( my $i = 0 ; $i < $num_ports ; $i++ ) {
+		for ( my $j = 0 ; $j < $num_ports ; $j++ ) {
 			if ( $i != $j ) {
 				print "sending from $i to $j\n";
-				send_expect_exact( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
+				send_expect_exact( $ofp, $sock, $options_ref, $i, $j, $max_idle, $pkt_len );
 				wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
 			}
 		}

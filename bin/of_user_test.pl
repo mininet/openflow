@@ -21,6 +21,6 @@ sub INT_Handler {
 	exit(1);
 }
 
-push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=user";
+push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=user", "--controller=localhost:975";
 
 run_regress_test( \&INT_Handler, @ARGV );

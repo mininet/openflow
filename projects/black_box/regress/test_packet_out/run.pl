@@ -8,7 +8,11 @@ sub my_test {
 
 	my ($sock, $options_ref) = @_;
 
-	my $pkt = get_default_black_box_pkt( 0, 1);
+	my $port_base = $$options_ref{'port_base'};
+	my $in_port = $port_base;
+	my $out_port = $in_port + 1;
+	
+	my $pkt = get_default_black_box_pkt( $in_port, $out_port);
 
 	my $hdr_args = {
 		version => get_of_ver(),
@@ -21,7 +25,7 @@ sub my_test {
 		header    => $hdr_args,
 		buffer_id => -1,                    # data included in this packet
 		in_port   => $enums{'OFPP_NONE'},
-		out_port  => 0                      # send out eth1
+		out_port  => $port_base 		# send out eth1
 	};
 	my $packet_out = $ofp->pack( 'ofp_packet_out', $packet_out_args );
 

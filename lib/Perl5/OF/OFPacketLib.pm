@@ -143,7 +143,10 @@ my %config = (
           );
 
 
+#!!!
 $ofp->configure(%config);
+
+#$ofp->configure('Include' => ['/usr/include']);
 
 # set to big endian for network order, regardless of machine endianness
 $ofp->configure(ByteOrder => 'BigEndian');
@@ -157,6 +160,13 @@ my $of_file = $ENV{'OF_ROOT'}.'/include/openflow.h';
 
 eval { $ofp->parse_file($of_file) };
 if ($@) { die "error in parse_file $@\n"; }
+
+#!!!
+#print $ofp->sizeof('ofp_action') . "\n";
+#print $ofp->sizeof('ofp_packet_in') . "\n";
+#print $ofp->sizeof('ofp_flow_mod') . "\n";
+#print $ofp->offsetof('ofp_action', 'arg.output') . "\n";
+#exit 1;
 
 my @enum_list = $ofp->enum;
 our %enums; # "global" enum hash

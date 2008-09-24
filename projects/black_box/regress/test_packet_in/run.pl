@@ -8,7 +8,10 @@ sub my_test {
 
 	my ($sock, $options_ref) = @_;
 
-	my $pkt = get_default_black_box_pkt( 0, 1);
+	my $in_port = $$options_ref{'port_base'};
+	my $out_port = $in_port + 1;
+
+	my $pkt = get_default_black_box_pkt( $in_port, $out_port);
 	nftest_send('eth1', $pkt->packed );
 
 	my $recvd_mesg;
@@ -28,7 +31,7 @@ sub my_test {
 	verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
 
 	compare( "total len", $$msg{'total_len'}, '==', length( $pkt->packed ) );
-	compare( "in_port",   $$msg{'in_port'},   '==', 0 );
+	compare( "in_port",   $$msg{'in_port'},   '==', $in_port );
 	compare( "reason",    $$msg{'reason'},    '==', $enums{'OFPR_NO_MATCH'} );
 
 	# verify packet was unchanged!

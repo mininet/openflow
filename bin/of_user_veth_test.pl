@@ -21,6 +21,6 @@ sub INT_Handler {
 	exit(1);
 }
 
-push @ARGV, "--map=$ENV{'OFT_ROOT'}/bin/veth.map", "--root=$ENV{'OFT_ROOT'}", "--common-st-args=user_veth";
+push @ARGV, "--map=$ENV{'OFT_ROOT'}/bin/veth.map", "--root=$ENV{'OFT_ROOT'}", "--common-st-args=user_veth", "--controller=localhost:975";
 
 run_regress_test( \&INT_Handler, @ARGV );
