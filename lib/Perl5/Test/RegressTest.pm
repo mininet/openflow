@@ -59,8 +59,8 @@ my $rootOverride   = '';
 my $commonSetup    = $setup;
 my $commonTeardown = $teardown;
 my $commonSTArgs   = '';  
-my $controller	   = '';
-my $portBase	   = '';
+my $controller;
+my $portBase = 0;
 
 sub run_regress_test {
 
@@ -496,6 +496,7 @@ sub runTest {
 	if ( defined($controller) ) {
 		$args .= " --controller=$controller";
 	}
+
 	if ( defined($portBase) ) {
 		$args .= " --port_base=$portBase";
 	}
