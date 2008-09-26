@@ -22,7 +22,7 @@ unless (
 }
 
 if (defined($mapFile)) {
-        $args = "map=$mapFile";
+        $args = "--map=$mapFile";
 }
 
 if (!defined($platform)) {
@@ -37,7 +37,8 @@ my $filename = "of_${platform}_teardown.pl";
 
 # exit if of_${platform}_setup.pl not in path
 if (-e "$ENV{'OFT_ROOT'}/bin/$filename") {
-	system("$filename " . $args . " 2> /dev/null > /dev/null");
+	#system("$filename " . $args . " 2> /dev/null > /dev/null");
+	system("$filename " . $args );
 	#teardown_kmod();
 	exit (0);
 } else {
