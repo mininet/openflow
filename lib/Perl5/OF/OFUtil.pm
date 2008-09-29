@@ -30,8 +30,10 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &setup_pcap_interfaces
   &setup_kmod
   &setup_user
+  &setup_NF2
   &teardown_kmod
   &teardown_user
+  &teardown_NF2
   &compare
   &create_controller_socket
   &run_learning_switch_test
@@ -188,6 +190,7 @@ sub setup_NF2 {
 		print "controller already loaded... please remove and try again!\n";
 		exit 1;
 	}
+	
 
 	# create openflow switch on four ports
 	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
@@ -196,11 +199,16 @@ sub setup_NF2 {
 	`insmod ${openflow_dir}/${nf2_kernel_module_path}/${nf2_kernel_module_name}`;
 
 	`${openflow_dir}/utilities/dpctl adddp nl:0`;
+    print "added datapath\n";
 
 	for ( my $i = 5 ; $i <= 8 ; $i++ ) {
 		my $iface = nftest_get_iface("eth$i");
+		print "${openflow_dir}/utilities/dpctl addif nl:0 $iface";
 		`${openflow_dir}/utilities/dpctl addif nl:0 $iface`;
+        print "added interface\n";
 	}
+
+	system("${openflow_dir}/secchan/secchan nl:0 tcp:127.0.0.1 &");
 }
 
 sub setup_user {
@@ -258,9 +266,11 @@ sub teardown_NF2 {
 	my $who = `whoami`;
 	if ( trim($who) ne 'root' ) { die "must be root\n"; }
 
+	`killall secchan`;
+
 	# check if openflow kernel module loaded
 	my $of_kmod_loaded = `lsmod | grep openflow_mod`;
-	if ( $of_kmod_loaded eq "" ) { die "nothing to do, exiting\n"; }
+	if ( $of_kmod_loaded eq "" ) { exit 0; }
 
 	print "tearing down interfaces and datapaths\n";
 
@@ -273,11 +283,9 @@ sub teardown_NF2 {
 	`${openflow_dir}/utilities/dpctl deldp nl:0`;
 
 	# tear down the NF2 module
-	if ($isNF2) {
-		my $of_hw_kmod_removed = `rmmod ${nf2_kernel_module_name_no_ext}`;
-		if ( $of_hw_kmod_removed ne "" ) {
-			die "failed to remove hardware kernel module... please fix!\n";
-		}
+	my $of_hw_kmod_removed = `rmmod ${nf2_kernel_module_name_no_ext}`;
+	if ( $of_hw_kmod_removed ne "" ) {
+		die "failed to remove hardware kernel module... please fix!\n";
 	}
 
 	my $of_kmod_removed = `rmmod openflow_mod`;
