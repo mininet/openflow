@@ -2,7 +2,7 @@
 # test_add_flow_latency
 
 use strict;
-use OF::includes;
+use OF::Includes;
 
 sub my_test {
 
