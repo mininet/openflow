@@ -174,7 +174,7 @@ sub nftest_init {
 	my %options = ();
 
 	$options{'port_base'} = 0;
-	$options{'send_delay'} = 1000000; # delay in us
+	$options{'send_delay'} = 100000; # delay in us
 
 	unless (
 		GetOptions( 

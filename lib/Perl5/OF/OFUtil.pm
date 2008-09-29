@@ -191,6 +191,8 @@ sub setup_NF2 {
 		exit 1;
 	}
 	
+    # load the openflow bitfile on the NetFPGA
+	`nf2_download ${openflow_dir}/datapath/hwtable_nf2/openflow_switch.bit`;
 
 	# create openflow switch on four ports
 	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
