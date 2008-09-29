@@ -1,47 +1,54 @@
 %\appendix
 \section{Appendix A: The OpenFlow Protocol}
+The heart of the OpenFlow spec is the set of structures used for OpenFlow Protocol messages.  
+\\\\
 All structs defined here are packed with padding and 8-byte aligned, as checked by the assertion statements.  
 
 \subsection{OpenFlow Header}
 All OpenFlow messages are sent in big-endian format.  Each OpenFlow message begins with the OpenFlow header:
 
 \input{struct/ofp_header}
-The version specifies the OpenFlow protocol version being used.  During this evolution of the OpenFlow protocol, the most significant bit will be set to indicate an experimental version and the lower-bits will indicate a revision number.  The current version is \input{define/OFP_VERSION}.  The final version for a Type 0 switch will be 0x00.  The length field indicates the total length of the message, so no additional framing is used to distinguish one frame from the next.  The type can have the following values:
+The version specifies the OpenFlow protocol version being used.  During the current draft phase of the OpenFlow Protocol, the most significant bit will be set to indicate an experimental version and the lower bits will indicate a revision number.  The current version is \input{define/OFP_VERSION}.  The final version for a Type 0 switch will be 0x00.  The length field indicates the total length of the message, so no additional framing is used to distinguish one frame from the next.  The type can have the following values:
 
 \input{enum/ofp_type}
 
 \subsection{Common Structures}
-A number of structures are used by many of the OpenFlow messages.  Physical ports are described with the following structure:
+This section describes structures used by multiple messages.
+
+\subsubsection{Port Structures}
+Physical ports are described with the following structure:
 
 \input{struct/ofp_phy_port}
-The name field is a null-terminated string containing a human-readable
-name for the interface.  The value of \verb|OFP_MAX_PORT_NAME_LEN| is
-16.  The \verb|port_no| field is a value the datapath associates with a
-physical port.   The \verb|mode| field represents the current operating
-mode of the PHY.  The \verb|config| field contains a bitmask of items
-that are configurable by the controller:
+The \verb|port_no| field is a value the datapath associates with a physical port.  The \verb|hw_addr| field typically is the MAC address for the port; \verb|OFP_MAX_ETH_ALEN| is 6.  The name field is a null-terminated string containing a human-readable name for the interface.  The value of \verb|OFP_MAX_PORT_NAME_LEN| is 16.  
+\\\\
+The \verb|config| field describes spanning tree and administrative settings with the following structure:
 
 \input{enum/ofp_port_config}
-The \verb|state| field contains a bitmask of items describing
-characteristics of the port:
+The port config bits indicate whether a port has been administratively brought down, options for handling 802.1D spanning tree packets, and how to handle incoming and outgoing packets.   These bits, configured over multiple switches, enable an OpenFlow network to safely flood packets along either a custom or 802.1D spanning tree.
+\\\\
+The \verb|state| field describes the spanning tree state and whether a physical link is present, with the following structure:
 
 \input{enum/ofp_port_state}
+All port state bits are read-only, representing spanning tree and physical link state.
+\\\\
 The port numbers use the following conventions:
 
 \input{enum/ofp_port}
-The \verb|features| field describes the characteristics of this port.  Multiple of these flags may be set simultaneously:
+The \verb|curr|, \verb|advertised|, \verb|supported|, and \verb|peer| fields indicate link modes (10M to 10G full and half-duplex), link type (copper/fiber) and link features (autonegotiation and pause).  Port features are represent by the following structure:
 
 \input{enum/ofp_port_features}
-The value  -1 in a \verb|set_config| command indicates that no changes should be applied to the port speed.  
-\\\\
+Multiple of these flags may be set simultaneously.
+
+\subsubsection{Flow Match Structures}
 When describing a flow entry, the following structure is used:
 
 \input{struct/ofp_match}
 The \verb|wildcards| field has a number of flags that may be set:
 
 \input{enum/ofp_flow_wildcards}
-If no wildcards are set, then the \verb|ofp_match| exactly describes a flow.  On the other extreme, if all the wildcard flags are set, then every flow will match.  
-\\\\
+If no wildcards are set, then the \verb|ofp_match| exactly describes a flow, over the entire OpenFlow 10-tuple.  On the other extreme, if all the wildcard flags are set, then every flow will match.  
+
+\subsubsection{Flow Action Structures}
 A number of actions may be associated with flows or packets.  The currently defined action types are:
 
 \input{enum/ofp_action_type} 
@@ -53,7 +60,7 @@ The \verb|vlan_id| field is 16 bits long, when an actual VLAN id is only 12 bits
 An \verb|action_output| has the following fields:
 
 \input{struct/ofp_action_output}
-The \verb|port| specifies the physical port from which packet packets should be sent.  The \verb|max_len| indicates the maximum amount of data from a packet that should be sent when the port is \verb|OFPP_CONTROLLER|.  If \verb|max_len| is zero, then the entire packet should be sent.
+The \verb|max_len| indicates the maximum amount of data from a packet that should be sent when the port is \verb|OFPP_CONTROLLER|.  If \verb|max_len| is zero, then the entire packet should be sent.  The \verb|port| specifies the physical port from which packet packets should be sent.  
 
 \subsection{Controller-to-Switch Messages}
 
@@ -62,12 +69,14 @@ The \verb|port| specifies the physical port from which packet packets should be 
 Upon SSL session establishment, the controller sends an \verb|OFPT_FEATURES_REQUEST| message.  This message does not contain a body beyond the OpenFlow header.  The switch responds with an \verb|OFPT_FEATURES_REPLY| message:
 
 \input{struct/ofp_switch_features}
+The \verb|n_tables| field describes the number of tables supported by the switch, each of which can have a different set of supported wildcard bits and number of entries.  Once the controller knows the number of tables, it can request this extra information a stats request of type \verb|OFPST_TABLE|.  A switch must report these tables in order of match priority, with all exact-match tables listed before all tables with wildcards.
+\\\\
 The \verb|actions| field is a bitmap of supported actions on the hardware.  It uses the values from \verb|ofp_action_type| as the number of bits to shift left for an associated action.  For example, \verb|OFPAT_SET_DL_VLAN| would use the flag \verb|0x00000002|.
 \\\\
-The \verb|capabilities| field uses the following flags to indicate supported capabilities of the datapath:
+The \verb|capabilities| field uses the following flags:
 
 \input{enum/ofp_capabilities} 
-Interleaving refers to the switch’s ability to do combinations of actions, beyond the OpenFlow requirement that modification actions precede output actions. For example, an application may need for a single entry:
+Interleaving refers to the switch's ability to do combinations of actions, beyond the OpenFlow requirement that modification actions precede output actions. For example, an application may need for a single entry:
 \begin{itemize}
 \item Send out port 5
 \item Add VLAN tag 99 and send out port 7
@@ -91,14 +100,19 @@ The controller is able to set and query configuration parameters in the switch w
 There is no body for \verb|OFPT_GET_CONFIG_REQUEST| beyond the OpenFlow header.  The \verb|OFPT_SET_CONFIG| and \verb|OFPT_GET_CONFIG_REPLY| use the following:
 
 \input{struct/ofp_switch_config}
-The only configuration flag currently defined is \verb|OFPC_SEND_FLOW_EXP|, which has the value \verb|0x0001|.  When this flag is set, the switch sends flow expiration messages.  The default flags value is zero, indicating that the switch should not send flow expirations.
+The configuration flags include the following:
+
+\input{enum/ofp_config_flags}
+When the \verb|OFPC_SEND_FLOW_EXP| configuration flag is set, the switch sends controls whether the switch sends flow expiration messages.  The default flags value is zero, indicating that the switch should not send flow expirations.  
+\\\\
+The \verb|OFPC_FRAG_*| flags indicate whether IP fragments should be treated normally, dropped, or reassembled.  
 
 \subsubsection{Modify State Messages}
 \paragraph{Modify Flow Entry Message}
 Modifications to the flow table from the controller are done with the \verb|OFPT_FLOW_MOD| message:
 
 \input{struct/ofp_flow_mod}
-The \verb|flags| field has two defined flags.  Errors are generated for failed \verb|flow_mod|s when \verb|OFPFMF_REPORT_ERROR| is set, and the switch will force an insert or modify when \verb|OFPFMF_FORCE| is set. 
+The \verb|flags| field has two defined flags.  Errors are generated for failed \verb|flow_mod|s when \verb|OFPFMF_REPORT_ERROR| is set, and the switch will force an insert or modify when \verb|OFPFMF_FORCE| is set.
 
 \input{enum/ofp_flow_mod_command}
 The interpretation of the \verb|priority| field depends on the type of entry to be inserted.  If the match field indicates that this is a wildcard entry, then the priority field indicates table priority, where higher numbers are higher priorities; the switch must keep the highest-priority wildcard entries in the lowest-numbered (fastest) wildcard table, to ensure correctness.  It is the responsibility of each switch implementer to ensure that exact entries always match before wildcards entries, regardless of the table configuration.  
