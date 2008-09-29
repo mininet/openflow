@@ -112,19 +112,16 @@ The \verb|OFPC_FRAG_*| flags indicate whether IP fragments should be treated nor
 Modifications to the flow table from the controller are done with the \verb|OFPT_FLOW_MOD| message:
 
 \input{struct/ofp_flow_mod}
-The \verb|flags| field has two defined flags.  Errors are generated for failed \verb|flow_mod|s when \verb|OFPFMF_REPORT_ERROR| is set, and the switch will force an insert or modify when \verb|OFPFMF_FORCE| is set.
+The \verb|command| field must be one of the following:
 
 \input{enum/ofp_flow_mod_command}
-The interpretation of the \verb|priority| field depends on the type of entry to be inserted.  If the match field indicates that this is a wildcard entry, then the priority field indicates table priority, where higher numbers are higher priorities; the switch must keep the highest-priority wildcard entries in the lowest-numbered (fastest) wildcard table, to ensure correctness.  It is the responsibility of each switch implementer to ensure that exact entries always match before wildcards entries, regardless of the table configuration.  
+The differences between \verb|OFPFC_MODIFY| and \verb|OFPFC_MODIFY_STRICT| are explained in Section \ref{flow_table:sec_chan:flow_mod} and differences between \verb|OFPFC_DELETE| and \verb|OFPFC_DELETE_STRICT| are explained in Section \ref{flow_table:sec_chan:flow_removal}. 
 \\\\
-The \verb|buffer_id| refers to a buffered packet sent by the \verb|OFPT_PACKET_IN| message. 
-\\\\\
-If a flow is added with an \verb|idle_timeout| value of 0x0000 and a \verb|hard_timeout| value of \verb|0x0000|, then the entry will never time out.  If a flow entry is added with a nonzero \verb|idle_timeout| value and a \verb|hard_timeout| value of \verb|0x0000|, then the flow will only timeout if the flow is idle for longer than \verb|idle_timeout| seconds.  If a flow entry is added with an \verb|idle_timeout| value of \verb|0x0000| and a nonzero \verb|hard_timeout|, then it will expire after exactly \verb|hard_timeout| seconds.  If both \verb|idle_timeout| and \verb|hard_timeout| are nonzero, the flow will timeout after \verb|idle_timeout| seconds of idleness, or \verb|hard_timeout| seconds, whichever comes first,
+The \verb|idle_timeout| and \verb|hard_timeout| fields control how quickly a  flow expires.  If a flow is added with an \verb|idle_timeout| value of 0x0000 and a \verb|hard_timeout| value of \verb|0x0000|, then the entry will never time out.  If a flow entry is added with a nonzero \verb|idle_timeout| value and a \verb|hard_timeout| value of \verb|0x0000|, then the flow will only timeout if the flow is idle for longer than \verb|idle_timeout| seconds.  If a flow entry is added with an \verb|idle_timeout| value of \verb|0x0000| and a nonzero \verb|hard_timeout|, then it will expire after exactly \verb|hard_timeout| seconds.  If both \verb|idle_timeout| and \verb|hard_timeout| are nonzero, the flow will timeout after \verb|idle_timeout| seconds of idleness, or \verb|hard_timeout| seconds, whichever comes first.
 \\\\
-The values of \verb|command| can be:
-
-\input{enum/ofp_flow_mod_command}
-The differences between \verb|OFPFC_MODIFY| and \verb|OFPFC_MODIFY_STRICT| are explained in Section \ref{flow_table:sec_chan:flow_mod} and differences between \verb|OFPFC_DELETE| and \verb|OFPFC_DELETE_STRICT| are explained more fully in Section \ref{flow_table:sec_chan:flow_removal}. 
+The \verb|priority| field is only relevant for flow entries with wildcard fields.  The priority field indicates table priority, where higher numbers are higher priorities; the switch must keep the highest-priority wildcard entries in the lowest-numbered (fastest) wildcard table, to ensure correctness.  It is the responsibility of each switch implementer to ensure that exact entries always match before wildcards entries, regardless of the table configuration.  
+\\\\
+The \verb|buffer_id| refers to a buffered packet sent by the \verb|OFPT_PACKET_IN| message.
 
 \paragraph{Port Modification Message}
 The controller uses the \verb|OFPT_PORT_MOD| message to modify the behavior of the physical port:
