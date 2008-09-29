@@ -127,7 +127,7 @@ The \verb|buffer_id| refers to a buffered packet sent by the \verb|OFPT_PACKET_I
 The controller uses the \verb|OFPT_PORT_MOD| message to modify the behavior of the physical port:
 
 \input{struct/ofp_port_mod}
-When the controller sends this message, the switch should attempt to replace as much of the current port struct as possible with the message.  For example, it may ignore part of the features bitmap if it doesn’t support a particular speed.  If the attempt fails, the switch must send an \verb|OFPET_PORT_MOD| message.
+The \verb|mask| field is used to select bits in the \verb|config| field to change.  The \verb|advertise| field has no mask; all port features change together.
 
 \subsubsection{Read State Messages}
 While the system is running, the datapath may be queried about its current state using the \verb|OFPT_STATS_REQUEST| message:
@@ -136,11 +136,17 @@ While the system is running, the datapath may be queried about its current state
 The switch responds with one or more \verb|OFPT_STATS_REPLY| messages:
 
 \input{struct/ofp_stats_reply}
- The only value defined for \verb|flags| in a reply is whether more replies will follow this one—this has the value \verb|0x0001|.  To ease implementation, the switch is allowed to send replies with no additional entries.  However, it must always send another reply following a message with the “more” flag set.  The transaction ids (xid) of replies must always match the request that prompted them.
+The only value defined for \verb|flags| in a reply is whether more replies will follow this one - this has the value \verb|0x0001|.  To ease implementation, the switch is allowed to send replies with no additional entries.  However, it must always send another reply following a message with the “more” flag set.  The transaction ids (xid) of replies must always match the request that prompted them.
 \\\\
 In both the request and response, the \verb|type| field specifies the kind of information being passed and determines how the \verb|body| field is interpreted:
 
 \input{enum/ofp_stats_types}
+
+\paragraph{Description Statistics}
+Information about the switch manufacturer, hardware revision, software revision, and serial number is available from the \verb|OFPST_DESC| stats request type:
+
+\input{struct/ofp_desc_stats}
+\verb|DESC_STR_LEN| is \input{define/DESC_STR_LEN}and \verb|SERIAL_NUM_LEN| is \input{define/SERIAL_NUM_LEN}.  
 
 \paragraph{Individual Flow Statistics}
 Information about individual flows is requested with the \verb|OFPST_FLOW| stats request type:
