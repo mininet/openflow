@@ -193,7 +193,7 @@ The switch should return a value of -1 for unavailable counters.
 When the controller wishes to send a packet out through the datapath, it uses the \verb|OFPT_PACKET_OUT| message:
 
 \input{struct/ofp_packet_out}
-The \verb|buffer_id| is the same given in the \verb|ofp_packet_in| message.  If the \verb|buffer_id| is -1, then the data is included in the data array. If \verb|OFPP_TABLE| is specified as the output port of an action, the \verb|in_port| in the \verb|packet_out| message is used in the flow table lookup.
+The \verb|buffer_id| is the same given in the \verb|ofp_packet_in| message.  If the \verb|buffer_id| is -1, then the packet data is included in the data array. If \verb|OFPP_TABLE| is specified as the output port of an action, the \verb|in_port| in the \verb|packet_out| message is used in the flow table lookup.
 
 \subsection{Asynchronous Messages}
 \subsubsection{Packet-In Message}
@@ -208,7 +208,14 @@ The \verb|buffer_id| is an opaque value used by the datapath to identify a buffe
 If the controller has requested to be notified when flows time out, the datapath does this with the \verb|OFPT_FLOW_EXPIRED| message:
 
 \input{struct/ofp_flow_expired}
-The \verb|match| and \verb|priority| fields is the same as was used in the flow setup request.  The duration field indicates the number of seconds the flow received traffic.  The \verb|packet_count| and \verb|byte_count| indicate the number of packets and bytes that were associated with this flow, respectively. 
+The \verb|match| and \verb|priority| fields are the same as those used in the flow setup request.  
+\\\\
+The \verb|reason| field is one of the following:
+
+\input{enum/ofp_flow_expired_reason}
+The \verb|duration| field indicates the number of seconds the flow received traffic. 
+\\\\
+The \verb|packet_count| and \verb|byte_count| indicate the number of packets and bytes that were associated with this flow, respectively. 
  
 \subsubsection{Port Status Message}
 As physical ports are added, modified, and removed from the datapath, the controller needs to be informed with the \verb|OFPT_PORT_STATUS| message:
