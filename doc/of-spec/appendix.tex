@@ -69,7 +69,7 @@ The \verb|max_len| indicates the maximum amount of data from a packet that shoul
 Upon SSL session establishment, the controller sends an \verb|OFPT_FEATURES_REQUEST| message.  This message does not contain a body beyond the OpenFlow header.  The switch responds with an \verb|OFPT_FEATURES_REPLY| message:
 
 \input{struct/ofp_switch_features}
-The \verb|n_tables| field describes the number of tables supported by the switch, each of which can have a different set of supported wildcard bits and number of entries.  Once the controller knows the number of tables, it can request this extra information a stats request of type \verb|OFPST_TABLE|.  A switch must report these tables in order of match priority, with all exact-match tables listed before all tables with wildcards.
+The \verb|n_tables| field describes the number of tables supported by the switch, each of which can have a different set of supported wildcard bits and number of entries.  When the controller and switch first communicate, the controller will find out how many tables the switch supports from the Features Reply. If it wishes to understand the size, types, and order in which tables are consulted, the controller sends a \verb|OFPST_TABLE| stats request. A switch must return these tables in the order the packets traverse the tables, with all exact-match tables listed before all tables with wildcards.
 \\\\
 The \verb|actions| field is a bitmap of supported actions on the hardware.  It uses the values from \verb|ofp_action_type| as the number of bits to shift left for an associated action.  For example, \verb|OFPAT_SET_DL_VLAN| would use the flag \verb|0x00000002|.
 \\\\
@@ -117,7 +117,11 @@ The \verb|command| field must be one of the following:
 \input{enum/ofp_flow_mod_command}
 The differences between \verb|OFPFC_MODIFY| and \verb|OFPFC_MODIFY_STRICT| are explained in Section \ref{flow_table:sec_chan:flow_mod} and differences between \verb|OFPFC_DELETE| and \verb|OFPFC_DELETE_STRICT| are explained in Section \ref{flow_table:sec_chan:flow_removal}. 
 \\\\
-The \verb|idle_timeout| and \verb|hard_timeout| fields control how quickly a  flow expires.  If a flow is added with an \verb|idle_timeout| value of 0x0000 and a \verb|hard_timeout| value of \verb|0x0000|, then the entry will never time out.  If a flow entry is added with a nonzero \verb|idle_timeout| value and a \verb|hard_timeout| value of \verb|0x0000|, then the flow will only timeout if the flow is idle for longer than \verb|idle_timeout| seconds.  If a flow entry is added with an \verb|idle_timeout| value of \verb|0x0000| and a nonzero \verb|hard_timeout|, then it will expire after exactly \verb|hard_timeout| seconds.  If both \verb|idle_timeout| and \verb|hard_timeout| are nonzero, the flow will timeout after \verb|idle_timeout| seconds of idleness, or \verb|hard_timeout| seconds, whichever comes first.
+The \verb|idle_timeout| and \verb|hard_timeout| fields control how quickly flows expire.  
+\\\\
+If the \verb|idle_timeout| is set and the \verb|hard_timeout| is zero, the entry must expire after \verb|idle_timeout| seconds with no received traffic.  If the \verb|idle_timeout| is zero and the \verb|hard_timeout| is set, the entry must expire in \verb|hard_timeout| seconds regardless of whether or not packets are hitting the entry.
+\\\\
+If both \verb|idle_timeout| and \verb|hard_timeout| are set, the flow will timeout after \verb|idle_timeout| seconds with no traffic, or \verb|hard_timeout| seconds, whichever comes first.  If both \verb|idle_timeout| and \verb|hard_timeout| are zero, the entry is considered permanent and will never time out.  It can still be removed with a \verb|flow_mod| message of type \verb|OFPFC_DELETE|. 
 \\\\
 The \verb|priority| field is only relevant for flow entries with wildcard fields.  The priority field indicates table priority, where higher numbers are higher priorities; the switch must keep the highest-priority wildcard entries in the lowest-numbered (fastest) wildcard table, to ensure correctness.  It is the responsibility of each switch implementer to ensure that exact entries always match before wildcards entries, regardless of the table configuration.  
 \\\\
@@ -146,7 +150,7 @@ In both the request and response, the \verb|type| field specifies the kind of in
 Information about the switch manufacturer, hardware revision, software revision, and serial number is available from the \verb|OFPST_DESC| stats request type:
 
 \input{struct/ofp_desc_stats}
-\verb|DESC_STR_LEN| is \input{define/DESC_STR_LEN}and \verb|SERIAL_NUM_LEN| is \input{define/SERIAL_NUM_LEN}.  
+Each entry is ASCII formatted and padded on the right with 0 bytes.  \verb|DESC_STR_LEN| is \input{define/DESC_STR_LEN}and \verb|SERIAL_NUM_LEN| is \input{define/SERIAL_NUM_LEN}.  
 
 \paragraph{Individual Flow Statistics}
 Information about individual flows is requested with the \verb|OFPST_FLOW| stats request type:
@@ -179,6 +183,8 @@ Information about tables is requested with the \verb|OFPST_TABLE| stats request 
 The body of the reply consists of an array of the following:
 
 \input{struct/ofp_table_stats}
+The \verb|body| contains a \verb|wildcards| field, which indicates the fields for which that particular table supports wildcarding. For example, a direct look-up hash table would have that field set to zero, while a sequentially searched table would have it set to \verb|OFPFW_ALL|. The entries are returned in the order that packets traverse the tables. 
+\\\\
 \verb|OFP_MAX_TABLE_NAME_LEN| is \input{define/OFP_MAX_TABLE_NAME_LEN}.
 
 \paragraph{Port Statistics}
