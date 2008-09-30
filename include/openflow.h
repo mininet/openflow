@@ -183,7 +183,8 @@ enum ofp_port_config {
     OFPPC_PORT_DOWN    = 1 << 0,  /* Port is administratively down. */
 
     OFPPC_NO_STP       = 1 << 1,  /* Disable 802.1D spanning tree on port. */
-    OFPPC_NO_RECV      = 1 << 2,  /* Drop most packets received on port. */
+    OFPPC_NO_RECV      = 1 << 2,  /* Drop all packets except 802.1D spanning
+                                     tree packets. */
     OFPPC_NO_RECV_STP  = 1 << 3,  /* Drop received 802.1D STP packets. */
     OFPPC_NO_FLOOD     = 1 << 4,  /* Do not include this port when flooding. */
     OFPPC_NO_FWD       = 1 << 5,  /* Drop packets forwarded to port. */
