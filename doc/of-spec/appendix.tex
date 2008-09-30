@@ -234,15 +234,14 @@ The \verb|type| value indicates the high-level type of error.  The \verb|code| v
 Define error types include the following:
 
 \input{enum/ofp_error_type}
-
 For the \verb|OFPET_HELLO_FAILED| error \verb|type|, one \verb|code| is currently defined:
-\input{enum/ofp_hello_failed_code}
 
+\input{enum/ofp_hello_failed_code}
 The \verb|data| field adds detail on why the error occurred.   
 \\\\
 Bad Request error \verb|code|s include the following:
-\input{enum/ofp_bad_request_code}
 
+\input{enum/ofp_bad_request_code}
 The \verb|data| field contains at least 64 bytes of the failed request.
 
 %If the controller attempts a \verb|flow_mod| and fails, and the \verb|flow_mod| entry had the \verb|REPORT_ERROR| flag set, then the switch responds with one of the following.  The data field must include the full message that failed. 
@@ -253,10 +252,16 @@ The \verb|data| field contains at least 64 bytes of the failed request.
 
 \subsection{Symmetric Messages}
 \subsubsection{Echo Request}
-An echo request message consists of an OpenFlow header plus an arbitrary-length data field.  The data field might be a message timestamp to check latency, various lengths to measure bandwidth, or zero-size to verify liveness between the switch and controller.
+An Echo Request message consists of an OpenFlow header plus an arbitrary-length data field.  The data field might be a message timestamp to check latency, various lengths to measure bandwidth, or zero-size to verify liveness between the switch and controller.
 
 \subsubsection{Echo Reply}
-An echo reply message consists of an OpenFlow header plus the unmodified data field of an echo request message.
+An Echo Reply message consists of an OpenFlow header plus the unmodified data field of an echo request message.
 \\\\
 In an OpenFlow protocol implementation divided into multiple layers, the echo request/reply logic should be implemented in the "deepest" practical layer.  For example, in the OpenFlow reference implementation that includes a userspace process that relays to a kernel module, echo request/reply is implemented in the kernel module.  Receiving a correctly formatted echo reply then shows a greater likelihood of correct end-to-end functionality than if the echo request/reply were implemented in the userspace process, as well as providing more accurate end-to-end latency timing.
+
+\subsubsection{Vendor}
+The Vendor message is defined as follows:
+
+\input{struct/ofp_vendor}
+The Vendor message provides a standard way for OpenFlow switches to offer additional functionality within the OpenFlow message type space.  This is a staging area for features meant for future OpenFlow revisions.  If the MSB of the \verb|vendor| field is 0, then then the low-order bytes are an IEEE Organizationally Unique Identifier (OUI), otherwise they are assigned by the OpenFlow Consortium.  The meaning of the data portion of Vendor messages is left undefined.
 
