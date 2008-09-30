@@ -307,6 +307,8 @@ Asynchronous messages are sent without solicitation from the switch to the contr
 Symmetric messages are sent without solicitation, in either direction.
 \\\\
 \textbf{Echo:} Echo request/reply messages can be sent from either the switch or the controller, and must return an echo reply.  They can be used to indicate the latency, bandwidth, and/or liveness of a controller-switch connection.
+\\\\
+\textbf{Vendor:} Vendor messages provide a standard way for OpenFlow switches to offer additional functionality within the OpenFlow message type space.  This is a staging area for features meant for future OpenFlow revisions.
 
 \subsection{Connection Setup}
 The switch must be able to establish the communication at a user-configurable (but otherwise fixed) IP address, using a user-specified port.  Traffic to and from the secure channel is not checked against the flow table.  Therefore, the switch must identify incoming traffic as local before checking it against the flow table.  Future versions of the protocol specification will describe a dynamic controller discovery protocol in which the IP address and port for communicating with the controller is determined at runtime.

@@ -263,5 +263,5 @@ In an OpenFlow protocol implementation divided into multiple layers, the echo re
 The Vendor message is defined as follows:
 
 \input{struct/ofp_vendor}
-The Vendor message provides a standard way for OpenFlow switches to offer additional functionality within the OpenFlow message type space.  This is a staging area for features meant for future OpenFlow revisions.  If the MSB of the \verb|vendor| field is 0, then then the low-order bytes are an IEEE Organizationally Unique Identifier (OUI), otherwise they are assigned by the OpenFlow Consortium.  The meaning of the data portion of Vendor messages is left undefined.
+If the MSB of the \verb|vendor| field is 0, then then the low-order bytes are an IEEE Organizationally Unique Identifier (OUI), otherwise they are assigned by the OpenFlow Consortium.  The meaning of the data portion of Vendor messages is left undefined.
 
