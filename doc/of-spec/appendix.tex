@@ -105,7 +105,7 @@ The configuration flags include the following:
 \input{enum/ofp_config_flags}
 When the \verb|OFPC_SEND_FLOW_EXP| configuration flag is set, the switch sends controls whether the switch sends flow expiration messages.  The default flags value is zero, indicating that the switch should not send flow expirations.  
 \\\\
-The \verb|OFPC_FRAG_*| flags indicate whether IP fragments should be treated normally, dropped, or reassembled.  
+The \verb|OFPC_FRAG_*| flags indicate whether IP fragments should be treated normally, dropped, or reassembled.  ``Normal" handling of fragments means that an attempt should be made to pass the fragments through the OpenFlow tables. If any field is not present (e.g., the TCP/UDP ports didn't fit), then the packet should not match any entry that has that field set.
 
 \subsubsection{Modify State Messages}
 \paragraph{Modify Flow Entry Message}

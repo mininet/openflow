@@ -323,9 +323,9 @@ Symmetric messages are sent without solicitation, in either direction.
 
 \subsection{Connection Setup}
 The switch must be able to establish the communication at a user-configurable (but otherwise fixed) IP address, using a user-specified port.  Traffic to and from the secure channel is not checked against the flow table.  Therefore, the switch must identify incoming traffic as local before checking it against the flow table.  Future versions of the protocol specification will describe a dynamic controller discovery protocol in which the IP address and port for communicating with the controller is determined at runtime.
-
+\\\\
 When an OpenFlow connection is first established, each side of the connection must immediately send an \verb|OFPT_HELLO| message with the \verb|version| field set to the highest OpenFlow protocol version supported by the sender.  Upon receipt of this message, the recipient may calculate the OpenFlow protocol version to be used as the smaller of the version number that it sent and the one that it received.
-
+\\\\
 If the negotiated version is supported by the recipient, then the connection proceeds. Otherwise, the recipient must reply with an \verb|OFPT_ERROR| message with a \verb|type| field of \verb|OFPET_HELLO_FAILED|, a \verb|code| field of \verb| OFPHFC_COMPATIBLE|, and optionally an ASCII string explaining the situation in \verb|data|, and then terminate the connection.
 
 \subsection{Encryption}
