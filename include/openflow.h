@@ -130,7 +130,7 @@ struct ofp_header {
     uint8_t version;    /* OFP_VERSION. */
     uint8_t type;       /* One of the OFPT_ constants. */
     uint16_t length;    /* Length including this ofp_header. */
-    uint32_t xid;       /* Transactin id associated with this packet.
+    uint32_t xid;       /* Transaction id associated with this packet.
                            Replies use the same id as was in the request
                            to facilitate pairing. */
 };
@@ -742,7 +742,7 @@ struct ofp_port_stats {
     uint64_t rx_dropped;     /* Number of packets dropped by RX. */ 
     uint64_t tx_dropped;     /* Number of packets dropped by TX. */ 
     uint64_t rx_errors;      /* Number of receive errors.  This is a super-set
-                                of receive errors and should be great than or
+                                of receive errors and should be greater than or
                                 equal to the sum of al rx_*_err values. */
     uint64_t tx_errors;      /* Number of transmit errors.  This is a super-set
                                 of transmit errors. */
