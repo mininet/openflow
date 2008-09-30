@@ -250,7 +250,7 @@ This action is only applied to TCP and UDP packets.\\
 \begin{figure}[!hbp]
 \centering
 \includegraphics[width=4.8in]{figure_packet_flow_flowchart.png}
-\caption{The functions performed on a packet as it moves through an OpenFlow switch.  As discussed in Section \ref{flow_table:stp_support}, support for 802.1d is optional in Type 0 switches.}
+\caption{The functions performed on a packet as it moves through an OpenFlow switch.  As discussed in Section \ref{flow_table:stp_support}, support for 802.1D is optional in Type 0 switches.}
 \label{fig:packet_flow}
 \end{figure}
 
@@ -308,7 +308,7 @@ Asynchronous messages are sent without solicitation from the switch to the contr
 \\\\
 \textbf{Flow Expiration:} When a flow entry is added to the switch, an idle timeout value is included that indicates when the entry should be removed due to a lack of activity, as well as a hard timeout value that indicates when the entry should be removed, regardless of activity.  In the configuration message, the controller can indicate that it wishes to be informed when a flow expires.  If this flag is set, the switch sends a flow expiration event that includes the duration of the flow and the number of packets and bytes sent.  Flow expirations are only set when explicitly enabled by the controller, through the configuration message.
 \\\\
-\textbf{Port-status:} The switch is expected to send port-status messages to the controller as port configuration state changes.  These events include change in port status (for example, if it was brought down directly by a user) or a change in port status as specified by 802.1d (see Section \ref{flow_table:stp_support} for a description of 802.1d support requirements).
+\textbf{Port-status:} The switch is expected to send port-status messages to the controller as port configuration state changes.  These events include change in port status (for example, if it was brought down directly by a user) or a change in port status as specified by 802.1D (see Section \ref{flow_table:stp_support} for a description of 802.1D support requirements).
 \\\\
 \textbf{Error:} The switch is able to notify the controller of problems using error messages. 
 
@@ -331,11 +331,13 @@ If the negotiated version is supported by the recipient, then the connection pro
 \subsection{Encryption}
 The switch and controller communicate through an SSL connection.  The SSL connection is initiated by the switch on startup to the controller’s server, which is located by default on TCP port 976.   The switch and controller mutually authenticate by exchanging certificates signed by a site-specific private key.  Each switch must be user-configurable with one certificate for authenticating the controller (controller certificate) and the other for authenticating to the controller (switch certificate).
 
-\subsection{STP Support}
+\subsection{Spanning Tree}
 \label{flow_table:stp_support}
-Type 0 switches may optionally support the 802.1d spanning tree protocols.  Those switches that do support it are expected to process all 802.1d packets locally before performing flow lookup.  Port status, as specified by the spanning tree protocol, is then used to limit packets forwarded to the \verb|OFP_FLOOD| port to only those ports along the spanning tree.  Port changes as a result of the spanning tree are sent to the controller via port-update messages.  Note that forward actions that specify the outgoing port or \verb|OFP_ALL| ignore the port status set by the spanning tree protocol.
+Type 0 switches may optionally support 802.1D Spanning Tree Protocol.  Those switches that do support it are expected to process all 802.1D packets locally before performing flow lookup.  A switch that implements STP must set the \verb|OFPC_STP| bit in the 'capabilities' field of its \verb|OFPT_FEATURES_REPLY| message. A switch that implements STP must make it available on all of its physical ports, but it need not implement it on virtual ports (e.g. \verb|OFPP_LOCAL|). 
 \\\\
-Switches that do not support 802.1d spanning tree must allow the controller to specify the port status for packet flooding through the port-mod messages. 
+Port status, as specified by the spanning tree protocol, is then used to limit packets forwarded to the \verb|OFP_FLOOD| port to only those ports along the spanning tree.  Port changes as a result of the spanning tree are sent to the controller via port-update messages.  Note that forward actions that specify the outgoing port or \verb|OFP_ALL| ignore the port status set by the spanning tree protocol.
+\\\\
+Switches that do not support 802.1D spanning tree must allow the controller to specify the port status for packet flooding through the port-mod messages. 
 
 \subsection{Flow Table Modification Messages}
 The switch software must report some invalid flow mod attempts.  For example, if the controller sends a \verb|flow_mod| message with the \verb|OFPP_TABLE| virtual port as part of the action, the switch must respond with an \verb|OFPEFM_TABLE_PORT| message.  If the controller specifies a \verb|FLOOD| action but the switch doesn’t support it, the switch must reply with an \verb|OFPEFM_FLOOD_UNSUPPORTED| error message.  If the controller specifies a \verb|NORMAL| action but the switch doesn’t support it, the switch must reply with an \verb|OFPEFM_NORMAL_UNSUPPORTED| message. 
