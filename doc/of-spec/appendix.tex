@@ -195,6 +195,11 @@ The body of the reply consists of an array of the following:
 \input{struct/ofp_port_stats}
 The switch should return a value of -1 for unavailable counters.
 
+\paragraph{Vendor Statistics}
+Vendor-specific stats messages are requested with the \verb|OFPST_VENDOR| stats type. The first four bytes of the message are the vendor identifier. The rest of the body is vendor-defined.
+\\\\
+The \verb|vendor| field is a 32-bit value that uniquely identifies the vendor. If the most significant byte is zero, the next three bytes are the vendor's IEEE OUI. If vendor does not have (or wish to use) their OUI, they should contact the OpenFlow consortium to obtain one. 
+
 \subsubsection{Send Packet Message}
 When the controller wishes to send a packet out through the datapath, it uses the \verb|OFPT_PACKET_OUT| message:
 
@@ -272,5 +277,7 @@ In an OpenFlow protocol implementation divided into multiple layers, the echo re
 The Vendor message is defined as follows:
 
 \input{struct/ofp_vendor}
-If the MSB of the \verb|vendor| field is 0, then then the low-order bytes are an IEEE Organizationally Unique Identifier (OUI), otherwise they are assigned by the OpenFlow Consortium.  The meaning of the data portion of Vendor messages is left undefined.
+The \verb|vendor| field is a 32-bit value that uniquely identifies the vendor. If the most significant byte is zero, the next three bytes are the vendor's IEEE OUI. If vendor does not have (or wish to use) their OUI, they should contact the OpenFlow consortium to obtain one. The rest of the body is uninterpreted.
+\\\\
+If a switch does not understand a vendor extension, it must send an \verb|OFPT_ERROR| message with a \verb|OFPBRC_BAD_VENDOR| error code and \verb|OFPET_BAD_REQUEST| error type. 
 
