@@ -65,6 +65,10 @@ my $nf2_kernel_module_name_no_ext = 'hwtable_nf2_mod';
 my $nf2_kernel_module_name        = $nf2_kernel_module_name_no_ext . '.ko';
 my $openflow_dir                  = $ENV{OF_ROOT};
 
+if (! -e "$openflow_dir/include/openflow.h") {
+	die "please set OF_ROOT in path so that OFUtil.pm can extract constants"
+}
+
 use constant CURRENT_OF_VER => 0x85;
 
 # data length forwarded to the controller if miss (used in do_hello_sequence)
