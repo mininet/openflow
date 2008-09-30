@@ -26,17 +26,14 @@ struct sw_table_nf2 {
 };
 
 enum nf2_of_table_type {
-	NF2_TABLE_EXACT,	
-	NF2_TABLE_WILDCARD	
+	NF2_TABLE_EXACT,
+	NF2_TABLE_WILDCARD
 };
-
-extern spinlock_t wildcard_free_lock;
-extern spinlock_t exact_free_lock;
 
 /* Functions to convert between OpenFlow and NetFPGA structs */
 void nf2_populate_of_entry(nf2_of_entry_wrap *key, struct sw_flow *flow);
 void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow);
-void nf2_populate_of_action(nf2_of_action_wrap *action, 
+void nf2_populate_of_action(nf2_of_action_wrap *action,
 	nf2_of_entry_wrap *entry, nf2_of_mask_wrap *mask, struct sw_flow *flow);
 void nf2_clear_of_wildcard(uint32_t pos);
 
@@ -65,5 +62,5 @@ void nf2_delete_private(void* private);
 
 unsigned int nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw);
 unsigned int nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw);
- 
+
 #endif /*HWTABLENF2_H_*/

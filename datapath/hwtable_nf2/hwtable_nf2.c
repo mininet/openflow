@@ -1,6 +1,6 @@
 /* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
  * Junior University
- * 
+ *
  * We are making the OpenFlow specification and associated documentation
  * (Software) available for public use and benefit with the expectation
  * that others will use, modify and enhance the Software and contribute
@@ -13,10 +13,10 @@
  * distribute, sublicense, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -25,7 +25,7 @@
  * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
+ *
  * The name and trademarks of copyright holder(s) may NOT be used in
  * advertising or publicity pertaining to the Software or any
  * derivatives without specific, written prior permission.
@@ -52,19 +52,9 @@
 /* Max number of flow entries supported by the hardware */
 #define DUMMY_MAX_FLOW   8192
 
-static void table_nf2_sfw_destroy(struct sw_flow_nf2 *sfw)
-{
-	/* xxx Remove the entry from hardware.  If you need to do any other
-	 * xxx clean-up associated with the entry, do it here.
-	 */
-
-	kfree(sfw);
-}
-
 static void table_nf2_rcu_callback(struct rcu_head *rcu)
 {
 	struct sw_flow *flow = container_of(rcu, struct sw_flow, rcu);
-
 	flow_free(flow);
 }
 
@@ -80,7 +70,7 @@ static struct sw_flow *table_nf2_lookup(struct sw_table *swt,
 	struct sw_flow *flow;
 	list_for_each_entry (flow, &td->flows, node) {
 		if (flow_matches(&flow->key, key)) {
-			return flow; 
+			return flow;
 		}
 	}
 	return NULL;
@@ -89,8 +79,7 @@ static struct sw_flow *table_nf2_lookup(struct sw_table *swt,
 static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 {
     struct sw_table_nf2 *tb = (struct sw_table_nf2 *) swt;
-    unsigned long int flags;
-    struct sw_flow *f; 
+    struct sw_flow *f;
 
     printk("Adding: ");
     printk("inport:%04x", ntohs(flow->key.in_port));
@@ -101,12 +90,12 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
     printk(" tport[%d", ntohs(flow->key.tp_src));
     printk("->%d]\n", ntohs(flow->key.tp_dst));
 
-	/* xxx Do whatever needs to be done to insert an entry in hardware. 
+	/* xxx Do whatever needs to be done to insert an entry in hardware.
 	 * xxx If the entry can't be inserted, return 0.  This stub code
 	 * xxx doesn't do anything yet, so we're going to return 0...you
 	 * xxx shouldn't.
 	 */
-    
+
 	if (nf2_are_actions_supported(flow)) {
 		printk("---Actions are supported---\n");
 		if (nf2_build_and_write_flow(flow)) {
@@ -120,15 +109,11 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 	}
 
     /* Replace flows that match exactly. */
-
-	spin_lock_irqsave(&tb->lock, flags);
-    list_for_each_entry_rcu (f, &tb->flows, node) {
-        if (f->key.wildcards == flow->key.wildcards
-                && flow_matches(&f->key, &flow->key)
-                && flow_del(f)) {
-            list_replace_rcu(&f->node, &flow->node);
-            list_replace_rcu(&f->iter_node, &flow->iter_node);
-            spin_unlock_irqrestore(&tb->lock, flags);
+    list_for_each_entry (f, &tb->flows, node) {
+        if (flow_del_matches(&f->key, &flow->key, true)
+                && (f->priority == flow->priority)) {
+            list_replace(&f->node, &flow->node);
+            list_replace(&f->iter_node, &flow->iter_node);
             table_nf2_flow_deferred_free(f);
             return 1;
         }
@@ -138,7 +123,6 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 
     list_add_rcu(&flow->node, &tb->flows);
     list_add_rcu(&flow->iter_node, &tb->iter_flows);
-    spin_unlock_irqrestore(&tb->lock, flags);
 
     return 1;
 }
@@ -146,18 +130,18 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 
 static int do_delete(struct sw_table *swt, struct sw_flow *flow)
 {
-	if (flow_del(flow)) {
+	if (flow && flow->private) {
 		list_del_rcu(&flow->node);
 		list_del_rcu(&flow->iter_node);
+
+		// This function will send the private object back to the free lists
+		nf2_delete_private(flow->private);
+
 		table_nf2_flow_deferred_free(flow);
 
-    	if (flow && flow->private) {    
-    		nf2_delete_private(flow->private);
-	        flow->private = NULL;
-    	}
-		
 		return 1;
 	}
+
 	return 0;
 }
 
@@ -168,7 +152,7 @@ static int table_nf2_delete(struct sw_table *swt,
 	struct sw_flow *flow;
 	unsigned int count = 0;
 
-	list_for_each_entry_rcu (flow, &td->flows, node) {
+	list_for_each_entry (flow, &td->flows, node) {
 		if (flow_del_matches(&flow->key, key, strict)
 		    && (!strict || (flow->priority == priority)))
 			count += do_delete(swt, flow);
@@ -183,22 +167,23 @@ static int table_nf2_timeout(struct datapath *dp, struct sw_table *swt)
 {
 	struct sw_table_nf2 *td = (struct sw_table_nf2 *) swt;
 	struct sw_flow *flow;
-	struct sw_flow_nf2 *sfw, *n;
+	struct sw_flow_nf2 *sfw;
 	int del_count = 0;
 	uint64_t packet_count = 0;
-	int i = 0;
 	struct net_device* dev;
-	
+
 	dev = nf2_get_net_device();
 
-	list_for_each_entry_rcu (flow, &td->flows, node) {
+	mutex_lock(&dp_mutex);
+	list_for_each_entry (flow, &td->flows, node) {
 		/* xxx Retrieve the packet count associated with this entry
 		 * xxx and store it in "packet_count".
 		 */
-		
+
 		sfw = flow->private;
 		if (sfw) {
-			packet_count = nf2_get_packet_count(dev, sfw);			
+			packet_count = flow->packet_count + nf2_get_packet_count(dev, sfw);
+			flow->byte_count += nf2_get_byte_count(dev, sfw);
 		}
 
 		if ((packet_count > flow->packet_count)
@@ -209,23 +194,13 @@ static int table_nf2_timeout(struct datapath *dp, struct sw_table *swt)
 
 		if (flow_timeout(flow)) {
 			if (dp->flags & OFPC_SEND_FLOW_EXP) {
-				/* xxx Get byte count */
-                if (sfw) {
-                	flow->byte_count += 
-                		nf2_get_byte_count(dev, sfw);
-                }
-				
 				dp_send_flow_expired(dp, flow);
 			}
-			printk("CALLING do_delete: %X %X\n", swt, flow);
 			del_count += do_delete(swt, flow);
 		}
-		if ((i % 50) == 0) {
-			msleep_interruptible(1);
-		}
-		i++;
 	}
-	
+	mutex_unlock(&dp_mutex);
+
 	nf2_free_net_device(dev);
 
 	if (del_count)
@@ -264,7 +239,7 @@ static void table_nf2_destroy(struct sw_table *swt)
 		kfree(td);
 	}
     destroy_exact_free_list();
-    destroy_wildcard_free_list();    
+    destroy_wildcard_free_list();
 }
 
 static int table_nf2_iterate(struct sw_table *swt,
@@ -278,7 +253,7 @@ static int table_nf2_iterate(struct sw_table *swt,
 	unsigned long start;
 
 	start = ~position->private[0];
-	list_for_each_entry_rcu (flow, &tl->iter_flows, iter_node) {
+	list_for_each_entry (flow, &tl->iter_flows, iter_node) {
 		if (flow->serial <= start && flow_matches(key, &flow->key)) {
 			int error = callback(flow, private);
 			if (error) {
@@ -324,21 +299,18 @@ static struct sw_table *table_nf2_create(void)
 	swt->iterate = table_nf2_iterate;
 	swt->stats = table_nf2_stats;
 
-	td->max_flows = OPENFLOW_NF2_EXACT_TABLE_SIZE + 
-	OPENFLOW_WILDCARD_TABLE_SIZE-8; 
-		
+	td->max_flows = OPENFLOW_NF2_EXACT_TABLE_SIZE +
+	OPENFLOW_WILDCARD_TABLE_SIZE-8;
+
 	atomic_set(&td->n_flows, 0);
 	INIT_LIST_HEAD(&td->flows);
 	INIT_LIST_HEAD(&td->iter_flows);
-	spin_lock_init(&td->lock);
 	td->next_serial = 0;
 
-    spin_lock_init(&wildcard_free_lock);
     init_wildcard_free_list();
 	nf2_write_static_wildcard();
 	printk("initialized wildcard free list\n");
 
-    spin_lock_init(&exact_free_lock);
     init_exact_free_list();
 	printk("initialized exact free list\n");
 
@@ -351,7 +323,7 @@ static int __init nf2_init(void)
 }
 module_init(nf2_init);
 
-static void nf2_cleanup(void) 
+static void nf2_cleanup(void)
 {
 	chain_clear_hw_hook();
 }
