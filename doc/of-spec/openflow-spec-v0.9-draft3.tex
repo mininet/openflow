@@ -155,6 +155,7 @@ Table \ref{table:counters} contains the required set of counters for Type 0 swit
 \end{table}
 
 \subsection{Actions}
+\label{ft:actions}
 Each flow entry is associated with zero or more actions that dictate how the switch handles matching packets.  Actions need not be executed in the order in which they are specified in the flow entry.  If no actions are present, the packet is dropped. 
 \\\\
 A switch is not required to support all action types --- just those marked ``Required Actions'' below. When connecting to the controller, a switch indicates which of the ``Optional Actions'' it supports.  OpenFlow-compliant switches come in two types: \emph{OpenFlow-only}, and \emph{OpenFlow-enabled}. 
@@ -182,7 +183,7 @@ The controller will only ask the switch to send to multiple physical ports simul
 \\\\
 \textbf{Required Action:} \emph{Drop}.  A flow-entry with no specified action indicates that all matching packets should be dropped.
 \\\\
-\textbf{Optional Action:} \emph{Modify-Field}.  While not strictly required, the actions shown in Table \ref{table:field modify actions}  greatly increase the usefulness of an OpenFlow implementation.  To aid integration with existing networks, we suggest that the VLAN modification action be supported. 
+\textbf{Optional Action:} \emph{Modify-Field}.  While not strictly required, the actions shown in Table \ref{table:field modify actions}  greatly increase the usefulness of an OpenFlow implementation.  To aid integration with existing networks, we suggest that VLAN modification actions be supported. 
 
 \begin{table}[hbp]
 \centering
@@ -191,13 +192,29 @@ The controller will only ask the switch to send to multiple physical ports simul
 \hline
 Action & Associated Data & Description \\
 \hline
-Add/Modify/Remove VLAN tag &
-16 bits &
-If no VLAN is present on the packet, a new header is added with the specified VLAN ID (lower 12 bits).
+Set VLAN ID &
+12 bits &
+If no VLAN is present, a new header is added with the specified VLAN ID and priority of zero.
 
-If a VLAN header already exists, the VLAN ID is replaced with the specified value. 
+If a VLAN header already exists, the VLAN ID is replaced with the specified value. \\
+\hline
+Set VLAN priority &
+3 bits &
+If no VLAN is present, a new header is added with the specified priority and a VLAN ID of zero.  
 
-If all 16 bits of the action value are set (0xffff) then remove VLAN tag. \\
+If a VLAN header already exists, the priority field is replaced with the specified value. \\
+\hline
+Strip VLAN header &
+- &
+Strip VLAN header if present. \\
+\hline
+Modify Ethernet source MAC address &
+48 bits: Value with which to replace existing source MAC address &
+Replace the existing Ethernet source MAC address with the new value \\
+\hline
+Modify Ethernet destination MAC address &
+48 bits: Value with which to replace existing destination MAC address &
+Replace the existing Ethernet destination MAC address with the new value \\
 \hline
 Modify IPv4 source address & 
 32 bits: Value with which to replace existing IPv4 source address &
@@ -223,14 +240,6 @@ Modify transport destination port &
 Replace the existing TCP/UDP destination port with new value and update the TCP/UDP checksum
 
 This action is only applied to TCP and UDP packets.\\
-\hline
-Modify Ethernet source MAC address &
-48 bits: Value with which to replace existing source MAC address &
-48 bits: Value with which to replace existing source MAC address	Replace the existing Ethernet source MAC address with the new value \\
-\hline
-Modify Ethernet destination MAC address &
-48 bits: Value with which to replace existing destination MAC address &
-Replace the existing Ethernet destination MAC address with the new value \\
 \hline
 \end{tabularx}
 \caption{Field-modify actions.}

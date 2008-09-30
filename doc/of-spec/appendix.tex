@@ -52,10 +52,10 @@ If no wildcards are set, then the \verb|ofp_match| exactly describes a flow, ove
 A number of actions may be associated with flows or packets.  The currently defined action types are:
 
 \input{enum/ofp_action_type} 
-An action definition contains the action type and any associated data:
+Output actions are described in Section \ref{ft:actions}, while Field-Modify actions are described in Table \ref{table:field modify actions}.  An action definition contains the action type and any associated data:
 
 \input{struct/ofp_action}
-The \verb|vlan_id| field is 16 bits long, when an actual VLAN id is only 12 bits. The value \verb|0xffff| is used to indicate that no VLAN id was set, or if used as an action, that the VLAN header should be stripped.
+The \verb|vlan_id| field is 16 bits long, when an actual VLAN id is only 12 bits. The value \verb|0xffff| is used to indicate that no VLAN id was set.
 \\\\
 An \verb|action_output| has the following fields:
 
