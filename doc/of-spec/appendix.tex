@@ -257,6 +257,9 @@ The \verb|data| field contains at least 64 bytes of the failed request.
 %If the controller attempts a \verb|port_mod| and fails, it should report an error.  The \verb|data| field must include the full message that failed. 
 
 \subsection{Symmetric Messages}
+\subsubsection{Hello}
+The \verb|OFPT_HELLO| message has no body; that is, it consists only of an OpenFlow header. Implementations must be prepared to receive a hello message that includes a body, ignoring its contents, to allow for later extensions. 
+
 \subsubsection{Echo Request}
 An Echo Request message consists of an OpenFlow header plus an arbitrary-length data field.  The data field might be a message timestamp to check latency, various lengths to measure bandwidth, or zero-size to verify liveness between the switch and controller.
 
