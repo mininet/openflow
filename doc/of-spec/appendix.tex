@@ -154,15 +154,20 @@ Information about individual flows is requested with the \verb|OFPST_FLOW| stats
 \input{struct/ofp_flow_stats_request}
 The \verb|match| field contains a description of the flows that should be matched and may contain wildcards. 
 \\\\
+The \verb|table_id| field indicates the index of a single table to read, or \verb|0xff| for all tables.
+\\\\
 The \verb|body| of the reply consists of an array of the following:
 
 \input{struct/ofp_flow_stats}
+The fields consist of those provided in the \verb|flow_mod| that created these, plus the table into which the entry was inserted, the packet count, and the byte count.
 
 \paragraph{Aggregate Flow Statistics}
 Aggregate information about multiple flows is requested with the \verb|OFPST_AGGREGATE| stats request type:
 
 \input{struct/ofp_aggregate_stats_request}
 The \verb|match| field contains a description of the flows that should be matched and may contain wildcards. 
+\\\\
+The \verb|table_id| field indicates the index of a single table to read, or \verb|0xff| for all tables.
 \\\\
 The \verb|body| of the reply consists of the following:
 
@@ -174,7 +179,7 @@ Information about tables is requested with the \verb|OFPST_TABLE| stats request 
 The body of the reply consists of an array of the following:
 
 \input{struct/ofp_table_stats}
-\verb|OFP_MAX_TABLE_NAME_LEN| is 32.
+\verb|OFP_MAX_TABLE_NAME_LEN| is \input{define/OFP_MAX_TABLE_NAME_LEN}.
 
 \paragraph{Port Statistics}
 Information about physical ports is requested with the \verb|OFPST_PORT| stats request type.  The request does not contain any data in the \verb|body|.
