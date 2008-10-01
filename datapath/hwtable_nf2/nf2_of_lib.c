@@ -2,6 +2,7 @@
 #include "compat.h"
 #include "hwtable_nf2/hwtable_nf2.h"
 #include "crc32.h"
+#include "hwtable_nf2/nf2_logging.h"
 
 /* For NetFPGA */
 #include "hwtable_nf2/nf2.h"
@@ -30,7 +31,8 @@ int nf2_are_actions_supported(struct sw_flow *flow) {
 	for (i=0; i < flow->n_actions; ++i) {
 		// Currently only support the output port(s) action
 		if (flow->actions[i].type != OFPAT_OUTPUT) {
-			printk("---Flow type != OFPAT_OUTPUT---\n");
+			LOG("Flow action type %#0x not supported in hardware\n",
+					flow->actions[i].type);
 			return 0;
 		}
 
@@ -39,8 +41,8 @@ int nf2_are_actions_supported(struct sw_flow *flow) {
 			!(ntohs(flow->actions[i].arg.output.port) == OFPP_ALL) &&
 			!(ntohs(flow->actions[i].arg.output.port) == OFPP_FLOOD)) {
 
-			printk("---Port: %i---\n", ntohs(flow->actions[i].arg.output.port));
-			printk("---Port is > 4 and not equal to ALL/FLOOD ---\n");
+			LOG("Flow action output port %#0x is not supported in hardware\n",
+					ntohs(flow->actions[i].arg.output.port));
 			return 0;
 		}
 	}
@@ -280,7 +282,7 @@ void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow) {
 }
 
 /*
- * Populate a nf2_of_mask_wrap with entries from a struct sw_flow's wildcards
+ * Populate an nf2_of_action_wrap
  */
 void nf2_populate_of_action(nf2_of_action_wrap *action,
 	nf2_of_entry_wrap *entry, nf2_of_mask_wrap *mask, struct sw_flow *flow) {
