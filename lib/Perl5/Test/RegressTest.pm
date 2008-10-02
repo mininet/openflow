@@ -151,6 +151,7 @@ sub run_regress_test {
 
 	foreach my $project (@projects) {
 		my ( $result, $tests, $results ) = runRegressionSuite($project);
+
 		$pass &= $result;
 
 		push @failures, $project unless $result;
@@ -162,7 +163,7 @@ sub run_regress_test {
 	#
 	# Print out any errors if they exist
 	#
-	if ( $quiet && !$pass ) {
+	if ( !$quiet && !$pass ) {
 		print "Regression test suite failed\n";
 		print "\n";
 		print "Projects failing tests:\n";
