@@ -9,6 +9,8 @@
 #include "hwtable_nf2/reg_defines.h"
 #include "hwtable_nf2/nf2_export.h"
 
+#define MAX_INT_32 0xFFFFFFFF
+
 struct list_head wildcard_free_list;
 
 struct sw_flow_nf2* exact_free_list[OPENFLOW_NF2_EXACT_TABLE_SIZE];
@@ -334,6 +336,10 @@ void add_free_exact(struct sw_flow_nf2* sfw) {
 void add_free_wildcard(struct sw_flow_nf2* sfw) {
 	unsigned long int flags = 0;
 
+	// clear the hw values
+	sfw->hw_packet_count = 0;
+	sfw->hw_byte_count = 0;
+
 	// Critical section, adding to the actual list
 	list_add_tail(&sfw->node, &wildcard_free_list);
 }
@@ -483,7 +489,6 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 			// if action is all out and source port is wildcarded
 			if ((is_action_forward_all(flow)) &&
 				(flow->key.wildcards & OFPFW_IN_PORT)) {
-
 				if (!(sfw = get_free_wildcard())) {
 					// no free entries
 					return 1;
@@ -581,31 +586,55 @@ void nf2_delete_private(void* private) {
 	}
 }
 
-unsigned int nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
-	unsigned int count = 0;
+uint32_t nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
+	uint32_t count = 0;
+	uint32_t hw_count = 0;
+
 	switch (sfw->type) {
 		case NF2_TABLE_EXACT:
 			count = nf2_get_exact_packet_count(dev, sfw->pos);
 			break;
 		case NF2_TABLE_WILDCARD:
-			count = nf2_get_wildcard_packet_count(dev, sfw->pos);
+			hw_count = nf2_get_wildcard_packet_count(dev, sfw->pos);
+			if (hw_count >= sfw->hw_packet_count) {
+				count = hw_count - sfw->hw_packet_count;
+				sfw->hw_packet_count = hw_count;
+			} else {
+				// wrapping occurred
+				count = (MAX_INT_32 - sfw->hw_packet_count) + hw_count;
+				sfw->hw_packet_count = hw_count;
+			}
+			//count = nf2_get_wildcard_packet_count(dev, sfw->pos);
 			break;
 	}
 
+	LOG("Return nf2_get_packet_count value: %i\n", count);
 	return count;
 }
 
-unsigned int nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
-	unsigned int count = 0;
+uint32_t nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
+	uint32_t count = 0;
+	uint32_t hw_count = 0;
+
 	switch (sfw->type) {
 		case NF2_TABLE_EXACT:
 			count = nf2_get_exact_byte_count(dev, sfw->pos);
 			break;
 		case NF2_TABLE_WILDCARD:
-			count = nf2_get_wildcard_byte_count(dev, sfw->pos);
+			hw_count = nf2_get_wildcard_byte_count(dev, sfw->pos);
+			if (hw_count >= sfw->hw_byte_count) {
+				count = hw_count - sfw->hw_byte_count;
+				sfw->hw_byte_count = hw_count;
+			} else {
+				// wrapping occurred
+				count = (MAX_INT_32 - sfw->hw_byte_count) + hw_count;
+				sfw->hw_byte_count = hw_count;
+			}
+			//count = nf2_get_wildcard_byte_count(dev, sfw->pos);
 			break;
 	}
 
+	LOG("Return nf2_get_byte_count value: %i\n", count);
 	return count;
 }
 

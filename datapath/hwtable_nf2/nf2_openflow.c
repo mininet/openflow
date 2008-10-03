@@ -302,6 +302,11 @@ unsigned int nf2_get_exact_packet_count(struct net_device *dev, int row) {
 	unsigned int val = 0;
 	int i;
 	unsigned char* c;
+
+	/* TODO: Need to scrape data from all 4 registers
+	 * in the case of a wildcarded source port and
+	 * forward all action type
+	 */
 	nf2_of_exact_counters_wrap counters;
 	memset(&counters, 0, sizeof(nf2_of_exact_counters_wrap));
 
@@ -321,6 +326,11 @@ unsigned int nf2_get_exact_byte_count(struct net_device *dev, int row) {
 	unsigned int val = 0;
 	int i;
 	unsigned char* c;
+
+	/* TODO: Need to scrape data from all 4 registers
+	 * in the case of a wildcarded source port and
+	 * forward all action type
+	 */
 	nf2_of_exact_counters_wrap counters;
 	memset(&counters, 0, sizeof(nf2_of_exact_counters_wrap));
 
@@ -357,6 +367,7 @@ unsigned int nf2_get_wildcard_byte_count(struct net_device *dev, int row) {
 
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_READ_ADDR_REG, &row);
 	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_BASE_REG+(4*row), &val);
+
 #ifdef NF2_DEBUG
 	do_gettimeofday(&t);
 	LOG("** Wildcard byte count request row: %i count: %i time: %i.%i\n", row, val,
