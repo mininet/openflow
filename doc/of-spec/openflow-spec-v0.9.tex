@@ -177,7 +177,9 @@ The switch may optionally support the following virtual ports:
 \item \textbf{NORMAL:} Process the packet using the traditional forwarding path supported by the switch (i.e., traditional L2, VLAN, and L3 processing.)  A Type 0 switch may check the VLAN field to determine whether or not to forward the packet along the normal processing route.  If the switch cannot forward entries for the OpenFlow-specific VLAN back to the normal processing route, it must indicate that it does not support this action.
 \item \textbf{FLOOD:} Flood the packet along the minimum spanning tree, not including the incoming interface.
 \end{itemize}
-Ideally, a switch will support flow-entries that can forward packets to any combination of the physical and virtual ports. For example, this could be expressed internally in the switch with a bitmap that includes all the physical and virtual ports. However, some switches will not be able to support any combination. Therefore, the requirement is that the switch support sending to any combination of physical ports and the “Controller” virtual port simultaneously. All other combinations are desired, but optional. 
+Ideally, a switch will support flow-entries that can forward packets to any combination of the physical and virtual ports. For example, this could be expressed internally in the switch with a bitmap that includes all the physical and virtual ports.
+\\\\
+However, some switches will not be able to support any combination. Therefore, the requirement is that the switch support sending to any combination of physical ports and the “Controller” virtual port simultaneously. All other combinations are desired, but optional. 
 \\\\
 The controller will only ask the switch to send to multiple physical ports simultaneously if the switch indicates it supports this behavior in the initial handshake (see section \ref{cts:handshake}).  
 \\\\

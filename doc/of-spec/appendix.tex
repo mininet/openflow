@@ -54,7 +54,7 @@ The \verb|wildcards| field has a number of flags that may be set:
 \input{enum/ofp_flow_wildcards}
 If no wildcards are set, then the \verb|ofp_match| exactly describes a flow, over the entire OpenFlow 10-tuple.  On the other extreme, if all the wildcard flags are set, then every flow will match.  
 \\\\
-The source and destination netmasks are each specified with a 6-bit number in the wildcard description. It is interpreted similar to the CIDR suffix, but with the opposite meaning, since this is being used to indicate which bits in the IP address should be treated as "wild". For example, a CIDR suffix of "24" means to use a netmask of ``255.255.255.0". However, a wildcard mask value of ``24" means that the least-significant 24-bits are wild, so it forms a netmask of ``255.0.0.0". 
+The source and destination netmasks are each specified with a 6-bit number in the wildcard description. It is interpreted similar to the CIDR suffix, but with the opposite meaning, since this is being used to indicate which bits in the IP address should be treated as ``wild". For example, a CIDR suffix of "24" means to use a netmask of ``255.255.255.0". However, a wildcard mask value of ``24" means that the least-significant 24-bits are wild, so it forms a netmask of ``255.0.0.0". 
 
 \subsubsection{Flow Action Structures}
 A number of actions may be associated with flows or packets.  The currently defined action types are:
