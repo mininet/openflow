@@ -43,6 +43,8 @@
 #include "flow.h"
 #include "datapath.h"
 
+#include "hwtable_nf2/nf2_logging.h"
+
 /* For NetFPGA */
 #include "hwtable_nf2/reg_defines.h"
 #include "hwtable_nf2/nf2_openflow.h"
@@ -81,15 +83,6 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
     struct sw_table_nf2 *tb = (struct sw_table_nf2 *) swt;
     struct sw_flow *f;
 
-    printk("Adding: ");
-    printk("inport:%04x", ntohs(flow->key.in_port));
-    printk(":vlan:%04x", ntohs(flow->key.dl_vlan));
-    printk(" ip[%#x", flow->key.nw_src);
-    printk("->%#x", flow->key.nw_dst);
-    printk("] proto:%u", flow->key.nw_proto);
-    printk(" tport[%d", ntohs(flow->key.tp_src));
-    printk("->%d]\n", ntohs(flow->key.tp_dst));
-
 	/* xxx Do whatever needs to be done to insert an entry in hardware.
 	 * xxx If the entry can't be inserted, return 0.  This stub code
 	 * xxx doesn't do anything yet, so we're going to return 0...you
@@ -97,9 +90,9 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 	 */
 
 	if (nf2_are_actions_supported(flow)) {
-		printk("---Actions are supported---\n");
+		LOG("---Actions are supported---\n");
 		if (nf2_build_and_write_flow(flow)) {
-			printk("---build and write flow failed---\n");
+			LOG("---build and write flow failed---\n");
 			// failed
 			return 0;
 		}
@@ -309,10 +302,10 @@ static struct sw_table *table_nf2_create(void)
 
     init_wildcard_free_list();
 	nf2_write_static_wildcard();
-	printk("initialized wildcard free list\n");
+	LOG("initialized wildcard free list\n");
 
     init_exact_free_list();
-	printk("initialized exact free list\n");
+	LOG("initialized exact free list\n");
 
 	return swt;
 }
