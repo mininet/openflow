@@ -105,8 +105,10 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
     list_for_each_entry (f, &tb->flows, node) {
         if (flow_del_matches(&f->key, &flow->key, true)
                 && (f->priority == flow->priority)) {
+        	LOG("***Found a matching flow entry, triggering deletion\n");
             list_replace(&f->node, &flow->node);
             list_replace(&f->iter_node, &flow->iter_node);
+    		nf2_delete_private(f->private);
             table_nf2_flow_deferred_free(f);
             return 1;
         }
