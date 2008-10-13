@@ -51,8 +51,8 @@
 #include "hwtable_nf2/hwtable_nf2.h"
 
 
-/* Max number of flow entries supported by the hardware */
-#define DUMMY_MAX_FLOW   8192
+static int table_nf2_delete(struct sw_table *swt, const struct sw_flow_key *key,
+		uint16_t priority, int strict);
 
 static void table_nf2_rcu_callback(struct rcu_head *rcu)
 {
@@ -81,13 +81,15 @@ static struct sw_flow *table_nf2_lookup(struct sw_table *swt,
 static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 {
     struct sw_table_nf2 *tb = (struct sw_table_nf2 *) swt;
-    struct sw_flow *f;
 
 	/* xxx Do whatever needs to be done to insert an entry in hardware.
 	 * xxx If the entry can't be inserted, return 0.  This stub code
 	 * xxx doesn't do anything yet, so we're going to return 0...you
 	 * xxx shouldn't.
 	 */
+
+    /* Delete flows that match exactly. */
+    table_nf2_delete(swt, &flow->key, flow->priority, true);
 
 	if (nf2_are_actions_supported(flow)) {
 		LOG("---Actions are supported---\n");
@@ -101,18 +103,6 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 		return 0;
 	}
 
-    /* Replace flows that match exactly. */
-    list_for_each_entry (f, &tb->flows, node) {
-        if (flow_del_matches(&f->key, &flow->key, true)
-                && (f->priority == flow->priority)) {
-        	LOG("***Found a matching flow entry, triggering deletion\n");
-            list_replace(&f->node, &flow->node);
-            list_replace(&f->iter_node, &flow->iter_node);
-    		nf2_delete_private(f->private);
-            table_nf2_flow_deferred_free(f);
-            return 1;
-        }
-    }
 
     atomic_inc(&tb->n_flows);
 

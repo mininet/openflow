@@ -438,6 +438,7 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 
 	if (!(dev = nf2_get_net_device())) {
 		// failure getting net device
+		LOG("Failure getting net device struct\n");
 		return 1;
 	}
 
@@ -449,6 +450,7 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 			nf2_populate_of_action(&action, &key, NULL, flow);
 			sfw = get_free_exact(&key);
 			if (sfw == NULL) {
+				LOG("Collision getting free exact match entry\m");
 				// collision
 				return 1;
 			}
@@ -466,6 +468,7 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 			if ((is_action_forward_all(flow)) &&
 				(flow->key.wildcards & OFPFW_IN_PORT)) {
 				if (!(sfw = get_free_wildcard())) {
+					LOG("No free wildcard entries found.");
 					// no free entries
 					return 1;
 				}
@@ -513,6 +516,7 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 					if (nf2_write_of_wildcard(dev, sfw->pos, &key, &mask, &action)) {
 						// failure writing to hardware
 						add_free_wildcard(sfw);
+						LOG("Failure writing to hardware\n");
 					    return 1;
 					} else {
 						// success writing to hardware, store the position
@@ -520,6 +524,7 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 					}
 				} else {
 					// hardware is full, return 0
+					LOG("No free wildcard entries found.");
 					return 1;
 				}
 			}
