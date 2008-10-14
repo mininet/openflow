@@ -128,7 +128,6 @@ int init_wildcard_free_list(void) {
  */
 void destroy_exact_free_list(void) {
 	struct sw_flow_nf2* sfw = NULL;
-	unsigned long int flags = 0;
 	int i;
 
 	for (i = 0; i < (OPENFLOW_NF2_EXACT_TABLE_SIZE); ++i) {
@@ -146,9 +145,6 @@ void destroy_exact_free_list(void) {
 void destroy_wildcard_free_list(void) {
 	struct sw_flow_nf2* sfw = NULL;
 	struct list_head *next = NULL;
-
-	unsigned long int flags = 0;
-	int i;
 
 	while(!list_empty(&wildcard_free_list)) {
 		next = wildcard_free_list.next;
@@ -299,8 +295,6 @@ void nf2_populate_of_action(nf2_of_action_wrap *action,
  * Add a free hardware entry back to the exact pool
  */
 void add_free_exact(struct sw_flow_nf2* sfw) {
-	unsigned long int flags = 0;
-
 	// clear the node entry
 	INIT_LIST_HEAD(&sfw->node);
 
@@ -312,8 +306,6 @@ void add_free_exact(struct sw_flow_nf2* sfw) {
  * Add a free hardware entry back to the wildcard pool
  */
 void add_free_wildcard(struct sw_flow_nf2* sfw) {
-	unsigned long int flags = 0;
-
 	// clear the hw values
 	sfw->hw_packet_count = 0;
 	sfw->hw_byte_count = 0;
@@ -330,7 +322,6 @@ struct sw_flow_nf2* get_free_exact(nf2_of_entry_wrap *entry) {
 	unsigned int poly1 = 0x04C11DB7;
 	unsigned int poly2 = 0x1EDC6F41;
 	struct sw_flow_nf2 *sfw = NULL;
-	unsigned long int flags = 0;
 	unsigned int hash = 0x0;
 	unsigned int index = 0x0;
 
@@ -370,7 +361,6 @@ struct sw_flow_nf2* get_free_exact(nf2_of_entry_wrap *entry) {
 struct sw_flow_nf2* get_free_wildcard(void) {
 	struct sw_flow_nf2 *sfw = NULL;
 	struct list_head *next = NULL;
-	unsigned long int flags = 0;
 
 	// Critical section, pulling the first available from the list
 	if (list_empty(&wildcard_free_list)) {
@@ -452,7 +442,7 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 			nf2_populate_of_action(&action, &key, NULL, flow);
 			sfw = get_free_exact(&key);
 			if (sfw == NULL) {
-				LOG("Collision getting free exact match entry\m");
+				LOG("Collision getting free exact match entry\n");
 				// collision
 				return 1;
 			}

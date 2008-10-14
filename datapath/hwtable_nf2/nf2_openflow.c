@@ -25,7 +25,7 @@ void logEntry(nf2_of_entry_wrap* entry) {
 
 #ifndef NF2_DEBUG
 	return;
-#endif
+#else
 
 	int i;
 
@@ -73,12 +73,13 @@ void logEntry(nf2_of_entry_wrap* entry) {
 
 	// Log the transport dest port
 	LOG("tdst[%i]\n", entry->entry.transp_dst);
+#endif
 }
 
 void logEntryRaw(nf2_of_entry_wrap* entry) {
 #ifndef NF2_DEBUG
 	return;
-#endif
+#else
 
 	int i;
 	unsigned char* c;
@@ -92,12 +93,13 @@ void logEntryRaw(nf2_of_entry_wrap* entry) {
 		LOG("%02x", c[i]);
 	}
 	LOG("\n");
+#endif
 }
 
 void logMask(nf2_of_mask_wrap* mask) {
 #ifndef NF2_DEBUG
 	return;
-#endif
+#else
 
 	int i;
 
@@ -145,12 +147,13 @@ void logMask(nf2_of_mask_wrap* mask) {
 
 	// Log the transport dest port
 	LOG("tdst[%0X]\n", mask->entry.transp_dst);
+#endif
 }
 
 void logMaskRaw(nf2_of_mask_wrap* mask) {
 #ifndef NF2_DEBUG
 	return;
-#endif
+#else
 
 	int i;
 	unsigned char* c;
@@ -164,12 +167,13 @@ void logMaskRaw(nf2_of_mask_wrap* mask) {
 		LOG("%02x", c[i]);
 	}
 	LOG("\n");
+#endif
 }
 
 void logAction(nf2_of_action_wrap* action) {
 #ifndef NF2_DEBUG
 	return;
-#endif
+#else
 
 	int i;
 
@@ -186,12 +190,13 @@ void logAction(nf2_of_action_wrap* action) {
 		}
 	}
 	LOG("]\n");
+#endif
 }
 
 void logActionRaw(nf2_of_action_wrap* action) {
 #ifndef NF2_DEBUG
 	return;
-#endif
+#else
 
 	int i;
 	unsigned char* c;
@@ -205,6 +210,7 @@ void logActionRaw(nf2_of_action_wrap* action) {
 		LOG("%02x", c[i]);
 	}
 	LOG("\n");
+#endif
 }
 
 /*
@@ -251,7 +257,7 @@ int nf2_write_of_wildcard(struct net_device *dev, int row,
 
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_WRITE_ADDR_REG, &row);
 	do_gettimeofday(&t);
-	LOG("** End wildcard entry write to row: %i\ time: %i.%i\n", row,
+	LOG("** End wildcard entry write to row: %i time: %i.%i\n", row,
 			(int)t.tv_sec, (int)t.tv_usec);
 
 	return 0;
@@ -262,7 +268,6 @@ int nf2_write_of_exact(struct net_device *dev, int row,
 
 	int i;
 	int val;
-	unsigned char* c;
 	struct timeval t;
 
 	unsigned int index = row << 7;
@@ -292,7 +297,7 @@ int nf2_write_of_exact(struct net_device *dev, int row,
 	}
 
 	do_gettimeofday(&t);
-	LOG("** End exact match entry write to row: %i\ time: %i.%i\n", row,
+	LOG("** End exact match entry write to row: %i time: %i.%i\n", row,
 			(int)t.tv_sec, (int)t.tv_usec);
 
 	return 0;
@@ -300,8 +305,7 @@ int nf2_write_of_exact(struct net_device *dev, int row,
 
 unsigned int nf2_get_exact_packet_count(struct net_device *dev, int row) {
 	unsigned int val = 0;
-	int i;
-	unsigned char* c;
+	unsigned int index = 0;
 
 	/* TODO: Need to scrape data from all 4 registers
 	 * in the case of a wildcarded source port and
@@ -311,7 +315,7 @@ unsigned int nf2_get_exact_packet_count(struct net_device *dev, int row) {
 	memset(&counters, 0, sizeof(nf2_of_exact_counters_wrap));
 
 	// build the index to our counters
-	unsigned int index = row << 7;
+	index = row << 7;
 
 	// Read the first word into our struct, to not disturb the byte count
 	nf2k_reg_read(dev, SRAM_BASE_ADDR_REG + index + sizeof(nf2_of_entry_wrap),
@@ -324,8 +328,7 @@ unsigned int nf2_get_exact_packet_count(struct net_device *dev, int row) {
 
 unsigned int nf2_get_exact_byte_count(struct net_device *dev, int row) {
 	unsigned int val = 0;
-	int i;
-	unsigned char* c;
+	unsigned int index = 0;
 
 	/* TODO: Need to scrape data from all 4 registers
 	 * in the case of a wildcarded source port and
@@ -335,7 +338,7 @@ unsigned int nf2_get_exact_byte_count(struct net_device *dev, int row) {
 	memset(&counters, 0, sizeof(nf2_of_exact_counters_wrap));
 
 	// build the index to our counters
-	unsigned int index = row << 7;
+	index = row << 7;
 
 	// Read the second word into our struct, to not disturb the packet count
 	nf2k_reg_read(dev, SRAM_BASE_ADDR_REG + index +
@@ -348,7 +351,9 @@ unsigned int nf2_get_exact_byte_count(struct net_device *dev, int row) {
 
 unsigned int nf2_get_wildcard_packet_count(struct net_device *dev, int row) {
 	unsigned int val = 0;
+#ifdef NF2_DEBUG
 	struct timeval t;
+#endif
 
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_READ_ADDR_REG, &row);
 	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_BASE_REG+(4*row), &val);
@@ -363,7 +368,9 @@ unsigned int nf2_get_wildcard_packet_count(struct net_device *dev, int row) {
 
 unsigned int nf2_get_wildcard_byte_count(struct net_device *dev, int row) {
 	unsigned int val = 0;
+#ifdef NF2_DEBUG
 	struct timeval t;
+#endif
 
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_READ_ADDR_REG, &row);
 	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_BASE_REG+(4*row), &val);
