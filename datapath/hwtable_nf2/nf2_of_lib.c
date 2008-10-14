@@ -181,14 +181,16 @@ int nf2_write_static_wildcard(void) {
 		for (i = 0; i < 4; ++i) {
 			entry.entry.src_port = i*2;
 			action.action.forward_bitmask = 0x1 << ((i*2)+1);
-			nf2_write_of_wildcard(dev, 28+i, &entry, &mask, &action);
+			nf2_write_of_wildcard(dev, (OPENFLOW_WILDCARD_TABLE_SIZE-4) +i,
+					&entry, &mask, &action);
 		}
 
 		// write the entries to send out packets coming from the cpu
 		for (i = 0; i < 4; ++i) {
 			entry.entry.src_port = (i*2)+1;
 			action.action.forward_bitmask = 0x1 << (i*2);
-			nf2_write_of_wildcard(dev, 24+i, &entry, &mask, &action);
+			nf2_write_of_wildcard(dev, (OPENFLOW_WILDCARD_TABLE_SIZE-8)+i,
+					&entry, &mask, &action);
 		}
 
 		nf2_free_net_device(dev);
