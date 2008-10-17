@@ -1,0 +1,260 @@
+       Installation Instructions for OpenFlow Reference Tests
+
+This document describes how to install and execute the OpenFlow reference test
+suite, which provides an automated way to verify that an OpenFlow switch 
+adheres to the OpenFlow Protocol.  Out of the box, tests work with the OpenFlow
+Reference Linux Switch, but can support other platforms by defining custom 
+setup and teardown scripts.  Additional tests verify the reference learning 
+Ethernet switch controller included with the OpenFlow Reference Linux Switch. 
+
+Please send any comments to:
+
+                      <info@openflowswitch.org> 
+
+=== Prerequisites ===
+
+The tests require no other packets to be sent on the testing interfaces.
+Built-in programs like avahi-daemon and/or network-manager may send packets,
+causing the tests to report failure.  The simplest way to remove these packets
+is to disable the ipv6 module and reboot, as well as remove avahi-daemon.
+
+All test configurations require the following Perl modules:
+ perl-Convert-Binary-C
+ perl-Data-HexDump 
+ perl-Net-Pcap 		(perl-Net-Pcap-0.16-1)
+ perl-Net-RawIP.i386 	(perl-Net-RawIP-0.23-1)
+ perl-Error.noarch 	(perl-Error-0.17012-1)
+
+These packages can be installed from source via www.cpan.org, or you can use
+pre-built packages (much faster!).
+
+The code has been tested on CentOS 5.1/5.2, Ubuntu Hardy Heron, and Debian
+Unstable under the following configurations.
+
+** Config 1 - Four virtual Ethernet loopback pairs
+
+To set these up, you must have a kernel version >= 2.6.24 and the veth kernel 
+module compiled.
+
+To set up link pairs, you must also have iproute installed.
+
+Scripts to simplify this are included in bin/:
+-bin/veth_setup.pl
+-bin/veth_teardown.pl
+
+Before running any veth tests, make sure to run bin/veth_setup.pl, which will 
+create interfaces veth{0..7}.  The usual ports of eth{1..8} are remapped to these 
+ports via the file veth.map in /bin/.  To remove these interfaces, run
+bin/veth_teardown.pl
+
+** Config 2 - Two quad-port Ethernet NICs connected by physical loopback cables
+
+Assign ports as eth{1..8} and connect cables as:
+ eth1 to eth5
+ eth2 to eth6
+ eth3 to eth7
+ eth4 to eth8
+
+** Config 3 - Four local ethernet ports connected to external switch
+
+A third configuration is to use four ports of Ethernet on the test machine,
+connected to an external switch.  To do this, you must provide custom setup
+and teardown scripts that enable/disable OpenFlow on the external switch via 
+SSH, telnet, or SNMP. See the scripts in bin/ for examples of how to create 
+these. 
+
+** Config 4 - One quad-port Ethernet NIC connected to a NetFPGA
+
+This testing configuration is used to verify the NetFPGA's OpenFlow
+functionality. It requires 4 ports of Ethernet connected to corresponding ports
+on the NetFPGA in the following arrangement:
+ eth1 to nf2c0
+ eth2 to nf2c1
+ eth3 to nf2c2
+ eth4 to nf2c3
+
+This test also assumes that you have correctly installed the NetFPGA ahead of
+time. For further information about the NetFPGA please see
+http://www.netfpga.org/
+
+Of particular note, by default installing the NetFPGA also puts the
+NF2/lib/Perl5 directory into your PERL5LIB environment variable, this must be
+removed else the tests will fail. Ensure that your PERL5LIB only contains the
+path set by the env_vars file that will be discussed later in this document.
+
+ 
+=== Ubuntu Quickstart ===
+
+Follow these instructions to quickly create a VM or physical machine with
+OpenFlow that runs the tests.
+
+Ubuntu is recommended because it is based on Debian sources and has a recent
+kernel version - which removes the need for some steps.
+
+If installing as a VM, you'll need to install VMWare Server (Windows/Linux,
+free) or VMWare Fusion (Mac, $$$).  
+
+Download the Ubuntu 8.04 Desktop or Server ISO, and install Ubuntu.
+
+If you prefer, install VMWare Tools to enable better mouse and display support.
+Alternately, install SSH and use it for the rest of the instructions:
+ sudo apt-get install ssh
+Install GCC, which is required for OpenFlow:
+ sudo apt-get install gcc
+Download and untar OpenFlow v0.8.1
+ wget http://openflowswitch.org/downloads/openflow-v0.8.1.tar.gz
+ tar xzf openflow-v0.8.1.tar.gz
+Build OpenFlow user-space and kernel-space switches:
+ cd openflow-v0.8.1
+ ./configure --with-l26=/lib/modules/`uname -r`/build
+ make
+ sudo make install
+Now, download and untar the OpenFlow Test Suite:
+ wget http://openflowswitch.org/downloads/openflow-test-v0.8.1-r2.tar.gz
+Install required packages for the test suite:
+ sudo apt-get install liberror-perl libio-interface-perl liblist-moreutils-perl libpcap0.8-dev
+Download the following:
+ wget http://search.cpan.org/CPAN/authors/id/S/SA/SAPER/Net-Pcap-0.14.tar.gz
+ wget http://search.cpan.org/CPAN/authors/id/S/SZ/SZABGAB/Net-RawIP-0.21.tar.gz
+ wget http://search.cpan.org/CPAN/authors/id/M/MH/MHX/Convert-Binary-C-0.71.tar.gz
+ wget http://search.cpan.org/CPAN/authors/id/F/FT/FTASSIN/Data-HexDump-0.02.tar.gz
+For each package:
+ tar xzf <package.tar.gz>
+ cd <package>
+ perl Makefile.PL
+ make
+ make install
+Remove avahi-daemon, which often causes tests to fail by sending out messages:
+ sudo apt-get remove avahi-daemon
+Create a root password, to be used later: 
+ sudo passwd root
+ 
+From here, skip to the Running The Tests section below.
+
+
+=== CentOS 5.2 ===
+ 
+First, download and verify you can build the current version of OpenFlow.
+
+Install the RPMForge repository:
+ wget http://dag.wieers.com/rpm/packages/rpmforge-release/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
+ rpm -Uhv rpmforge-release-0.3.6-1.el5.rf.i386.rpm
+
+Install Perl packages:
+ yum -y install perl-Convert-Binary-C perl-Data-HexDump perl-Net-Pcap perl-Net-RawIP.i386 perl-Error.noarch
+ 
+To run tests with Veth pairs, you'll need to upgrade to a newer version of the kernel.
+
+Install iproute:
+ yum -y install iproute
+
+From here, skip to the Running The Tests section below.
+
+=== Debian Install ===
+
+These instructions derive from http://netfpga.org/netfpgawiki/index.php/Ubuntu_Compatibility
+
+Some instructions may no longer be necessary.
+
+*The version of libnet-pcap-perl that Debian and Ubuntu 6.06/7.04/7.10 provides is ANCIENT (version 0.04). The latest stable version is 0.14. No newer version is available as a package, so we must build it ourselves.
+*The version of libpcap that Debian and Ubuntu 7.04 provides by default is old (version 0.72). The latest stable version is 0.9.8. Fortunately, the package manager has a newer version called "libpcap0.8" that is really version 0.9.5
+*Remove old packages / install new ones 
+
+May not be necessary:
+ apt-get remove libpcap0.7 libpcap0.7-dev libpcap-dev libnet-pcap-perl
+
+Will be necessary:
+ apt-get install liberror-perl libio-interface-perl liblist-moreutils-perl libpcap0.8 libpcap0.8-dev psmisc
+Listed individually:
+ apt-get install liberror-perl
+ apt-get install libio-interface-perl     (Used to manually build a newer version of Net::PCap)
+ apt-get install liblist-moreutils-perl   (Used to manually build a newer version of Net::RawIP)
+ apt-get install libpcap0.8
+ apt-get install libpcap0.8-dev
+ apt-get install psmisc                   (Used to get killall)
+
+Required packages have Debian versions at packages.debian.org, however these packages may not be the newest, or not exist at all.  libnet-rawip-perl and libnet-pacp-perl may work, but have not been tested. We'll manually install these two packages:
+http://search.cpan.org/~saper/Net-Pcap-0.14/Pcap.pm
+http://search.cpan.org/~szabgab/Net-RawIP-0.21/lib/Net/RawIP.pm
+http://search.cpan.org/dist/Convert-Binary-C/lib/Convert/Binary/C.pm
+http://search.cpan.org/dist/Data-HexDump/lib/Data/HexDump.pm
+
+Download the following:
+ wget http://search.cpan.org/CPAN/authors/id/S/SA/SAPER/Net-Pcap-0.14.tar.gz
+ wget http://search.cpan.org/CPAN/authors/id/S/SZ/SZABGAB/Net-RawIP-0.21.tar.gz
+ wget http://search.cpan.org/CPAN/authors/id/M/MH/MHX/Convert-Binary-C-0.71.tar.gz
+ wget http://search.cpan.org/CPAN/authors/id/F/FT/FTASSIN/Data-HexDump-0.02.tar.gz
+For each package:
+ tar xzf <package.tar.gz>
+ cd <package>
+ perl Makefile.PL
+ make
+ make install
+ 
+Install if you want to use veth pairs:
+ apt-get install iproute
+
+=== Running the Tests ===
+
+In the sections below, {platform} refers to:
+user
+user_veth
+kmod
+kmod_veth
+nf2
+
+First copy the env_vars file to your home directory:
+ cd ~/
+ cp <openflow_dir>/regress/scripts/env_vars .
+
+Update the OF_ROOT (openflow) environment variable to point to your OpenFlow
+directory in your setup.  These exports can also be added to your ~/.bashrc
+file to load automatically:
+ vim env_vars
+
+Enter a root shell session, or set up sudo. The perl-Net-RawIP library requires
+root access to bind to ports.
+ su
+
+Source the environment variables:
+ source env_vars
+
+For a setup with virtual ethernet pairs, set them up:
+ veth_setup.pl 
+
+Verify your setup by running regression tests on your platform of choice:
+ of_{platform}_test.pl
+For the user-space switch, the tests should show pass for all scripts except
+the _X_controller ones.  For the kernel-space switch, all tests should pass.
+
+To see more options for the regression script, type:
+ of_{platform}_test.pl --help
+
+== Writing Your Own Tests ==
+
+Look at an example controller test:
+ vim <openflow_dir>/regress/projects/learning_switch/regress/test_unicast_unknown/run.pl
+ 
+Look at an example black box switch test:
+ vim <openflow_dir>/regress/projects/black_box/regress/test_hello/run.pl
+
+To run an individual test (learning switch example):
+ cd <openflow_dir>/regres/projects/learning_switch/regress/test_unicast_unknown
+ of_{platform}_setup.pl; ./run.pl; of_{platform}_teardown.pl
+
+To see traffic when running a black box test, use tcpdump.  Secchan and the
+Perl code use the loopback interface to communicate, and you can snoop on this:
+ tcpdump -X -i lo -s 256
+
+It can be convenient to run your test in isolation, without setup and teardown
+automatically called.  To set up the OF kmod and interfaces, run:
+ of_{platform}_setup.pl
+
+To remove the OF kmod cleanly, run:
+ of_{platform}_teardown.pl
+Note that the kmod refuses removal until the interfaces and datapaths have been removed.
+
+== Reporting Bugs ==
+
+Please report problems to: 
+info@openflowswitch.org

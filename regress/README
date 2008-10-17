@@ -1,0 +1,302 @@
+	OpenFlow Reference Tests <http://openflowswitch.org>
+
+What's here?
+------------
+
+This distribution includes:
+
+    - 22 "black box" tests to verify that an OF switch conforms to the 
+      OF protocol v0.8.1
+
+    - 7 tests to verify that the reference controller acts as a learning
+      Ethernet switch 
+
+The tests are intended to simplify the process of creating an OF switch
+that conforms to spec.  
+
+Please see INSTALL for instruction on installing and running the tests.
+
+Changelog
+---------------
+v0.8.2
+-Added support for the NetFPGA
+-Integrated the tests into the OpenFlow directory structure
+
+v0.8.1-r2
+-refactored code to make new test ports easier
+-fixed documentation bug in test_LLC
+-changed all interfaces IPs to 192.168.20X.X to not conflict with the
+  IP addrs typically assigned via DHCP by home routers
+-added easy support for testing user-space switch with physical ports
+-added easy support for user-space switch with virtual ports
+
+v0.8.1-r1
+-added instructions for Debian install
+-fixed timing bug in packet_out
+
+v0.8.1-r0
+-all tests updated to OF spec v0.8.1
+-added black box test switch_config
+-fixed timing dependence in learning switch tests
+
+v0.2.1
+-initial release for OF spec v0.5.1, code tested for ref OF code v0.2.1
+
+Platform support
+----------------
+
+The code is written in Perl5, and should in theory work on any system.  
+It has been tested with CentOS 5.2, Ubuntu 8.04, and Debian Unstable.
+
+Learning Switch Tests
+----------------
+
+Two tests currently fail with OF Reference v0.8.1:
+
+-Unicast, send to self: the switch is forwarding packets with source and destination on the same port to that port instead of dropping it.
+
+-Unicast, hub connected:the switch is forwarding traffic to the same port it has came out of, although the source and destination are on the same port and switch already knows about that.
+
+Both failing tests can be re-activated by changing 
+projects/learning_switch/regress/tests.txt
+
+=== Unicast, unknown dest ===
+:; Name: test_unicast_unknown
+:; Owner: Peyman
+:; Description
+::send packet out p0 to unknown MAC addr
+::verify unmodified packet received at p1..p3
+::verify counters incremented
+
+=== Unicast, known dest ===
+:; Name: test_unicast_known
+:; Owner: Peyman
+:; Description: Send to known unicast address, verify switch sent to only one port
+::send out p0 to p1
+::verify received at p1..p3
+::send out p1 to p0
+::verify received at p0, NOT p2, p3
+::send out p2 to p0
+::verify received at p0, NOT p1, p3
+::send out p3 to p0
+::verify received at p0, NOT p1, p2
+::verify counters
+
+=== Broadcast ===
+:; Name: test_broadcast
+:; Owner: Peyman
+:; Description: Send to broadcast address, verify received on all ports
+::send out p0 to all
+::verify received at p1..p3
+::send out p0 to all, again
+::verify received at p1..p3, again
+::repeat for each port
+::verify counters
+
+=== Unicast, send to self ===
+:; Name: test_unicast_self
+:; Owner: Peyman
+:; Description: Send to self, verify dropped
+
+=== Unicast, change attachment point ===
+:; Name: test_unicast_move
+:; Owner: Peyman
+:; Description: Send normal unicast, but then change attachment point (one MAC sent from multiple ports), verify that new location is used
+::send form host A at p0 to p1
+::verify received at p1..p3
+::send from p1 to host A
+::verify received at p0, NOT p1, p2, p3
+::(original p0 has now moves to p2)
+::send from host A (currently at p2) to p1
+::verify received at p1, NOT p0, p2, p3
+::send from p1 to Host A (currently at p2)
+::verify received p2, NOT p0, p1, p3 
+
+=== Unicast, hub connected === 
+:; Name: test_hub_connected
+:; Owner: Peyman
+:; Description: if a port connects to a hub, we may receive traffic for which the sender and receiver are connected to the same port.  This traffic should be dropped.
+
+=== Unicast, multiple hosts per port ===
+:; Name: test_unicast_multiple_hosts
+:; Owner: Peyman
+:; Description: assume each port is connected to a switch, so that each port receives traffic from multiple MAC addresses - say, 20 per port.  Other than multiple MAC addrs per port, this is just like test_unicast_known.  Each port sends to a host at a different port.
+
+
+Black Box Tests
+----------------
+
+One test currently fails with the OF Reference v0.8.1 kmod:
+
+-LLC: Pkt is forwarded to the controller, when it should be dropped.
+
+Two tests are currently failing with the OF Reference v0.8.1 user-space switch:
+
+-test_forward_exact_controller
+-test_forward_wildcard_controller
+
+All failing tests can be re-activated by changing 
+projects/black_box/regress/tests.txt
+
+== Basic Functionality ==
+
+=== Hello ===
+:; Name: test_hello
+:; Owner: Brandon Heller
+:; Description: send hello packet to switch, verify reply with correct params
+
+=== Send from Switch to Controller ===
+:; Name: test_packet_in
+:; Owner: Brandon Heller
+:; Description: send packet from switch to SC, verify it is received at the controller
+
+=== Send from Controller to Switch ===
+:; Name: test_packet_out
+:; Owner: Brandon Heller
+:; Description: send packet to switch on secure chan for each output port, ensure packet received at proper ports.
+
+=== Switch Config ===
+:; Name: test_switch_config
+:; Owner: Brandon Heller
+:; Description: verify default switch config, set config, verify that config has changed
+:; Status: done
+
+=== Flow Expired ===
+:; Name: test_flow_expired
+:; Owner: Brandon Heller
+:; Description: send add flow message for short timeout, verify no error message received, plus flow timeout message received within time bounds 
+::send a second add flow message and keep it active with packets; verify that flow expires only if idle
+
+=== Miss Send Length ===
+:; Name: test_miss_send_length
+:; Owner: Brandon Heller
+:; Description: get the miss send length from the hello message, then send a packet to switch, verify correct length for forwarded chunk of packet
+
+== Modify State Tests ==
+
+=== Forward Any Port ===
+:; Name: test_forward_any_port
+:; Owner: Brandon Heller
+:; Description: add a flow mod with all wildcards set, and ensure that all packets get diverted to the specified port.  
+
+=== Forward Exact Port ===
+:; Name: test_forward_exact_port
+:; Owner: Brandon Heller
+:; Description: add an exact flow entry, verify a packet is forwarded to the correct port, for all port combinations
+
+=== Forward Exact ALL ===
+:; Name: test_forward_exact_all
+:; Owner: Brandon Nefcy
+:; Description: add an exact flow entry, verify a packet is sent out all ports, for all port combinations
+:; Implementation: One packet is sent in to eth0, eth1, eth2, and eth3.  An exact match flow entry is set up for each, with the expected action to be flooding the packet out on all ports except the input port.
+
+=== Forward Exact Controller ===
+:; Name: test_forward_exact_controller
+:; Owner: Brandon Nefcy
+:; Description: add an exact flow entry, verify a packet is forwarded to the secure channel
+:; Implementation: One packet is sent in on each of eth0, eth1, eth2, and eth3. Test behavior expects to see each packet arrive via the secchan.
+
+=== Forward Wildcard Port ===
+:; Name: test_forward_wildcard_port
+:; Owner: Brandon Nefcy
+:; Description: Test each individual wildcard field. verify a matching packet is forwarded to the correct port, for all port combinations, and a mismatching packet is sent to secchan
+:; Implementation: For each possible single-input-port to single-output-port combination flows are set up, one at a time, where each flow is wildcarded on a single field, with enough flows rotated in to test every wildcard field.  For each, a matching packet is sent in and expected on the appropriate output port, and a mismatching packet is sent in and expected on the secchan output
+
+=== Forward Wildcard ALL ===
+:; Name: test_forward_wildcard_all
+:; Owner: Brandon Nefcy
+:; Description: same as test_forward_wildcard_port, but instead of sending from one input to one output, sends from one input to all outputs.
+:; Implementation: Combination of test_foward_wildcard_port and test_forward_exact_all
+
+=== Forward Wildcard Controller ===
+:; Name: test_forward_wildcard_controller
+:; Owner: Brandon Nefcy
+:; Description: Combination of test_forward_wildcard_port and test_forward_exact_controller.  Tests various single wildcard flows where matching packets and mismatching packets are both sent to secchan.
+:; Status: Checked in, working, but with limitations as mentioned in test_forward_wildcard_port
+
+=== Forward After Expiration ===
+:; Name: test_forward_after_expiration
+:; Owner: Brandon Nefcy
+:; Description: insert short-lived flow, use it to forward packet, wait until expiration, send packet again, verify nothing received and counters zeroed
+:; Implementation: An exact match flow entry is inserted for a specific input port -> output port combination (ie eth0->eth1), a packet is sent to match this entry with the test expecting the appropriate output behavior.  The test waits for the flow entry to expire and verifies the expiration via a secchan flow expiration message, then proceeds to re-send the same packet from before, expecting a secchan OFPR_NO_MATCH message.  The above is repeated for all combinations of input port -> output port.
+
+=== Overlapping Flow Entries ===
+:; Name: test_forward_overlapping_flow_entries
+:; Owner: Brandon Nefcy
+:; Description: insert both wildcard and exact match flow entries that overlap, verify that the exact match takes precedence
+:; Implementation: One packet is sent in on eth0, eth1, eth2, and eth3.  Before each packet is sent, two flow entries are set up, one where the entire flow is wildcarded and the action is to send to secchan, and another where the flow is set up to be an exact-match for the packet about to be sent and the action is to flood the packet.  The test verifies that the sent packets are flooded out, and no secchan messages are received other than the flows expiring.
+
+=== Delete ===
+:; Name: test_delete
+:; Owner: Masa
+:; Description: insert two flow entries (one wildcard entry and one exact entry where the exact one is covered by the wildcard one). Send packets to verify they are forwarded correctly. Then delete the wildcard entry with DELETE (not strict)  -- both the wildcard and the exeact entries should be deleted. To check this, send a packet matching to the exact entry to verify it gets sent to contoller. Re-insert the entry and verify that counters are zeroed.
+::; Note -- Counter reading has not been implemented yet so the last part is not verified (5/2/2008)
+:; Status: Done (rewritten with clean format)
+
+=== Delete Strict ===
+:; Name: test_delete_strict
+:; Owner: Masa
+:; Description: insert two flow entries (one wildcard entry and one exact entry where the exact one is covered by the wildcard one. The output ports of these two entries are different). Send packets to verify they are forwarded correctly. Then delete the wildcard entry with DELETE_STRICT (not strict) -- only the wildcard entry should be deleted (the exeact entry should not be deleted). To check this, send a packet matching to the exact entry to verify it gets forwarded.
+:; Status: Done (rewritten with clean format)
+
+== Unusual Data ==
+
+=== IP Options ===
+:; Name: test_ip_options
+:; Owner: Masa
+:; Description: suggested by Nicira.
+::;(1) Create a flow entry that matches to a UDP flow coming from port eth7 (action = forward to port eth8).
+::;(2) Send UDP packets with IP time stamp option (ip_hdr_len=7) to port eth7.
+::;(3) To see whether the packet comes out from port eth8.
+::; As of May 2, 2008, test succeeded.
+
+=== IP Protocol ===
+:; Name: test_ip_protocol
+:; Owner: Masa
+:; Description: 
+:: Added by Masa
+:: see if src/dst port fields are used for matching only for TCP/UDP packets
+:: As of May 2, 2008, the result is the following. Even if protocol is not TCP nor UDP, port number fields seems used for matching. Only when protocol number is specified to zero, port number fields are not used for matching.. It seems a strange behavior.
+:; Status: Done (rewritten w/ clean format) 
+:; Note : TCP checksum (in TCP header) is not calculated due to lack of NF2::TCP library (but OF switch won't check it anyway).
+
+=== IP Offset > Pkt Len ===
+:; Name: test_ip_offset
+:; Owner: Masa
+:; Description: 
+:: possible security risk, shouldn't be an issue
+:: suggested by Nicira
+:: Create a flow entry. Send several packets matching the entry but whose IP Offset > Pkt Len. Verify all the packets are forwarded to the specified port (specified by the flow entry).
+
+=== TCP Options ===
+:; Name: test_tcp_options
+:; Owner: Masa
+:; Description: 
+:: See if TCP options affect operation
+:: Install a TCP flow entry. Sent a TCP pkt that matches to the installed entry but has TCP option. Verify the packet is forwarded to the specified port.
+:; Note : TCP checksum (in TCP header) is not calculated due to lack of NF2::TCP library (but OF switch won't check it anyway).
+
+=== LLC ===
+:; Name: test_llc
+:; Owner: Masa
+:; Description: see LLC packet format; adds 5B to Eth packet
+::; Install a flow entry (exact match to an IP flow). Send an IP packet that matches to the installed entry and has the following Ethernet LLC/SNAP header. Verify it is forwarded to the specified port. 
+:::; Dst MAC (6 byte)
+:::; Src MAC (6 byte)
+:::; Length  (2 byte) = data length from LLC header to the end of IP packet
+:::; LLC header (3 byte) = 0xAA 0xAA 0x03 (always this value for IP packets)
+:::; SNAP header(5 byte) = OUI(3B)+Type(2B)=0x000000 + 0x0800(IP) (always this value for IP packets)
+:::; IP Packet
+:; NOTE: It fails (pkt is forwarded to the controller) as of June 11, 2008.
+
+
+Bugs/Shortcomings
+-----------------
+
+- test_llc and test_ip_protocol are not actually run when enabled in a tests.txt file  
+
+Contact 
+-------
+
+e-mail: info@openflowswitch.org
+www: http://openflowswitch.org/
