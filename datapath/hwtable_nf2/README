@@ -1,7 +1,7 @@
 NetFPGA Hardware Table
   Date - 10/13/08
-  Software - David Erickson
-  Hardware - Jad Naous
+  Software - David Erickson - derickso@stanford.edu
+  Hardware - Jad Naous - jnaous@stanford.edu
 ----------------------------------------
 
 The NetFPGA Hardware Table creates a single software table that contains all
@@ -55,3 +55,7 @@ Add the NetFPGA interfaces to the datapath:
 	% <openflow>/utilities/dpctl addif nl:0 nf2c3
 
 At this point your OpenFlow switch should be ready to go.
+
+Known Bugs
+----------------------------------------
+There is currently no support for priority amongst wildcard-match entries.

@@ -43,6 +43,8 @@ the following components:
 
 	- dpctl, a tool for configuring the kernel module.
 
+	- Hardware acceleration support, see README.hwtables
+
 The second implementation is a single userspace program, named
 "switch", that integrates all three parts of an OpenFlow switch.
 
