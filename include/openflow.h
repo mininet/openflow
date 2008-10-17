@@ -292,7 +292,7 @@ struct ofp_action {
         uint16_t tp;                     /* OFPAT_SET_TP_SRC/DST */
     } arg;
 };
-OFP_ASSERT(sizeof(struct ofp_action) == 8);
+//OFP_ASSERT(sizeof(struct ofp_action) == 8); Commented due to PERL parse error
 
 /* Send packet (controller -> datapath). */
 struct ofp_packet_out {
