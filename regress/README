@@ -18,6 +18,10 @@ Please see INSTALL for instruction on installing and running the tests.
 
 Changelog
 ---------------
+v0.8.2
+-Added support for the NetFPGA
+-Integrated the tests into the OpenFlow directory structure
+
 v0.8.1-r2
 -refactored code to make new test ports easier
 -fixed documentation bug in test_LLC
