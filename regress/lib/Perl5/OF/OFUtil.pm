@@ -166,14 +166,14 @@ sub setup_kmod {
 	# create openflow switch on four ports
 	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
 
-	`dpctl adddp nl:0`;
+	`${openflow_dir}/utilities/dpctl adddp nl:0`;
 
 	for ( my $i = 5 ; $i <= 8 ; $i++ ) {
 		my $iface = nftest_get_iface("eth$i");
-		`dpctl addif nl:0 $iface`;
+		`${openflow_dir}/utilities/dpctl addif nl:0 $iface`;
 	}
 
-	system('secchan nl:0 tcp:127.0.0.1 &');
+	system("${openflow_dir}/secchan/secchan --inactivity-probe=999999 nl:0 tcp:127.0.0.1 &");
 }
 
 sub setup_NF2 {
@@ -196,7 +196,7 @@ sub setup_NF2 {
 	}
 	
     # load the openflow bitfile on the NetFPGA
-	`nf2_download ${openflow_dir}/datapath/hwtable_nf2/openflow_switch.bit`;
+	system("nf2_download ${openflow_dir}/datapath/hwtable_nf2/openflow_switch.bit");
 
 	# create openflow switch on four ports
 	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
@@ -214,7 +214,7 @@ sub setup_NF2 {
         print "added interface\n";
 	}
 
-	system("${openflow_dir}/secchan/secchan nl:0 tcp:127.0.0.1 &");
+	system("${openflow_dir}/secchan/secchan --inactivity-probe=999999 nl:0 tcp:127.0.0.1 &");
 }
 
 sub setup_user {
@@ -248,10 +248,10 @@ sub teardown_kmod {
 	# remove interfaces from openflow
 	for ( my $i = 5 ; $i <= 8 ; $i++ ) {
 		my $iface = nftest_get_iface("eth$i");
-		`dpctl delif nl:0 $iface`;
+		`${openflow_dir}/utilities/dpctl delif nl:0 $iface`;
 	}
 
-	`dpctl deldp nl:0`;
+	`${openflow_dir}/utilities/dpctl deldp nl:0`;
 
 	my $of_kmod_removed = `rmmod openflow_mod`;
 	if ( $of_kmod_removed ne "" ) {
