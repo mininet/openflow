@@ -63,6 +63,12 @@ This distribution includes some additional software as well:
 	- A patch to tcpdump that enables it to parse OpenFlow
           messages.
 
+	- A regression suite that tests OpenFlow functionality, please
+	      see regress/README. 
+
+	- A Wireshark dissector that can decode the OpenFlow wire 
+	      protocol. Please see utilities/wireshark_dissectors/README.
+
 For installation instructions, read INSTALL.  Each userspace program
 is also accompanied by a manpage.
 
