@@ -69,7 +69,7 @@ if (! -e "$openflow_dir/include/openflow.h") {
 	die "please set OF_ROOT in path so that OFUtil.pm can extract constants"
 }
 
-use constant CURRENT_OF_VER => 0x85;
+use constant CURRENT_OF_VER => 0x96;
 
 # data length forwarded to the controller if miss (used in do_hello_sequence)
 use constant MISS_SEND_LEN_DEFAULT => 0x80;
@@ -433,16 +433,27 @@ sub do_hello_sequence {
 
 	my ( $ofp, $sock ) = @_;
 
-	my $hdr_args_features_request = {
+	my $hdr_args_hello = {
 		version => CURRENT_OF_VER,
-		type    => $enums{'OFPT_FEATURES_REQUEST'},
-		length  => $ofp->sizeof('ofp_header'),        # should generate automatically!
-		xid     => 0x00000000
+		type 	=> $enums{'OFPT_HELLO'},
+		length  => $ofp->sizeof('ofp_header'),
+		xid 	=> 0
 	};
-	my $features_request = $ofp->pack( 'ofp_header', $hdr_args_features_request );
+	my $hello = $ofp->pack( 'ofp_header', $hdr_args_hello);
+	
+	# Send 'hello' message
+	print $sock $hello;
 
-	# Send 'features_request' message
-	print $sock $features_request;
+#	my $hdr_args_features_request = {
+#		version => CURRENT_OF_VER,
+#		type    => $enums{'OFPT_FEATURES_REQUEST'},
+#		length  => $ofp->sizeof('ofp_header'),        # should generate automatically!
+#		xid     => 0x00000000
+#	};
+#	my $features_request = $ofp->pack( 'ofp_header', $hdr_args_features_request );
+#
+#	# Send 'features_request' message
+#	print $sock $features_request;
 
 	# Should add timeout here - will crash if no reply
 	my $recvd_mesg;
@@ -452,19 +463,23 @@ sub do_hello_sequence {
 
 	# Inspect  message
 	my $msg_size      = length($recvd_mesg);
-	my $expected_size = $ofp->sizeof('ofp_switch_features') + 4 * $ofp->sizeof('ofp_phy_port');
+	my $expected_size = $ofp->sizeof('ofp_header');
+#	my $expected_size = $ofp->sizeof('ofp_switch_features') + 4 * $ofp->sizeof('ofp_phy_port');
 
 	# should probably account for the expected 4 ports' info
 	# !!! disabled until we can inspect these
 	#compare( "msg size", length($recvd_mesg), '==', $expected_size );
 
-	my $msg = $ofp->unpack( 'ofp_switch_features', $recvd_mesg );
+	#my $msg = $ofp->unpack( 'ofp_switch_features', $recvd_mesg );
+	my $msg = $ofp->unpack( 'ofp_hello', $recvd_mesg );
 
 	#print HexDump ($recvd_mesg);
 	#print Dumper($msg);
 
 	# Verify fields
-	verify_header( $msg, 'OFPT_FEATURES_REPLY', $msg_size );
+	verify_header( $msg, 'OFPT_HELLO', $msg_size );
+	
+	print "received Hello\n";
 }
 
 sub get_config {
@@ -553,10 +568,10 @@ sub run_black_box_test {
 		print "waiting for secchan to connect\n";
 		my $new_sock = $sock->accept();
 
+		do_hello_sequence( $ofp, $new_sock );
+
 		# Launch PCAP listenting interface
 		nftest_start( \@interfaces );
-
-		do_hello_sequence( $ofp, $new_sock );
 
 		&$test_ref( $new_sock, \%options );
 
