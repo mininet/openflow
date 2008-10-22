@@ -1,11 +1,11 @@
-TARGET=openflow-spec-v0.9-draft3
+TARGET=openflow-spec-v0.9
 
 BIBTEX := bibtex
 TGIF   := tgif
 XFIG   := xfig
 GNUPLOT:= gnuplot
 
-SOURCES=openflow-spec-v0.9-draft3.tex\
+SOURCES=openflow-spec-v0.9.tex\
 	appendix.tex
 
 all: $(TARGET).ps

@@ -60,15 +60,42 @@ The source and destination netmasks are each specified with a 6-bit number in th
 A number of actions may be associated with flows or packets.  The currently defined action types are:
 
 \input{enum/ofp_action_type} 
-Output actions are described in Section \ref{ft:actions}, while Field-Modify actions are described in Table \ref{table:field modify actions}.  An action definition contains the action type and any associated data:
-
-\input{struct/ofp_action}
-The \verb|vlan_id| field is 16 bits long, when an actual VLAN id is only 12 bits. The value \verb|0xffff| is used to indicate that no VLAN id was set.
-\\\\
+Output actions are described in Section \ref{ft:actions}, while Field-Modify actions are described in Table \ref{table:field modify actions}.  An action definition contains the action type, length, and any associated data:
+\input{struct/ofp_action_header}
 An \verb|action_output| has the following fields:
 
 \input{struct/ofp_action_output}
-The \verb|max_len| indicates the maximum amount of data from a packet that should be sent when the port is \verb|OFPP_CONTROLLER|.  If \verb|max_len| is zero, then the entire packet should be sent.  The \verb|port| specifies the physical port from which packet packets should be sent.  
+The \verb|max_len| indicates the maximum amount of data from a packet that should be sent when the port is \verb|OFPP_CONTROLLER|.  If \verb|max_len| is zero, then the entire packet should be sent.  The \verb|port| specifies the physical port from which packet packets should be sent. 
+ \\\\
+An \verb|action_vlan_vid| has the following fields:
+
+\input{struct/ofp_action_vlan_vid}
+The \verb|vlan_vid| field is 16 bits long, when an actual VLAN id is only 12 bits. The value \verb|0xffff| is used to indicate that no VLAN id was set.
+\\\\
+An \verb|action_vlan_pcp| has the following fields:
+
+\input{struct/ofp_action_vlan_pcp}
+The \verb|vlan_pcp| field is 8 bits long, but only the lower 3 bits have meaning.  
+\\\\
+An \verb|action_dl_addr| has the following fields:
+
+\input{struct/ofp_action_dl_addr}
+The \verb|dl_addr| field is the MAC address to set.
+\\\\
+An \verb|action_nw_addr| has the following fields:
+
+\input{struct/ofp_action_nw_addr}
+The \verb|nw_addr| field is the IP address to set.
+\\\\
+An \verb|action_tp_port| has the following fields:
+
+\input{struct/ofp_action_tp_port}
+The \verb|tp_port| field is the TCP/UDP/other port to set.
+\\\\
+An \verb|action_vendor| has the following fields:
+
+\input{struct/ofp_action_vendor_header}
+The \verb|vendor| field is the Vendor ID, which takes the same form as in struct \verb|ofp_vendor|.
 
 \subsection{Controller-to-Switch Messages}
 
@@ -284,7 +311,7 @@ In an OpenFlow protocol implementation divided into multiple layers, the echo re
 \subsubsection{Vendor}
 The Vendor message is defined as follows:
 
-\input{struct/ofp_vendor}
+\input{struct/ofp_vendor_header}
 The \verb|vendor| field is a 32-bit value that uniquely identifies the vendor. If the most significant byte is zero, the next three bytes are the vendor's IEEE OUI. If vendor does not have (or wish to use) their OUI, they should contact the OpenFlow consortium to obtain one. The rest of the body is uninterpreted.
 \\\\
 If a switch does not understand a vendor extension, it must send an \verb|OFPT_ERROR| message with a \verb|OFPBRC_BAD_VENDOR| error code and \verb|OFPET_BAD_REQUEST| error type. 
