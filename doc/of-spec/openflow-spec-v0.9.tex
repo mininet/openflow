@@ -330,6 +330,9 @@ When an OpenFlow connection is first established, each side of the connection mu
 \\\\
 If the negotiated version is supported by the recipient, then the connection proceeds. Otherwise, the recipient must reply with an \verb|OFPT_ERROR| message with a \verb|type| field of \verb|OFPET_HELLO_FAILED|, a \verb|code| field of \verb| OFPHFC_COMPATIBLE|, and optionally an ASCII string explaining the situation in \verb|data|, and then terminate the connection.
 
+\subsection{Connection Interruption}
+In the case that the switch loses contact with the controller, the default behavior must be to do nothing - to let flows timeout naturally.  Other behaviors can be implemented via vendor-specific command line interface or vendor extension OpenFlow messages.  
+
 \subsection{Encryption}
 The switch and controller communicate through an SSL connection.  The SSL connection is initiated by the switch on startup to the controller’s server, which is located by default on TCP port 976.   The switch and controller mutually authenticate by exchanging certificates signed by a site-specific private key.  Each switch must be user-configurable with one certificate for authenticating the controller (controller certificate) and the other for authenticating to the controller (switch certificate).
 
@@ -342,22 +345,25 @@ Port status, as specified by the spanning tree protocol, is then used to limit p
 Switches that do not support 802.1D spanning tree must allow the controller to specify the port status for packet flooding through the port-mod messages. 
 
 \subsection{Flow Table Modification Messages}
-The switch software must report some invalid flow mod attempts.  For example, if the controller sends a \verb|flow_mod| message with the \verb|OFPP_TABLE| virtual port as part of the action, the switch must respond with an \verb|OFPEFM_TABLE_PORT| message.  If the controller specifies a \verb|FLOOD| action but the switch doesn’t support it, the switch must reply with an \verb|OFPEFM_FLOOD_UNSUPPORTED| error message.  If the controller specifies a \verb|NORMAL| action but the switch doesn’t support it, the switch must reply with an \verb|OFPEFM_NORMAL_UNSUPPORTED| message. 
-\\\\
-Note that for all other \verb|flow_mod| messages, an error should only be reported if the \verb|REPORT_ERROR| flag is set in the message’s flags field.
-
-\subsubsection{Flow Insertion}
-For ADD commands with wildcard fields, the switch must first check for any already-inserted entries that conflict with the incoming entry (i.e., same priority and there exists an entry that could match both). If a conflict is found, the switch should refuse the addition and may respond with an \verb|OFPEFM_ADD_OVERLAP| error message.  The switch must then check its flow table for any entries that match the incoming message.  If an identical flow entry is found and the \verb|OFPFMF_FORCE| flag is not set, the switch must not change the flow table, and may respond with an \verb|OFPEFM_ADD_EXIST| error message.  If the \verb|OFPFMF_FORCE| flag is set, the existing entry is overwritten and no error is reported. 
-
-\subsubsection{Flow Modification}
+\label{flow_table:sec_chan:flow_add}
 \label{flow_table:sec_chan:flow_mod}
-Each flow entry can be modified.  A modify operation must not change the current flow’s counters and idle time.   If the \verb|MODIFY| command is used, the wildcards are “active” and all flows that match the description are modified.  If the \verb|MODIFY_STRICT| command is used, all fields, including the wildcards and priority, are strictly matched against the entry, and only an identical flow is modified in the table.  For example, if a message to modify entries is sent that has all the wildcard flags set, the \verb|MODIFY| command would modify all flows from all tables, while the \verb|MODIFY_STRICT| command would only modify a rule that applies to all packets at the specified priority.  If a \verb|MODIFY| or \verb|MODIFY_STRICT| command arrives which matches no entries, and the \verb|OFPFMF_FORCE| flag is not set, the switch may respond with an \verb|OFPEFM_MODIFY_MISSING| error message.  If the \verb|OFPFMF_FORCE| flag is set, the switch will modify or add the flow entry, regardless of whether an entry was already there, and no error is reported.
-
-\subsubsection{Flow Removal}
 \label{flow_table:sec_chan:flow_removal}
-Each flow entry has an \verb|idle_timeout| and a \verb|hard_timeout| associated with it.  If no packet has matched the rule in the last \verb|idle_timeout| seconds, or it has been \verb|hard_timeout| seconds since the flow was inserted, the switch removes the entry and sends a flow expiration message.  In addition, the controller is able to actively remove entries by sending a flow message with the \verb|DELETE| or \verb|DELETE_STRICT| command.  Like the message used to add the entry, a removal message contains a description, which may include wild cards.
+Flow table modification messages can have the following types:
+\input{enum/ofp_flow_mod_command}
+For ADD requests with set wildcard fields, the switch must first check for any already-inserted entries that conflict with the incoming entry (i.e., same priority and there exists an entry that could match both).   If a conflict is found, the switch should refuse the addition and may respond with an \verb|OFPEFM_ADD_OVERLAP| error message.  For valid (non-conflicting) ADD requests, the new flow should be added to the lowest numbered table for which the switch supports all  wildcards set in the \verb|flow_match| struct, and for which the priority would be observed during the matching process.    
+If a flow entry with identical header fields and priority already resides in any table, then that entry, including its counters, must be removed, and the new flow entry added.  
 \\\\
-If the \verb|DELETE| command is used, the wildcards are “active” and all flows that match the description are removed.  If the \verb|DELETE_STRICT| command is used, all fields, including the wildcards and priority, are strictly matched against the entry, and only an identical flow is removed from the table.  For example, if a message to remove entries is sent that has all the wildcard flags set, the \verb|DELETE| command would delete all flows from all tables, while the \verb|DELETE_STRICT| command would only delete a rule that applies to all packets at the specified priority.  If a \verb|DELETE| or \verb|DELETE_STRICT| command arrives which matches no entries, the switch may respond with an \verb|OFPEFM_DELETE_MISSING| error message.
+For MODIFY requests, if a flow entry with identical header fields does not current reside in any table, the new flow entry must be inserted with zeroed counters.  Otherwise, the actions field is changed on the existing entry and its counters and idle time fields are left unchanged.
+\\\\
+For DELETE requests, if no flow entry matches, no error is recorded, and no flow table modification occurs.
+\\\\
+If a switch cannot find any table in which to add the incoming flow entry, the switch should send an \verb|OFPT_ERROR_MSG| with \verb|OFPET_FLOW_MOD_FAILED| type and \verb|OFPFMFC_ALL_TABLES_FULL| type.
+\\\\
+MODIFY and DELETE flow mod commands have corresponding \_STRICT versions.   Without \_STRICT appended, the wildcards are “active” and all flows that match the description are modified or removed.  If \_STRICT is appended, all fields, including the wildcards and priority, are strictly matched against the entry, and only an identical flow is modified or removed.  For example, if a message to remove entries is sent that has all the wildcard flags set, the \verb|DELETE| command would delete all flows from all tables, while the \verb|DELETE_STRICT| command would only delete a rule that applies to all packets at the specified priority. 
+
+\subsection{Flow Removal}
+
+Each flow entry has an \verb|idle_timeout| and a \verb|hard_timeout| associated with it.  If no packet has matched the rule in the last \verb|idle_timeout| seconds, or it has been \verb|hard_timeout| seconds since the flow was inserted, the switch removes the entry and sends a flow expiration message.  In addition, the controller is able to actively remove entries by sending a flow message with the \verb|DELETE| or \verb|DELETE_STRICT| command.  Like the message used to add the entry, a removal message contains a description, which may include wild cards.
 
 \input{appendix}
  
