@@ -9,9 +9,9 @@
  */
 
 /** the version of openflow this dissector was written for */
-#define DISSECTOR_OPENFLOW_MIN_VERSION 0x93
-#define DISSECTOR_OPENFLOW_MAX_VERSION 0x95
-#define DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD 0x95
+#define DISSECTOR_OPENFLOW_MIN_VERSION 0x95
+#define DISSECTOR_OPENFLOW_MAX_VERSION 0x96
+#define DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD 0x96
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
@@ -1983,10 +1983,15 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             // FIXME: bug in dissect_port for latest version
             dissect_port(type_tree, ofp_packet_out_in_port, tvb, &offset);
             
-            // pull out actions len
+            /* pull out actions len */
             guint16 actions_len = tvb_get_ntohs( tvb, offset);
             add_child(type_tree, ofp_packet_out_actions_len, tvb, &offset, 2);
             
+            /* dissect action array; will handle no-action case */
+            dissect_action_array(tvb, pinfo, type_tree, offset + actions_len, offset);
+            offset += actions_len;
+            
+            /* if buffer id == -1, then display the provided packet */
             if( buffer_id == -1 ) {
                 /* continue the dissection with the Ethernet dissector */
                 guint total_len = len - offset;
@@ -2000,13 +2005,6 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     /* if we couldn't load the ethernet dissector, just display the bytes */
                     add_child(type_tree, ofp_packet_out_data_hdr, tvb, &offset, total_len);
                 }
-            }
-            else {
-                /* handle actions */
-
-            	// set len to offset + actions_len
-                //dissect_action_array(tvb, pinfo, type_tree, len, offset);
-                dissect_action_array(tvb, pinfo, type_tree, offset + actions_len, offset);
             }
             
             break;
