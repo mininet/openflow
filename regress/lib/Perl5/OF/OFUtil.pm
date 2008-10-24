@@ -682,18 +682,13 @@ sub create_flow_mod_from_udp_action {
 	};
 
 	my $action_output_args = {
-		max_len => 0,                                     # send entire packet
-		port    => $out_port
+		type => $enums{'OFPAT_OUTPUT'},
+		len => $ofp->sizeof('ofp_action_output'),
+		port => $out_port,
+		max_len => 0,                                     # send entire packet	
 	};
 
-	my $action_args = {
-		type => $enums{'OFPAT_OUTPUT'},
-		arg  => { output => $action_output_args }
-	};
-	#!!! temporary fix - until we can pull from openflow.h to get the correct structure size. 
-	#my $action = $ofp->pack( 'ofp_action', $action_args );
-	#my $action = pack("SSSS", $enums{'OFPAT_OUTPUT'}, 0, $out_port, 0xbb);
-	my $action = pack("nnnn", $enums{'OFPAT_OUTPUT'}, 0, $out_port, 0xbbbb);
+	my $action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
 	
 	my $flow_mod_args = {
 		header => $hdr_args,
@@ -701,13 +696,14 @@ sub create_flow_mod_from_udp_action {
 
 		#		command   => $enums{$mod_type},
 		command   => $enums{"$mod_type"},
-		max_idle  => $max_idle,
-		buffer_id => 0x0000,
-		group_id  => 0
+		idle_timeout  => $max_idle,
+		hard_timeout  => $max_idle,
+		priority => 0,
+		buffer_id => 0x0000
 	};
 	my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
 
-	my $flow_mod_pkt = $flow_mod . $action;
+	my $flow_mod_pkt = $flow_mod . $action_output;
 
 	return $flow_mod_pkt;
 }
