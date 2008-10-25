@@ -38,6 +38,7 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &create_controller_socket
   &run_learning_switch_test
   &do_hello_sequence
+  &get_switch_features
   &get_config
   &set_config
   &run_black_box_test
@@ -444,17 +445,6 @@ sub do_hello_sequence {
 	# Send 'hello' message
 	print $sock $hello;
 
-#	my $hdr_args_features_request = {
-#		version => CURRENT_OF_VER,
-#		type    => $enums{'OFPT_FEATURES_REQUEST'},
-#		length  => $ofp->sizeof('ofp_header'),        # should generate automatically!
-#		xid     => 0x00000000
-#	};
-#	my $features_request = $ofp->pack( 'ofp_header', $hdr_args_features_request );
-#
-#	# Send 'features_request' message
-#	print $sock $features_request;
-
 	# Should add timeout here - will crash if no reply
 	my $recvd_mesg;
 	sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
@@ -480,6 +470,44 @@ sub do_hello_sequence {
 	verify_header( $msg, 'OFPT_HELLO', $msg_size );
 	
 	print "received Hello\n";
+}
+
+sub get_switch_features {
+
+	my ( $ofp, $sock ) = @_;
+
+	my $hdr_args_features_request = {
+		version => CURRENT_OF_VER,
+		type    => $enums{'OFPT_FEATURES_REQUEST'},
+		length  => $ofp->sizeof('ofp_header'),        # should generate automatically!
+		xid     => 0x00000000
+	};
+	my $features_request = $ofp->pack( 'ofp_header', $hdr_args_features_request );
+
+	# Send 'features_request' message
+	print $sock $features_request;
+
+	# Should add timeout here - will crash if no reply
+	my $recvd_mesg;
+	sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
+
+	#print "received message after features request\n";
+
+	# Inspect  message
+	my $msg_size      = length($recvd_mesg);
+	#my $expected_size = $ofp->sizeof('ofp_switch_config');
+
+	#compare( "msg size", length($recvd_mesg), '==', $expected_size );
+
+	my $msg = $ofp->unpack( 'ofp_switch_features', $recvd_mesg );
+
+	#print HexDump ($recvd_mesg);
+	#print Dumper($msg);
+
+	# Verify header fields
+	verify_header( $msg, 'OFPT_FEATURES_REPLY', $msg_size );
+
+	return $msg;
 }
 
 sub get_config {
@@ -636,7 +664,7 @@ sub create_flow_mod_from_udp_action {
 	my $hdr_args = {
 		version => CURRENT_OF_VER,
 		type    => $enums{'OFPT_FLOW_MOD'},
-		length  => $ofp->sizeof('ofp_flow_mod') + 8, #$ofp->sizeof('ofp_action'), #, #!!!
+		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output'),
 		xid     => 0x0000000
 	};
 
@@ -699,7 +727,7 @@ sub create_flow_mod_from_udp_action {
 		idle_timeout  => $max_idle,
 		hard_timeout  => $max_idle,
 		priority => 0,
-		buffer_id => 0x0000
+		buffer_id => -1
 	};
 	my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
 
