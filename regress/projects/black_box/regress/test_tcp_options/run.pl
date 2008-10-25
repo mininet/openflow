@@ -11,7 +11,7 @@ sub create_flow_mod_from_ip {
 	my $hdr_args = {
 		version => get_of_ver(),
 		type    => $enums{'OFPT_FLOW_MOD'},
-		length  => $ofp->sizeof('ofp_flow_mod') + 8, #$ofp->sizeof('ofp_action'), #, #!!!
+		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output'),
 		xid     => 0x0000000
 	};
 
@@ -60,36 +60,30 @@ sub create_flow_mod_from_ip {
 		tp_dst    => $d_port
 	};
 
-	my $action_output_args = {
-		max_len => 0,                      # send entire packet
-		port    => $out_port
-	};
 	print "My Out Port: ${out_port}\n";
-
-	my $action_args = {
+	my $action_output_args = {
 		type => $enums{'OFPAT_OUTPUT'},
-		arg  => { output => $action_output_args }
+		len => $ofp->sizeof('ofp_action_output'),
+		port    => $out_port,
+		max_len => 0                      # send entire packet
 	};
-	#!!! temporary fix - until we can pull from openflow.h to get the correct structure size. 
-	#my $action = $ofp->pack( 'ofp_action', $action_args );
-	#my $action = pack("SSSS", $enums{'OFPAT_OUTPUT'}, 0, $out_port, 0xbb);
-	my $action = pack("nnnn", $enums{'OFPAT_OUTPUT'}, 0, $out_port, 0xbbbb);
+	my $action_output = $ofp->pack('ofp_action_output', $action_output_args);
 
 	my $flow_mod_args = {
-		header    => $hdr_args,
-		match     => $match_args,
+		header => $hdr_args,
+		match  => $match_args,
 		command   => $enums{'OFPFC_ADD'},
-		max_idle  => $max_idle,
-		buffer_id => 0x0000,
-		group_id  => 0
+		idle_timeout  => $max_idle,
+		hard_timeout  => $max_idle,
+		priority => 0,
+		buffer_id => -1
 	};
 	my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
 
-	my $flow_mod_pkt = $flow_mod . $action;
+	my $flow_mod_pkt = $flow_mod . $action_output;
 
 	return $flow_mod_pkt;
 }
-
 
 sub send_tcp_op_expect_exact {
 
@@ -106,7 +100,7 @@ sub send_tcp_op_expect_exact {
 		0x00, 0x46, 0x00, 0x50,    # $src_tcp_port, $dst_tcp_port (should set automatically)
 		0x01, 0x23, 0x45, 0x67,    #Seq
 		0x01, 0x23, 0x45, 0x00,    #Ack
-		0x18, 0x23, 0x00, 0x11,    #Offset, Flag, Win
+		0x58, 0x23, 0x00, 0x11,    #Offset, Flag, Win
 		0xaa, 0xbb, 0x00, 0x00,    #Chksum, Urgent
 		0x03, 0x03, 0x02, 0x00,    #TCP Option
 		0xaa, 0xbb, 0xcc, 0xdd,    #TCP Content
@@ -120,8 +114,6 @@ sub send_tcp_op_expect_exact {
 		ttl    => 64,
 		len    => $pkt_len,
 		proto => 6,                # TCP protocol id
-		ttl   => 64,
-		len   => $pkt_len
 	};
 
 	my $test_pkt = new NF2::IP_pkt(%$test_pkt_args);
@@ -130,7 +122,10 @@ sub send_tcp_op_expect_exact {
 
 	#print HexDump ( $test_pkt->packed );
 
-	my $wildcards = 0x0;           # exact match
+	#my $wildcards = 0;           # exact match
+	my $wildcards =  $enums{'OFPFW_TP_SRC'} | 
+		$enums{'OFPFW_TP_DST'};# | 
+	#	$enums{'OFPFW_NW_PROTO'};     # wildcard match (don't care udp src/dst ports)
 
 	my $flow_mod_pkt =
 	  create_flow_mod_from_ip( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards,
@@ -169,6 +164,7 @@ sub my_test {
 			if ( $i != $j ) {
 				print "sending from offset $i to $j\n";
 				send_tcp_op_expect_exact( $ofp, $sock, $options_ref, $i, $j, $max_idle, $pkt_len );
+				#sleep(5);
 				wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
 			}
 		}
