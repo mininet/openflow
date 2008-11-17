@@ -43,14 +43,16 @@
 #include "flow.h"
 #include "datapath.h"
 
+#include "hwtable_nf2/nf2_logging.h"
+
 /* For NetFPGA */
 #include "hwtable_nf2/reg_defines.h"
 #include "hwtable_nf2/nf2_openflow.h"
 #include "hwtable_nf2/hwtable_nf2.h"
 
 
-/* Max number of flow entries supported by the hardware */
-#define DUMMY_MAX_FLOW   8192
+static int table_nf2_delete(struct sw_table *swt, const struct sw_flow_key *key,
+		uint16_t priority, int strict);
 
 static void table_nf2_rcu_callback(struct rcu_head *rcu)
 {
@@ -79,16 +81,6 @@ static struct sw_flow *table_nf2_lookup(struct sw_table *swt,
 static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 {
     struct sw_table_nf2 *tb = (struct sw_table_nf2 *) swt;
-    struct sw_flow *f;
-
-    printk("Adding: ");
-    printk("inport:%04x", ntohs(flow->key.in_port));
-    printk(":vlan:%04x", ntohs(flow->key.dl_vlan));
-    printk(" ip[%#x", flow->key.nw_src);
-    printk("->%#x", flow->key.nw_dst);
-    printk("] proto:%u", flow->key.nw_proto);
-    printk(" tport[%d", ntohs(flow->key.tp_src));
-    printk("->%d]\n", ntohs(flow->key.tp_dst));
 
 	/* xxx Do whatever needs to be done to insert an entry in hardware.
 	 * xxx If the entry can't be inserted, return 0.  This stub code
@@ -96,10 +88,13 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 	 * xxx shouldn't.
 	 */
 
+    /* Delete flows that match exactly. */
+    table_nf2_delete(swt, &flow->key, flow->priority, true);
+
 	if (nf2_are_actions_supported(flow)) {
-		printk("---Actions are supported---\n");
+		LOG("---Actions are supported---\n");
 		if (nf2_build_and_write_flow(flow)) {
-			printk("---build and write flow failed---\n");
+			LOG("---build and write flow failed---\n");
 			// failed
 			return 0;
 		}
@@ -108,16 +103,6 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 		return 0;
 	}
 
-    /* Replace flows that match exactly. */
-    list_for_each_entry (f, &tb->flows, node) {
-        if (flow_del_matches(&f->key, &flow->key, true)
-                && (f->priority == flow->priority)) {
-            list_replace(&f->node, &flow->node);
-            list_replace(&f->iter_node, &flow->iter_node);
-            table_nf2_flow_deferred_free(f);
-            return 1;
-        }
-    }
 
     atomic_inc(&tb->n_flows);
 
@@ -309,10 +294,10 @@ static struct sw_table *table_nf2_create(void)
 
     init_wildcard_free_list();
 	nf2_write_static_wildcard();
-	printk("initialized wildcard free list\n");
+	LOG("initialized wildcard free list\n");
 
     init_exact_free_list();
-	printk("initialized exact free list\n");
+	LOG("initialized exact free list\n");
 
 	return swt;
 }

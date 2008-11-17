@@ -36,3 +36,9 @@ it is easy to separate a hardware table implementation from OpenFlow.
 Simply package up the contents of the hwtable_NAME directory and
 distribute it for builders to extract into their distribution
 directory.
+
+Included in this distribution is a dummy hardware table to aid in beginning
+your own hardware table port, it is located in the datapath/hwtable_dummy
+folder. Also included is a fully functional NetFPGA hardware table that can run
+as a 1Gbx4 port line-rate OpenFlow switch. Information and instructions for its
+use can be found in the datapath/hwtable_nf2/README file.

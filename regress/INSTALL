@@ -13,11 +13,25 @@ Please send any comments to:
 
 === Prerequisites ===
 
-The code has been tested on CentOS5.1 and Debian Unstable under two
-configurations. A third is useful for testing an external openflow 
-switch. 
+The tests require no other packets to be sent on the testing interfaces.
+Built-in programs like avahi-daemon and/or network-manager may send packets,
+causing the tests to report failure.  The simplest way to remove these packets
+is to disable the ipv6 module and reboot, as well as remove avahi-daemon.
 
-(1) Four virtual Ethernet loopback pairs
+All test configurations require the following Perl modules:
+ perl-Convert-Binary-C
+ perl-Data-HexDump 
+ perl-Net-Pcap 		(perl-Net-Pcap-0.16-1)
+ perl-Net-RawIP.i386 	(perl-Net-RawIP-0.23-1)
+ perl-Error.noarch 	(perl-Error-0.17012-1)
+
+These packages can be installed from source via www.cpan.org, or you can use
+pre-built packages (much faster!).
+
+The code has been tested on CentOS 5.1/5.2, Ubuntu Hardy Heron, and Debian
+Unstable under the following configurations.
+
+** Config 1 - Four virtual Ethernet loopback pairs
 
 To set these up, you must have a kernel version >= 2.6.24 and the veth kernel 
 module compiled.
@@ -33,7 +47,7 @@ create interfaces veth{0..7}.  The usual ports of eth{1..8} are remapped to thes
 ports via the file veth.map in /bin/.  To remove these interfaces, run
 bin/veth_teardown.pl
 
-(2) Two quad-port Ethernet NICs connected by physical loopback cables
+** Config 2 - Two quad-port Ethernet NICs connected by physical loopback cables
 
 Assign ports as eth{1..8} and connect cables as:
  eth1 to eth5
@@ -41,37 +55,49 @@ Assign ports as eth{1..8} and connect cables as:
  eth3 to eth7
  eth4 to eth8
 
-(3) A third configuration is to use four ports of Ethernet on the test machine,
+** Config 3 - Four local ethernet ports connected to external switch
+
+A third configuration is to use four ports of Ethernet on the test machine,
 connected to an external switch.  To do this, you must provide custom setup
 and teardown scripts that enable/disable OpenFlow on the external switch via 
 SSH, telnet, or SNMP. See the scripts in bin/ for examples of how to create 
 these. 
 
-Note also that the tests require no other packets to be sent on the testing
-interfaces.  Built-in programs like avahi-daemon and/or network-manager may
-send packets, causing the tests to report failure.  The simplest way to remove
-these packets is to disable the ipv6 module and reboot, as well as remove avahi-daemon.
+** Config 4 - One quad-port Ethernet NIC connected to a NetFPGA
 
-The tests use the following Perl modules:
- perl-Convert-Binary-C
- perl-Data-HexDump 
- perl-Net-Pcap 		(perl-Net-Pcap-0.16-1)
- perl-Net-RawIP.i386 	(perl-Net-RawIP-0.23-1)
- perl-Error.noarch 	(perl-Error-0.17012-1)
+This testing configuration is used to verify the NetFPGA's OpenFlow
+functionality. It requires 4 ports of Ethernet connected to corresponding ports
+on the NetFPGA in the following arrangement:
+ eth1 to nf2c0
+ eth2 to nf2c1
+ eth3 to nf2c2
+ eth4 to nf2c3
 
-These packages can be installed from source via www.cpan.org, or you can use pre-built packages (much faster!).
+This test also assumes that you have correctly installed the NetFPGA ahead of
+time. For further information about the NetFPGA please see
+http://www.netfpga.org/
+
+Of particular note, by default installing the NetFPGA also puts the
+NF2/lib/Perl5 directory into your PERL5LIB environment variable, this must be
+removed else the tests will fail. Ensure that your PERL5LIB only contains the
+path set by the env_vars file that will be discussed later in this document.
+
  
 === Ubuntu Quickstart ===
 
-Follow these instructions to quickly create a VM or physical machine with OpenFlow that runs the tests.
+Follow these instructions to quickly create a VM or physical machine with
+OpenFlow that runs the tests.
 
-Ubuntu is recommended because it is based on Debian sources and has a recent kernel version - which removes the need for some step
+Ubuntu is recommended because it is based on Debian sources and has a recent
+kernel version - which removes the need for some steps.
 
-If installing as a VM, you'll need to install VMWare Server (Windows/Linux, free) or VMWare Fusion (Mac, $$$).  
+If installing as a VM, you'll need to install VMWare Server (Windows/Linux,
+free) or VMWare Fusion (Mac, $$$).  
 
 Download the Ubuntu 8.04 Desktop or Server ISO, and install Ubuntu.
 
-If you prefer, install VMWare Tools to enable better mouse and display support.  Alternately, install SSH and use it for the rest of the instructions:
+If you prefer, install VMWare Tools to enable better mouse and display support.
+Alternately, install SSH and use it for the rest of the instructions:
  sudo apt-get install ssh
 Install GCC, which is required for OpenFlow:
  sudo apt-get install gcc
@@ -105,9 +131,10 @@ Create a root password, to be used later:
  
 From here, skip to the Running The Tests section below.
 
+
 === CentOS 5.2 ===
  
-First, install OpenFlow v0.8.1.
+First, download and verify you can build the current version of OpenFlow.
 
 Install the RPMForge repository:
  wget http://dag.wieers.com/rpm/packages/rpmforge-release/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
@@ -174,22 +201,31 @@ user
 user_veth
 kmod
 kmod_veth
+nf2
 
-After unzipping the tgz to create the openflow-tests dir, copy the environment variables file to your home directory: 
+First copy the env_vars file to your home directory:
  cd ~/
- cp openflow-test-<version>/scripts/env_vars .
-Update the OFT_ROOT (tests) and OF_ROOT (openflow) environment vars to your setup.  These can also be add to your ~/.bashrc file to load automatically:
+ cp <openflow_dir>/regress/scripts/env_vars .
+
+Update the OF_ROOT (openflow) environment variable to point to your OpenFlow
+directory in your setup.  These exports can also be added to your ~/.bashrc
+file to load automatically:
  vim env_vars
-Enter a root shell session, or set up sudo. The perl-Net-RawIP library requires root access to bind to ports.
+
+Enter a root shell session, or set up sudo. The perl-Net-RawIP library requires
+root access to bind to ports.
  su
+
 Source the environment variables:
  source env_vars
+
 For a setup with virtual ethernet pairs, set them up:
  veth_setup.pl 
+
 Verify your setup by running regression tests on your platform of choice:
  of_{platform}_test.pl
-For the user-space switch, the tests should show pass for all scripts except the _X_controller ones.  
-For the kernel-space switch, all tests should pass.
+For the user-space switch, the tests should show pass for all scripts except
+the _X_controller ones.  For the kernel-space switch, all tests should pass.
 
 To see more options for the regression script, type:
  of_{platform}_test.pl --help
@@ -197,19 +233,21 @@ To see more options for the regression script, type:
 == Writing Your Own Tests ==
 
 Look at an example controller test:
- vim openflow-test-<version>/projects/learning_switch/regress/test_unicast_unknown/run.pl
+ vim <openflow_dir>/regress/projects/learning_switch/regress/test_unicast_unknown/run.pl
  
 Look at an example black box switch test:
- vim openflow-test-<version>/projects/black_box/regress/test_hello/run.pl
+ vim <openflow_dir>/regress/projects/black_box/regress/test_hello/run.pl
 
 To run an individual test (learning switch example):
- cd openflow-test-<version>/projects/learning_switch/regress/test_unicast_unknown
+ cd <openflow_dir>/regres/projects/learning_switch/regress/test_unicast_unknown
  of_{platform}_setup.pl; ./run.pl; of_{platform}_teardown.pl
 
-To see traffic when running a black box test, use tcpdump.  Secchan and the Perl code use the loopback interface to communicate, and you can snoop on this:
+To see traffic when running a black box test, use tcpdump.  Secchan and the
+Perl code use the loopback interface to communicate, and you can snoop on this:
  tcpdump -X -i lo -s 256
 
-It can be convenient to run your test in isolation, without setup and teardown automatically called.  To set up the OF kmod and interfaces, run:
+It can be convenient to run your test in isolation, without setup and teardown
+automatically called.  To set up the OF kmod and interfaces, run:
  of_{platform}_setup.pl
 
 To remove the OF kmod cleanly, run:

@@ -43,6 +43,8 @@ the following components:
 
 	- dpctl, a tool for configuring the kernel module.
 
+	- Hardware acceleration support, see README.hwtables
+
 The second implementation is a single userspace program, named
 "switch", that integrates all three parts of an OpenFlow switch.
 
@@ -60,6 +62,12 @@ This distribution includes some additional software as well:
 
 	- A patch to tcpdump that enables it to parse OpenFlow
           messages.
+
+	- A regression suite that tests OpenFlow functionality, please
+	      see regress/README. 
+
+	- A Wireshark dissector that can decode the OpenFlow wire 
+	      protocol. Please see utilities/wireshark_dissectors/README.
 
 For installation instructions, read INSTALL.  Each userspace program
 is also accompanied by a manpage.

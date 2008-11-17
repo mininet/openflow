@@ -1,0 +1,61 @@
+NetFPGA Hardware Table
+  Date - 10/13/08
+  Software - David Erickson - derickso@stanford.edu
+  Hardware - Jad Naous - jnaous@stanford.edu
+----------------------------------------
+
+The NetFPGA Hardware Table creates a single software table that contains all
+the flows that are currently held in the NetFPGA card. The card itself splits
+exact match flows into SRAM and wildcard match flows into TCAMs. Currently
+there are 24 usable wildcard flow entries and 32,768 available exact match
+entries.
+
+Installation
+----------------------------------------
+
+First build OpenFlow ensuring you include the directive to build the
+hwtable_nf2 hardware table in your configure statement:
+
+	% ./configure --with-l26=/lib/modules/`uname -r`/build 
+			--enable-hw-tables=nf2
+
+To get debugging output from the NetFPGA hardware table uncomment the following 
+line from within <openflow>/datapath/hwtable_nf2/nf2_logging.h, then recompile:
+
+	#define NF2_DEBUG 1
+
+For further help regarding building OpenFlow please see the INSTALL file in
+the OpenFlow root directory.
+
+Running
+----------------------------------------
+
+Use nf2_download to download the openflow_switch.bit file that is located in
+the <openflow>/datapath/hwtable_nf2 folder:
+
+	% nf2_download <openflow>/datapath/hwtable_nf2/openflow_switch.bit
+
+Install the OpenFlow kernel module:
+
+	% insmod <openflow>/datapath/linux-2.6/openflow_mod.ko
+
+Install the NetFPGA Hardware Table kernel module:
+
+	% insmod <openflow>/datapath/linux-2.6/hwtable_nf2_mod.ko
+
+Create an OpenFlow datapath:
+
+	% <openflow>/utilities/dpctl adddp nl:0
+
+Add the NetFPGA interfaces to the datapath:
+
+	% <openflow>/utilities/dpctl addif nl:0 nf2c0
+	% <openflow>/utilities/dpctl addif nl:0 nf2c1
+	% <openflow>/utilities/dpctl addif nl:0 nf2c2
+	% <openflow>/utilities/dpctl addif nl:0 nf2c3
+
+At this point your OpenFlow switch should be ready to go.
+
+Known Bugs
+----------------------------------------
+There is currently no support for priority amongst wildcard-match entries.
