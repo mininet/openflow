@@ -71,7 +71,6 @@ static const value_string names_ofp_type[] = {
     { OFPT_PACKET_OUT,          "Packet Out (CSM)" },
     { OFPT_FLOW_MOD,            "Flow Mod (CSM)" },
     { OFPT_PORT_MOD,            "Port Mod (CSM)" },
-    { OFPT_TABLE,               "Table (CSM)" },
     
     /* Statistics messages. */    
     { OFPT_STATS_REQUEST,       "Stats Request (CSM)" },
@@ -2030,13 +2029,6 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             type_tree = proto_item_add_subtree(type_item, ett_ofp_port_mod);
 
             dissect_phy_ports(type_tree, type_item, tvb, pinfo, &offset, 1);
-            break;
-        }
-
-        case OFPT_TABLE: {
-            /* add a warning: this type is not yet specified */
-            snprintf(str, STR_LEN, "Dissector does not dissect type %u (OFPT_TABLE not specified yet)", type);
-            add_child_str(tree, ofp_header_warn_type, tvb, &offset, len - offset, str);
             break;
         }
 
