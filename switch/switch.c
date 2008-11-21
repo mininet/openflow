@@ -35,6 +35,7 @@
 #include <errno.h>
 #include <getopt.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,6 +49,7 @@
 #include "queue.h"
 #include "util.h"
 #include "rconn.h"
+#include "timeval.h"
 #include "vconn.h"
 #include "vconn-ssl.h"
 #include "vlog-socket.h"
@@ -55,10 +57,18 @@
 #define THIS_MODULE VLM_switch
 #include "vlog.h"
 
+
+/* Strings to describe the manufacturer, hardware, and software.  This data 
+ * is queriable through the switch description stats message. */
+char mfr_desc[DESC_STR_LEN] = "Nicira Networks";
+char hw_desc[DESC_STR_LEN] = "Reference User-Space Switch";
+char sw_desc[DESC_STR_LEN] = VERSION;
+char serial_num[SERIAL_NUM_LEN] = "None";
+
 static void parse_options(int argc, char *argv[]);
 static void usage(void) NO_RETURN;
 
-static const char *listen_vconn_name;
+static const char *listen_pvconn_name;
 static struct datapath *dp;
 static uint64_t dpid = UINT64_MAX;
 static char *port_list;
@@ -77,34 +87,33 @@ main(int argc, char *argv[])
 
     set_program_name(argv[0]);
     register_fault_handlers();
+    time_init();
     vlog_init();
     parse_options(argc, argv);
+    signal(SIGPIPE, SIG_IGN);
 
     if (argc - optind != 1) {
-        fatal(0, "missing controller argument; use --help for usage");
+        ofp_fatal(0, "missing controller argument; use --help for usage");
     }
 
-    rconn = rconn_create(128, 60, max_backoff);
+    rconn = rconn_create(60, max_backoff);
     error = rconn_connect(rconn, argv[optind]);
     if (error == EAFNOSUPPORT) {
-        fatal(0, "no support for %s vconn", argv[optind]);
+        ofp_fatal(0, "no support for %s vconn", argv[optind]);
     }
     error = dp_new(&dp, dpid, rconn);
-    if (listen_vconn_name) {
-        struct vconn *listen_vconn;
+    if (listen_pvconn_name) {
+        struct pvconn *listen_pvconn;
         int retval;
-        
-        retval = vconn_open(listen_vconn_name, &listen_vconn);
+
+        retval = pvconn_open(listen_pvconn_name, &listen_pvconn);
         if (retval && retval != EAGAIN) {
-            fatal(retval, "opening %s", listen_vconn_name);
+            ofp_fatal(retval, "opening %s", listen_pvconn_name);
         }
-        if (!vconn_is_passive(listen_vconn)) {
-            fatal(0, "%s is not a passive vconn", listen_vconn_name);
-        }
-        dp_add_listen_vconn(dp, listen_vconn);
+        dp_add_listen_pvconn(dp, listen_pvconn);
     }
     if (error) {
-        fatal(error, "could not create datapath");
+        ofp_fatal(error, "could not create datapath");
     }
     if (port_list) {
         add_ports(dp, port_list); 
@@ -112,9 +121,10 @@ main(int argc, char *argv[])
 
     error = vlog_server_listen(NULL, NULL);
     if (error) {
-        fatal(error, "could not listen for vlog connections");
+        ofp_fatal(error, "could not listen for vlog connections");
     }
 
+    die_if_already_running();
     daemonize();
 
     for (;;) {
@@ -139,7 +149,7 @@ add_ports(struct datapath *dp, char *port_list)
          port = strtok_r(NULL, ",,", &save_ptr)) {
         int error = dp_add_port(dp, port);
         if (error) {
-            fatal(error, "failed to add port %s", port);
+            ofp_fatal(error, "failed to add port %s", port);
         }
     }
 }
@@ -148,7 +158,12 @@ static void
 parse_options(int argc, char *argv[])
 {
     enum {
-        OPT_MAX_BACKOFF = UCHAR_MAX + 1
+        OPT_MAX_BACKOFF = UCHAR_MAX + 1,
+        OPT_MFR_DESC,
+        OPT_HW_DESC,
+        OPT_SW_DESC,
+        OPT_SERIAL_NUM,
+        OPT_BOOTSTRAP_CA_CERT
     };
 
     static struct option long_options[] = {
@@ -156,12 +171,18 @@ parse_options(int argc, char *argv[])
         {"datapath-id", required_argument, 0, 'd'},
         {"max-backoff", required_argument, 0, OPT_MAX_BACKOFF},
         {"listen",      required_argument, 0, 'l'},
-        {"detach",      no_argument, 0, 'D'},
-        {"pidfile",     optional_argument, 0, 'P'},
         {"verbose",     optional_argument, 0, 'v'},
         {"help",        no_argument, 0, 'h'},
         {"version",     no_argument, 0, 'V'},
+        {"mfr-desc",    required_argument, 0, OPT_MFR_DESC},
+        {"hw-desc",     required_argument, 0, OPT_HW_DESC},
+        {"sw-desc",     required_argument, 0, OPT_SW_DESC},
+        {"serial_num",  required_argument, 0, OPT_SERIAL_NUM},
+        DAEMON_LONG_OPTIONS,
+#ifdef HAVE_OPENSSL
         VCONN_SSL_LONG_OPTIONS
+        {"bootstrap-ca-cert", required_argument, 0, OPT_BOOTSTRAP_CA_CERT},
+#endif
         {0, 0, 0, 0},
     };
     char *short_options = long_options_to_short_options(long_options);
@@ -179,12 +200,13 @@ parse_options(int argc, char *argv[])
         case 'd':
             if (strlen(optarg) != 12
                 || strspn(optarg, "0123456789abcdefABCDEF") != 12) {
-                fatal(0, "argument to -d or --datapath-id must be "
-                      "exactly 12 hex digits");
+                ofp_fatal(0, "argument to -d or --datapath-id must be "
+                          "exactly 12 hex digits");
             }
             dpid = strtoll(optarg, NULL, 16);
             if (!dpid) {
-                fatal(0, "argument to -d or --datapath-id must be nonzero");
+                ofp_fatal(0, "argument to -d or --datapath-id must "
+                          "be nonzero");
             }
             break;
 
@@ -194,14 +216,6 @@ parse_options(int argc, char *argv[])
         case 'V':
             printf("%s "VERSION" compiled "__DATE__" "__TIME__"\n", argv[0]);
             exit(EXIT_SUCCESS);
-
-        case 'D':
-            set_detach();
-            break;
-
-        case 'P':
-            set_pidfile(optarg);
-            break;
 
         case 'v':
             vlog_set_verbosity(optarg);
@@ -218,20 +232,44 @@ parse_options(int argc, char *argv[])
         case OPT_MAX_BACKOFF:
             max_backoff = atoi(optarg);
             if (max_backoff < 1) {
-                fatal(0, "--max-backoff argument must be at least 1");
+                ofp_fatal(0, "--max-backoff argument must be at least 1");
             } else if (max_backoff > 3600) {
                 max_backoff = 3600;
             }
             break;
 
-        case 'l':
-            if (listen_vconn_name) {
-                fatal(0, "-l or --listen may be only specified once");
-            }
-            listen_vconn_name = optarg;
+        case OPT_MFR_DESC:
+            strncpy(mfr_desc, optarg, sizeof mfr_desc);
             break;
 
+        case OPT_HW_DESC:
+            strncpy(hw_desc, optarg, sizeof hw_desc);
+            break;
+
+        case OPT_SW_DESC:
+            strncpy(sw_desc, optarg, sizeof sw_desc);
+            break;
+
+        case OPT_SERIAL_NUM:
+            strncpy(serial_num, optarg, sizeof serial_num);
+            break;
+
+        case 'l':
+            if (listen_pvconn_name) {
+                ofp_fatal(0, "-l or --listen may be only specified once");
+            }
+            listen_pvconn_name = optarg;
+            break;
+
+        DAEMON_OPTION_HANDLERS
+
+#ifdef HAVE_OPENSSL
         VCONN_SSL_OPTION_HANDLERS
+
+        case OPT_BOOTSTRAP_CA_CERT:
+            vconn_ssl_set_ca_cert_file(optarg, true);
+            break;
+#endif
 
         case '?':
             exit(EXIT_FAILURE);
@@ -250,7 +288,7 @@ usage(void)
            "usage: %s [OPTIONS] CONTROLLER\n"
            "where CONTROLLER is an active OpenFlow connection method.\n",
            program_name, program_name);
-    vconn_usage(true, true);
+    vconn_usage(true, true, true);
     printf("\nConfiguration options:\n"
            "  -i, --interfaces=NETDEV[,NETDEV]...\n"
            "                          add specified initial switch ports\n"
@@ -259,14 +297,11 @@ usage(void)
            "  --max-backoff=SECS      max time between controller connection\n"
            "                          attempts (default: 15 seconds)\n"
            "  -l, --listen=METHOD     allow management connections on METHOD\n"
-           "                          (a passive OpenFlow connection method)\n"
-           "\nOther options:\n"
-           "  -D, --detach            run in background as daemon\n"
-           "  -P, --pidfile[=FILE]    create pidfile (default: %s/switch.pid)\n"
-           "  -v, --verbose=MODULE[:FACILITY[:LEVEL]]  set logging levels\n"
-           "  -v, --verbose           set maximum verbosity level\n"
+           "                          (a passive OpenFlow connection method)\n");
+    daemon_usage();
+    vlog_usage();
+    printf("\nOther options:\n"
            "  -h, --help              display this help message\n"
-           "  -V, --version           display version information\n",
-        RUNDIR);
+           "  -V, --version           display version information\n");
     exit(EXIT_SUCCESS);
 }

@@ -43,6 +43,7 @@
 
 #include "command-line.h"
 #include "compiler.h"
+#include "timeval.h"
 #include "util.h"
 #include "vlog-socket.h"
 
@@ -52,15 +53,17 @@ usage(char *prog_name, int exit_code)
     printf("Usage: %s [TARGET] [ACTION...]\n"
            "Targets:\n"
            "  -a, --all            Apply to all targets (default)\n"
-           "  -t, --target=TARGET  Specify target program, as a pid or an\n"
-           "                       absolute path to a Unix domain socket\n"
+           "  -t, --target=TARGET  Specify target program, as a pid, a\n"
+           "                       pidfile, or an absolute path to a Unix\n"
+           "                       domain socket\n"
            "Actions:\n"
            "  -l, --list         List current settings\n"
            "  -s, --set=MODULE[:FACILITY[:LEVEL]]\n"
            "        Set MODULE and FACILITY log level to LEVEL\n"
            "        MODULE may be any valid module name or 'ANY'\n"
-           "        FACILITY may be 'syslog' or 'console' or 'ANY' (default)\n"
-           "        LEVEL may be 'emer', 'err', 'warn', or 'dbg (default)'\n"
+           "        FACILITY may be 'syslog', 'console', 'file', or 'ANY' (default)\n"
+           "        LEVEL may be 'emer', 'err', 'warn', or 'dbg' (default)\n"
+           "  -r, --reopen       Make the program reopen its log file\n"
            "  -h, --help         Print this helpful information\n",
            prog_name);
     exit(exit_code);
@@ -146,6 +149,7 @@ int main(int argc, char *argv[])
         /* Action options come afterward. */
         {"list", no_argument, NULL, 'l'},
         {"set", required_argument, NULL, 's'},
+        {"reopen", no_argument, NULL, 'r'},
         {0, 0, 0, 0},
     };
     char *short_options;
@@ -157,6 +161,7 @@ int main(int argc, char *argv[])
     size_t n_clients = 0;
 
     set_program_name(argv[0]);
+    time_init();
 
     short_options = long_options_to_short_options(long_options);
     for (;;) {
@@ -168,7 +173,7 @@ int main(int argc, char *argv[])
             break;
         }
         if (!strchr("ath", option) && n_clients == 0) {
-            fatal(0, "no targets specified (use --help for help)");
+            ofp_fatal(0, "no targets specified (use --help for help)");
         } else {
             ++n_actions;
         }
@@ -202,9 +207,21 @@ int main(int argc, char *argv[])
             }
             break;
 
+        case 'r':
+            for (i = 0; i < n_clients; i++) {
+                struct vlog_client *client = clients[i];
+                char *request = xasprintf("reopen");
+                transact_ack(client, request, &ok);
+                free(request);
+            }
+            break;
+
         case 'h':
             usage(argv[0], EXIT_SUCCESS);
             break;
+
+        case '?':
+            exit(EXIT_FAILURE);
 
         default:
             NOT_REACHED();

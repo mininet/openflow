@@ -1,3 +1,6 @@
 /Makefile
 /Makefile.in
 /test-list
+/test-dhcp-client
+/test-stp
+/test-type-props

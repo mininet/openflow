@@ -43,13 +43,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "buffer.h"
-#include "socket-util.h"
-#include "util.h"
+#include "ofpbuf.h"
 #include "openflow.h"
-#include "ofp-print.h"
 #include "packets.h"
 #include "poll-loop.h"
+#include "socket-util.h"
+#include "util.h"
+#include "vconn-provider.h"
 #include "vconn-stream.h"
 
 #include "vlog.h"
@@ -81,8 +81,13 @@ unix_open(const char *name, char *suffix, struct vconn **vconnp)
 }
 
 struct vconn_class unix_vconn_class = {
-    .name = "unix",
-    .open = unix_open,
+    "unix",                     /* name */
+    unix_open,                  /* open */
+    NULL,                       /* close */
+    NULL,                       /* connect */
+    NULL,                       /* recv */
+    NULL,                       /* send */
+    NULL,                       /* wait */
 };
 
 /* Passive UNIX socket. */
@@ -91,7 +96,7 @@ static int punix_accept(int fd, const struct sockaddr *sa, size_t sa_len,
                         struct vconn **vconnp);
 
 static int
-punix_open(const char *name, char *suffix, struct vconn **vconnp)
+punix_open(const char *name, char *suffix, struct pvconn **pvconnp)
 {
     int fd;
 
@@ -101,7 +106,7 @@ punix_open(const char *name, char *suffix, struct vconn **vconnp)
         return errno;
     }
 
-    return new_pstream_vconn("punix", fd, punix_accept, vconnp);
+    return new_pstream_pvconn("punix", fd, punix_accept, pvconnp);
 }
 
 static int
@@ -109,20 +114,19 @@ punix_accept(int fd, const struct sockaddr *sa, size_t sa_len,
              struct vconn **vconnp)
 {
     const struct sockaddr_un *sun = (const struct sockaddr_un *) sa;
+    int name_len = get_unix_name_len(sa_len);
     char name[128];
 
-    if (sa_len >= offsetof(struct sockaddr_un, sun_path)) {
-        snprintf(name, sizeof name, "unix:%.*s",
-                (int) (sa_len - offsetof(struct sockaddr_un, sun_path)),
-                sun->sun_path);
+    if (name_len > 0) {
+        snprintf(name, sizeof name, "unix:%.*s", name_len, sun->sun_path);
     } else {
         strcpy(name, "unix");
     }
     return new_stream_vconn(name, fd, 0, 0, vconnp);
 }
 
-struct vconn_class punix_vconn_class = {
-    .name = "punix",
-    .open = punix_open,
+struct pvconn_class punix_pvconn_class = {
+    "punix",
+    punix_open,
 };
 

@@ -43,14 +43,15 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-#include "buffer.h"
 #include "csum.h"
 #include "dhcp.h"
 #include "dynamic-string.h"
 #include "flow.h"
 #include "netdev.h"
-#include "ofp-print.h"
+#include "ofpbuf.h"
 #include "poll-loop.h"
+#include "sat-math.h"
+#include "timeval.h"
 
 #define THIS_MODULE VLM_dhcp_client
 #include "vlog.h"
@@ -70,6 +71,8 @@ enum dhclient_state {
     DHCLIENT_STATES
 #undef DHCLIENT_STATE
 };
+
+static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(60, 60);
 
 static const char *
 state_name(enum dhclient_state state)
@@ -100,6 +103,7 @@ struct dhclient {
     bool changed;
 
     unsigned int retransmit, delay; /* Used by send_reliably(). */
+    unsigned int max_timeout;
 
     unsigned int init_delay;    /* Used by S_INIT. */
 
@@ -139,9 +143,6 @@ static unsigned int calc_t2(unsigned int lease);
 static unsigned int calc_t1(unsigned int lease, unsigned int t2);
 
 static unsigned int clamp(unsigned int x, unsigned int min, unsigned int max);
-static unsigned int sat_add(unsigned int x, unsigned int y);
-static unsigned int sat_sub(unsigned int x, unsigned int y);
-static unsigned int sat_mul(unsigned int x, unsigned int y);
 
 /* Creates a new DHCP client to configure the network device 'netdev_name'
  * (e.g. "eth0").
@@ -194,16 +195,47 @@ dhclient_create(const char *netdev_name,
     cli->aux = aux;
     cli->netdev = netdev;
     cli->state = S_RELEASED;
-    cli->state_entered = time(0);
+    cli->state_entered = time_now();
     cli->xid = random_uint32();
     cli->ipaddr = 0;
     cli->server_ip = 0;
     cli->retransmit = cli->delay = 0;
+    cli->max_timeout = 64;
     cli->min_timeout = 1;
     ds_init(&cli->s);
     cli->changed = true;
     *cli_ = cli;
     return 0;
+}
+
+/* Sets the maximum amount of timeout that 'cli' will wait for a reply from
+ * the DHCP server before retransmitting, in seconds, to 'max_timeout'.  The
+ * default is 64 seconds. */
+void
+dhclient_set_max_timeout(struct dhclient *cli, unsigned int max_timeout)
+{
+    cli->max_timeout = MAX(2, max_timeout);
+}
+
+/* Destroys 'cli' and frees all related resources. */
+void
+dhclient_destroy(struct dhclient *cli)
+{
+    if (cli) {
+        dhcp_msg_uninit(cli->binding);
+        free(cli->binding);
+        netdev_close(cli->netdev);
+        ds_destroy(&cli->s);
+        free(cli);
+    }
+}
+
+/* Returns the network device in use by 'cli'.  The caller must not destroy
+ * the returned device. */
+struct netdev *
+dhclient_get_netdev(struct dhclient *cli)
+{
+    return cli->netdev;
 }
 
 /* Forces 'cli' into a (re)initialization state, in which no address is bound
@@ -238,7 +270,7 @@ dhclient_release(struct dhclient *cli)
 static void
 do_force_renew(struct dhclient *cli, int deadline)
 {
-    time_t now = time(0);
+    time_t now = time_now();
     unsigned int lease_left = sat_sub(cli->lease_expiration, now);
     if (lease_left <= deadline) {
         if (cli->state & (S_RENEWING | S_REBINDING)) {
@@ -302,6 +334,29 @@ dhclient_changed(struct dhclient *cli)
     bool changed = cli->changed;
     cli->changed = 0;
     return changed;
+}
+
+/* Returns 'cli''s current state, as a string.  The caller must not modify or
+ * free the string. */
+const char *
+dhclient_get_state(const struct dhclient *cli)
+{
+    return state_name(cli->state);
+}
+
+/* Returns the number of seconds spent so far in 'cli''s current state. */
+unsigned int
+dhclient_get_state_elapsed(const struct dhclient *cli)
+{
+    return elapsed_in_this_state(cli);
+}
+
+/* If 'cli' is bound, returns the number of seconds remaining in its lease;
+ * otherwise, returns 0. */
+unsigned int
+dhclient_get_lease_remaining(const struct dhclient *cli)
+{
+    return dhclient_is_bound(cli) ? cli->lease_expiration - time_now() : 0;
 }
 
 /* If 'cli' is bound to an IP address, returns that IP address; otherwise,
@@ -486,7 +541,7 @@ static void
 do_init(struct dhclient *cli, enum dhclient_state next_state)
 {
     if (!cli->init_delay) {
-        cli->init_delay = clamp(fuzz(2, 8), 1, 10);
+        cli->init_delay = fuzz(2, 1);
     }
     if (timeout(cli, cli->init_delay)) {
         state_transition(cli, next_state);
@@ -519,14 +574,15 @@ dhcp_receive(struct dhclient *cli, unsigned int msgs, struct dhcp_msg *msg)
 {
     while (do_receive_msg(cli, msg)) {
         if (msg->type < 0 || msg->type > 31 || !((1u << msg->type) & msgs)) {
-            VLOG_DBG("received unexpected %s in %s state: %s",
-                     dhcp_type_name(msg->type), state_name(cli->state),
-                     dhcp_msg_to_string(msg, false, &cli->s));
+            VLOG_DBG_RL(&rl, "received unexpected %s in %s state: %s",
+                        dhcp_type_name(msg->type), state_name(cli->state),
+                        dhcp_msg_to_string(msg, false, &cli->s));
         } else if (msg->xid != cli->xid) {
-            VLOG_DBG("ignoring %s with xid != %08"PRIx32" in %s state: %s",
-                     dhcp_type_name(msg->type), msg->xid,
-                     state_name(cli->state),
-                     dhcp_msg_to_string(msg, false, &cli->s));
+            VLOG_DBG_RL(&rl,
+                        "ignoring %s with xid != %08"PRIx32" in %s state: %s",
+                        dhcp_type_name(msg->type), msg->xid,
+                        state_name(cli->state),
+                        dhcp_msg_to_string(msg, false, &cli->s));
         } else {
             return true;
         }
@@ -540,18 +596,18 @@ validate_offered_options(struct dhclient *cli, const struct dhcp_msg *msg)
 {
     uint32_t lease, netmask;
     if (!dhcp_msg_get_secs(msg, DHCP_CODE_LEASE_TIME, 0, &lease)) {
-        VLOG_WARN("%s lacks lease time: %s", dhcp_type_name(msg->type),
-                  dhcp_msg_to_string(msg, false, &cli->s));
+        VLOG_WARN_RL(&rl, "%s lacks lease time: %s", dhcp_type_name(msg->type),
+                     dhcp_msg_to_string(msg, false, &cli->s));
     } else if (!dhcp_msg_get_ip(msg, DHCP_CODE_SUBNET_MASK, 0, &netmask)) {
-        VLOG_WARN("%s lacks netmask: %s", dhcp_type_name(msg->type),
-                  dhcp_msg_to_string(msg, false, &cli->s));
+        VLOG_WARN_RL(&rl, "%s lacks netmask: %s", dhcp_type_name(msg->type),
+                     dhcp_msg_to_string(msg, false, &cli->s));
     } else if (lease < MIN_ACCEPTABLE_LEASE) {
-        VLOG_WARN("Ignoring %s with %"PRIu32"-second lease time: %s",
-                  dhcp_type_name(msg->type), lease,
-                  dhcp_msg_to_string(msg, false, &cli->s));
+        VLOG_WARN_RL(&rl, "Ignoring %s with %"PRIu32"-second lease time: %s",
+                     dhcp_type_name(msg->type), lease,
+                     dhcp_msg_to_string(msg, false, &cli->s));
     } else if (cli->validate_offer && !cli->validate_offer(msg, cli->aux)) {
-        VLOG_DBG("client validation hook refused offer: %s",
-                 dhcp_msg_to_string(msg, false, &cli->s));
+        VLOG_DBG_RL(&rl, "client validation hook refused offer: %s",
+                    dhcp_msg_to_string(msg, false, &cli->s));
     } else {
         return true;
     }
@@ -574,13 +630,13 @@ dhclient_run_SELECTING(struct dhclient *cli)
         }
         if (!dhcp_msg_get_ip(&msg, DHCP_CODE_SERVER_IDENTIFIER,
                              0, &cli->server_ip)) {
-            VLOG_WARN("DHCPOFFER lacks server identifier: %s",
-                      dhcp_msg_to_string(&msg, false, &cli->s));
+            VLOG_WARN_RL(&rl, "DHCPOFFER lacks server identifier: %s",
+                         dhcp_msg_to_string(&msg, false, &cli->s));
             continue;
         }
 
-        VLOG_DBG("accepting DHCPOFFER: %s",
-                 dhcp_msg_to_string(&msg, false, &cli->s));
+        VLOG_DBG_RL(&rl, "accepting DHCPOFFER: %s",
+                    dhcp_msg_to_string(&msg, false, &cli->s));
         cli->ipaddr = msg.yiaddr;
         state_transition(cli, S_REQUESTING);
         break;
@@ -672,7 +728,7 @@ receive_ack(struct dhclient *cli)
             t1 = calc_t1(lease, t2);
         }
 
-        cli->lease_expiration = sat_add(time(0), lease);
+        cli->lease_expiration = sat_add(time_now(), lease);
         cli->bound_timeout = t1;
         cli->renewing_timeout = t2 - t1;
         cli->rebinding_timeout = lease - t2;
@@ -755,7 +811,13 @@ void
 dhclient_wait(struct dhclient *cli)
 {
     if (cli->min_timeout != UINT_MAX) {
-        poll_timer_wait(sat_mul(cli->min_timeout, 1000));
+        time_t now = time_now();
+        unsigned int wake = sat_add(cli->state_entered, cli->min_timeout);
+        if (wake <= now) {
+            poll_immediate_wake();
+        } else {
+            poll_timer_wait(sat_mul(sat_sub(wake, now), 1000));
+        }
     }
     /* Reset timeout to 1 second.  This will have no effect ordinarily, because
      * dhclient_run() will typically set it back to a higher value.  If,
@@ -777,7 +839,7 @@ state_transition(struct dhclient *cli, enum dhclient_state state)
         VLOG_DBG("entering %s", state_name(state)); 
         cli->state = state;
     }
-    cli->state_entered = time(0);
+    cli->state_entered = time_now();
     cli->retransmit = cli->delay = 0;
     am_bound = dhclient_is_bound(cli);
     if (was_bound != am_bound) {
@@ -816,7 +878,7 @@ send_reliably(struct dhclient *cli,
             cli->modify_request(&msg, cli->aux);
         }
         do_send_msg(cli, &msg);
-        cli->delay = MIN(64, MAX(4, cli->delay * 2));
+        cli->delay = MIN(cli->max_timeout, MAX(4, cli->delay * 2));
         cli->retransmit += fuzz(cli->delay, 1);
         timeout(cli, cli->retransmit);
         dhcp_msg_uninit(&msg);
@@ -838,29 +900,29 @@ dhclient_msg_init(struct dhclient *cli, enum dhcp_msg_type type,
 static unsigned int
 elapsed_in_this_state(const struct dhclient *cli)
 {
-    return time(0) - cli->state_entered;
+    return time_now() - cli->state_entered;
 }
 
 static bool
 timeout(struct dhclient *cli, unsigned int secs)
 {
     cli->min_timeout = MIN(cli->min_timeout, secs);
-    return time(0) >= sat_add(cli->state_entered, secs);
+    return time_now() >= sat_add(cli->state_entered, secs);
 }
 
 static bool
 do_receive_msg(struct dhclient *cli, struct dhcp_msg *msg)
 {
-    struct buffer b;
+    struct ofpbuf b;
 
-    buffer_init(&b, netdev_get_mtu(cli->netdev) + VLAN_ETH_HEADER_LEN);
+    ofpbuf_init(&b, netdev_get_mtu(cli->netdev) + VLAN_ETH_HEADER_LEN);
     for (; cli->received < 50; cli->received++) {
         const struct ip_header *ip;
         const struct dhcp_header *dhcp;
         struct flow flow;
         int error;
 
-        buffer_clear(&b);
+        ofpbuf_clear(&b);
         error = netdev_recv(cli->netdev, &b);
         if (error) {
             goto drained;
@@ -879,42 +941,47 @@ do_receive_msg(struct dhclient *cli, struct dhcp_msg *msg)
         ip = b.l3;
         if (IP_IS_FRAGMENT(ip->ip_frag_off)) {
             /* We don't do reassembly. */
-            VLOG_WARN("ignoring fragmented DHCP datagram");
+            VLOG_WARN_RL(&rl, "ignoring fragmented DHCP datagram");
             continue;
         }
 
         dhcp = b.l7;
         if (!dhcp) {
-            VLOG_WARN("ignoring DHCP datagram with missing payload");
+            VLOG_WARN_RL(&rl, "ignoring DHCP datagram with missing payload");
             continue;
         }
 
-        buffer_pull(&b, b.l7 - b.data);
+        ofpbuf_pull(&b, (char *)b.l7 - (char*)b.data);
         error = dhcp_parse(msg, &b);
         if (!error) {
-            VLOG_DBG("received %s", dhcp_msg_to_string(msg, false, &cli->s));
-            buffer_uninit(&b);
+            if (VLOG_IS_DBG_ENABLED()) {
+                VLOG_DBG_RL(&rl, "received %s",
+                            dhcp_msg_to_string(msg, false, &cli->s)); 
+            } else {
+                VLOG_WARN_RL(&rl, "received %s", dhcp_type_name(msg->type));
+            }
+            ofpbuf_uninit(&b);
             return true;
         }
     }
     netdev_drain(cli->netdev);
 drained:
-    buffer_uninit(&b);
+    ofpbuf_uninit(&b);
     return false;
 }
 
 static void
 do_send_msg(struct dhclient *cli, const struct dhcp_msg *msg)
 {
-    struct buffer b;
+    struct ofpbuf b;
     struct eth_header eh;
     struct ip_header nh;
     struct udp_header th;
     uint32_t udp_csum;
     int error;
 
-    buffer_init(&b, ETH_TOTAL_MAX);
-    buffer_reserve(&b, ETH_HEADER_LEN + IP_HEADER_LEN + UDP_HEADER_LEN);
+    ofpbuf_init(&b, ETH_TOTAL_MAX);
+    ofpbuf_reserve(&b, ETH_HEADER_LEN + IP_HEADER_LEN + UDP_HEADER_LEN);
 
     dhcp_assemble(msg, &b);
 
@@ -958,16 +1025,20 @@ do_send_msg(struct dhclient *cli, const struct dhcp_msg *msg)
     udp_csum = csum_continue(udp_csum, &th, sizeof th);
     th.udp_csum = csum_finish(csum_continue(udp_csum, b.data, b.size));
 
-    buffer_push(&b, &th, sizeof th);
-    buffer_push(&b, &nh, sizeof nh);
-    buffer_push(&b, &eh, sizeof eh);
+    ofpbuf_push(&b, &th, sizeof th);
+    ofpbuf_push(&b, &nh, sizeof nh);
+    ofpbuf_push(&b, &eh, sizeof eh);
 
     /* Don't try to send the frame if it's too long for an Ethernet frame.  We
      * disregard the network device's actual MTU because we don't want the
      * frame to have to be discarded or fragmented if it travels over a regular
      * Ethernet at some point.  1500 bytes should be enough for anyone. */
     if (b.size <= ETH_TOTAL_MAX) {
-        VLOG_DBG("sending %s", dhcp_msg_to_string(msg, false, &cli->s));
+        if (VLOG_IS_DBG_ENABLED()) {
+            VLOG_DBG("sending %s", dhcp_msg_to_string(msg, false, &cli->s)); 
+        } else {
+            VLOG_WARN("sending %s", dhcp_type_name(msg->type));
+        }
         error = netdev_send(cli->netdev, &b);
         if (error) {
             VLOG_ERR("send failed on %s: %s",
@@ -977,7 +1048,7 @@ do_send_msg(struct dhclient *cli, const struct dhcp_msg *msg)
         VLOG_ERR("cannot send %zu-byte Ethernet frame", b.size);
     }
 
-    buffer_uninit(&b);
+    ofpbuf_uninit(&b);
 }
 
 static unsigned int
@@ -987,25 +1058,6 @@ fuzz(unsigned int x, int max_fuzz)
     int fuzz = random_range(max_fuzz * 2 + 1) - max_fuzz;
     unsigned int y = x + fuzz;
     return fuzz >= 0 ? (y >= x ? y : UINT_MAX) : (y <= x ? y : 0);
-}
-
-static unsigned int
-sat_add(unsigned int x, unsigned int y)
-{
-    return x + y >= x ? x + y : UINT_MAX;
-}
-
-static unsigned int
-sat_sub(unsigned int x, unsigned int y)
-{
-    return x >= y ? x - y : 0;
-}
-
-static unsigned int
-sat_mul(unsigned int x, unsigned int y)
-{
-    assert(y);
-    return x <= UINT_MAX / y ? x * y : UINT_MAX;
 }
 
 static unsigned int

@@ -73,7 +73,7 @@ static struct sw_flow *table_dummy_lookup(struct sw_table *swt,
 	struct sw_table_dummy *td = (struct sw_table_dummy *) swt;
 	struct sw_flow *flow;
 	list_for_each_entry (flow, &td->flows, node) {
-		if (flow_matches(&flow->key, key)) {
+		if (flow_matches_1wild(key, &flow->key)) {
 			return flow; 
 		}
 	}
@@ -97,6 +97,25 @@ static int table_dummy_insert(struct sw_table *swt, struct sw_flow *flow)
 	return 0;
 }
 
+static int table_dummy_modify(struct sw_table *swt, 
+		const struct sw_flow_key *key, uint16_t priority, int strict,
+		const struct ofp_action_header *actions, size_t actions_len)
+{
+	struct sw_table_dummy *td = (struct sw_table_dummy *) swt;
+	struct sw_flow *flow;
+	unsigned int count = 0;
+
+	list_for_each_entry (flow, &td->flows, node) {
+		if (flow_matches_desc(&flow->key, key, strict)
+				&& (!strict || (flow->priority == priority))) {
+			flow_replace_acts(flow, actions, actions_len);
+			/* xxx Do whatever is necessary to modify the entry in hardware */
+			count++;
+		}
+	}
+	return count;
+}
+
 
 static int do_delete(struct sw_table *swt, struct sw_flow *flow)
 {
@@ -105,6 +124,7 @@ static int do_delete(struct sw_table *swt, struct sw_flow *flow)
 	 */
 	list_del_rcu(&flow->node);
 	list_del_rcu(&flow->iter_node);
+	flow_deferred_free(flow);
 	return 1;
 }
 
@@ -116,7 +136,7 @@ static int table_dummy_delete(struct sw_table *swt,
 	unsigned int count = 0;
 
 	list_for_each_entry (flow, &td->flows, node) {
-		if (flow_del_matches(&flow->key, key, strict)
+		if (flow_matches_desc(&flow->key, key, strict)
 		    && (!strict || (flow->priority == priority)))
 			count += do_delete(swt, flow);
 	}
@@ -131,29 +151,30 @@ static int table_dummy_timeout(struct datapath *dp, struct sw_table *swt)
 	struct sw_flow *flow;
 	int del_count = 0;
 	uint64_t packet_count = 0;
-	int i = 0;
+	uint64_t byte_count = 0;
+	int reason;
 
 	mutex_lock(&dp_mutex);
 	list_for_each_entry (flow, &td->flows, node) {
-		/* xxx Retrieve the packet count associated with this entry
-		 * xxx and store it in "packet_count".
+		/* xxx Retrieve the packet and byte counts associated with this
+		 * entry xxx and store them in "packet_count" and "byte_count".
 		 */
 
-		if ((packet_count > flow->packet_count)
-                    && (flow->max_idle != OFP_FLOW_PERMANENT)) {
+		if (packet_count != flow->packet_count) {
 			flow->packet_count = packet_count;
-			flow->timeout = jiffies + HZ * flow->max_idle;
+			flow->byte_count = byte_count;
+			flow->used = jiffies;
 		}
 
-		if (flow_timeout(flow)) {
+		reason = flow_timeout(flow);
+		if (reason >= 0) {
 			if (dp->flags & OFPC_SEND_FLOW_EXP) {
 				/* xxx Get byte count */
 				flow->byte_count = 0;
-				dp_send_flow_expired(dp, flow);
+				dp_send_flow_expired(dp, flow, reason);
 			}
 			del_count += do_delete(swt, flow);
 		}
-		i++;
 	}
 	mutex_unlock(&dp_mutex);
 
@@ -189,13 +210,14 @@ static int table_dummy_iterate(struct sw_table *swt,
 			       int (*callback)(struct sw_flow *, void *),
 			       void *private)
 {
-	struct sw_table_dummy *tl = (struct sw_table_dummy *) swt;
+	struct sw_table_dummy *td = (struct sw_table_dummy *) swt;
 	struct sw_flow *flow;
 	unsigned long start;
 
 	start = ~position->private[0];
-	list_for_each_entry (flow, &tl->iter_flows, iter_node) {
-		if (flow->serial <= start && flow_matches(key, &flow->key)) {
+	list_for_each_entry (flow, &td->iter_flows, iter_node) {
+		if (flow->serial <= start && flow_matches_2wild(key,
+								&flow->key)) {
 			int error = callback(flow, private);
 			if (error) {
 				position->private[0] = ~flow->serial;
@@ -211,8 +233,10 @@ static void table_dummy_stats(struct sw_table *swt,
 {
 	struct sw_table_dummy *td = (struct sw_table_dummy *) swt;
 	stats->name = "dummy";
-	stats->n_flows = td->n_flows;
+	stats->wildcards = OFPFW_ALL;      /* xxx Set this appropriately */
+	stats->n_flows   = td->n_flows;
 	stats->max_flows = td->max_flows;
+	stats->n_matched = swt->n_matched;
 }
 
 
@@ -228,6 +252,7 @@ static struct sw_table *table_dummy_create(void)
 	swt = &td->swt;
 	swt->lookup = table_dummy_lookup;
 	swt->insert = table_dummy_insert;
+	swt->modify = table_dummy_modify;
 	swt->delete = table_dummy_delete;
 	swt->timeout = table_dummy_timeout;
 	swt->destroy = table_dummy_destroy;

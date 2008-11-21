@@ -45,6 +45,7 @@
 #include "socket-util.h"
 #include "util.h"
 #include "openflow.h"
+#include "vconn-provider.h"
 #include "vconn-stream.h"
 
 #include "vlog.h"
@@ -87,7 +88,7 @@ tcp_open(const char *name, char *suffix, struct vconn **vconnp)
     host_name = strtok_r(suffix, "::", &save_ptr);
     port_string = strtok_r(NULL, "::", &save_ptr);
     if (!host_name) {
-        error(0, "%s: bad peer name format", name);
+        ofp_error(0, "%s: bad peer name format", name);
         return EAFNOSUPPORT;
     }
 
@@ -126,8 +127,13 @@ tcp_open(const char *name, char *suffix, struct vconn **vconnp)
 }
 
 struct vconn_class tcp_vconn_class = {
-    .name = "tcp",
-    .open = tcp_open,
+    "tcp",                      /* name */
+    tcp_open,                   /* open */
+    NULL,                       /* close */
+    NULL,                       /* connect */
+    NULL,                       /* recv */
+    NULL,                       /* send */
+    NULL,                       /* wait */
 };
 
 /* Passive TCP. */
@@ -136,7 +142,7 @@ static int ptcp_accept(int fd, const struct sockaddr *sa, size_t sa_len,
                        struct vconn **vconnp);
 
 static int
-ptcp_open(const char *name, char *suffix, struct vconn **vconnp)
+ptcp_open(const char *name, char *suffix, struct pvconn **pvconnp)
 {
     struct sockaddr_in sin;
     int retval;
@@ -166,7 +172,7 @@ ptcp_open(const char *name, char *suffix, struct vconn **vconnp)
         return error;
     }
 
-    return new_pstream_vconn("ptcp", fd, ptcp_accept, vconnp);
+    return new_pstream_pvconn("ptcp", fd, ptcp_accept, pvconnp);
 }
 
 static int
@@ -187,8 +193,8 @@ ptcp_accept(int fd, const struct sockaddr *sa, size_t sa_len,
     return new_tcp_vconn(name, fd, 0, sin, vconnp);
 }
 
-struct vconn_class ptcp_vconn_class = {
-    .name = "ptcp",
-    .open = ptcp_open,
+struct pvconn_class ptcp_pvconn_class = {
+    "ptcp",
+    ptcp_open,
 };
 

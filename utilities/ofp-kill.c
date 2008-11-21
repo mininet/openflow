@@ -41,7 +41,9 @@
 #include <string.h>
 #include "command-line.h"
 #include "daemon.h"
+#include "timeval.h"
 #include "util.h"
+#include "vlog.h"
 
 /* -s, --signal: signal to send. */
 static int sig_nr = SIGTERM;
@@ -50,7 +52,6 @@ static int sig_nr = SIGTERM;
 static bool force;
 
 static void cond_error(int err_no, const char *, ...) PRINTF_FORMAT(2, 3);
-static bool kill_pidfile(const char *pidfile, FILE *);
 
 static void parse_options(int argc, char *argv[]);
 static void usage(void);
@@ -62,68 +63,36 @@ main(int argc, char *argv[])
     int i;
 
     set_program_name(argv[0]);
+    time_init();
+    vlog_init();
     parse_options(argc, argv);
 
     argc -= optind;
     argv += optind;
     if (argc < 1) {
         if (!force) {
-            fatal(0, "need at least one non-option argument; "
-                  "use --help for usage");
+            ofp_fatal(0, "need at least one non-option argument; "
+                      "use --help for usage");
         }
     }
 
     for (i = 0; i < argc; i++) {
         char *pidfile;
-        FILE *file;
+        pid_t pid;
 
         pidfile = make_pidfile_name(argv[i]);
-        file = fopen(pidfile, "r");
-        if (!file) {
-            ok = false;
-            cond_error(errno, "%s: open", pidfile);
+        pid = read_pidfile(pidfile);
+        if (pid >= 0) {
+            if (kill(pid, sig_nr) < 0) {
+                cond_error(errno, "%s: kill(%ld)", pidfile, (long int) pid);
+            }
         } else {
-            ok = kill_pidfile(argv[i], file) && ok;
-            fclose(file);
+            cond_error(-pid, "could not read %s", pidfile);
         }
         free(pidfile);
     }
 
     return ok || force ? EXIT_SUCCESS : EXIT_FAILURE;
-}
-
-static bool
-kill_pidfile(const char *pidfile, FILE *file)
-{
-    char line[128];
-    struct flock lck;
-
-    lck.l_type = F_WRLCK;
-    lck.l_whence = SEEK_SET;
-    lck.l_start = 0;
-    lck.l_len = 0;
-    if (fcntl(fileno(file), F_GETLK, &lck)) {
-        cond_error(errno, "%s: fcntl", pidfile); 
-        return false;
-    }
-
-    if (!fgets(line, sizeof line, file)) {
-        cond_error(errno, "%s: read", pidfile);
-        return false;
-    }
-
-    if (lck.l_pid != strtoul(line, NULL, 10)) {
-        cond_error(errno, "l_pid (%ld) != %s pid (%s)",
-                   (long int) lck.l_pid, pidfile, line);
-        return false;
-    }
-
-    if (kill(lck.l_pid, sig_nr) < 0) {
-        cond_error(errno, "%s: kill(%ld)", pidfile, (long int) lck.l_pid);
-        return false;
-    }
-
-    return true;
 }
 
 static void
@@ -200,7 +169,7 @@ parse_options(int argc, char *argv[])
                         goto got_name;
                     }
                 }
-                fatal(0, "unknown signal \"%s\"", optarg);
+                ofp_fatal(0, "unknown signal \"%s\"", optarg);
             got_name: ;
             }
             break;

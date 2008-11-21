@@ -44,13 +44,20 @@ int dhclient_create(const char *netdev,
                     void (*modify_request)(struct dhcp_msg *, void *aux),
                     bool (*validate_offer)(const struct dhcp_msg *, void *aux),
                     void *aux, struct dhclient **);
+void dhclient_set_max_timeout(struct dhclient *, unsigned int max_timeout);
 void dhclient_destroy(struct dhclient *);
+
+struct netdev *dhclient_get_netdev(struct dhclient *);
 
 void dhclient_init(struct dhclient *, uint32_t requested_ip);
 void dhclient_release(struct dhclient *);
 void dhclient_force_renew(struct dhclient *, int deadline);
 bool dhclient_is_bound(const struct dhclient *);
 bool dhclient_changed(struct dhclient *);
+
+const char *dhclient_get_state(const struct dhclient *);
+unsigned int dhclient_get_state_elapsed(const struct dhclient *);
+unsigned int dhclient_get_lease_remaining(const struct dhclient *);
 
 uint32_t dhclient_get_ip(const struct dhclient *);
 uint32_t dhclient_get_netmask(const struct dhclient *);

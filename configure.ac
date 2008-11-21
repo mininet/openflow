@@ -1,11 +1,46 @@
+# Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+# Junior University
+#
+# We are making the OpenFlow specification and associated documentation
+# (Software) available for public use and benefit with the expectation
+# that others will use, modify and enhance the Software and contribute
+# those enhancements back to the community. However, since we would
+# like to make the Software available for broadest use, with as few
+# restrictions as possible permission is hereby granted, free of
+# charge, to any person obtaining a copy of this Software to deal in
+# the Software under the copyrights without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# The name and trademarks of copyright holder(s) may NOT be used in
+# advertising or publicity pertaining to the Software or any
+# derivatives without specific, written prior permission.
+
 AC_PREREQ(2.59)
-AC_INIT(openflow, v0.8.1, info@openflowswitch.org)
+AC_INIT(openflow, 0.9.0~b1, info@openflowswitch.org)
+AC_CONFIG_SRCDIR([README.hwtables])
+AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE
 
 AC_PROG_CC
+AM_PROG_CC_C_O
 AC_PROG_CPP
-AC_PROG_LD
 AC_PROG_RANLIB
 
 AC_ARG_VAR([PERL], [path to Perl interpreter])
@@ -14,118 +49,24 @@ if test "$PERL" = no; then
    AC_MSG_ERROR([Perl interpreter not found in $PATH or $PERL.])
 fi
 
-AC_USE_SYSTEM_EXTENSIONS
-
-AC_ARG_ENABLE(
-  [ndebug],
-  [AC_HELP_STRING([--enable-ndebug], 
-                  [Disable debugging features for max performance])],
-  [case "${enableval}" in # (
-     yes) ndebug=true ;; # (
-     no)  ndebug=false ;; # (
-     *) AC_MSG_ERROR([bad value ${enableval} for --enable-ndebug]) ;;
-   esac],
-  [ndebug=false])
-AM_CONDITIONAL([NDEBUG], [test x$ndebug = xtrue])
-
-AC_ARG_ENABLE(
-  [hw-tables],
-  [AC_HELP_STRING([--enable-hw-tables=MODULE...],
-                  [Configure and build the specified externally supplied 
-		   hardware table support modules])])
-case "${enable_hw_tables}" in # (
-  yes) 
-    AC_MSG_ERROR([--enable-hw-tables has a required argument])
-    ;; # (
-  ''|no) 
-    hw_tables=
-    ;; # (
-  *) 
-    hw_tables=`echo "$enable_hw_tables" | sed 's/,/ /g'`
-    ;;
-esac
-for d in $hw_tables; do
-    mk=datapath/hwtable_$d/Modules.mk
-    if test ! -e $srcdir/$mk; then
-       AC_MSG_ERROR([--enable-hw-tables=$d specified but $mk is missing])
-    fi
-    HW_TABLES="$HW_TABLES \$(top_srcdir)/$mk"
-done
-AC_SUBST(HW_TABLES)
+OFP_CHECK_LIBOPENFLOW
+OFP_CHECK_IF_PACKET
+OFP_CHECK_HWTABLES
 
 AC_ARG_VAR(KARCH, [Kernel Architecture String])
 AC_SUBST(KARCH)
+OFP_CHECK_LINUX(l26, 2.6, 2.6, KSRC26, L26_ENABLED)
+OFP_CHECK_LINUX(l24, 2.4, 2.4, KSRC24, L24_ENABLED)
 
-CHECK_LINUX(l26, 2.6, 2.6, KSRC26, L26_ENABLED)
-CHECK_LINUX(l24, 2.4, 2.4, KSRC24, L24_ENABLED)
+OFP_CHECK_DPKG_BUILDPACKAGE
 
-AC_CHECK_HEADER([linux/netlink.h],
-                [HAVE_NETLINK=yes],
-                [HAVE_NETLINK=no],
-                [#include <sys/socket.h>
-#include <linux/types.h>])
-AM_CONDITIONAL([HAVE_NETLINK], [test "$HAVE_NETLINK" = yes])
-if test "$HAVE_NETLINK" = yes; then
-   AC_DEFINE([HAVE_NETLINK], [1],
-             [Define to 1 if Netlink protocol is available.])
-fi
+CFLAGS="$CFLAGS -Wall -Wno-sign-compare -Wpointer-arith -Wdeclaration-after-statement"
 
-AC_CHECK_HEADER([net/if_packet.h],
-                [HAVE_IF_PACKET=yes],
-                [HAVE_IF_PACKET=no])
-AM_CONDITIONAL([HAVE_IF_PACKET], [test "$HAVE_IF_PACKET" = yes])
-if test "$HAVE_IF_PACKET" = yes; then
-   AC_DEFINE([HAVE_IF_PACKET], [1],
-             [Define to 1 if net/if_packet.h is available.])
-fi
-
-AC_ARG_ENABLE(
-  [ssl],
-  [AC_HELP_STRING([--enable-ssl], 
-                  [Enable ssl support (requires libssl)])],
-  [case "${enableval}" in # (
-     yes) ssl=true ;;  # (
-     no)  ssl=false ;; # (
-     *) AC_MSG_ERROR([bad value ${enableval} for --enable-ssl]) ;;
-   esac],
-  [ssl=false])
-
-if test "$ssl" = true; then
-dnl Make sure that pkg-config is installed.
-m4_pattern_forbid([PKG_CHECK_MODULES])
-PKG_CHECK_MODULES([SSL], [libssl], 
-  [HAVE_OPENSSL=yes],
-  [HAVE_OPENSSL=no
-   AC_MSG_WARN([Cannot find libssl:
-
-$SSL_PKG_ERRORS
-
-OpenFlow will not support SSL connections.])])
-
-fi
-AM_CONDITIONAL([HAVE_OPENSSL], [test "$HAVE_OPENSSL" = yes])
-if test "$HAVE_OPENSSL" = yes; then
-   AC_DEFINE([HAVE_OPENSSL], [1], [Define to 1 if OpenSSL is installed.])
-fi
-
-AC_CHECK_LIB([socket], [connect])
-AC_SEARCH_LIBS([gethostbyname], [resolv], [RESOLVER_LIBS=-lresolv])
-AC_CHECK_LIB([dl], [dladdr], [FAULT_LIBS=-ldl])
-AC_SUBST([FAULT_LIBS])
-
-CFLAGS="$CFLAGS -Wall -Wno-sign-compare"
+OFP_ENABLE_EXT
+m4_include([ext.m4])
 
 AC_CONFIG_FILES([Makefile 
 datapath/Makefile 
-lib/Makefile
-include/Makefile
-controller/Makefile
-utilities/Makefile
-secchan/Makefile
-switch/Makefile
-tests/Makefile
-datapath/tests/Makefile
-third-party/Makefile
 datapath/linux-2.6/Kbuild
 datapath/linux-2.6/Makefile
 datapath/linux-2.6/Makefile.main

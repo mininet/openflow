@@ -33,10 +33,11 @@
 #ifndef FLOW_H
 #define FLOW_H 1
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "util.h"
 
-struct buffer;
+struct ofpbuf;
 
 /* Identification data for a flow.
    All fields are in network byte order.
@@ -53,11 +54,11 @@ struct flow {
     uint8_t dl_src[6];          /* Ethernet source address. */
     uint8_t dl_dst[6];          /* Ethernet destination address. */
     uint8_t nw_proto;           /* IP protocol. */
-    uint8_t reserved;           /* One byte of padding. */
+    uint8_t reserved;           /* Pad to 32-bit alignment. */
 };
 BUILD_ASSERT_DECL(sizeof (struct flow) == 32);
 
-void flow_extract(struct buffer *, uint16_t in_port, struct flow *);
+int flow_extract(struct ofpbuf *, uint16_t in_port, struct flow *);
 void flow_print(FILE *, const struct flow *);
 int flow_compare(const struct flow *, const struct flow *);
 unsigned long int flow_hash(const struct flow *, uint32_t basis);

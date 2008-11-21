@@ -86,6 +86,8 @@ static inline void eth_addr_from_uint64(uint64_t x, uint8_t ea[ETH_ADDR_LEN])
 static inline void eth_addr_random(uint8_t ea[ETH_ADDR_LEN])
 {
     random_bytes(ea, ETH_ADDR_LEN);
+    ea[0] &= ~1;                /* Unicast. */
+    ea[0] |= 2;                 /* Private. */
 }
 
 #define ETH_ADDR_FMT                                                    \
@@ -138,7 +140,8 @@ struct llc_snap_header {
 } __attribute__((packed));
 BUILD_ASSERT_DECL(LLC_SNAP_HEADER_LEN == sizeof(struct llc_snap_header));
 
-#define VLAN_VID 0x0fff
+#define VLAN_VID_MASK 0x0fff
+#define VLAN_PCP_MASK 0xe000
 
 #define VLAN_HEADER_LEN 4
 struct vlan_header {
@@ -168,6 +171,7 @@ BUILD_ASSERT_DECL(VLAN_ETH_HEADER_LEN == sizeof(struct vlan_eth_header));
 #define IP_IHL(ip_ihl_ver) ((ip_ihl_ver) & 15)
 #define IP_IHL_VER(ihl, ver) (((ver) << 4) | (ihl))
 
+#define IP_TYPE_ICMP 1
 #define IP_TYPE_TCP 6
 #define IP_TYPE_UDP 17
 
@@ -177,7 +181,7 @@ BUILD_ASSERT_DECL(VLAN_ETH_HEADER_LEN == sizeof(struct vlan_eth_header));
 #define IP_MORE_FRAGMENTS 0x2000 /* More fragments. */
 #define IP_FRAG_OFF_MASK  0x1fff /* Fragment offset. */
 #define IP_IS_FRAGMENT(ip_frag_off) \
-        (ntohs(ip_frag_off) & (IP_MORE_FRAGMENTS | IP_FRAG_OFF_MASK))
+        ((ip_frag_off) & htons(IP_MORE_FRAGMENTS | IP_FRAG_OFF_MASK))
 
 #define IP_HEADER_LEN 20
 struct ip_header {

@@ -52,6 +52,7 @@ static sigset_t fatal_signal_set;
 struct hook {
     void (*func)(void *aux);
     void *aux;
+    bool run_at_exit;
 };
 #define MAX_HOOKS 32
 static struct hook hooks[MAX_HOOKS];
@@ -63,18 +64,24 @@ static int block_level = 0;
 /* Signal mask saved by outermost signal blocker. */
 static sigset_t saved_signal_mask;
 
-static void call_sigprocmask(int how, sigset_t* new_set, sigset_t* old_set);
-static void signal_handler(int sig_nr);
+/* Disabled by fatal_signal_fork()? */
+static bool disabled;
 
-/* Registers 'hook' to be called when a process termination signal is
- * raised. */
+static void call_sigprocmask(int how, sigset_t* new_set, sigset_t* old_set);
+static void atexit_handler(void);
+static void call_hooks(int sig_nr);
+
+/* Registers 'hook' to be called when a process termination signal is raised.
+ * If 'run_at_exit' is true, 'hook' is also called during normal process
+ * termination, e.g. when exit() is called or when main() returns. */
 void
-fatal_signal_add_hook(void (*func)(void *aux), void *aux)
+fatal_signal_add_hook(void (*func)(void *aux), void *aux, bool run_at_exit)
 {
     fatal_signal_block();
     assert(n_hooks < MAX_HOOKS);
     hooks[n_hooks].func = func;
     hooks[n_hooks].aux = aux;
+    hooks[n_hooks].run_at_exit = run_at_exit;
     n_hooks++;
     fatal_signal_unblock();
 }
@@ -97,11 +104,18 @@ fatal_signal_block()
         sigemptyset(&fatal_signal_set);
         for (i = 0; i < ARRAY_SIZE(fatal_signals); i++) {
             int sig_nr = fatal_signals[i];
+            struct sigaction old_sa;
+
             sigaddset(&fatal_signal_set, sig_nr);
-            if (signal(sig_nr, signal_handler) == SIG_IGN) {
-                signal(sig_nr, SIG_IGN);
+            if (sigaction(sig_nr, NULL, &old_sa)) {
+                ofp_fatal(errno, "sigaction");
+            }
+            if (old_sa.sa_handler == SIG_DFL
+                && signal(sig_nr, fatal_signal_handler) == SIG_ERR) {
+                ofp_fatal(errno, "signal");
             }
         }
+        atexit(atexit_handler);
     }
 
     if (++block_level == 1) {
@@ -121,10 +135,55 @@ fatal_signal_unblock()
         call_sigprocmask(SIG_SETMASK, &saved_signal_mask, NULL);
     }
 }
+
+/* Handles fatal signal number 'sig_nr'.
+ *
+ * Ordinarily this is the actual signal handler.  When other code needs to
+ * handle one of our signals, however, it can register for that signal and, if
+ * and when necessary, call this function to do fatal signal processing for it
+ * and terminate the process.  Currently only timeval.c does this, for SIGALRM.
+ * (It is not important whether the other code sets up its signal handler
+ * before or after this file, because this file will only set up a signal
+ * handler in the case where the signal has its default handling.)  */
+void
+fatal_signal_handler(int sig_nr)
+{
+    call_hooks(sig_nr);
+
+    /* Re-raise the signal with the default handling so that the program
+     * termination status reflects that we were killed by this signal */
+    signal(sig_nr, SIG_DFL);
+    raise(sig_nr);
+}
+
+static void
+atexit_handler(void)
+{
+    if (!disabled) {
+        call_hooks(0);
+    }
+}
+
+static void
+call_hooks(int sig_nr)
+{
+    volatile sig_atomic_t recurse = 0;
+    if (!recurse) {
+        size_t i;
+
+        recurse = 1;
+
+        for (i = 0; i < n_hooks; i++) {
+            struct hook *h = &hooks[i];
+            if (sig_nr || h->run_at_exit) {
+                h->func(h->aux);
+            }
+        }
+    }
+}
 
 static char **files;
 static size_t n_files, max_files;
-static bool disabled;
 
 static void unlink_files(void *aux);
 static void do_unlink_files(void);
@@ -137,8 +196,7 @@ fatal_signal_add_file_to_unlink(const char *file)
     static bool added_hook = false;
     if (!added_hook) {
         added_hook = true;
-        fatal_signal_add_hook(unlink_files, NULL);
-        atexit(do_unlink_files);
+        fatal_signal_add_hook(unlink_files, NULL, true);
     }
 
     fatal_signal_block();
@@ -177,12 +235,10 @@ unlink_files(void *aux UNUSED)
 static void
 do_unlink_files(void)
 {
-    if (!disabled) {
-        size_t i;
+    size_t i;
 
-        for (i = 0; i < n_files; i++) {
-            unlink(files[i]);
-        }
+    for (i = 0; i < n_files; i++) {
+        unlink(files[i]);
     }
 }
 
@@ -212,25 +268,4 @@ call_sigprocmask(int how, sigset_t* new_set, sigset_t* old_set)
     if (error) {
         fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
     }
-}
-
-static void
-signal_handler(int sig_nr)
-{
-    volatile sig_atomic_t recurse = 0;
-    if (!recurse) {
-        size_t i;
-
-        recurse = 1;
-
-        /* Call all the hooks. */
-        for (i = 0; i < n_hooks; i++) {
-            hooks[i].func(hooks[i].aux);
-        }
-    }
-
-    /* Re-raise the signal with the default handling so that the program
-     * termination status reflects that we were killed by this signal */
-    signal(sig_nr, SIG_DFL);
-    raise(sig_nr);
 }

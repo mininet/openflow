@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "list.h"
+#include "timeval.h"
 
 #define THIS_MODULE VLM_poll_loop
 #include "vlog.h"
@@ -116,7 +117,7 @@ poll_immediate_wake(void)
  * elapses, or not at all if poll_immediate_wake() has been called.
  *
  * Also executes any autonomous subroutines registered with poll_fd_callback(),
- * if their file descriptor have become ready. */
+ * if their file descriptors have become ready. */
 void
 poll_block(void)
 {
@@ -143,11 +144,10 @@ poll_block(void)
         n_pollfds++;
     }
 
-    do {
-        retval = poll(pollfds, n_pollfds, timeout);
-    } while (retval < 0 && errno == EINTR);
+    retval = time_poll(pollfds, n_pollfds, timeout);
     if (retval < 0) {
-        VLOG_ERR("poll: %s", strerror(errno));
+        static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
+        VLOG_ERR_RL(&rl, "poll: %s", strerror(-retval));
     }
 
     for (node = waiters.next; node != &waiters; ) {

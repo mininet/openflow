@@ -77,12 +77,13 @@ lookup_ip(const char *host_name, struct in_addr *addr)
     if (!inet_aton(host_name, addr)) {
         struct hostent *he = gethostbyname(host_name);
         if (he == NULL) {
-            VLOG_ERR("gethostbyname(%s): %s", host_name,
-                     (h_errno == HOST_NOT_FOUND ? "host not found"
-                      : h_errno == TRY_AGAIN ? "try again"
-                      : h_errno == NO_RECOVERY ? "non-recoverable error"
-                      : h_errno == NO_ADDRESS ? "no address"
-                      : "unknown error"));
+            struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
+            VLOG_ERR_RL(&rl, "gethostbyname(%s): %s", host_name,
+                        (h_errno == HOST_NOT_FOUND ? "host not found"
+                         : h_errno == TRY_AGAIN ? "try again"
+                         : h_errno == NO_RECOVERY ? "non-recoverable error"
+                         : h_errno == NO_ADDRESS ? "no address"
+                         : "unknown error"));
             return ENOENT;
         }
         addr->s_addr = *(uint32_t *) he->h_addr;
@@ -98,8 +99,9 @@ get_socket_error(int fd)
     int error;
     socklen_t len = sizeof(error);
     if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
+        struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 10);
         error = errno;
-        VLOG_ERR("getsockopt(SO_ERROR): %s", strerror(error));
+        VLOG_ERR_RL(&rl, "getsockopt(SO_ERROR): %s", strerror(error));
     }
     return error;
 }
@@ -118,7 +120,8 @@ check_connection_completion(int fd)
     if (retval == 1) {
         return get_socket_error(fd);
     } else if (retval < 0) {
-        VLOG_ERR("poll: %s", strerror(errno));
+        static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 10);
+        VLOG_ERR_RL(&rl, "poll: %s", strerror(errno));
         return errno;
     } else {
         return EAGAIN;
@@ -138,7 +141,8 @@ drain_rcvbuf(int fd)
 
     rcvbuf_len = sizeof rcvbuf;
     if (getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, &rcvbuf_len) < 0) {
-        VLOG_ERR("getsockopt(SO_RCVBUF) failed: %s", strerror(errno));
+        static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 10);
+        VLOG_ERR_RL(&rl, "getsockopt(SO_RCVBUF) failed: %s", strerror(errno));
         return errno;
     }
     while (rcvbuf > 0) {
@@ -164,6 +168,24 @@ drain_rcvbuf(int fd)
         rcvbuf -= n_bytes;
     }
     return 0;
+}
+
+/* Reads and discards up to 'n' datagrams from 'fd', stopping as soon as no
+ * more data can be immediately read.  ('fd' should therefore be in
+ * non-blocking mode.)*/
+void
+drain_fd(int fd, size_t n_packets)
+{
+    for (; n_packets > 0; n_packets--) {
+        /* 'buffer' only needs to be 1 byte long in most circumstances.  This
+         * size is defensive against the possibility that we someday want to
+         * use a Linux tap device without TUN_NO_PI, in which case a buffer
+         * smaller than sizeof(struct tun_pi) will give EINVAL on read. */
+        char buffer[128];
+        if (read(fd, buffer, sizeof buffer) <= 0) {
+            break;
+        }
+    }
 }
 
 /* Stores in '*un' a sockaddr_un that refers to file 'name'.  Stores in
@@ -197,6 +219,10 @@ make_unix_socket(int style, bool nonblock, bool passcred UNUSED,
         return -errno;
     }
 
+    /* Set nonblocking mode right away, if we want it.  This prevents blocking
+     * in connect(), if connect_path != NULL.  (In turn, that's a corner case:
+     * it will only happen if style is SOCK_STREAM or SOCK_SEQPACKET, and only
+     * if a backlog of un-accepted connections has built up in the kernel.)  */
     if (nonblock) {
         int flags = fcntl(fd, F_GETFL, 0);
         if (flags == -1) {
@@ -249,4 +275,12 @@ error:
     error = errno;
     close(fd);
     return -error;
+}
+
+int
+get_unix_name_len(socklen_t sun_len)
+{
+    return (sun_len >= offsetof(struct sockaddr_un, sun_path)
+            ? sun_len - offsetof(struct sockaddr_un, sun_path)
+            : 0);
 }

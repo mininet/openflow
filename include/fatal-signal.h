@@ -34,8 +34,10 @@
 #ifndef FATAL_SIGNAL_H
 #define FATAL_SIGNAL_H 1
 
+#include <stdbool.h>
+
 /* Basic interface. */
-void fatal_signal_add_hook(void (*)(void *aux), void *aux);
+void fatal_signal_add_hook(void (*)(void *aux), void *aux, bool run_at_exit);
 void fatal_signal_block(void);
 void fatal_signal_unblock(void);
 void fatal_signal_fork(void);
@@ -46,5 +48,9 @@ void fatal_signal_fork(void);
  * exit(). */
 void fatal_signal_add_file_to_unlink(const char *);
 void fatal_signal_remove_file_to_unlink(const char *);
+
+/* Interface for other code that catches one of our signals and needs to pass
+ * it through. */
+void fatal_signal_handler(int sig_nr);
 
 #endif /* fatal-signal.h */

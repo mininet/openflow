@@ -26,12 +26,15 @@
 #include <linux/random.h>
 #include <asm/system.h>
 #include <linux/netfilter_bridge.h>
+#include <linux/netfilter_ipv4.h>
 #include <linux/inetdevice.h>
 #include <linux/list.h>
 #include <linux/rculist.h>
+#include <linux/workqueue.h>
 
 #include "openflow-netlink.h"
 #include "datapath.h"
+#include "nx_act_snat.h"
 #include "table.h"
 #include "chain.h"
 #include "dp_dev.h"
@@ -41,22 +44,32 @@
 #include "compat.h"
 
 
+/* Strings to describe the manufacturer, hardware, and software.  This data 
+ * is queriable through the switch description stats message. */
+static char mfr_desc[DESC_STR_LEN] = "Nicira Networks";
+static char hw_desc[DESC_STR_LEN] = "Reference Linux Kernel Module";
+static char sw_desc[DESC_STR_LEN] = VERSION;
+static char serial_num[SERIAL_NUM_LEN] = "None";
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
+module_param_string(mfr_desc, mfr_desc, sizeof mfr_desc, 0444);
+module_param_string(hw_desc, hw_desc, sizeof hw_desc, 0444);
+module_param_string(sw_desc, sw_desc, sizeof sw_desc, 0444);
+module_param_string(serial_num, serial_num, sizeof serial_num, 0444);
+#else
+MODULE_PARM(mfr_desc, "s");
+MODULE_PARM(hw_desc, "s");
+MODULE_PARM(sw_desc, "s");
+MODULE_PARM(serial_num, "s");
+#endif
+
+
 /* Number of milliseconds between runs of the maintenance thread. */
 #define MAINT_SLEEP_MSECS 1000
-
-#define BRIDGE_PORT_NO_FLOOD	0x00000001 
 
 #define UINT32_MAX			  4294967295U
 #define UINT16_MAX			  65535
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
-
-struct net_bridge_port {
-	u16	port_no;
-	u32 flags;
-	struct datapath	*dp;
-	struct net_device *dev;
-	struct list_head node; /* Element in datapath.ports. */
-};
 
 static struct genl_family dp_genl_family;
 static struct genl_multicast_group mc_group;
@@ -77,11 +90,10 @@ DEFINE_MUTEX(dp_mutex);
 EXPORT_SYMBOL(dp_mutex);
 
 static int dp_maint_func(void *data);
-static int send_port_status(struct net_bridge_port *p, uint8_t status);
+static void init_port_status(struct net_bridge_port *p);
 static int dp_genl_openflow_done(struct netlink_callback *);
 static struct net_bridge_port *new_nbp(struct datapath *,
 				       struct net_device *, int port_no);
-static int del_switch_port(struct net_bridge_port *);
 
 /* nla_shrink - reduce amount of space reserved by nla_reserve
  * @skb: socket buffer from which to recover room
@@ -297,7 +309,7 @@ static int new_dp(int dp_idx)
 	return 0;
 
 err_destroy_local_port:
-	del_switch_port(dp->local_port);
+	dp_del_switch_port(dp->local_port);
 err_destroy_chain:
 	chain_destroy(dp->chain);
 err_destroy_dp_dev:
@@ -313,7 +325,7 @@ err_unlock:
 static int find_portno(struct datapath *dp)
 {
 	int i;
-	for (i = 0; i < OFPP_MAX; i++)
+	for (i = 0; i < DP_MAX_PORTS; i++)
 		if (dp->ports[i] == NULL)
 			return i;
 	return -EXFULL;
@@ -338,9 +350,11 @@ static struct net_bridge_port *new_nbp(struct datapath *dp,
 	p->dp = dp;
 	p->dev = dev;
 	p->port_no = port_no;
+	spin_lock_init(&p->lock);
+	INIT_WORK(&p->port_task, NULL);
 	if (port_no != OFPP_LOCAL)
 		rcu_assign_pointer(dev->br_port, p);
-	if (port_no < OFPP_MAX)
+	if (port_no < DP_MAX_PORTS)
 		rcu_assign_pointer(dp->ports[port_no], p); 
 	list_add_rcu(&p->node, &dp->port_list);
 
@@ -364,16 +378,23 @@ int add_switch_port(struct datapath *dp, struct net_device *dev)
 	if (IS_ERR(p))
 		return PTR_ERR(p);
 
+	init_port_status(p);
+
 	/* Notify the ctlpath that this port has been added */
-	send_port_status(p, OFPPR_ADD);
+	dp_send_port_status(p, OFPPR_ADD);
 
 	return 0;
 }
 
 /* Delete 'p' from switch. */
-static int del_switch_port(struct net_bridge_port *p)
+int dp_del_switch_port(struct net_bridge_port *p)
 {
+#ifdef SUPPORT_SNAT
+	unsigned long flags;
+#endif
+
 	/* First drop references to device. */
+	cancel_work_sync(&p->port_task);
 	rtnl_lock();
 	dev_set_promiscuity(p->dev, -1);
 	rtnl_unlock();
@@ -385,8 +406,15 @@ static int del_switch_port(struct net_bridge_port *p)
 	/* Then wait until no one is still using it, and destroy it. */
 	synchronize_rcu();
 
+#ifdef SUPPORT_SNAT
+	/* Free any SNAT configuration on the port. */
+	spin_lock_irqsave(&p->lock, flags);
+	snat_free_conf(p);
+	spin_unlock_irqrestore(&p->lock, flags);
+#endif
+
 	/* Notify the ctlpath that this port no longer exists */
-	send_port_status(p, OFPPR_DELETE);
+	dp_send_port_status(p, OFPPR_DELETE);
 
 	dev_put(p->dev);
 	kfree(p);
@@ -402,7 +430,7 @@ static void del_dp(struct datapath *dp)
 
 	/* Drop references to DP. */
 	list_for_each_entry_safe (p, n, &dp->port_list, node)
-		del_switch_port(p);
+		dp_del_switch_port(p);
 	rcu_assign_pointer(dps[dp->dp_idx], NULL);
 
 	/* Kill off local_port dev references from buffered packets that have
@@ -426,6 +454,17 @@ static int dp_maint_func(void *data)
 	struct datapath *dp = (struct datapath *) data;
 
 	while (!kthread_should_stop()) {
+#ifdef SUPPORT_SNAT
+		struct net_bridge_port *p;
+
+		/* Expire old SNAT entries */
+		rcu_read_lock();
+		list_for_each_entry_rcu (p, &dp->port_list, node) 
+			snat_maint(p);
+		rcu_read_unlock();
+#endif
+
+		/* Timeout old entries */
 		chain_timeout(dp->chain);
 		msleep_interruptible(MAINT_SLEEP_MSECS);
 	}
@@ -436,9 +475,17 @@ static int dp_maint_func(void *data)
 static void
 do_port_input(struct net_bridge_port *p, struct sk_buff *skb) 
 {
+#ifdef SUPPORT_SNAT
+	/* Check if this packet needs early SNAT processing. */
+	if (snat_pre_route(skb)) {
+		kfree_skb(skb);
+		return;
+	}
+#endif
+
 	/* Push the Ethernet header back on. */
 	skb_push(skb, ETH_HLEN);
-	fwd_port_input(p->dp->chain, skb, p->port_no);
+	fwd_port_input(p->dp->chain, skb, p);
 }
 
 /*
@@ -490,12 +537,12 @@ static inline unsigned packet_length(const struct sk_buff *skb)
 static int
 output_all(struct datapath *dp, struct sk_buff *skb, int flood)
 {
-	u32 disable = flood ? BRIDGE_PORT_NO_FLOOD : 0;
+	u32 disable = flood ? OFPPC_NO_FLOOD : 0;
 	struct net_bridge_port *p;
 	int prev_port = -1;
 
 	list_for_each_entry_rcu (p, &dp->port_list, node) {
-		if (skb->dev == p->dev || p->flags & disable)
+		if (skb->dev == p->dev || p->config & disable)
 			continue;
 		if (prev_port != -1) {
 			struct sk_buff *clone = skb_clone(skb, GFP_ATOMIC);
@@ -503,12 +550,12 @@ output_all(struct datapath *dp, struct sk_buff *skb, int flood)
 				kfree_skb(skb);
 				return -ENOMEM;
 			}
-			dp_output_port(dp, clone, prev_port); 
+			dp_output_port(dp, clone, prev_port, 0); 
 		}
 		prev_port = p->port_no;
 	}
 	if (prev_port != -1)
-		dp_output_port(dp, skb, prev_port);
+		dp_output_port(dp, skb, prev_port, 0);
 	else
 		kfree_skb(skb);
 
@@ -517,64 +564,100 @@ output_all(struct datapath *dp, struct sk_buff *skb, int flood)
 
 /* Marks 'skb' as having originated from 'in_port' in 'dp'.
    FIXME: how are devices reference counted? */
-int dp_set_origin(struct datapath *dp, uint16_t in_port,
+void dp_set_origin(struct datapath *dp, uint16_t in_port,
 			   struct sk_buff *skb)
 {
-	struct net_bridge_port *p = (in_port < OFPP_MAX ? dp->ports[in_port]
-				     : in_port == OFPP_LOCAL ? dp->local_port
-				     : NULL);
-	if (p) {
+	struct net_bridge_port *p;
+	p = (in_port < DP_MAX_PORTS ? dp->ports[in_port]
+	     : in_port == OFPP_LOCAL ? dp->local_port
+	     : NULL);
+	if (p) 
 		skb->dev = p->dev;
-		return 0;
+	 else 
+		skb->dev = NULL;
+}
+
+int 
+dp_xmit_skb(struct sk_buff *skb)
+{
+	int len = skb->len;
+	if (packet_length(skb) > skb->dev->mtu) {
+		printk("dropped over-mtu packet: %d > %d\n",
+			   packet_length(skb), skb->dev->mtu);
+		kfree_skb(skb);
+		return -E2BIG;
 	}
-	return -ENOENT;
+
+	dev_queue_xmit(skb);
+
+	return len;
 }
 
 /* Takes ownership of 'skb' and transmits it to 'out_port' on 'dp'.
  */
-int dp_output_port(struct datapath *dp, struct sk_buff *skb, int out_port)
+int dp_output_port(struct datapath *dp, struct sk_buff *skb, int out_port,
+		   int ignore_no_fwd)
 {
 	BUG_ON(!skb);
-	if (out_port == OFPP_FLOOD)
+	switch (out_port){
+	case OFPP_IN_PORT:
+		/* Send it out the port it came in on, which is already set in
+		 * the skb. */
+		if (!skb->dev) {
+			if (net_ratelimit())
+				printk("skb device not set forwarding to in_port\n");
+			kfree_skb(skb);
+			return -ESRCH;
+		}
+		return dp_xmit_skb(skb);
+		
+	case OFPP_TABLE: {
+		int retval = run_flow_through_tables(dp->chain, skb,
+						     skb->dev->br_port);
+		if (retval)
+			kfree_skb(skb);
+		return retval;
+	}
+
+	case OFPP_FLOOD:
 		return output_all(dp, skb, 1);
-	else if (out_port == OFPP_ALL)
+
+	case OFPP_ALL:
 		return output_all(dp, skb, 0);
-	else if (out_port == OFPP_CONTROLLER)
+
+	case OFPP_CONTROLLER:
 		return dp_output_control(dp, skb, fwd_save_skb(skb), 0,
 						  OFPR_ACTION);
-	else if (out_port == OFPP_TABLE) {
-		struct net_bridge_port *p = skb->dev->br_port;
-		struct sw_flow_key key;
-		struct sw_flow *flow;
 
-		flow_extract(skb, p ? p->port_no : OFPP_LOCAL, &key);
-		flow = chain_lookup(dp->chain, &key);
-		if (likely(flow != NULL)) {
-			flow_used(flow, skb);
-			execute_actions(dp, skb, &key, flow->actions, flow->n_actions);
-			return 0;
-		}
-		kfree_skb(skb);
-		return -ESRCH;
-	} else if (out_port == OFPP_LOCAL) {
+	case OFPP_LOCAL: {
 		struct net_device *dev = dp->netdev;
+#ifdef SUPPORT_SNAT
+		snat_local_in(skb);
+#endif
 		return dev ? dp_dev_recv(dev, skb) : -ESRCH;
-	} else if (out_port >= 0 && out_port < OFPP_MAX) {
+	}
+
+	case 0 ... DP_MAX_PORTS - 1: {
 		struct net_bridge_port *p = dp->ports[out_port];
-		int len = skb->len;
 		if (p == NULL)
 			goto bad_port;
-		skb->dev = p->dev; 
-		if (packet_length(skb) > skb->dev->mtu) {
-			printk("dropped over-mtu packet: %d > %d\n",
-			       packet_length(skb), skb->dev->mtu);
+		if (p->dev == skb->dev) {
+			/* To send to the input port, must use OFPP_IN_PORT */
 			kfree_skb(skb);
-			return -E2BIG;
+			if (net_ratelimit())
+				printk("can't directly forward to input port\n");
+			return -EINVAL;
 		}
+		if (p->config & OFPPC_NO_FWD && !ignore_no_fwd) {
+			kfree_skb(skb);
+			return 0;
+		}
+		skb->dev = p->dev; 
+		return dp_xmit_skb(skb);
+	}
 
-		dev_queue_xmit(skb);
-
-		return len;
+	default:
+		goto bad_port;
 	}
 
 bad_port:
@@ -628,40 +711,106 @@ out:
 
 static void fill_port_desc(struct net_bridge_port *p, struct ofp_phy_port *desc)
 {
+	unsigned long flags;
 	desc->port_no = htons(p->port_no);
 	strncpy(desc->name, p->dev->name, OFP_MAX_PORT_NAME_LEN);
 	desc->name[OFP_MAX_PORT_NAME_LEN-1] = '\0';
 	memcpy(desc->hw_addr, p->dev->dev_addr, ETH_ALEN);
-	desc->flags = htonl(p->flags);
-	desc->features = 0;
-	desc->speed = 0;
+	desc->curr = 0;
+	desc->supported = 0;
+	desc->advertised = 0;
+	desc->peer = 0;
+
+	spin_lock_irqsave(&p->lock, flags);
+	desc->config = htonl(p->config);
+	desc->state = htonl(p->state);
+	spin_unlock_irqrestore(&p->lock, flags);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,24)
 	if (p->dev->ethtool_ops && p->dev->ethtool_ops->get_settings) {
 		struct ethtool_cmd ecmd = { .cmd = ETHTOOL_GSET };
 
 		if (!p->dev->ethtool_ops->get_settings(p->dev, &ecmd)) {
+			/* Set the supported features */
 			if (ecmd.supported & SUPPORTED_10baseT_Half) 
-				desc->features |= OFPPF_10MB_HD;
+				desc->supported |= OFPPF_10MB_HD;
 			if (ecmd.supported & SUPPORTED_10baseT_Full)
-				desc->features |= OFPPF_10MB_FD;
+				desc->supported |= OFPPF_10MB_FD;
 			if (ecmd.supported & SUPPORTED_100baseT_Half) 
-				desc->features |= OFPPF_100MB_HD;
+				desc->supported |= OFPPF_100MB_HD;
 			if (ecmd.supported & SUPPORTED_100baseT_Full)
-				desc->features |= OFPPF_100MB_FD;
+				desc->supported |= OFPPF_100MB_FD;
 			if (ecmd.supported & SUPPORTED_1000baseT_Half)
-				desc->features |= OFPPF_1GB_HD;
+				desc->supported |= OFPPF_1GB_HD;
 			if (ecmd.supported & SUPPORTED_1000baseT_Full)
-				desc->features |= OFPPF_1GB_FD;
-			/* 10Gbps half-duplex doesn't exist... */
+				desc->supported |= OFPPF_1GB_FD;
 			if (ecmd.supported & SUPPORTED_10000baseT_Full)
-				desc->features |= OFPPF_10GB_FD;
+				desc->supported |= OFPPF_10GB_FD;
+			if (ecmd.supported & SUPPORTED_TP)
+				desc->supported |= OFPPF_COPPER;
+			if (ecmd.supported & SUPPORTED_FIBRE)
+				desc->supported |= OFPPF_FIBER;
+			if (ecmd.supported & SUPPORTED_Autoneg)
+				desc->supported |= OFPPF_AUTONEG;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,14)
+			if (ecmd.supported & SUPPORTED_Pause)
+				desc->supported |= OFPPF_PAUSE;
+			if (ecmd.supported & SUPPORTED_Asym_Pause)
+				desc->supported |= OFPPF_PAUSE_ASYM;
+#endif /* kernel >= 2.6.14 */
 
-			desc->features = htonl(desc->features);
-			desc->speed = htonl(ecmd.speed);
+			/* Set the advertised features */
+			if (ecmd.advertising & ADVERTISED_10baseT_Half) 
+				desc->advertised |= OFPPF_10MB_HD;
+			if (ecmd.advertising & ADVERTISED_10baseT_Full)
+				desc->advertised |= OFPPF_10MB_FD;
+			if (ecmd.advertising & ADVERTISED_100baseT_Half) 
+				desc->advertised |= OFPPF_100MB_HD;
+			if (ecmd.advertising & ADVERTISED_100baseT_Full)
+				desc->advertised |= OFPPF_100MB_FD;
+			if (ecmd.advertising & ADVERTISED_1000baseT_Half)
+				desc->advertised |= OFPPF_1GB_HD;
+			if (ecmd.advertising & ADVERTISED_1000baseT_Full)
+				desc->advertised |= OFPPF_1GB_FD;
+			if (ecmd.advertising & ADVERTISED_10000baseT_Full)
+				desc->advertised |= OFPPF_10GB_FD;
+			if (ecmd.advertising & ADVERTISED_TP)
+				desc->advertised |= OFPPF_COPPER;
+			if (ecmd.advertising & ADVERTISED_FIBRE)
+				desc->advertised |= OFPPF_FIBER;
+			if (ecmd.advertising & ADVERTISED_Autoneg)
+				desc->advertised |= OFPPF_AUTONEG;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,14)
+			if (ecmd.advertising & ADVERTISED_Pause)
+				desc->advertised |= OFPPF_PAUSE;
+			if (ecmd.advertising & ADVERTISED_Asym_Pause)
+				desc->advertised |= OFPPF_PAUSE_ASYM;
+#endif /* kernel >= 2.6.14 */
+
+			/* Set the current features */
+			if (ecmd.speed == SPEED_10)
+				desc->curr = (ecmd.duplex) ? OFPPF_10MB_FD : OFPPF_10MB_HD;
+			else if (ecmd.speed == SPEED_100)
+				desc->curr = (ecmd.duplex) ? OFPPF_100MB_FD : OFPPF_100MB_HD;
+			else if (ecmd.speed == SPEED_1000)
+				desc->curr = (ecmd.duplex) ? OFPPF_1GB_FD : OFPPF_1GB_HD;
+			else if (ecmd.speed == SPEED_10000)
+				desc->curr = OFPPF_10GB_FD;
+
+			if (ecmd.port == PORT_TP) 
+				desc->curr |= OFPPF_COPPER;
+			else if (ecmd.port == PORT_FIBRE) 
+				desc->curr |= OFPPF_FIBER;
+
+			if (ecmd.autoneg)
+				desc->curr |= OFPPF_AUTONEG;
 		}
 	}
 #endif
+	desc->curr = htonl(desc->curr);
+	desc->supported = htonl(desc->supported);
+	desc->advertised = htonl(desc->advertised);
+	desc->peer = htonl(desc->peer);
 }
 
 static int 
@@ -670,15 +819,13 @@ fill_features_reply(struct datapath *dp, struct ofp_switch_features *ofr)
 	struct net_bridge_port *p;
 	int port_count = 0;
 
-	ofr->datapath_id    = cpu_to_be64(dp->id); 
+	ofr->datapath_id  = cpu_to_be64(dp->id); 
 
-	ofr->n_exact        = htonl(2 * TABLE_HASH_MAX_FLOWS);
-	ofr->n_compression  = 0;					   /* Not supported */
-	ofr->n_general      = htonl(TABLE_LINEAR_MAX_FLOWS);
-	ofr->buffer_mb      = htonl(UINT32_MAX);
-	ofr->n_buffers      = htonl(N_PKT_BUFFERS);
-	ofr->capabilities   = htonl(OFP_SUPPORTED_CAPABILITIES);
-	ofr->actions        = htonl(OFP_SUPPORTED_ACTIONS);
+	ofr->n_buffers    = htonl(N_PKT_BUFFERS);
+	ofr->n_tables     = dp->chain->n_tables;
+	ofr->capabilities = htonl(OFP_SUPPORTED_CAPABILITIES);
+	ofr->actions      = htonl(OFP_SUPPORTED_ACTIONS);
+	memset(ofr->pad, 0, sizeof ofr->pad);
 
 	list_for_each_entry_rcu (p, &dp->port_list, node) {
 		fill_port_desc(p, &ofr->ports[port_count]);
@@ -697,7 +844,7 @@ dp_send_features_reply(struct datapath *dp, const struct sender *sender)
 	int port_count;
 
 	/* Overallocate. */
-	port_max_len = sizeof(struct ofp_phy_port) * OFPP_MAX;
+	port_max_len = sizeof(struct ofp_phy_port) * DP_MAX_PORTS;
 	ofr = alloc_openflow_skb(dp, sizeof(*ofr) + port_max_len,
 				 OFPT_FEATURES_REPLY, sender, &skb);
 	if (!ofr)
@@ -730,22 +877,122 @@ dp_send_config_reply(struct datapath *dp, const struct sender *sender)
 }
 
 int
-dp_update_port_flags(struct datapath *dp, const struct ofp_phy_port *opp)
+dp_send_hello(struct datapath *dp, const struct sender *sender,
+	      const struct ofp_header *request)
 {
-	int port_no = ntohs(opp->port_no);
-	struct net_bridge_port *p = (port_no < OFPP_MAX ? dp->ports[port_no]
-				     : port_no == OFPP_LOCAL ? dp->local_port
-				     : NULL);
+	if (request->version < OFP_VERSION) {
+		char err[64];
+		sprintf(err, "Only version 0x%02x supported", OFP_VERSION);
+		dp_send_error_msg(dp, sender, OFPET_HELLO_FAILED,
+				  OFPHFC_INCOMPATIBLE, err, strlen(err));
+		return -EINVAL;
+	} else {
+		struct sk_buff *skb;
+		struct ofp_header *reply;
+
+		reply = alloc_openflow_skb(dp, sizeof *reply,
+					   OFPT_HELLO, sender, &skb);
+		if (!reply)
+			return -ENOMEM;
+
+		return send_openflow_skb(skb, sender);
+	}
+}
+
+/* Callback function for a workqueue to disable an interface */
+static void
+down_port_cb(struct work_struct *work)
+{
+	struct net_bridge_port *p = container_of(work, struct net_bridge_port, 
+			port_task);
+
+	rtnl_lock();
+	if (dev_change_flags(p->dev, p->dev->flags & ~IFF_UP) < 0)
+		if (net_ratelimit())
+			printk("problem bringing up port %s\n", p->dev->name);
+	rtnl_unlock();
+	p->config |= OFPPC_PORT_DOWN;
+}
+
+/* Callback function for a workqueue to enable an interface */
+static void
+up_port_cb(struct work_struct *work)
+{
+	struct net_bridge_port *p = container_of(work, struct net_bridge_port, 
+			port_task);
+
+	rtnl_lock();
+	if (dev_change_flags(p->dev, p->dev->flags | IFF_UP) < 0)
+		if (net_ratelimit())
+			printk("problem bringing down port %s\n", p->dev->name);
+	rtnl_unlock();
+	p->config &= ~OFPPC_PORT_DOWN;
+}
+
+int
+dp_update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm)
+{
+	unsigned long int flags;
+	int port_no = ntohs(opm->port_no);
+	struct net_bridge_port *p;
+	p = (port_no < DP_MAX_PORTS ? dp->ports[port_no]
+	     : port_no == OFPP_LOCAL ? dp->local_port
+	     : NULL);
+
 	/* Make sure the port id hasn't changed since this was sent */
-	if (!p || memcmp(opp->hw_addr, p->dev->dev_addr, ETH_ALEN))
+	if (!p || memcmp(opm->hw_addr, p->dev->dev_addr, ETH_ALEN))
 		return -1;
-	p->flags = htonl(opp->flags);
+
+	spin_lock_irqsave(&p->lock, flags);
+	if (opm->mask) {
+		uint32_t config_mask = ntohl(opm->mask);
+		p->config &= ~config_mask;
+		p->config |= ntohl(opm->config) & config_mask;
+	}
+
+	/* Modifying the status of an interface requires taking a lock
+	 * that cannot be done from here.  For this reason, we use a shared 
+	 * workqueue, which will cause it to be executed from a safer 
+	 * context. */
+	if (opm->mask & htonl(OFPPC_PORT_DOWN)) {
+		if ((opm->config & htonl(OFPPC_PORT_DOWN))
+		    && (p->config & OFPPC_PORT_DOWN) == 0) {
+			PREPARE_WORK(&p->port_task, down_port_cb);
+			schedule_work(&p->port_task);
+		} else if ((opm->config & htonl(OFPPC_PORT_DOWN)) == 0
+			   && (p->config & OFPPC_PORT_DOWN)) {
+			PREPARE_WORK(&p->port_task, up_port_cb);
+			schedule_work(&p->port_task);
+		}
+	}
+	spin_unlock_irqrestore(&p->lock, flags);
+
 	return 0;
 }
 
+/* Initialize the port status field of the bridge port. */
+static void
+init_port_status(struct net_bridge_port *p)
+{
+	unsigned long int flags;
 
-static int
-send_port_status(struct net_bridge_port *p, uint8_t status)
+	spin_lock_irqsave(&p->lock, flags);
+
+	if (p->dev->flags & IFF_UP) 
+		p->config &= ~OFPPC_PORT_DOWN;
+	else
+		p->config |= OFPPC_PORT_DOWN;
+
+	if (netif_carrier_ok(p->dev))
+		p->state &= ~OFPPS_LINK_DOWN;
+	else
+		p->state |= OFPPS_LINK_DOWN;
+
+	spin_unlock_irqrestore(&p->lock, flags);
+}
+
+int
+dp_send_port_status(struct net_bridge_port *p, uint8_t status)
 {
 	struct sk_buff *skb;
 	struct ofp_port_status *ops;
@@ -762,11 +1009,14 @@ send_port_status(struct net_bridge_port *p, uint8_t status)
 }
 
 int 
-dp_send_flow_expired(struct datapath *dp, struct sw_flow *flow)
+dp_send_flow_expired(struct datapath *dp, struct sw_flow *flow,
+		     enum ofp_flow_expired_reason reason)
 {
 	struct sk_buff *skb;
 	struct ofp_flow_expired *ofe;
-	unsigned long duration_j;
+
+	if (!(dp->flags & OFPC_SEND_FLOW_EXP))
+		return 0;
 
 	ofe = alloc_openflow_skb(dp, sizeof *ofe, OFPT_FLOW_EXPIRED, 0, &skb);
 	if (!ofe)
@@ -774,11 +1024,12 @@ dp_send_flow_expired(struct datapath *dp, struct sw_flow *flow)
 
 	flow_fill_match(&ofe->match, &flow->key);
 
-	memset(ofe->pad, 0, sizeof ofe->pad);
 	ofe->priority = htons(flow->priority);
+	ofe->reason = reason;
+	memset(ofe->pad, 0, sizeof ofe->pad);
 
-	duration_j = (flow->timeout - HZ * flow->max_idle) - flow->init_time;
-	ofe->duration     = htonl(duration_j / HZ);
+	ofe->duration     = htonl((jiffies - flow->init_time) / HZ);
+	memset(ofe->pad2, 0, sizeof ofe->pad2);
 	ofe->packet_count = cpu_to_be64(flow->packet_count);
 	ofe->byte_count   = cpu_to_be64(flow->byte_count);
 
@@ -788,13 +1039,13 @@ EXPORT_SYMBOL(dp_send_flow_expired);
 
 int
 dp_send_error_msg(struct datapath *dp, const struct sender *sender, 
-		uint16_t type, uint16_t code, const uint8_t *data, size_t len)
+		uint16_t type, uint16_t code, const void *data, size_t len)
 {
 	struct sk_buff *skb;
 	struct ofp_error_msg *oem;
 
 
-	oem = alloc_openflow_skb(dp, sizeof(*oem)+len, OFPT_ERROR_MSG, 
+	oem = alloc_openflow_skb(dp, sizeof(*oem)+len, OFPT_ERROR, 
 			sender, &skb);
 	if (!oem)
 		return -ENOMEM;
@@ -987,7 +1238,7 @@ static int dp_genl_add_del_port(struct sk_buff *skb, struct genl_info *info)
 			err = -ENOENT;
 			goto out_put;
 		}
-		err = del_switch_port(port->br_port);
+		err = dp_del_switch_port(port->br_port);
 	}
 
 out_put:
@@ -1046,6 +1297,25 @@ static struct nla_policy dp_genl_openflow_policy[DP_GENL_A_MAX + 1] = {
 	[DP_GENL_A_DP_IDX] = { .type = NLA_U32 },
 };
 
+static int desc_stats_dump(struct datapath *dp, void *state,
+			    void *body, int *body_len)
+{
+	struct ofp_desc_stats *ods = body;
+	int n_bytes = sizeof *ods;
+
+	if (n_bytes > *body_len) {
+		return -ENOBUFS;
+	}
+	*body_len = n_bytes;
+
+	strncpy(ods->mfr_desc, mfr_desc, sizeof ods->mfr_desc);
+	strncpy(ods->hw_desc, hw_desc, sizeof ods->hw_desc);
+	strncpy(ods->sw_desc, sw_desc, sizeof ods->sw_desc);
+	strncpy(ods->serial_num, serial_num, sizeof ods->serial_num);
+
+	return 0;
+}
+
 struct flow_stats_state {
 	int table_idx;
 	struct sw_table_position position;
@@ -1071,13 +1341,12 @@ static int flow_stats_init(struct datapath *dp, const void *body, int body_len,
 
 static int flow_stats_dump_callback(struct sw_flow *flow, void *private)
 {
+	struct sw_flow_actions *sf_acts = rcu_dereference(flow->sf_acts);
 	struct flow_stats_state *s = private;
 	struct ofp_flow_stats *ofs;
-	int actions_length;
 	int length;
 
-	actions_length = sizeof *ofs->actions * flow->n_actions;
-	length = sizeof *ofs + sizeof *ofs->actions * flow->n_actions;
+	length = sizeof *ofs + sf_acts->actions_len;
 	if (length + s->bytes_used > s->bytes_allocated)
 		return 1;
 
@@ -1085,7 +1354,7 @@ static int flow_stats_dump_callback(struct sw_flow *flow, void *private)
 	ofs->length          = htons(length);
 	ofs->table_id        = s->table_idx;
 	ofs->pad             = 0;
-	ofs->match.wildcards = htons(flow->key.wildcards);
+	ofs->match.wildcards = htonl(flow->key.wildcards);
 	ofs->match.in_port   = flow->key.in_port;
 	memcpy(ofs->match.dl_src, flow->key.dl_src, ETH_ALEN);
 	memcpy(ofs->match.dl_dst, flow->key.dl_dst, ETH_ALEN);
@@ -1094,15 +1363,17 @@ static int flow_stats_dump_callback(struct sw_flow *flow, void *private)
 	ofs->match.nw_src    = flow->key.nw_src;
 	ofs->match.nw_dst    = flow->key.nw_dst;
 	ofs->match.nw_proto  = flow->key.nw_proto;
-	memset(ofs->match.pad, 0, sizeof ofs->match.pad);
+	ofs->match.pad       = 0;
 	ofs->match.tp_src    = flow->key.tp_src;
 	ofs->match.tp_dst    = flow->key.tp_dst;
 	ofs->duration        = htonl((jiffies - flow->init_time) / HZ);
+	ofs->priority        = htons(flow->priority);
+	ofs->idle_timeout    = htons(flow->idle_timeout);
+	ofs->hard_timeout    = htons(flow->hard_timeout);
+	memset(ofs->pad2, 0, sizeof ofs->pad2);
 	ofs->packet_count    = cpu_to_be64(flow->packet_count);
 	ofs->byte_count      = cpu_to_be64(flow->byte_count);
-	ofs->priority        = htons(flow->priority);
-	ofs->max_idle        = htons(flow->max_idle);
-	memcpy(ofs->actions, flow->actions, actions_length);
+	memcpy(ofs->actions, sf_acts->actions, sf_acts->actions_len);
 
 	s->bytes_used += length;
 	return 0;
@@ -1209,20 +1480,22 @@ static int table_stats_dump(struct datapath *dp, void *state,
 			    void *body, int *body_len)
 {
 	struct ofp_table_stats *ots;
-	int nbytes = dp->chain->n_tables * sizeof *ots;
+	int n_bytes = dp->chain->n_tables * sizeof *ots;
 	int i;
-	if (nbytes > *body_len)
+	if (n_bytes > *body_len)
 		return -ENOBUFS;
-	*body_len = nbytes;
+	*body_len = n_bytes;
 	for (i = 0, ots = body; i < dp->chain->n_tables; i++, ots++) {
 		struct sw_table_stats stats;
 		dp->chain->tables[i]->stats(dp->chain->tables[i], &stats);
 		strncpy(ots->name, stats.name, sizeof ots->name);
 		ots->table_id = i;
+		ots->wildcards = htonl(stats.wildcards);
 		memset(ots->pad, 0, sizeof ots->pad);
 		ots->max_entries = htonl(stats.max_flows);
 		ots->active_count = htonl(stats.n_flows);
-		ots->matched_count = cpu_to_be64(0); /* FIXME */
+		ots->lookup_count = cpu_to_be64(stats.n_lookup);
+		ots->matched_count = cpu_to_be64(stats.n_matched);
 	}
 	return 0;
 }
@@ -1256,7 +1529,7 @@ static int port_stats_dump(struct datapath *dp, void *state,
 	ops = body;
 
 	n_ports = 0;
-	for (i = s->port; i < OFPP_MAX && n_ports < max_ports; i++) {
+	for (i = s->port; i < DP_MAX_PORTS && n_ports < max_ports; i++) {
 		struct net_bridge_port *p = dp->ports[i];
 		struct net_device_stats *stats;
 		if (!p)
@@ -1264,10 +1537,18 @@ static int port_stats_dump(struct datapath *dp, void *state,
 		stats = p->dev->get_stats(p->dev);
 		ops->port_no = htons(p->port_no);
 		memset(ops->pad, 0, sizeof ops->pad);
-		ops->rx_count = cpu_to_be64(stats->rx_packets);
-		ops->tx_count = cpu_to_be64(stats->tx_packets);
-		ops->drop_count = cpu_to_be64(stats->rx_dropped
-					      + stats->tx_dropped);
+		ops->rx_packets   = cpu_to_be64(stats->rx_packets);
+		ops->tx_packets   = cpu_to_be64(stats->tx_packets);
+		ops->rx_bytes     = cpu_to_be64(stats->rx_bytes);
+		ops->tx_bytes     = cpu_to_be64(stats->tx_bytes);
+		ops->rx_dropped   = cpu_to_be64(stats->rx_dropped);
+		ops->tx_dropped   = cpu_to_be64(stats->tx_dropped);
+		ops->rx_errors    = cpu_to_be64(stats->rx_errors);
+		ops->tx_errors    = cpu_to_be64(stats->tx_errors);
+		ops->rx_frame_err = cpu_to_be64(stats->rx_frame_errors);
+		ops->rx_over_err  = cpu_to_be64(stats->rx_over_errors);
+		ops->rx_crc_err   = cpu_to_be64(stats->rx_crc_errors);
+		ops->collisions   = cpu_to_be64(stats->collisions);
 		n_ports++;
 		ops++;
 	}
@@ -1307,6 +1588,13 @@ struct stats_type {
 };
 
 static const struct stats_type stats[] = {
+	[OFPST_DESC] = {
+		0,
+		0,
+		NULL,
+		desc_stats_dump,
+		NULL
+	},
 	[OFPST_FLOW] = {
 		sizeof(struct ofp_flow_stats_request),
 		sizeof(struct ofp_flow_stats_request),
@@ -1354,6 +1642,8 @@ dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 	 * struct genl_ops.  This kluge supports earlier versions also. */
 	cb->done = dp_genl_openflow_done;
 
+	sender.pid = NETLINK_CB(cb->skb).pid;
+	sender.seq = cb->nlh->nlmsg_seq;
 	if (!cb->args[0]) {
 		struct nlattr *attrs[DP_GENL_A_MAX + 1];
 		struct ofp_stats_request *rq;
@@ -1379,13 +1669,22 @@ dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 			return -EINVAL;
 
 		rq = nla_data(va);
+		sender.xid = rq->header.xid;
 		type = ntohs(rq->type);
-		if (rq->header.version != OFP_VERSION
-		    || rq->header.type != OFPT_STATS_REQUEST
-		    || ntohs(rq->header.length) != len
-		    || type >= ARRAY_SIZE(stats)
-		    || !stats[type].dump)
+		if (rq->header.version != OFP_VERSION) {
+			dp_send_error_msg(dp, &sender, OFPET_BAD_REQUEST,
+					  OFPBRC_BAD_VERSION, rq, len);
 			return -EINVAL;
+		}
+		if (rq->header.type != OFPT_STATS_REQUEST
+		    || ntohs(rq->header.length) != len)
+			return -EINVAL;
+
+		if (type >= ARRAY_SIZE(stats) || !stats[type].dump) {
+			dp_send_error_msg(dp, &sender, OFPET_BAD_REQUEST,
+					  OFPBRC_BAD_STAT, rq, len);
+			return -EINVAL;
+		}
 
 		s = &stats[type];
 		body_len = len - offsetof(struct ofp_stats_request, body);
@@ -1404,6 +1703,7 @@ dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 			cb->args[4] = (long) state;
 		}
 	} else if (cb->args[0] == 1) {
+		sender.xid = cb->args[3];
 		dp_idx = cb->args[1];
 		s = &stats[cb->args[2]];
 
@@ -1413,10 +1713,6 @@ dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 	} else {
 		return 0;
 	}
-
-	sender.xid = cb->args[3];
-	sender.pid = NETLINK_CB(cb->skb).pid;
-	sender.seq = cb->nlh->nlmsg_seq;
 
 	osr = put_openflow_headers(dp, skb, OFPT_STATS_REPLY, &sender,
 				   &max_openflow_len);
@@ -1507,27 +1803,24 @@ static void dp_uninit_netlink(void)
 	genl_unregister_family(&dp_genl_family);
 }
 
-#define DRV_NAME		"openflow"
-#define DRV_VERSION	 VERSION
-#define DRV_DESCRIPTION "OpenFlow switching datapath implementation"
-#define DRV_COPYRIGHT   "Copyright (c) 2007, 2008 The Board of Trustees of The Leland Stanford Junior University"
-
-
 static int __init dp_init(void)
 {
 	int err;
 
-	printk(KERN_INFO DRV_NAME ": " DRV_DESCRIPTION "\n");
-	printk(KERN_INFO DRV_NAME ": " VERSION" built on "__DATE__" "__TIME__"\n");
-	printk(KERN_INFO DRV_NAME ": " DRV_COPYRIGHT "\n");
+	printk("OpenFlow "VERSION", built "__DATE__" "__TIME__", "
+	       "protocol 0x%02x\n", OFP_VERSION);
 
 	err = flow_init();
 	if (err)
 		goto error;
 
-	err = dp_init_netlink();
+	err = register_netdevice_notifier(&dp_device_notifier);
 	if (err)
 		goto error_flow_exit;
+
+	err = dp_init_netlink();
+	if (err)
+		goto error_unreg_notifier;
 
 	/* Hook into callback used by the bridge to intercept packets.
 	 * Parasites we are. */
@@ -1537,6 +1830,8 @@ static int __init dp_init(void)
 
 	return 0;
 
+error_unreg_notifier:
+	unregister_netdevice_notifier(&dp_device_notifier);
 error_flow_exit:
 	flow_exit();
 error:
@@ -1548,6 +1843,7 @@ static void dp_cleanup(void)
 {
 	fwd_exit();
 	dp_uninit_netlink();
+	unregister_netdevice_notifier(&dp_device_notifier);
 	flow_exit();
 	br_handle_frame_hook = NULL;
 }
@@ -1555,6 +1851,6 @@ static void dp_cleanup(void)
 module_init(dp_init);
 module_exit(dp_cleanup);
 
-MODULE_DESCRIPTION(DRV_DESCRIPTION);
-MODULE_AUTHOR(DRV_COPYRIGHT);
+MODULE_DESCRIPTION("OpenFlow switching datapath");
+MODULE_AUTHOR("Copyright (c) 2007, 2008 The Board of Trustees of The Leland Stanford Junior University");
 MODULE_LICENSE("GPL");

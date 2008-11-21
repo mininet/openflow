@@ -8,6 +8,7 @@
 #include <linux/rcupdate.h>
 #include <linux/gfp.h>
 #include <linux/skbuff.h>
+#include <linux/if_ether.h>
 
 #include "openflow.h"
 
@@ -15,26 +16,36 @@ struct sk_buff;
 struct ofp_flow_mod;
 
 /* Identification data for a flow.
-   Network byte order except for the "wildcards" field.
-   In decreasing order by size, so that sw_flow_key structures can
-   be hashed or compared bytewise.
-   It might be useful to reorder members from (expected) greatest to least
-   inter-flow variability, so that failing bytewise comparisons with memcmp
-   terminate as quickly as possible on average. */
+ * Network byte order except for the "wildcards" field.
+ * Ordered to make bytewise comparisons (e.g. with memcmp()) fail quickly and
+ * to keep the amount of padding to a minimum.
+ * If you change the ordering of fields here, change flow_keys_equal() to
+ * compare the proper fields.
+ */
 struct sw_flow_key {
-	uint32_t nw_src;		/* IP source address. */
-	uint32_t nw_dst;		/* IP destination address. */
-	uint16_t in_port;	    /* Input switch port */
-	uint16_t dl_vlan;	    /* Input VLAN. */
-	uint16_t dl_type;	    /* Ethernet frame type. */
-	uint16_t tp_src;        /* TCP/UDP source port. */
-	uint16_t tp_dst;        /* TCP/UDP destination port. */
-	uint16_t wildcards;	    /* Wildcard fields (host byte order). */
-	uint8_t dl_src[6];	    /* Ethernet source address. */
-	uint8_t dl_dst[6];	    /* Ethernet destination address. */
-	uint8_t nw_proto;		/* IP protocol. */
-	uint8_t pad[3];		    /* NB: Pad to make 32-bit aligned */
+	uint32_t nw_src;	/* IP source address. */
+	uint32_t nw_dst;	/* IP destination address. */
+	uint16_t in_port;	/* Input switch port */
+	uint16_t dl_vlan;	/* Input VLAN. */
+	uint16_t dl_type;	/* Ethernet frame type. */
+	uint16_t tp_src;	/* TCP/UDP source port. */
+	uint16_t tp_dst;	/* TCP/UDP destination port. */
+	uint8_t dl_src[ETH_ALEN]; /* Ethernet source address. */
+	uint8_t dl_dst[ETH_ALEN]; /* Ethernet destination address. */
+	uint8_t nw_proto;	/* IP protocol. */
+	uint8_t pad;		/* Pad to 32-bit alignment. */
+	uint32_t wildcards;	/* Wildcard fields (host byte order). */
+	uint32_t nw_src_mask;	/* 1-bit in each significant nw_src bit. */
+	uint32_t nw_dst_mask;	/* 1-bit in each significant nw_dst bit. */
 };
+
+/* Compare two sw_flow_keys and return true if they are the same flow, false
+ * otherwise.  Wildcards and netmasks are not considered. */
+static inline int flow_keys_equal(const struct sw_flow_key *a,
+				   const struct sw_flow_key *b) 
+{
+	return !memcmp(a, b, offsetof(struct sw_flow_key, wildcards));
+}
 
 /* We need to manually make sure that the structure is 32-bit aligned,
  * since we don't want garbage values in compiler-generated pads from
@@ -42,8 +53,18 @@ struct sw_flow_key {
  */
 static inline void check_key_align(void)
 {
-	BUILD_BUG_ON(sizeof(struct sw_flow_key) != 36); 
+	BUILD_BUG_ON(sizeof(struct sw_flow_key) != 44); 
 }
+
+/* We keep actions as a separate structure because we need to be able to 
+ * swap them out atomically when the modify command comes from a Flow
+ * Modify message. */
+struct sw_flow_actions {
+	size_t actions_len;
+	struct rcu_head rcu;
+
+	struct ofp_action_header actions[0];
+};
 
 /* Locking:
  *
@@ -55,13 +76,12 @@ static inline void check_key_align(void)
 struct sw_flow {
 	struct sw_flow_key key;
 
-	uint16_t max_idle;      /* Idle time before discarding (seconds). */
 	uint16_t priority;      /* Only used on entries with wildcards. */
-	unsigned long timeout;  /* Expiration time (in jiffies). */
+	uint16_t idle_timeout;	/* Idle time before discarding (seconds). */
+	uint16_t hard_timeout;  /* Hard expiration time (seconds) */
+	unsigned long used;     /* Last used time (in jiffies). */
 
-	/* FIXME?  Probably most flows have only a single action. */
-	unsigned int n_actions;
-	struct ofp_action *actions;
+	struct sw_flow_actions *sf_acts;
 
 	/* For use by table implementation. */
 	struct list_head node;
@@ -77,33 +97,28 @@ struct sw_flow {
 	struct rcu_head rcu;
 };
 
-int flow_matches(const struct sw_flow_key *, const struct sw_flow_key *);
-int flow_del_matches(const struct sw_flow_key *, const struct sw_flow_key *, 
+int flow_matches_1wild(const struct sw_flow_key *, const struct sw_flow_key *);
+int flow_matches_2wild(const struct sw_flow_key *, const struct sw_flow_key *);
+int flow_matches_desc(const struct sw_flow_key *, const struct sw_flow_key *, 
 		int);
-struct sw_flow *flow_alloc(int n_actions, gfp_t flags);
+struct sw_flow *flow_alloc(size_t actions_len, gfp_t flags);
 void flow_free(struct sw_flow *);
 void flow_deferred_free(struct sw_flow *);
-void flow_extract(struct sk_buff *, uint16_t in_port, struct sw_flow_key *);
+void flow_deferred_free_acts(struct sw_flow_actions *);
+void flow_replace_acts(struct sw_flow *, const struct ofp_action_header *, 
+		size_t);
+int flow_extract(struct sk_buff *, uint16_t in_port, struct sw_flow_key *);
 void flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from);
 void flow_fill_match(struct ofp_match* to, const struct sw_flow_key* from);
+int flow_timeout(struct sw_flow *);
 
 void print_flow(const struct sw_flow_key *);
-
-#include <linux/jiffies.h>
-static inline int flow_timeout(struct sw_flow *flow)
-{
-	if (flow->max_idle == OFP_FLOW_PERMANENT)
-		return 0;
-
-	return time_after(jiffies, flow->timeout);
-}
 
 static inline void flow_used(struct sw_flow *flow, struct sk_buff *skb) 
 {
 	unsigned long flags;
 
-	if (flow->max_idle != OFP_FLOW_PERMANENT)
-		flow->timeout = jiffies + HZ * flow->max_idle;
+	flow->used = jiffies;
 
 	spin_lock_irqsave(&flow->lock, flags);
 	flow->packet_count++;

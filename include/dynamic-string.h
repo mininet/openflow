@@ -40,6 +40,8 @@
 #include <stdint.h>
 #include "compiler.h"
 
+struct tm;
+
 struct ds {
     char *string;       /* Null-terminated string. */
     size_t length;      /* Bytes used, not including null terminator. */
@@ -50,15 +52,24 @@ struct ds {
 
 void ds_init(struct ds *);
 void ds_clear(struct ds *);
+void ds_truncate(struct ds *, size_t new_length);
 void ds_reserve(struct ds *, size_t min_length);
+char *ds_put_uninit(struct ds *, size_t n);
 void ds_put_char(struct ds *, char);
+void ds_put_char_multiple(struct ds *, char, size_t n);
 void ds_put_cstr(struct ds *, const char *);
 void ds_put_format(struct ds *, const char *, ...) PRINTF_FORMAT(2, 3);
 void ds_put_format_valist(struct ds *, const char *, va_list)
     PRINTF_FORMAT(2, 0);
+void ds_put_printable(struct ds *, const char *, size_t);
+void ds_put_strftime(struct ds *, const char *, const struct tm *)
+    STRFTIME_FORMAT(2);
 void ds_put_hex_dump(struct ds *ds, const void *buf_, size_t size,
                      uintptr_t ofs, bool ascii);
 char *ds_cstr(struct ds *);
 void ds_destroy(struct ds *);
+
+int ds_last(const struct ds *);
+void ds_chomp(struct ds *, int c);
 
 #endif /* dynamic-string.h */

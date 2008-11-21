@@ -87,8 +87,11 @@ chain_lookup(struct sw_chain *chain, const struct sw_flow_key *key)
     for (i = 0; i < chain->n_tables; i++) {
         struct sw_table *t = chain->tables[i];
         struct sw_flow *flow = t->lookup(t, key);
-        if (flow)
+        t->n_lookup++;
+        if (flow) {
+            t->n_matched++;
             return flow;
+        }
     }
     return NULL;
 }
@@ -112,8 +115,31 @@ chain_insert(struct sw_chain *chain, struct sw_flow *flow)
     return -ENOBUFS;
 }
 
-/* Deletes from 'chain' any and all flows that match 'key'.  Returns the number
- * of flows that were deleted.
+/* Modifies actions in 'chain' that match 'key'.  If 'strict' set, wildcards 
+ * and priority must match.  Returns the number of flows that were modified.
+ *
+ * Expensive in the general case as currently implemented, since it requires
+ * iterating through the entire contents of each table for keys that contain
+ * wildcards.  Relatively cheap for fully specified keys. */
+int
+chain_modify(struct sw_chain *chain, const struct sw_flow_key *key,
+        uint16_t priority, int strict,
+        const struct ofp_action_header *actions, size_t actions_len)
+{
+    int count = 0;
+    int i;
+
+    for (i = 0; i < chain->n_tables; i++) {
+        struct sw_table *t = chain->tables[i];
+        count += t->modify(t, key, priority, strict, actions, actions_len);
+    }
+
+    return count;
+}
+
+/* Deletes from 'chain' any and all flows that match 'key'.   If 'strict' set, 
+ * wildcards and priority must match.  Returns the number of flows that were 
+ * deleted.
  *
  * Expensive in the general case as currently implemented, since it requires
  * iterating through the entire contents of each table for keys that contain
@@ -161,20 +187,4 @@ chain_destroy(struct sw_chain *chain)
         t->destroy(t);
     }
     free(chain);
-}
-
-/* Prints statistics for each of the tables in 'chain'. */
-void
-chain_print_stats(struct sw_chain *chain)
-{
-    int i;
-
-    printf("\n");
-    for (i = 0; i < chain->n_tables; i++) {
-        struct sw_table *t = chain->tables[i];
-        struct sw_table_stats stats;
-        t->stats(t, &stats);
-        printf("%s: %lu/%lu flows\n",
-               stats.name, stats.n_flows, stats.max_flows);
-    }
 }

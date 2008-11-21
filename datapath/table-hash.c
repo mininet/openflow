@@ -31,7 +31,8 @@ static struct sw_flow **find_bucket(struct sw_table *swt,
 									const struct sw_flow_key *key)
 {
 	struct sw_table_hash *th = (struct sw_table_hash *) swt;
-	unsigned int crc = crc32_calculate(&th->crc32, key, sizeof *key);
+	unsigned int crc = crc32_calculate(&th->crc32, key, 
+				offsetof(struct sw_flow_key, wildcards));
 	return &th->buckets[crc & th->bucket_mask];
 }
 
@@ -39,7 +40,7 @@ static struct sw_flow *table_hash_lookup(struct sw_table *swt,
 										 const struct sw_flow_key *key)
 {
 	struct sw_flow *flow = *find_bucket(swt, key);
-	return flow && !memcmp(&flow->key, key, sizeof *key) ? flow : NULL;
+	return flow && flow_keys_equal(&flow->key, key) ? flow : NULL;
 }
 
 static int table_hash_insert(struct sw_table *swt, struct sw_flow *flow)
@@ -58,7 +59,7 @@ static int table_hash_insert(struct sw_table *swt, struct sw_flow *flow)
 		retval = 1;
 	} else {
 		struct sw_flow *old_flow = *bucket;
-		if (!memcmp(&old_flow->key, &flow->key, sizeof flow->key)) {
+		if (flow_keys_equal(&old_flow->key, &flow->key)) {
 			rcu_assign_pointer(*bucket, flow);
 			flow_deferred_free(old_flow);
 			retval = 1;
@@ -67,6 +68,37 @@ static int table_hash_insert(struct sw_table *swt, struct sw_flow *flow)
 		}
 	}
 	return retval;
+}
+
+static int table_hash_modify(struct sw_table *swt, 
+		const struct sw_flow_key *key, uint16_t priority, int strict,
+		const struct ofp_action_header *actions, size_t actions_len) 
+{
+	struct sw_table_hash *th = (struct sw_table_hash *) swt;
+	unsigned int count = 0;
+
+	if (key->wildcards == 0) {
+		struct sw_flow **bucket = find_bucket(swt, key);
+		struct sw_flow *flow = *bucket;
+		if (flow && flow_matches_desc(&flow->key, key, strict)
+				&& (!strict || (flow->priority == priority))) {
+			flow_replace_acts(flow, actions, actions_len);
+			count = 1;
+		}
+	} else {
+		unsigned int i;
+
+		for (i = 0; i <= th->bucket_mask; i++) {
+			struct sw_flow **bucket = &th->buckets[i];
+			struct sw_flow *flow = *bucket;
+			if (flow && flow_matches_desc(&flow->key, key, strict)
+					&& (!strict || (flow->priority == priority))) {
+				flow_replace_acts(flow, actions, actions_len);
+				count++;
+			}
+		}
+	}
+	return count;
 }
 
 /* Caller must update n_flows. */
@@ -90,7 +122,7 @@ static int table_hash_delete(struct sw_table *swt,
 	if (key->wildcards == 0) {
 		struct sw_flow **bucket = find_bucket(swt, key);
 		struct sw_flow *flow = *bucket;
-		if (flow && !memcmp(&flow->key, key, sizeof *key))
+		if (flow && flow_keys_equal(&flow->key, key))
 			count = do_delete(bucket, flow);
 	} else {
 		unsigned int i;
@@ -98,7 +130,7 @@ static int table_hash_delete(struct sw_table *swt,
 		for (i = 0; i <= th->bucket_mask; i++) {
 			struct sw_flow **bucket = &th->buckets[i];
 			struct sw_flow *flow = *bucket;
-			if (flow && flow_del_matches(&flow->key, key, strict))
+			if (flow && flow_matches_desc(&flow->key, key, strict))
 				count += do_delete(bucket, flow);
 		}
 	}
@@ -116,10 +148,12 @@ static int table_hash_timeout(struct datapath *dp, struct sw_table *swt)
 	for (i = 0; i <= th->bucket_mask; i++) {
 		struct sw_flow **bucket = &th->buckets[i];
 		struct sw_flow *flow = *bucket;
-		if (flow && flow_timeout(flow)) {
-			count += do_delete(bucket, flow); 
-			if (dp->flags & OFPC_SEND_FLOW_EXP)
-				dp_send_flow_expired(dp, flow);
+		if (flow) {
+			int reason = flow_timeout(flow);
+			if (reason >= 0) {
+				count += do_delete(bucket, flow); 
+				dp_send_flow_expired(dp, flow, reason);
+			}
 		}
 	}
 	th->n_flows -= count;
@@ -167,7 +201,7 @@ static int table_hash_iterate(struct sw_table *swt,
 
 		for (i = position->private[0]; i <= th->bucket_mask; i++) {
 			struct sw_flow *flow = th->buckets[i];
-			if (flow && flow_matches(key, &flow->key)) {
+			if (flow && flow_matches_1wild(&flow->key, key)) {
 				int error = callback(flow, private);
 				if (error) {
 					position->private[0] = i;
@@ -183,8 +217,11 @@ static void table_hash_stats(struct sw_table *swt,
 {
 	struct sw_table_hash *th = (struct sw_table_hash *) swt;
 	stats->name = "hash";
-	stats->n_flows = th->n_flows;
+	stats->wildcards = 0;          /* No wildcards are supported. */
+	stats->n_flows   = th->n_flows;
 	stats->max_flows = th->bucket_mask + 1;
+	stats->n_lookup  = swt->n_lookup;
+	stats->n_matched = swt->n_matched;
 }
 
 struct sw_table *table_hash_create(unsigned int polynomial,
@@ -193,7 +230,7 @@ struct sw_table *table_hash_create(unsigned int polynomial,
 	struct sw_table_hash *th;
 	struct sw_table *swt;
 
-	th = kmalloc(sizeof *th, GFP_KERNEL);
+	th = kzalloc(sizeof *th, GFP_KERNEL);
 	if (th == NULL)
 		return NULL;
 
@@ -236,7 +273,7 @@ static struct sw_flow *table_hash2_lookup(struct sw_table *swt,
 	
 	for (i = 0; i < 2; i++) {
 		struct sw_flow *flow = *find_bucket(t2->subtable[i], key);
-		if (flow && !memcmp(&flow->key, key, sizeof *key))
+		if (flow && flow_keys_equal(&flow->key, key))
 			return flow;
 	}
 	return NULL;
@@ -249,6 +286,17 @@ static int table_hash2_insert(struct sw_table *swt, struct sw_flow *flow)
 	if (table_hash_insert(t2->subtable[0], flow))
 		return 1;
 	return table_hash_insert(t2->subtable[1], flow);
+}
+
+static int table_hash2_modify(struct sw_table *swt, 
+		const struct sw_flow_key *key, uint16_t priority, int strict,
+		const struct ofp_action_header *actions, size_t actions_len)
+{
+	struct sw_table_hash2 *t2 = (struct sw_table_hash2 *) swt;
+	return (table_hash_modify(t2->subtable[0], key, priority, strict, 
+					actions, actions_len)
+			+ table_hash_modify(t2->subtable[1], key, priority, strict, 
+					actions, actions_len));
 }
 
 static int table_hash2_delete(struct sw_table *swt,
@@ -306,8 +354,11 @@ static void table_hash2_stats(struct sw_table *swt,
 	for (i = 0; i < 2; i++)
 		table_hash_stats(t2->subtable[i], &substats[i]);
 	stats->name = "hash2";
-	stats->n_flows = substats[0].n_flows + substats[1].n_flows;
+	stats->wildcards = 0;          /* No wildcards are supported. */
+	stats->n_flows   = substats[0].n_flows + substats[1].n_flows;
 	stats->max_flows = substats[0].max_flows + substats[1].max_flows;
+	stats->n_lookup  = swt->n_lookup;
+	stats->n_matched = swt->n_matched;
 }
 
 struct sw_table *table_hash2_create(unsigned int poly0, unsigned int buckets0,
@@ -317,7 +368,7 @@ struct sw_table *table_hash2_create(unsigned int poly0, unsigned int buckets0,
 	struct sw_table_hash2 *t2;
 	struct sw_table *swt;
 
-	t2 = kmalloc(sizeof *t2, GFP_KERNEL);
+	t2 = kzalloc(sizeof *t2, GFP_KERNEL);
 	if (t2 == NULL)
 		return NULL;
 
@@ -332,6 +383,7 @@ struct sw_table *table_hash2_create(unsigned int poly0, unsigned int buckets0,
 	swt = &t2->swt;
 	swt->lookup = table_hash2_lookup;
 	swt->insert = table_hash2_insert;
+	swt->modify = table_hash2_modify;
 	swt->delete = table_hash2_delete;
 	swt->timeout = table_hash2_timeout;
 	swt->destroy = table_hash2_destroy;

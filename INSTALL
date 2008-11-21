@@ -5,11 +5,56 @@ reference implementation of OpenFlow.  Please send any comments to:
 
                       <info@openflowswitch.org>
 
-Prerequisites
--------------
+Contents
+========
 
-To compile the userspace programs in the OpenFlow reference
-distribution, you will need the following software:
+The OpenFlow reference implementation includes three separate
+OpenFlow switch implementations:
+
+        - The "userspace switch": This implements an OpenFlow switch
+          as a single user program (built as switch/switch).  The
+          userspace switch is the easiest to build and use but it is
+          much less featureful than the other switch implementations.
+
+        - The "kernel-based switch": This divides the switch into a
+          "datapath" Linux kernel module (openflow_mod.o for Linux 2.4
+          or openflow_mod.ko for Linux 2.6) and a userspace program
+          (secchan).  The kernel-based switch is faster than either of
+          the other two implementations but requires building and
+          installing a kernel module, which can sometimes be
+          challenging.
+
+        - The "userspace datapath-based switch": This divides the
+          switch into a userspace "datapath" (built as
+          udatapath/udatapath) and the same userspace program used by
+          the kernel-based switch (secchan).  The userspace
+          datapath-based switch is as featureful as the kernel-based
+          switch and it does not require building a kernel module, but
+          it is not as fast as the kernel-based switch and it is part
+          of the OpenFlow extensions distribution, not the main
+          OpenFlow distribution.
+
+The reference implementation also contains a simple OpenFlow
+controller (built as controller/controller) and a number of related
+utilities.
+
+Build Methods
+=============
+
+There are two principal ways to build and install this distribution:
+
+	- Using "configure" and "make" in the ordinary way.  See
+          Building Conventionally below for detailed instructions.
+
+	- As a set of Debian packages.  Refer to Building Debian
+          Packages, below, for instructions.
+
+Base Prerequisites
+------------------
+
+Regardless of how it is built, OpenFlow has a common set of
+prerequisites.  To compile the userspace programs in the OpenFlow
+reference distribution, you will need the following software:
 
     - A make program, e.g. GNU make
       (http://www.gnu.org/software/make/).  BSD make should also work.
@@ -20,7 +65,7 @@ distribution, you will need the following software:
     - libssl, from OpenSSL (http://www.openssl.org/), is optional but
       recommended.  libssl is required to establish confidentiality
       and authenticity in the connections among OpenFlow switches and
-      controllers.  To enable, compile with --enable-ssl=yes
+      controllers.  To enable, configure with --enable-ssl=yes
 
 If you are working from a Git tree or snapshot (instead of from a
 distribution tarball), or if you modify the OpenFlow build system, you
@@ -33,21 +78,69 @@ will also need the following software:
     - pkg-config (http://pkg-config.freedesktop.org/wiki/).  We test
       with version 0.22.
 
-The optional Linux module has additional prerequisites, described
-later in the section "Building and Testing the Linux Kernel-Based
-Switch".
+Debian Prerequisites
+--------------------
 
-Building Userspace Programs
----------------------------
+To build Debian packages from the OpenFlow distribution, you will need
+to install a number of Debian packages in addition to the base
+prerequisites listed above.  These additional prerequisites may be
+found listed as "Build-Depends" in debian/control in the source tree.
+To check that they are installed, first install the dpkg-dev package,
+then run dpkg-checkbuilddeps from the top level of the OpenFlow source
+tree.
 
-The OpenFlow distribution includes two implementations of the switch:
-one entirely in userspace, for portability and ease of installation,
-and another with a Linux kernel module component that is more
-difficult to install but should also yield better performance.  These
-instructions describe how to build the userspace components of the
-OpenFlow distribution.  Refer to "Building and Testing the Linux
-Kernel-Based Switch", below, for additional instructions on how to
-build the optional Linux kernel module.
+To build Debian packages without being root, also install the
+"fakeroot" package.
+
+Kernel-Based Switch Prerequisites
+---------------------------------
+
+The OpenFlow distribution also includes a Linux kernel module that can
+be used to achieve higher switching performance.  To compile the
+kernel module, you must install the following in addition to the
+software listed in the "Base Prerequisites" section above:
+
+    - A supported Linux kernel version.  Please refer to README for a
+      list of supported versions.
+
+      The OpenFlow datapath requires bridging support (CONFIG_BRIDGE)
+      to be built as a kernel module.  (This is common in kernels
+      provided by Linux distributions.)  The bridge module must not be
+      loaded or in use.  If the bridge module is running (check with
+      "lsmod | grep bridge"), you must remove it ("rmmod bridge")
+      before starting the datapath.
+
+      In kernels prior to 2.6.9, VLAN support (CONFIG_VLAN_8021Q) must 
+      be compiled either directly or as a module.  Failure to do this
+      will cause an error on module insertion due to the 
+      "dev_change_flags" symbol being undefined.
+
+    - The correct version of GCC for the kernel that you are building
+      the module against:
+
+        * To build a kernel module for a Linux 2.6 kernel, you need
+          the same version of GCC that was used to build that kernel
+          (usually version 4.0 or later).
+
+        * To build a kernel module for a Linux 2.4 kernel, you need an
+          earlier version of GCC, typically GCC 2.95, 3.3, or 3.4.
+
+    - A kernel build directory corresponding to the Linux kernel image
+      the module is to run on.  Under Debian and Ubuntu, for example,
+      each linux-image package containing a kernel binary has a
+      corresponding linux-headers package with the required build
+      infrastructure.
+
+Building Conventionally
+=======================
+
+This section explains how to build and install the OpenFlow
+distribution in the ordinary way using "configure" and "make".
+
+0. Check that you have installed all the prerequisites listed above in
+   the Base Prerequisites section.  If you want to compile the Linux
+   kernel module, also check that the prequisites listed under
+   Kernel-Based Switch Prequisites are installed.
 
 1. In the top source directory, configure the package by running the
    configure script.  You can usually invoke configure without any
@@ -60,6 +153,11 @@ build the optional Linux kernel module.
 
       % ./configure CC=gcc-4.2
 
+   To build the Linux kernel module, so that you can run the
+   kernel-based switch, add --with-l26 or --with-l24 option, or both,
+   to the configure script's command line.  Refer to Building the
+   Linux Kernel-Based Switch, below, for more information.
+
    The configure script accepts a number of other options and honors
    additional environment variables.  For a full list, invoke
    configure with the --help option.
@@ -70,10 +168,7 @@ build the optional Linux kernel module.
 
    The following binaries will be built:
 
-      - Switch executable: switch/switch.  This executable is built
-        only if the configure script detects a supported interface to
-        network devices.  Refer to README for a list of OSes whose
-        network device interfaces are supported.
+      - Switch executable: switch/switch.
 
       - Secure channel executable: secchan/secchan.
 
@@ -83,25 +178,216 @@ build the optional Linux kernel module.
 
       - Runtime logging configuration utility: utilities/vlogconf.
 
-3. (Optional) Run "make install" to install the executables and
-   manpages into the running system, by default under /usr/local.
+      - Miscellaneous utilities: utilities/ofp-discover,
+        utilities/ofp-kill.
 
-Testing Userspace Programs
---------------------------
+      - Tests: various binaries in tests/.
 
-0. The commands below must run as root, so log in as root, or use a
-   program such as "su" to become root temporarily.
+   If your distribution includes the OpenFlow extensions, the
+   following additional binaries will be built:
+
+      - Userspace datapath: ext/udatapath/udatapath.
+
+      - ANSI terminal support for EZIO 16x2 LCD panel:
+        ext/ezio/ezio-term.
+
+      - Switch monitoring UI for small text displays:
+        ext/ezio/ofp-switchmon.
+
+   If you passed --with-l26 to configure, "make" will also build the
+   following kernel modules:
+
+      - datapath/linux-2.6/openflow_mod.ko
+
+      - datapath/linux-2.6/hwtable_<table>_mod.ko for each <table>
+        specified on --enable-hw-tables (if any).
+
+   If you passed --with-l24 to configure, "make" will also build the
+   following kernel modules:
+
+      - datapath/linux-2.4/openflow_mod.o      
+
+      - datapath/linux-2.6/hwtable_<table>_mod.o for each <table>
+        specified on --enable-hw-tables (if any).
+
+3. Run "make install" to install the executables and manpages into the
+   running system, by default under /usr/local.
+
+4. If you built kernel modules, you may load them with "insmod", e.g.:
+
+      (Linux 2.6)
+      % insmod datapath/linux-2.6/openflow_mod.ko
+
+      (Linux 2.4)
+      % insmod datapath/linux-2.4/compat24_mod.o
+      % insmod datapath/linux-2.4/openflow_mod.o
+
+   After you load the openflow module, you may load one hardware switch
+   table module (if any were built) to enable support for that hardware
+   switching table.
+
+   The insmod program must be run as root.  You may need to specify a
+   full path to insmod, e.g. /sbin/insmod.  To verify that the modules
+   have been loaded, run "/sbin/lsmod" and check that openflow_mod is
+   listed.
+
+4. Test the userspace programs, as described under Testing Userspace
+   Programs below.
+
+5. If you built the kernel module, test the kernel-based switch, as
+   described under Testing the Kernel-Based Implementation below.
+
+Building the Linux Kernel-Based Switch
+--------------------------------------
+
+To build the kernel module, follow the build process described above,
+but pass the location of the kernel build directory as an additional
+argument to the configure script, as described under step 1 in that
+section.  Specify the location on --with-l26 for Linux 2.6, --with-l24
+for Linux 2.4.  For example, to build for a running instance of Linux
+2.6:
+
+      % ./configure --with-l26=/lib/modules/`uname -r`/build
+
+To build for a running instance of Linux 2.4:
+
+      % ./configure --with-l24=/lib/modules/`uname -r`/build
+
+If you wish to build OpenFlow for an architecture other than the
+architecture used for compilation, you may specify the kernel
+architecture string using the KARCH variable when invoking the
+configure script. For example, to build OpenFlow for MIPS with Linux
+2.4:
+
+      % ./configure --with-l24=/path/to/linux-2.4 KARCH=mips
+
+If you have hardware that supports accelerated OpenFlow switching, and
+you have obtained a hardware table module for your hardware and
+extracted it into the OpenFlow reference distribution source tree,
+then you may also enable building support for the hardware switching
+table with --enable-hw-tables.  For example, if your hardware
+switching table is in a directory named datapath/hwtable-foomatic, you
+could compile support for it with the running Linux 2.6 kernel like
+so:
+
+      % ./configure --with-l26=/lib/modules/`uname -r`/build \
+                    --enable-hw-tables=foomatic
+
+For more information about hardware table modules, please read
+README.hwtables at the root of the OpenFlow distribution tree.
+
+Building Debian Packages
+========================
+
+Follow these instructions to build Debian packages for OpenFlow.
+
+0. Check that you have installed all the prerequisites listed above in
+   the Base Prerequisites and Debian Prerequisites sections above.
+
+1. In the top source directory, run the following command, as root:
+
+      % dpkg-buildpackage
+
+   Alternatively, if you installed the "fakeroot" package, you may run
+   dpkg-buildpackage as an ordinary user with the following syntax:
+
+      % dpkg-buildpackage -rfakeroot
+
+   The following packages will be built in the directory above the
+   source tree:
+
+      - openflow-controller: The OpenFlow controller.  Depends on
+        openflow-pki (see below).
+
+      - openflow-switch: Install this package on a machine that acts
+        as an OpenFlow userspace or kernel switch.
+
+      - openflow-datapath-source: Source code for OpenFlow's Linux
+        kernel module.
+
+      - openflow-pki: Public-key infrastructure for OpenFlow.  Install
+        this package on a machine that acts as an OpenFlow PKI server
+        (see "Establishing a Public Key Infrastructure" below).
+
+      - openflow-common: Files and utilities required by more than one
+        of the above packages.
+
+2. To set up an OpenFlow controller, install the openflow-controller
+   package and its dependencies.  You may configure it by editing
+   /etc/default/openflow-controller, e.g. to enable non-SSL
+   connections, which are disabled by default.  If you change the
+   default settings, you will need to restart the controller by
+   running:
+
+      % /etc/init.d/openflow-controller restart
+
+3. To set up an OpenFlow switch, install the openflow-switch package
+   and its dependencies.  If it is to be a kernel-based switch, also
+   install openflow-datapath-source, then follow the instructions in
+   /usr/share/doc/openflow-datapath-source/README.Debian to build and
+   install the kernel module.
+
+   You may configure the switch one of the following ways:
+
+      - Completely by hand, as described under the Testing section
+        below.
+
+        For the userspace switch, this is the only supported form of
+        configuration.
+
+      - By editing /etc/default/openflow-switch.  You must at least
+        configure some network devices, by uncommenting NETDEVS and
+        adding the appropriate devices to the list, e.g. NETDEVS="eth0
+        eth1".
+
+        After you edit this file, you will need to start the switch by
+        running:
+
+           % /etc/init.d/openflow-switch restart
+
+        This form of configuration is not supported for the userspace
+        switch.
+
+      - By running the ofp-switch-setup program.  This interactive
+        program will walk you through all the steps of configuring an
+        OpenFlow switch, including configuration of SSL certificates.
+        Run it without arguments, as root:
+
+           % ofp-switch-setup
+
+        This form of configuration is not supported for the userspace
+        switch.
+
+Testing
+=======
+
+The following sets of instructions show how to use the OpenFlow
+reference implementation as a switch on a single machine.  This can be
+used to verify that the distribution built properly.  For full
+installation instructions, refer to the Installation section below.
+
+Userspace Switch
+----------------
+
+These instructions use the OpenFlow userspace switch that runs as an
+integrated userspace program.
 
 1. Start the OpenFlow controller running in the background, by running
    the "controller" program with a command like the following:
 
       # controller ptcp: &
 
-   This command causes the controller to bind to port 975 (the
+   This command causes the controller to bind to port 6633 (the
    default) awaiting connections from OpenFlow switches.  See
    controller(8) for details.
+
+   The "controller" program does not require any special privilege, so
+   you do not need to run it as root.
    
-2. On the same machine, use the "switch" program to start an OpenFlow
+2. The "switch" program must run as root, so log in as root, or use a
+   program such as "su" to become root temporarily.
+
+3. On the same machine, use the "switch" program to start an OpenFlow
    switch, specifying network devices to use as switch ports on the -i
    option as a comma-separated list, like so:
 
@@ -110,7 +396,7 @@ Testing Userspace Programs
    The network devices that you specify should not have configured IP
    addresses.
 
-3. The controller causes each switch that connects to it to act like a
+4. The controller causes each switch that connects to it to act like a
    learning Ethernet switch.  Thus, devices plugged into the specified
    network ports should now be able to send packets to each other, as
    if they were plugged into ports on a conventional Ethernet switch.
@@ -119,16 +405,287 @@ Troubleshooting: if the commands above do not work, try using the -v
 or --verbose option on the controller or switch commands, which will
 cause a large amount of debug output from each program.
 
-Remote switches: These instructions assume that the controller and the
-switch are running on the same machine.  This is an easy configuration
-for testing, but a more conventional setup would run a controller on
-one machine and one or more switches on different machines.  To do so,
-simply specify the IP address of the controller as the first argument
-to the switch program (in place of 127.0.0.1). (Note: The userspace
-switch must be connected to the controller over a "control network"
-that is physically separate from the one that the switch and
-controller are controlling.  The kernel-based switch does not have
-this limitation.)
+Userspace Datapath
+------------------
+
+These instructions use the OpenFlow userspace datapath ("udatapath").
+The udatapath program is part of the OpenFlow extensions repository,
+which is not included in every OpenFlow distribution.
+
+1. Start the OpenFlow controller running in the background, by running
+   the "controller" program with a command like the following:
+
+      # controller punix:/var/run/controller.sock &
+
+   This command causes the controller to bind to the specified Unix
+   domain socket, awaiting connections from OpenFlow switches.  See
+   controller(8) for details.
+
+   The "controller" program does not require any special privilege, so
+   you do not need to run it as root.
+   
+2. The commands below must run as root, so log in as root, or use a
+   program such as "su" to become root temporarily.
+
+3. Create a datapath instance running in the background.  The command
+   below creates a datapath that listens for connections from secchan
+   on a Unix domain socket located in /var/run and services physical
+   ports eth1 and eth2:
+
+      # udatapath punix:/var/run/dp0.sock -i eth1,eth2 &
+
+4. Run secchan to start the secure channel connecting the datapath and
+   the controller:
+
+      # secchan unix:/var/run/controller.sock unix:/var/run/dp0.sock &
+   
+5. Devices plugged into the network ports specified in step 2 should
+   now be able to send packets to each other, as if they were plugged
+   into ports on a conventional Ethernet switch.
+
+Installation
+============
+
+This section explains how to install OpenFlow in a network with one
+controller and one or more switches, each of which runs on a separate
+machine.  Before you begin, you must decide on one of two ways for
+each switch to reach the controller over the network:
+
+      - Use a "control network" that is completely separate from the
+        "data network" to be controlled ("out-of-band control").  The
+        location of the controller must be configured manually in this
+        case.
+
+        All three switch implementations support only out-of-band
+        control.
+
+      - Use the same network for control and for data ("in-band
+        control").  When in-band control is used, the location of the
+        controller may be configured manually or discovered
+        automatically.  We will assume manual configuration here;
+        please refer to secchan(8) for instructions on setting up
+        controller discovery.  
+
+        The userspace datapath-based and kernel-based switch
+        implementations support in-band control.  The userspace switch
+        does not.
+
+Controller Setup
+----------------
+
+On the machine that is to be the OpenFlow controller, start the
+"controller" program listening for connections from switches on TCP
+port 6633 (the default), as shown below.
+
+   # controller -v ptcp:
+
+(See controller(8) for more details)
+
+Make sure the machine hosting the controller is reachable by the
+switch.
+
+Userspace Switch-Based Setup
+----------------------------
+
+To set up an OpenFlow switch using the userspace switch, follow this
+procedure.  The userspace switch must be connected to the controller
+over a "control network" that is physically separate from the one that
+the switch and controller are controlling.  (The kernel-based and
+userspace datapath-based switches do not have this limitation.)
+
+0. The commands below must run as root, so log in as root, or use a
+   program such as "su" to become root temporarily.
+
+1. Use the "switch" program to start an OpenFlow switch, specifying
+   the IP address of the controller as the first argument to the
+   switch program, and the network devices to include in the switch as
+   arguments to the -i option.  For example, if the controller is
+   running on host 192.168.1.2 port 6633 (the default port), and eth1
+   and eth2 are to be the switch ports, the switch invocation would
+   look like this:
+
+      # switch tcp:127.0.0.1 -i eth1,eth2
+   
+   The network devices that you specify should not have configured IP
+   addresses.
+
+2. The controller causes each switch that connects to it to act like a
+   learning Ethernet switch.  Thus, devices plugged into the specified
+   network ports should now be able to send packets to each other, as
+   if they were plugged into ports on a conventional Ethernet switch.
+
+Userspace Datapath-Based Setup
+------------------------------
+
+On a machine that is to host an OpenFlow userspace datapath-based
+switch, follow the procedure below.  These instructions require the
+OpenFlow userspace datapath ("udatapath").  The udatapath program is
+part of the OpenFlow extensions repository, which is not included in
+every OpenFlow distribution.
+
+0. The commands below must run as root, so log in as root, or use a
+   program such as "su" to become root temporarily.
+
+1. Create a datapath instance running in the background.  The command
+   below creates a datapath that listens for connections from secchan
+   on a Unix domain socket located in /var/run, services physical
+   ports eth1 and eth2, and creates a TAP network device named "tap0"
+   for use in in-band control:
+
+      # udatapath punix:/var/run/dp0.sock -i eth1,eth2 --local-port=tap:tap0 &
+
+   (See udatapath(8) for details.)
+
+   If the switch will connect to the controller out-of-band, then the
+   --local-port option may be omitted, or --no-local-port may be
+   substituted.
+
+3. Arrange so that the switch can reach the controller over the
+   network.
+
+      - If you are using out-of-band control, at this point make sure
+        that the switch machine can reach the controller over the
+        network.
+
+      - If you are using in-band control with manual configuration, at
+        this point the TAP network device created in step 1 is not
+        bridged to any physical network, so the next step depends on
+        whether connectivity is required to configure the device's IP
+        address:
+
+           * If the switch has a static IP address, you may configure
+             its IP address now, e.g.:
+
+                # ifconfig tap0 192.168.1.1
+
+           * If the switch does not have a static IP address, e.g. its
+             IP address is obtained dynamically via DHCP, then proceed
+             to step 4.  The DHCP client will not be able to contact
+             the DHCP server until the secure channel has started up.
+
+      - If you are using in-band control with controller discovery, no
+        configuration is required at this point.  You may proceed to
+        step 4.
+
+4. Run secchan to start the secure channel connecting the datapath to
+   a remote controller.  If the controller is running on host
+   192.168.1.2 port 6633 (the default port), the secchan invocation
+   would look like this:
+
+      # secchan unix:/var/run/dp0.sock tcp:192.168.1.2
+
+   - If you are using in-band control with controller discovery, omit
+     the second argument to the secchan command.
+
+   - If you are using out-of-band control, add --out-of-band to the
+     command line.
+
+5. If you are using in-band control with manual configuration, and the
+   switch obtains its IP address dynamically, then you may now obtain
+   the switch's IP address, e.g. by invoking a DHCP client.  The
+   secure channel will only be able to connect to the controller after
+   an IP address has been obtained.
+
+6. The secure channel should connect to the controller within a few
+   seconds.  It may take a little longer if controller discovery is in
+   use, because the switch must then also obtain its own IP address
+   and the controller's location via DHCP.
+
+Testing the Kernel-Based Implementation
+---------------------------------------
+
+The OpenFlow kernel module must be loaded, as described under
+"Building Conventionally", before it may be used.
+
+0. The commands below must run as root, so log in as root, or use a
+   program such as "su" to become root temporarily.
+
+1. Create a datapath instance.  The command below creates a datapath
+   identified as nl:0 (see dpctl(8) for more detailed usage
+   information).
+
+      # dpctl adddp nl:0
+   
+   (In principle, openflow_mod supports multiple datapaths within the
+   same host which would be identified as nl:1, nl:2, etc., but this
+   is rarely useful in practice.)
+
+   Creating datapath nl:0 also creates a new network device named of0.
+   This network device, called the datapath's "local port", will be
+   bridged to the physical switch ports by the secchan, for use in
+   in-band control.
+
+   If you built a support module for hardware accelerated OpenFlow
+   switching and you want to use it, you must load it before creating
+   the datapath with "dpctl adddp".
+
+2. Use dpctl to attach the datapath to physical interfaces on the
+   machine.  Say, for example, you want to create a trivial 2-port
+   switch using interfaces eth1 and eth2, you would issue the following
+   commands:
+
+      # dpctl addif nl:0 eth1
+      # dpctl addif nl:0 eth2
+
+   You can verify that the interfaces were successfully added by asking
+   dpctl to print the current status of datapath nl:0:
+
+      # dpctl show nl:0
+
+3. Arrange so that the switch can reach the controller over the
+   network.
+
+      - If you are using out-of-band control, at this point make sure
+        that the switch machine can reach the controller over the
+        network.
+
+      - If you are using in-band control, then at this point you must
+        configure the of0 network device created in step 1.  This
+        device is not yet bridged to any physical network (because
+        secchan does that, and it is not yet running), so the next
+        step depends on whether connectivity is required to configure
+        the device's IP address:
+
+           * If the switch has a static IP address, you may configure
+             its IP address now, e.g.:
+
+                # ifconfig of0 192.168.1.1
+
+           * If the switch does not have a static IP address, e.g. its
+             IP address is obtained dynamically via DHCP, then proceed
+             to step 4.  The DHCP client will not be able to contact
+             the DHCP server until the secure channel has started up.
+
+      - If you are using in-band control with controller discovery, no
+        configuration is required at this point.  You may proceed to
+        step 4.
+
+4. Run secchan to start the secure channel connecting the datapath to
+   a remote controller.  If the controller is running on host
+   192.168.1.2 port 6633 (the default port), the secchan invocation
+   would look like this:
+
+      # secchan nl:0 tcp:192.168.1.2
+
+   - If you are using in-band control with controller discovery, omit
+     the second argument to the secchan command.
+
+   - If you are using out-of-band control, add --out-of-band to the
+     command line.
+
+5. If you are using in-band control with manual configuration, and the
+   switch obtains its IP address dynamically, then you may now obtain
+   the switch's IP address, e.g. by invoking a DHCP client.  The
+   secure channel will only be able to connect to the controller after
+   an IP address has been obtained.
+
+6. The secure channel should connect to the controller within a few
+   seconds.  It may take a little longer if controller discovery is in
+   use, because the switch must then also obtain its own IP address
+   and the controller's location via DHCP.
+
+Configuration
+=============
 
 Secure operation over SSL
 -------------------------
@@ -145,7 +702,7 @@ controllers and one for switches.  If you have an established PKI,
 OpenFlow can use it directly.  Otherwise, refer to "Establishing a
 Public Key Infrastructure" below.
 
-To configure the controller to listen for SSL connections on port 976
+To configure the controller to listen for SSL connections on port 6633
 (the default), invoke it as follows:
 
       # controller -v pssl: --private-key=PRIVKEY --certificate=CERT \
@@ -160,20 +717,21 @@ with the instructions below, then the invocation would look like:
       # controller -v pssl: --private-key=ctl-privkey.pem \
             --certificate=ctl-cert.pem --ca-cert=pki/switchca/cacert.pem
 
-To configure a switch to connect to a controller running on port 976
-(the default) on host 192.168.1.2 over SSL, invoke it as follows:
+To configure a switch to connect to a controller running on port 6633
+(the default) on host 192.168.1.2 over SSL, invoke secchan as follows:
 
-      # switch -v ssl:192.168.1.2 -i INTERFACES --private-key=PRIVKEY \
+      # secchan -v DATAPATH ssl:192.168.1.2 --private-key=PRIVKEY \
             --certificate=CERT --ca-cert=CACERT
 
-where INTERFACES is the command-separated list of network device
-interfaces, PRIVKEY is a file containing the switch's private key,
-CERT is a file containing the switch CA's certificate for the switch's
-public key, and CACERT is a file containing the root certificate for
-the controller CA.  If, for example, your PKI was created with the
-instructions below, then the invocation would look like:
+where DATAPATH is the datapath to connect to (e.g. nl:0 or
+unix:/var/run/dp0.sock), PRIVKEY is a file containing the switch's
+private key, CERT is a file containing the switch CA's certificate for
+the switch's public key, and CACERT is a file containing the root
+certificate for the controller CA.  If, for example, your PKI was
+created with the instructions below, then the invocation would look
+like:
 
-      # secchan -v -i INTERFACES ssl:192.168.1.2 --private-key=sc-privkey.pem \
+      # secchan -v DATAPATH ssl:192.168.1.2 --private-key=sc-privkey.pem \
             --certificate=sc-cert.pem --ca-cert=pki/controllerca/cacert.pem
 
 [*] To be specific, OpenFlow uses TLS version 1.0 or later (TLSv1), as
@@ -186,9 +744,11 @@ Establishing a Public Key Infrastructure
 
 If you do not have a PKI, the ofp-pki script included with OpenFlow
 can help.  To create an initial PKI structure, invoke it as:
-      % ofp-pki new-pki
-which will create and populate a new directory named "pki" under the
-current directory.
+      % ofp-pki init
+which will create and populate a new PKI directory.  The default
+location for the PKI directory depends on how the OpenFlow tree was
+configured (to see the configured default, look for the --dir option
+description in the output of "ofp-pki --help").
 
 The pki directory contains two important subdirectories.  The
 controllerca subdirectory contains controller certificate authority
@@ -232,248 +792,6 @@ sc-privkey.pem and sc-cert.pem would need to be copied to the switch
 for its use at runtime (they could then be deleted from their original
 locations).  The --private-key and --certificate options,
 respectively, of switch and secchan would point to these files.
-
-Building and Testing the Linux Kernel-Based Switch
---------------------------------------------------
-
-The OpenFlow distribution also includes a Linux kernel module that can
-be used to achieve higher switching performance at a cost in
-portability and ease of installation.  Compiling the kernel module has
-the following prerequisites in addition to those listed in the
-"Prerequisites" section above:
-
-    - A supported Linux kernel version.  Please refer to README for a
-      list of supported versions.
-
-      The OpenFlow datapath requires bridging support (CONFIG_BRIDGE)
-      to be built as a kernel module.  (This is common in kernels
-      provided by Linux distributions.)  The bridge module must not be
-      loaded or in use.  If the bridge module is running (check with
-      "lsmod | grep bridge"), you must remove it ("rmmod bridge")
-      before starting the datapath.
-
-    - The correct version of GCC for the kernel that you are building
-      the module against:
-
-        * To build a kernel module for a Linux 2.6 kernel, you need
-          the same version of GCC that was used to build that kernel
-          (usually version 4.0 or later).
-
-        * To build a kernel module for a Linux 2.4 kernel, you need an
-          earlier version of GCC, typically GCC 2.95, 3.3, or 3.4.
-
-    - A kernel build directory corresponding to the Linux kernel image
-      the module is to run on.  Under Debian and Ubuntu, for example,
-      each linux-image package containing a kernel binary has a
-      corresponding linux-headers package with the required build
-      infrastructure.
-
-To build the kernel module, follow the build process described under
-"Building Userspace Programs" above, but pass the location of the
-kernel build directory as an additional argument to the configure
-script, as described under step 1 in that section.  Specify the
-location on --with-l26 for Linux 2.6, --with-l24 for Linux 2.4.  For
-example, to build for a running instance of Linux 2.6:
-
-      % ./configure --with-l26=/lib/modules/`uname -r`/build
-
-To build for a running instance of Linux 2.4:
-
-      % ./configure --with-l24=/lib/modules/`uname -r`/build
-
-If you wish to build OpenFlow for an architecture other than the architecture
-used for compilation, you may specify the kernel architecture string using the
-KARCH variable when invoking the configure script. For example, to build
-OpenFlow for MIPS with Linux 2.4:
-
-      % ./configure --with-l24=/path/to/linux-2.4 KARCH=mips
-
-If you have hardware that supports accelerated OpenFlow switching, and
-you have obtained a hardware table module for your hardware and
-extracted it into the OpenFlow reference distribution source tree,
-then you may also enable building support for the hardware switching
-table with --enable-hw-tables.  For example, if your hardware
-switching table is in a directory named datapath/hwtable-foomatic, you
-could compile support for it with the running Linux 2.6 kernel like
-so:
-
-      % ./configure --with-l26=/lib/modules/`uname -r`/build \
-                    --enable-hw-tables=foomatic
-
-For more information about hardware table modules, please read
-README.hwtables at the root of the OpenFlow distribution tree.
-
-In addition to the binaries listed under step 2 in "Building Userspace
-Programs" above, "make" will build the following kernel modules:
-
-      datapath/linux-2.6/openflow_mod.ko (if --with-l26 was specified)
-      datapath/linux-2.4/openflow_mod.o  (if --with-l24 was specified)
-
-"make" will also build a kernel module for each hardware switch table
-enabled with --enable-hw-tables.
-
-Once you have built the kernel modules, activating them requires only
-running "insmod", e.g.:
-
-      (Linux 2.6)
-      % insmod datapath/linux-2.6/openflow_mod.ko
-
-      (Linux 2.4)
-      % insmod datapath/linux-2.4/compat24_mod.o
-      % insmod datapath/linux-2.4/openflow_mod.o
-
-After you load the openflow module, you may load one hardware switch
-table module (if any were built) to enable support for that hardware
-switching table.
-
-The insmod program must be run as root.  You may need to specify a
-full path to insmod, which is usually in the /sbin directory.  To
-verify that the modules have been loaded, run "lsmod" (also in /sbin)
-and check that openflow_mod appears in the result.
-
-Testing the Kernel-Based Implementation
----------------------------------------
-
-The OpenFlow kernel module must be loaded, as described in the
-previous section, before it may be tested.
-
-0. The commands below must run as root, so log in as root, or use a
-   program such as "su" to become root temporarily.
-
-1. Create a datapath instance.  The command below creates a datapath with
-   ID 0 (see dpctl(8) for more detailed usage information).
-
-      # dpctl adddp 0
-   
-   In principle, openflow_mod supports multiple datapaths within the
-   same host, but this is rarely useful in practice.
-
-   If you built a support module for hardware accelerated OpenFlow
-   switching and you want to use it, you must load it before creating
-   the datapath with "dpctl adddp".
-
-2. Use dpctl to attach the datapath to physical interfaces on the
-   machine.  Say, for example, you want to create a trivial 2-port
-   switch using interfaces eth1 and eth2, you would issue the following
-   commands:
-
-      # dpctl addif 0 eth1
-      # dpctl addif 0 eth2
-
-   You can verify that the interfaces were successfully added by asking
-   dpctl to print the current status of datapath 0:
-
-      # dpctl show 0
-
-3. (Optional) You can manually add flows to the datapath to test using
-   dpctl add-flows and view them using dpctl dump-flows.  See dpctl(8)
-   for more details.
-
-4. The simplest way to test the datapath is to run the provided sample
-   controller on the host machine to manage the datapath directly using
-   netlink:
-
-      # controller -v nl:0
-
-   Once the controller is running, the datapath should operate like a
-   learning Ethernet switch.  You may monitor the flows in the datapath
-   flow table using "dpctl dump-flows" command.
-
-The preceding instructions assume that the controller and the switch
-are running on the same machine.  This is an easy configuration for
-testing, but a more conventional setup would run a controller on one
-machine and one or more switches on different machines.  Use the
-following instructions to set up remote switches:
-
-1. Start the datapath and attach it to two or more physical ports as
-   described in the previous section.
-
-2. Run the controller in passive TCP mode on the host which will act as
-   the controller. In the example below, the controller will bind to
-   port 975 (the default) awaiting connections from secure channels. 
-
-      # controller -v ptcp:
-
-   (See controller(8) for more details)
-   
-   Make sure the machine hosting the controller is reachable by the switch.  
-
-3. Arrange so that the switch can reach the controller over the
-   network.  There are two ways to do this:
-
-      - Use a "control network" that is completely separate from the
-        "data network" to be controlled ("out-of-band control").  To
-        do so, configure a network device (one that has not been added
-        to the datapath with "dpctl addif") to access the control
-        network in the usual way.
-
-      - Use the same network for control and for data ("in-band
-        control").  For this purpose, each datapath nl:K has a
-        corresponding virtual network device named ofK.
-
-        When in-band control is used, the location of the controller
-        may be configured manually or discovered automatically:
-
-            * Manual configuration: Start by bringing up of0 before
-              you start the secure channel:
-
-                 # ifconfig of0 up
-
-              Before the secure channel starts up, the of0 device
-              cannot send or receive any packets, so the next step
-              depends on whether connectivity is required to configure
-              the device's IP address:
-
-                 . If the switch has a static IP address, you may
-                   configure its IP address now, e.g.:
-
-                      # ifconfig of0 192.168.1.1
-
-                 . If the switch does not have a static IP address,
-                   e.g. its IP address is obtained dynamically via
-                   DHCP, then proceed to step 4.  The DHCP client will
-                   not be able to contact the DHCP server until the
-                   secure channel has started up.
-
-            * Controller discovery: No special setup is required at
-              the switch, but you must specially configure a DHCP
-              server to give out the switch's IP address and to tell
-              it the location of the controller.  See secchan(8) for
-              details.
-
-4. Run secchan on the datapath host to start the secure channel
-   connecting the datapath to a remote controller.  (See secchan(8)
-   for usage details).  The details depend on how you configured the
-   network in step 3:
-
-      - If you are using in-band control and controller discovery,
-        invoke secchan something like this:
-
-           # secchan -v nl:0
-
-        The secure channel should connect to the controller after it
-        obtains its own IP address and the controller's location via
-        DHCP.  This can take a few seconds.  Switch setup is now
-        complete.
-
-      - Otherwise, the secure channel should be configured to connect
-        to the controller's IP address on the port configured in step
-        2.  If the controller is running on host 192.168.1.2 port 975
-        (the default port) and the datapath ID is 0, the secchan
-        invocation would look like:
-
-           # secchan -v nl:0 tcp:192.168.1.2
-
-        If you are using out-of-band control, or if you are using
-        in-band control and the switch has a static IP address, the
-        secure channel should quickly connect to the controller.
-        Setup is now complete.  Otherwise, proceed to step 5.
-
-5. If you are using the same network for control and data, and the
-   switch obtains its IP address dynamically, then you may now obtain
-   the switch's IP address, e.g. by invoking a DHCP client.  The
-   secure channel will only be able to connect to the controller after
-   an IP address has been obtained.
 
 Bug Reporting
 -------------

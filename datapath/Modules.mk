@@ -1,16 +1,20 @@
 all_modules = $(dist_modules)
-dist_modules = openflow unit
+dist_modules = openflow 
 
 openflow_sources = \
 	chain.c \
 	crc32.c \
 	datapath.c \
+	dp_act.c \
 	dp_dev.c \
+	dp_notify.c \
 	flow.c \
 	forward.c \
+	nx_act.c \
+	nx_act_snat.c \
+	nx_msg.c \
 	table-hash.c \
-	table-linear.c \
-	unit-exports.c
+	table-linear.c 
 
 openflow_headers = \
 	chain.h \
@@ -20,15 +24,11 @@ openflow_headers = \
 	dp_dev.h \
 	flow.h \
 	forward.h \
+	nx_act.h \
+	nx_act_snat.h \
+	nx_msg.h \
 	snap.h \
-	table.h \
-	unit.h
-
-unit_sources = \
-	crc_t.c \
-	forward_t.c \
-	table_t.c \
-	unit.c
+	table.h 
 
 dist_sources = $(foreach module,$(dist_modules),$($(module)_sources))
 dist_headers = $(foreach module,$(dist_modules),$($(module)_headers))

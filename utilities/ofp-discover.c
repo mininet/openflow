@@ -42,10 +42,12 @@
 #include "daemon.h"
 #include "dhcp-client.h"
 #include "dhcp.h"
+#include "dirs.h"
 #include "dynamic-string.h"
 #include "fatal-signal.h"
 #include "netdev.h"
 #include "poll-loop.h"
+#include "timeval.h"
 #include "util.h"
 #include "vlog-socket.h"
 
@@ -90,14 +92,15 @@ main(int argc, char *argv[])
     int i;
 
     set_program_name(argv[0]);
+    time_init();
     vlog_init();
     parse_options(argc, argv);
 
     argc -= optind;
     argv += optind;
     if (argc < 1) {
-        fatal(0, "need at least one non-option argument; "
-              "use --help for usage");
+        ofp_fatal(0, "need at least one non-option argument; "
+                  "use --help for usage");
     }
 
     ifaces = xmalloc(argc * sizeof *ifaces);
@@ -108,14 +111,14 @@ main(int argc, char *argv[])
         }
     }
     if (!n_ifaces) {
-        fatal(0, "failed to initialize any DHCP clients");
+        ofp_fatal(0, "failed to initialize any DHCP clients");
     }
 
     for (i = 0; i < n_ifaces; i++) {
         struct iface *iface = &ifaces[i];
         dhclient_init(iface->dhcp, 0);
     }
-    fatal_signal_add_hook(release_ifaces, NULL);
+    fatal_signal_add_hook(release_ifaces, NULL, true);
 
     retval = regcomp(&accept_controller_regex, accept_controller_re,
                      REG_NOSUB | REG_EXTENDED);
@@ -123,13 +126,15 @@ main(int argc, char *argv[])
         size_t length = regerror(retval, &accept_controller_regex, NULL, 0);
         char *buffer = xmalloc(length);
         regerror(retval, &accept_controller_regex, buffer, length);
-        fatal(0, "%s: %s", accept_controller_re, buffer);
+        ofp_fatal(0, "%s: %s", accept_controller_re, buffer);
     }
 
     retval = vlog_server_listen(NULL, NULL);
     if (retval) {
-        fatal(retval, "Could not listen for vlog connections");
+        ofp_fatal(retval, "Could not listen for vlog connections");
     }
+
+    die_if_already_running();
 
     signal(SIGPIPE, SIG_IGN);
     for (;;) {
@@ -152,7 +157,7 @@ main(int argc, char *argv[])
                     struct ds ds;
 
                     /* Disable timeout, since discovery was successful. */
-                    alarm(0);
+                    time_alarm(0);
 
                     /* Print discovered parameters. */
                     ds_init(&ds);
@@ -226,12 +231,12 @@ iface_init(struct iface *iface, const char *netdev_name)
 
         retval = netdev_open(iface->name, NETDEV_ETH_TYPE_NONE, &netdev);
         if (retval) {
-            error(retval, "Could not open %s device", iface->name);
+            ofp_error(retval, "Could not open %s device", iface->name);
             return false;
         }
         retval = netdev_turn_flags_on(netdev, NETDEV_UP, true);
         if (retval) {
-            error(retval, "Could not bring %s device up", iface->name);
+            ofp_error(retval, "Could not bring %s device up", iface->name);
             return false;
         }
         netdev_close(netdev);
@@ -240,7 +245,7 @@ iface_init(struct iface *iface, const char *netdev_name)
     retval = dhclient_create(iface->name, modify_dhcp_request,
                              validate_dhcp_offer, NULL, &iface->dhcp);
     if (retval) {
-        error(retval, "%s: failed to initialize DHCP client", iface->name);
+        ofp_error(retval, "%s: failed to initialize DHCP client", iface->name);
         return false;
     }
 
@@ -270,12 +275,13 @@ modify_dhcp_request(struct dhcp_msg *msg, void *aux)
 static bool
 validate_dhcp_offer(const struct dhcp_msg *msg, void *aux)
 {
+    static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(60, 60);
     char *vconn_name;
     bool accept;
 
     vconn_name = dhcp_msg_get_string(msg, DHCP_CODE_OFP_CONTROLLER_VCONN);
     if (!vconn_name) {
-        VLOG_WARN("rejecting DHCP offer missing controller vconn");
+        VLOG_WARN_RL(&rl, "rejecting DHCP offer missing controller vconn");
         return false;
     }
     accept = !regexec(&accept_controller_regex, vconn_name, 0, NULL, 0);
@@ -299,6 +305,7 @@ parse_options(int argc, char *argv[])
         {"no-detach",   no_argument, 0, OPT_NO_DETACH},
         {"timeout",     required_argument, 0, 't'},
         {"pidfile",     optional_argument, 0, 'P'},
+        {"force",       no_argument, 0, 'f'},
         {"verbose",     optional_argument, 0, 'v'},
         {"help",        no_argument, 0, 'h'},
         {"version",     no_argument, 0, 'V'},
@@ -339,17 +346,17 @@ parse_options(int argc, char *argv[])
             set_pidfile(optarg);
             break;
 
+        case 'f':
+            ignore_existing_pidfile();
+            break;
+
         case 't':
             timeout = strtoul(optarg, NULL, 10);
             if (timeout <= 0) {
-                fatal(0, "value %s on -t or --timeout is not at least 1",
-                      optarg);
-            } else if (timeout < UINT_MAX) {
-                /* Add 1 because historical implementations allow an alarm to
-                 * occur up to a second early. */
-                alarm(timeout + 1);
+                ofp_fatal(0, "value %s on -t or --timeout is not at least 1",
+                          optarg);
             } else {
-                alarm(UINT_MAX);
+                time_alarm(timeout);
             }
             signal(SIGALRM, SIG_DFL);
             break;
@@ -375,8 +382,8 @@ parse_options(int argc, char *argv[])
     free(short_options);
 
     if ((exit_without_bind + exit_after_bind + !detach_after_bind) > 1) {
-        fatal(0, "--exit-without-bind, --exit-after-bind, and --no-detach "
-              "are mutually exclusive");
+        ofp_fatal(0, "--exit-without-bind, --exit-after-bind, and --no-detach "
+                  "are mutually exclusive");
     }
     if (detach_after_bind) {
         set_detach();
@@ -398,14 +405,15 @@ usage(void)
            "  --accept-vconn=REGEX    accept matching discovered controllers\n"
            "  --exit-without-bind     exit after discovery, without binding\n"
            "  --exit-after-bind       exit after discovery, after binding\n"
-           "  --no-detach             do not detach after discovery\n"
-           "\nOther options:\n"
+           "  --no-detach             do not detach after discovery\n",
+           program_name, program_name);
+    vlog_usage();
+    printf("\nOther options:\n"
            "  -t, --timeout=SECS      give up discovery after SECS seconds\n"
            "  -P, --pidfile[=FILE]    create pidfile (default: %s/%s.pid)\n"
-           "  -v, --verbose=MODULE[:FACILITY[:LEVEL]]  set logging levels\n"
-           "  -v, --verbose           set maximum verbosity level\n"
+           "  -f, --force             with -P, start even if already running\n"
            "  -h, --help              display this help message\n"
            "  -V, --version           display version information\n",
-           program_name, program_name, RUNDIR, program_name);
+           ofp_rundir, program_name);
     exit(EXIT_SUCCESS);
 }

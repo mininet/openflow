@@ -38,149 +38,59 @@
 #include <stddef.h>
 #include <stdint.h>
 
-struct buffer;
+struct ofpbuf;
 struct flow;
-struct pollfd;
 struct ofp_header;
+struct pvconn;
+struct vconn;
 
-/* Client interface. */
+void vconn_usage(bool active, bool passive, bool bootstrap);
 
-/* Virtual connection to an OpenFlow device. */
-struct vconn {
-    struct vconn_class *class;
-    int connect_status;
-    uint32_t ip;
-};
-
-void vconn_usage(bool active, bool passive);
-int vconn_open(const char *name, struct vconn **);
+/* Active vconns: virtual connections to OpenFlow devices. */
+int vconn_open(const char *name, int min_version, struct vconn **);
 void vconn_close(struct vconn *);
-bool vconn_is_passive(const struct vconn *);
+const char *vconn_get_name(const struct vconn *);
 uint32_t vconn_get_ip(const struct vconn *);
 int vconn_connect(struct vconn *);
-int vconn_accept(struct vconn *, struct vconn **);
-int vconn_recv(struct vconn *, struct buffer **);
-int vconn_send(struct vconn *, struct buffer *);
-int vconn_transact(struct vconn *, struct buffer *, struct buffer **);
+int vconn_recv(struct vconn *, struct ofpbuf **);
+int vconn_send(struct vconn *, struct ofpbuf *);
+int vconn_transact(struct vconn *, struct ofpbuf *, struct ofpbuf **);
 
-int vconn_open_block(const char *name, struct vconn **);
-int vconn_send_block(struct vconn *, struct buffer *);
-int vconn_recv_block(struct vconn *, struct buffer **);
+int vconn_open_block(const char *name, int min_version, struct vconn **);
+int vconn_send_block(struct vconn *, struct ofpbuf *);
+int vconn_recv_block(struct vconn *, struct ofpbuf **);
 
 enum vconn_wait_type {
     WAIT_CONNECT,
-    WAIT_ACCEPT,
     WAIT_RECV,
     WAIT_SEND
 };
 void vconn_wait(struct vconn *, enum vconn_wait_type);
 void vconn_connect_wait(struct vconn *);
-void vconn_accept_wait(struct vconn *);
 void vconn_recv_wait(struct vconn *);
 void vconn_send_wait(struct vconn *);
 
-void *make_openflow(size_t openflow_len, uint8_t type, struct buffer **);
+/* Passive vconns: virtual listeners for incoming OpenFlow connections. */
+int pvconn_open(const char *name, struct pvconn **);
+void pvconn_close(struct pvconn *);
+int pvconn_accept(struct pvconn *, int min_version, struct vconn **);
+void pvconn_wait(struct pvconn *);
+
+/* OpenFlow protocol utility functions. */
+void *make_openflow(size_t openflow_len, uint8_t type, struct ofpbuf **);
 void *make_openflow_xid(size_t openflow_len, uint8_t type,
-                        uint32_t xid, struct buffer **);
-void update_openflow_length(struct buffer *);
-struct buffer *make_add_simple_flow(const struct flow *,
+                        uint32_t xid, struct ofpbuf **);
+void update_openflow_length(struct ofpbuf *);
+struct ofpbuf *make_add_flow(const struct flow *, uint32_t buffer_id,
+                             uint16_t max_idle, size_t actions_len);
+struct ofpbuf *make_add_simple_flow(const struct flow *,
                                     uint32_t buffer_id, uint16_t out_port,
                                     uint16_t max_idle);
-struct buffer *make_buffered_packet_out(uint32_t buffer_id,
+struct ofpbuf *make_buffered_packet_out(uint32_t buffer_id,
                                         uint16_t in_port, uint16_t out_port);
-struct buffer *make_unbuffered_packet_out(const struct buffer *packet,
+struct ofpbuf *make_unbuffered_packet_out(const struct ofpbuf *packet,
                                           uint16_t in_port, uint16_t out_port);
-struct buffer *make_echo_request(void);
-struct buffer *make_echo_reply(const struct ofp_header *rq);
-
-/* Provider interface. */
-
-struct vconn_class {
-    /* Prefix for connection names, e.g. "nl", "tcp". */
-    const char *name;
-
-    /* Attempts to connect to an OpenFlow device.  'name' is the full
-     * connection name provided by the user, e.g. "nl:0", "tcp:1.2.3.4".  This
-     * name is useful for error messages but must not be modified.
-     *
-     * 'suffix' is a copy of 'name' following the colon and may be modified.
-     *
-     * Returns 0 if successful, otherwise a positive errno value.  If
-     * successful, stores a pointer to the new connection in '*vconnp'.
-     *
-     * The open function must not block waiting for a connection to complete.
-     * If the connection cannot be completed immediately, it should return
-     * EAGAIN (not EINPROGRESS, as returned by the connect system call) and
-     * continue the connection in the background. */
-    int (*open)(const char *name, char *suffix, struct vconn **vconnp);
-
-    /* Closes 'vconn' and frees associated memory. */
-    void (*close)(struct vconn *vconn);
-
-    /* Tries to complete the connection on 'vconn', which must be an active
-     * vconn.  If 'vconn''s connection is complete, returns 0 if the connection
-     * was successful or a positive errno value if it failed.  If the
-     * connection is still in progress, returns EAGAIN.
-     *
-     * The connect function must not block waiting for the connection to
-     * complete; instead, it should return EAGAIN immediately. */
-    int (*connect)(struct vconn *vconn);
-
-    /* Tries to accept a new connection on 'vconn', which must be a passive
-     * vconn.  If successful, stores the new connection in '*new_vconnp' and
-     * returns 0.  Otherwise, returns a positive errno value.
-     *
-     * The accept function must not block waiting for a connection.  If no
-     * connection is ready to be accepted, it should return EAGAIN.
-     *
-     * Nonnull iff this is a passive vconn (one that accepts connections and
-     * does not transfer data). */
-    int (*accept)(struct vconn *vconn, struct vconn **new_vconnp);
-
-    /* Tries to receive an OpenFlow message from 'vconn', which must be an
-     * active vconn.  If successful, stores the received message into '*msgp'
-     * and returns 0.  The caller is responsible for destroying the message
-     * with buffer_delete().  On failure, returns a positive errno value and
-     * stores a null pointer into '*msgp'.
-     *
-     * If the connection has been closed in the normal fashion, returns EOF.
-     *
-     * The recv function must not block waiting for a packet to arrive.  If no
-     * packets have been received, it should return EAGAIN.
-     *
-     * Nonnull iff this is an active vconn (one that transfers data and does
-     * not accept connections). */
-    int (*recv)(struct vconn *vconn, struct buffer **msgp);
-
-    /* Tries to queue 'msg' for transmission on 'vconn', which must be an
-     * active vconn.  If successful, returns 0, in which case ownership of
-     * 'msg' is transferred to the vconn.  Success does not guarantee that
-     * 'msg' has been or ever will be delivered to the peer, only that it has
-     * been queued for transmission.
-     *
-     * Returns a positive errno value on failure, in which case the caller
-     * retains ownership of 'msg'.
-     *
-     * The send function must not block.  If 'msg' cannot be immediately
-     * accepted for transmission, it should return EAGAIN.
-     *
-     * Nonnull iff this is an active vconn (one that transfers data and does
-     * not accept connections). */
-    int (*send)(struct vconn *vconn, struct buffer *msg);
-
-    void (*wait)(struct vconn *vconn, enum vconn_wait_type);
-};
-
-extern struct vconn_class tcp_vconn_class;
-extern struct vconn_class ptcp_vconn_class;
-extern struct vconn_class unix_vconn_class;
-extern struct vconn_class punix_vconn_class;
-#ifdef HAVE_OPENSSL
-extern struct vconn_class ssl_vconn_class;
-extern struct vconn_class pssl_vconn_class;
-#endif
-#ifdef HAVE_NETLINK
-extern struct vconn_class netlink_vconn_class;
-#endif
+struct ofpbuf *make_echo_request(void);
+struct ofpbuf *make_echo_reply(const struct ofp_header *rq);
 
 #endif /* vconn.h */

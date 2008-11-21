@@ -36,6 +36,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include "timeval.h"
 #include "util.h"
 
 void
@@ -53,6 +55,15 @@ ds_clear(struct ds *ds)
 }
 
 void
+ds_truncate(struct ds *ds, size_t new_length)
+{
+    if (ds->length > new_length) {
+        ds->length = new_length;
+        ds->string[new_length] = '\0';
+    }
+}
+
+void
 ds_reserve(struct ds *ds, size_t min_length)
 {
     if (min_length > ds->allocated || !ds->string) {
@@ -62,21 +73,32 @@ ds_reserve(struct ds *ds, size_t min_length)
     }
 }
 
+char *
+ds_put_uninit(struct ds *ds, size_t n)
+{
+    ds_reserve(ds, ds->length + n);
+    ds->length += n;
+    ds->string[ds->length] = '\0';
+    return &ds->string[ds->length - n];
+}
+
 void
 ds_put_char(struct ds *ds, char c)
 {
-    ds_reserve(ds, ds->length + 1);
-    ds->string[ds->length++] = c;
-    ds->string[ds->length] = '\0';
+    *ds_put_uninit(ds, 1) = c;
+}
+
+void
+ds_put_char_multiple(struct ds *ds, char c, size_t n)
+{
+    memset(ds_put_uninit(ds, n), ' ', n);
 }
 
 void
 ds_put_cstr(struct ds *ds, const char *s)
 {
     size_t s_len = strlen(s);
-    ds_reserve(ds, ds->length + s_len);
-    memcpy(&ds->string[ds->length], s, s_len + 1);
-    ds->length += s_len;
+    memcpy(ds_put_uninit(ds, s_len), s, s_len);
 }
 
 void
@@ -115,6 +137,38 @@ ds_put_format_valist(struct ds *ds, const char *format, va_list args_)
 
         assert(needed < available);
         ds->length += needed;
+    }
+}
+
+void
+ds_put_printable(struct ds *ds, const char *s, size_t n) 
+{
+    ds_reserve(ds, ds->length + n);
+    while (n-- > 0) {
+        unsigned char c = *s++;
+        if (c < 0x20 || c > 0x7e || c == '\\' || c == '"') {
+            ds_put_format(ds, "\\%03o", (int) c);
+        } else {
+            ds_put_char(ds, c);
+        }
+    }
+}
+
+void
+ds_put_strftime(struct ds *ds, const char *template, const struct tm *tm)
+{
+    if (!tm) {
+        time_t now = time_now();
+        tm = localtime(&now);
+    }
+    for (;;) {
+        size_t avail = ds->string ? ds->allocated - ds->length + 1 : 0;
+        size_t used = strftime(&ds->string[ds->length], avail, template, tm);
+        if (used) {
+            ds->length += used;
+            return;
+        }
+        ds_reserve(ds, ds->length + (avail < 32 ? 64 : 2 * avail)); 
     }
 }
 
@@ -184,5 +238,19 @@ ds_put_hex_dump(struct ds *ds, const void *buf_, size_t size,
       ofs += n;
       buf += n;
       size -= n;
+    }
+}
+
+int
+ds_last(const struct ds *ds)
+{
+    return ds->length > 0 ? (unsigned char) ds->string[ds->length - 1] : EOF;
+}
+
+void
+ds_chomp(struct ds *ds, int c)
+{
+    if (ds->length > 0 && ds->string[ds->length - 1] == (char) c) {
+        ds->string[--ds->length] = '\0';
     }
 }

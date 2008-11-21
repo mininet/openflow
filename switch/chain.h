@@ -34,10 +34,12 @@
 #ifndef CHAIN_H
 #define CHAIN_H 1
 
+#include <stddef.h>
 #include <stdint.h>
 
 struct sw_flow;
 struct sw_flow_key;
+struct ofp_action_header;
 struct list;
 
 #define TABLE_LINEAR_MAX_FLOWS  100
@@ -55,9 +57,10 @@ struct sw_chain {
 struct sw_chain *chain_create(void);
 struct sw_flow *chain_lookup(struct sw_chain *, const struct sw_flow_key *);
 int chain_insert(struct sw_chain *, struct sw_flow *);
+int chain_modify(struct sw_chain *, const struct sw_flow_key *, 
+        uint16_t, int, const struct ofp_action_header *, size_t);
 int chain_delete(struct sw_chain *, const struct sw_flow_key *, uint16_t, int);
 void chain_timeout(struct sw_chain *, struct list *deleted);
 void chain_destroy(struct sw_chain *);
-void chain_print_stats(struct sw_chain *);
 
 #endif /* chain.h */

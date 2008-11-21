@@ -38,9 +38,10 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include "buffer.h"
+#include "ofpbuf.h"
+#include "openflow.h"
 #include "poll-loop.h"
-#include "ofp-print.h"
+#include "sat-math.h"
 #include "timeval.h"
 #include "util.h"
 #include "vconn.h"
@@ -82,16 +83,32 @@ struct rconn {
     char *name;
     bool reliable;
 
-    struct queue txq;
-    int txq_limit;
+    struct ofp_queue txq;
 
     int backoff;
     int max_backoff;
     time_t backoff_deadline;
     time_t last_received;
     time_t last_connected;
-
     unsigned int packets_sent;
+
+    /* In S_ACTIVE and S_IDLE, probably_admitted reports whether we believe
+     * that the peer has made a (positive) admission control decision on our
+     * connection.  If we have not yet been (probably) admitted, then the
+     * connection does not reset the timer used for deciding whether the switch
+     * should go into fail-open mode.
+     *
+     * last_admitted reports the last time we believe such a positive admission
+     * control decision was made. */
+    bool probably_admitted;
+    time_t last_admitted;
+
+    /* These values are simply for statistics reporting, not used directly by
+     * anything internal to the rconn (or the secchan for that matter). */
+    unsigned int packets_received;
+    unsigned int n_attempted_connections, n_successful_connections;
+    time_t creation_time;
+    unsigned long int total_time_connected;
 
     /* If we can't connect to the peer, it could be for any number of reasons.
      * Usually, one would assume it is because the peer is not running or
@@ -108,10 +125,13 @@ struct rconn {
      * an echo request as an inactivity probe packet.  We should receive back
      * a response. */
     int probe_interval;         /* Secs of inactivity before sending probe. */
+
+    /* Messages sent or received are copied to the monitor connections. */
+#define MAX_MONITORS 8
+    struct vconn *monitors[8];
+    size_t n_monitors;
 };
 
-static unsigned int sat_add(unsigned int x, unsigned int y);
-static unsigned int sat_mul(unsigned int x, unsigned int y);
 static unsigned int elapsed_in_this_state(const struct rconn *);
 static unsigned int timeout(const struct rconn *);
 static bool timed_out(const struct rconn *);
@@ -119,31 +139,31 @@ static void state_transition(struct rconn *, enum state);
 static int try_send(struct rconn *);
 static int reconnect(struct rconn *);
 static void disconnect(struct rconn *, int error);
+static void flush_queue(struct rconn *);
 static void question_connectivity(struct rconn *);
+static void copy_to_monitor(struct rconn *, const struct ofpbuf *);
+static bool is_connected_state(enum state);
+static bool is_admitted_msg(const struct ofpbuf *);
 
 /* Creates a new rconn, connects it (reliably) to 'name', and returns it. */
 struct rconn *
-rconn_new(const char *name, int txq_limit, int inactivity_probe_interval,
-          int max_backoff) 
+rconn_new(const char *name, int inactivity_probe_interval, int max_backoff)
 {
-    struct rconn *rc = rconn_create(txq_limit, inactivity_probe_interval,
-                                    max_backoff);
+    struct rconn *rc = rconn_create(inactivity_probe_interval, max_backoff);
     rconn_connect(rc, name);
     return rc;
 }
 
 /* Creates a new rconn, connects it (unreliably) to 'vconn', and returns it. */
 struct rconn *
-rconn_new_from_vconn(const char *name, int txq_limit, struct vconn *vconn) 
+rconn_new_from_vconn(const char *name, struct vconn *vconn) 
 {
-    struct rconn *rc = rconn_create(txq_limit, 60, 0);
+    struct rconn *rc = rconn_create(60, 0);
     rconn_connect_unreliably(rc, name, vconn);
     return rc;
 }
 
 /* Creates and returns a new rconn.
- *
- * 'txq_limit' is the maximum length of the send queue, in packets.
  *
  * 'probe_interval' is a number of seconds.  If the interval passes once
  * without an OpenFlow message being received from the peer, the rconn sends
@@ -156,33 +176,42 @@ rconn_new_from_vconn(const char *name, int txq_limit, struct vconn *vconn)
  * failure until it reaches 'max_backoff'.  If 0 is specified, the default of
  * 60 seconds is used. */
 struct rconn *
-rconn_create(int txq_limit, int probe_interval, int max_backoff)
+rconn_create(int probe_interval, int max_backoff)
 {
     struct rconn *rc = xcalloc(1, sizeof *rc);
 
     rc->state = S_VOID;
-    rc->state_entered = time(0);
+    rc->state_entered = time_now();
 
     rc->vconn = NULL;
     rc->name = xstrdup("void");
     rc->reliable = false;
 
     queue_init(&rc->txq);
-    assert(txq_limit > 0);
-    rc->txq_limit = txq_limit;
 
     rc->backoff = 0;
     rc->max_backoff = max_backoff ? max_backoff : 60;
     rc->backoff_deadline = TIME_MIN;
-    rc->last_received = time(0);
-    rc->last_connected = time(0);
+    rc->last_received = time_now();
+    rc->last_connected = time_now();
 
     rc->packets_sent = 0;
 
+    rc->probably_admitted = false;
+    rc->last_admitted = time_now();
+
+    rc->packets_received = 0;
+    rc->n_attempted_connections = 0;
+    rc->n_successful_connections = 0;
+    rc->creation_time = time_now();
+    rc->total_time_connected = 0;
+
     rc->questionable_connectivity = false;
-    rc->last_questioned = time(0);
+    rc->last_questioned = time_now();
 
     rc->probe_interval = probe_interval ? MAX(5, probe_interval) : 0;
+
+    rc->n_monitors = 0;
 
     return rc;
 }
@@ -207,25 +236,27 @@ rconn_connect_unreliably(struct rconn *rc,
     rc->name = xstrdup(name);
     rc->reliable = false;
     rc->vconn = vconn;
-    rc->last_connected = time(0);
+    rc->last_connected = time_now();
     state_transition(rc, S_ACTIVE);
 }
 
 void
 rconn_disconnect(struct rconn *rc)
 {
-    if (rc->vconn) {
-        vconn_close(rc->vconn);
-        rc->vconn = NULL;
+    if (rc->state != S_VOID) {
+        if (rc->vconn) {
+            vconn_close(rc->vconn);
+            rc->vconn = NULL;
+        }
+        free(rc->name);
+        rc->name = xstrdup("void");
+        rc->reliable = false;
+
+        rc->backoff = 0;
+        rc->backoff_deadline = TIME_MIN;
+
+        state_transition(rc, S_VOID);
     }
-    free(rc->name);
-    rc->name = xstrdup("void");
-    rc->reliable = false;
-
-    rc->backoff = 0;
-    rc->backoff_deadline = TIME_MIN;
-
-    state_transition(rc, S_VOID);
 }
 
 /* Disconnects 'rc' and frees the underlying storage. */
@@ -235,6 +266,7 @@ rconn_destroy(struct rconn *rc)
     if (rc) {
         free(rc->name);
         vconn_close(rc->vconn);
+        flush_queue(rc);
         queue_destroy(&rc->txq);
         free(rc);
     }
@@ -258,12 +290,14 @@ reconnect(struct rconn *rc)
     int retval;
 
     VLOG_WARN("%s: connecting...", rc->name);
-    retval = vconn_open(rc->name, &rc->vconn);
+    rc->n_attempted_connections++;
+    retval = vconn_open(rc->name, OFP_VERSION, &rc->vconn);
     if (!retval) {
-        rc->backoff_deadline = time(0) + rc->backoff;
+        rc->backoff_deadline = time_now() + rc->backoff;
         state_transition(rc, S_CONNECTING);
     } else {
         VLOG_WARN("%s: connection failed (%s)", rc->name, strerror(retval));
+        rc->backoff_deadline = TIME_MAX; /* Prevent resetting backoff. */
         disconnect(rc, 0);
     }
     return retval;
@@ -295,13 +329,9 @@ run_CONNECTING(struct rconn *rc)
     int retval = vconn_connect(rc->vconn);
     if (!retval) {
         VLOG_WARN("%s: connected", rc->name);
-        if (vconn_is_passive(rc->vconn)) {
-            error(0, "%s: passive vconn not supported", rc->name);
-            state_transition(rc, S_VOID);
-        } else {
-            state_transition(rc, S_ACTIVE);
-            rc->last_connected = rc->state_entered;
-        }
+        rc->n_successful_connections++;
+        state_transition(rc, S_ACTIVE);
+        rc->last_connected = rc->state_entered;
     } else if (retval != EAGAIN) {
         VLOG_WARN("%s: connection failed (%s)", rc->name, strerror(retval));
         disconnect(rc, retval);
@@ -315,11 +345,17 @@ run_CONNECTING(struct rconn *rc)
 static void
 do_tx_work(struct rconn *rc)
 {
+    if (!rc->txq.n) {
+        return;
+    }
     while (rc->txq.n > 0) {
         int error = try_send(rc);
         if (error) {
             break;
         }
+    }
+    if (!rc->txq.n) {
+        poll_immediate_wake();
     }
 }
 
@@ -339,9 +375,9 @@ run_ACTIVE(struct rconn *rc)
 {
     if (timed_out(rc)) {
         unsigned int base = MAX(rc->last_received, rc->state_entered);
-        queue_push_tail(&rc->txq, make_echo_request());
+        rconn_send(rc, make_echo_request(), NULL);
         VLOG_DBG("%s: idle %u seconds, sending inactivity probe",
-                 rc->name, (unsigned int) (time(0) - base));
+                 rc->name, (unsigned int) (time_now() - base));
         state_transition(rc, S_IDLE);
         return;
     }
@@ -395,7 +431,9 @@ rconn_run_wait(struct rconn *rc)
 {
     unsigned int timeo = timeout(rc);
     if (timeo != UINT_MAX) {
-        poll_timer_wait(sat_mul(timeo, 1000));
+        unsigned int expires = sat_add(rc->state_entered, timeo);
+        unsigned int remaining = sat_sub(expires, time_now());
+        poll_timer_wait(sat_mul(remaining, 1000));
     }
 
     if ((rc->state & (S_ACTIVE | S_IDLE)) && rc->txq.n) {
@@ -405,15 +443,22 @@ rconn_run_wait(struct rconn *rc)
 
 /* Attempts to receive a packet from 'rc'.  If successful, returns the packet;
  * otherwise, returns a null pointer.  The caller is responsible for freeing
- * the packet (with buffer_delete()). */
-struct buffer *
+ * the packet (with ofpbuf_delete()). */
+struct ofpbuf *
 rconn_recv(struct rconn *rc)
 {
     if (rc->state & (S_ACTIVE | S_IDLE)) {
-        struct buffer *buffer;
+        struct ofpbuf *buffer;
         int error = vconn_recv(rc->vconn, &buffer);
         if (!error) {
-            rc->last_received = time(0);
+            copy_to_monitor(rc, buffer);
+            if (is_admitted_msg(buffer)
+                || time_now() - rc->last_connected >= 30) {
+                rc->probably_admitted = true;
+                rc->last_admitted = time_now();
+            }
+            rc->last_received = time_now();
+            rc->packets_received++;
             if (rc->state == S_IDLE) {
                 state_transition(rc, S_ACTIVE);
             }
@@ -435,55 +480,60 @@ rconn_recv_wait(struct rconn *rc)
     }
 }
 
-/* Sends 'b' on 'rc'.  Returns 0 if successful, EAGAIN if at least 'txq_limit'
- * packets are already queued, otherwise a positive errno value. */
-int
-do_send(struct rconn *rc, struct buffer *b, int txq_limit)
-{
-    if (rc->vconn) {
-        if (rc->txq.n < txq_limit) {
-            queue_push_tail(&rc->txq, b);
-            if (rc->txq.n == 1) {
-                try_send(rc);
-            }
-            return 0;
-        } else {
-            return EAGAIN;
-        }
-    } else {
-        return ENOTCONN;
-    }
-}
-
-/* Sends 'b' on 'rc'.  Returns 0 if successful, EAGAIN if the send queue is
- * full, or ENOTCONN if 'rc' is not currently connected.
+/* Sends 'b' on 'rc'.  Returns 0 if successful (in which case 'b' is
+ * destroyed), or ENOTCONN if 'rc' is not currently connected (in which case
+ * the caller retains ownership of 'b').
+ *
+ * If 'n_queued' is non-null, then '*n_queued' will be incremented while the
+ * packet is in flight, then decremented when it has been sent (or discarded
+ * due to disconnection).  Because 'b' may be sent (or discarded) before this
+ * function returns, the caller may not be able to observe any change in
+ * '*n_queued'.
  *
  * There is no rconn_send_wait() function: an rconn has a send queue that it
  * takes care of sending if you call rconn_run(), which will have the side
  * effect of waking up poll_block(). */
 int
-rconn_send(struct rconn *rc, struct buffer *b)
+rconn_send(struct rconn *rc, struct ofpbuf *b, int *n_queued)
 {
-    return do_send(rc, b, rc->txq_limit);
+    if (rconn_is_connected(rc)) {
+        copy_to_monitor(rc, b);
+        b->private = n_queued;
+        if (n_queued) {
+            ++*n_queued;
+        }
+        queue_push_tail(&rc->txq, b);
+        if (rc->txq.n == 1) {
+            try_send(rc);
+        }
+        return 0;
+    } else {
+        return ENOTCONN;
+    }
 }
 
-/* Sends 'b' on 'rc'.  Returns 0 if successful, EAGAIN if the send queue is
- * full, otherwise a positive errno value.
+/* Sends 'b' on 'rc'.  Increments '*n_queued' while the packet is in flight; it
+ * will be decremented when it has been sent (or discarded due to
+ * disconnection).  Returns 0 if successful, EAGAIN if '*n_queued' is already
+ * at least as large as 'queue_limit', or ENOTCONN if 'rc' is not currently
+ * connected.  Regardless of return value, 'b' is destroyed.
  *
- * Compared to rconn_send(), this function relaxes the queue limit, allowing
- * more packets than usual to be queued. */
+ * Because 'b' may be sent (or discarded) before this function returns, the
+ * caller may not be able to observe any change in '*n_queued'.
+ *
+ * There is no rconn_send_wait() function: an rconn has a send queue that it
+ * takes care of sending if you call rconn_run(), which will have the side
+ * effect of waking up poll_block(). */
 int
-rconn_force_send(struct rconn *rc, struct buffer *b)
+rconn_send_with_limit(struct rconn *rc, struct ofpbuf *b,
+                      int *n_queued, int queue_limit)
 {
-    return do_send(rc, b, 2 * rc->txq_limit);
-}
-
-/* Returns true if 'rc''s send buffer is full,
- * false if it has room for at least one more packet. */
-bool
-rconn_is_full(const struct rconn *rc)
-{
-    return rc->txq.n >= rc->txq_limit;
+    int retval;
+    retval = *n_queued >= queue_limit ? EAGAIN : rconn_send(rc, b, n_queued);
+    if (retval) {
+        ofpbuf_delete(b);
+    }
+    return retval;
 }
 
 /* Returns the total number of packets successfully sent on the underlying
@@ -493,6 +543,21 @@ unsigned int
 rconn_packets_sent(const struct rconn *rc)
 {
     return rc->packets_sent;
+}
+
+/* Adds 'vconn' to 'rc' as a monitoring connection, to which all messages sent
+ * and received on 'rconn' will be copied.  'rc' takes ownership of 'vconn'. */
+void
+rconn_add_monitor(struct rconn *rc, struct vconn *vconn)
+{
+    if (rc->n_monitors < ARRAY_SIZE(rc->monitors)) {
+        VLOG_WARN("new monitor connection from %s", vconn_get_name(vconn));
+        rc->monitors[rc->n_monitors++] = vconn;
+    } else {
+        VLOG_DBG("too many monitor connections, discarding %s",
+                 vconn_get_name(vconn));
+        vconn_close(vconn);
+    }
 }
 
 /* Returns 'rc''s name (the 'name' argument passed to rconn_new()). */
@@ -514,15 +579,18 @@ rconn_is_alive(const struct rconn *rconn)
 bool
 rconn_is_connected(const struct rconn *rconn)
 {
-    return rconn->state & (S_ACTIVE | S_IDLE);
+    return is_connected_state(rconn->state);
 }
 
-/* Returns 0 if 'rconn' is connected, otherwise the number of seconds that it
- * has been disconnected. */
+/* Returns 0 if 'rconn' is connected.  Otherwise, if 'rconn' is in a "failure
+ * mode" (that is, it is not connected), returns the number of seconds that it
+ * has been in failure mode, ignoring any times that it connected but the
+ * controller's admission control policy caused it to be quickly
+ * disconnected. */
 int
-rconn_disconnected_duration(const struct rconn *rconn)
+rconn_failure_duration(const struct rconn *rconn)
 {
-    return rconn_is_connected(rconn) ? 0 : time(0) - rconn->last_received;
+    return rconn_is_connected(rconn) ? 0 : time_now() - rconn->last_admitted;
 }
 
 /* Returns the IP address of the peer, or 0 if the peer is not connected over
@@ -548,6 +616,75 @@ rconn_is_connectivity_questionable(struct rconn *rconn)
     rconn->questionable_connectivity = false;
     return questionable;
 }
+
+/* Returns the total number of packets successfully received by the underlying
+ * vconn.  */
+unsigned int
+rconn_packets_received(const struct rconn *rc)
+{
+    return rc->packets_received;
+}
+
+/* Returns a string representing the internal state of 'rc'.  The caller must
+ * not modify or free the string. */
+const char *
+rconn_get_state(const struct rconn *rc)
+{
+    return state_name(rc->state);
+}
+
+/* Returns the number of connection attempts made by 'rc', including any
+ * ongoing attempt that has not yet succeeded or failed. */
+unsigned int
+rconn_get_attempted_connections(const struct rconn *rc)
+{
+    return rc->n_attempted_connections;
+}
+
+/* Returns the number of successful connection attempts made by 'rc'. */
+unsigned int
+rconn_get_successful_connections(const struct rconn *rc)
+{
+    return rc->n_successful_connections;
+}
+
+/* Returns the time at which the last successful connection was made by
+ * 'rc'. */
+time_t
+rconn_get_last_connection(const struct rconn *rc)
+{
+    return rc->last_connected;
+}
+
+/* Returns the time at which 'rc' was created. */
+time_t
+rconn_get_creation_time(const struct rconn *rc)
+{
+    return rc->creation_time;
+}
+
+/* Returns the approximate number of seconds that 'rc' has been connected. */
+unsigned long int
+rconn_get_total_time_connected(const struct rconn *rc)
+{
+    return (rc->total_time_connected
+            + (rconn_is_connected(rc) ? elapsed_in_this_state(rc) : 0));
+}
+
+/* Returns the current amount of backoff, in seconds.  This is the amount of
+ * time after which the rconn will transition from BACKOFF to CONNECTING. */
+int
+rconn_get_backoff(const struct rconn *rc)
+{
+    return rc->backoff;
+}
+
+/* Returns the number of seconds spent in this state so far. */
+unsigned int
+rconn_get_state_elapsed(const struct rconn *rc)
+{
+    return elapsed_in_this_state(rc);
+}
 
 /* Tries to send a packet from 'rc''s send buffer.  Returns 0 if successful,
  * otherwise a positive errno value. */
@@ -555,7 +692,8 @@ static int
 try_send(struct rconn *rc)
 {
     int retval = 0;
-    struct buffer *next = rc->txq.head->next;
+    struct ofpbuf *next = rc->txq.head->next;
+    int *n_queued = rc->txq.head->private;
     retval = vconn_send(rc->vconn, rc->txq.head);
     if (retval) {
         if (retval != EAGAIN) {
@@ -564,6 +702,9 @@ try_send(struct rconn *rc)
         return retval;
     }
     rc->packets_sent++;
+    if (n_queued) {
+        --*n_queued;
+    }
     queue_advance_head(&rc->txq, next);
     return 0;
 }
@@ -575,7 +716,7 @@ static void
 disconnect(struct rconn *rc, int error)
 {
     if (rc->reliable) {
-        time_t now = time(0);
+        time_t now = time_now();
 
         if (rc->state & (S_CONNECTING | S_ACTIVE | S_IDLE)) {
             if (error > 0) {
@@ -583,14 +724,14 @@ disconnect(struct rconn *rc, int error)
                           rc->name, strerror(error));
             } else if (error == EOF) {
                 if (rc->reliable) {
-                    VLOG_WARN("%s: connection closed", rc->name);
+                    VLOG_WARN("%s: connection closed by peer", rc->name);
                 }
             } else {
                 VLOG_WARN("%s: connection dropped", rc->name);
             }
             vconn_close(rc->vconn);
             rc->vconn = NULL;
-            queue_clear(&rc->txq);
+            flush_queue(rc);
         }
 
         if (now >= rc->backoff_deadline) {
@@ -610,10 +751,29 @@ disconnect(struct rconn *rc, int error)
     }
 }
 
+/* Drops all the packets from 'rc''s send queue and decrements their queue
+ * counts. */
+static void
+flush_queue(struct rconn *rc)
+{
+    if (!rc->txq.n) {
+        return;
+    }
+    while (rc->txq.n > 0) {
+        struct ofpbuf *b = queue_pop_head(&rc->txq);
+        int *n_queued = b->private;
+        if (n_queued) {
+            --*n_queued;
+        }
+        ofpbuf_delete(b);
+    }
+    poll_immediate_wake();
+}
+
 static unsigned int
 elapsed_in_this_state(const struct rconn *rc)
 {
-    return time(0) - rc->state_entered;
+    return time_now() - rc->state_entered;
 }
 
 static unsigned int
@@ -631,36 +791,81 @@ timeout(const struct rconn *rc)
 static bool
 timed_out(const struct rconn *rc)
 {
-    return time(0) >= sat_add(rc->state_entered, timeout(rc));
+    return time_now() >= sat_add(rc->state_entered, timeout(rc));
 }
 
 static void
 state_transition(struct rconn *rc, enum state state)
 {
+    if (is_connected_state(state) && !is_connected_state(rc->state)) {
+        rc->probably_admitted = false;
+    }
+    if (rconn_is_connected(rc)) {
+        rc->total_time_connected += elapsed_in_this_state(rc);
+    }
     VLOG_DBG("%s: entering %s", rc->name, state_name(state));
     rc->state = state;
-    rc->state_entered = time(0);
-}
-
-static unsigned int
-sat_add(unsigned int x, unsigned int y)
-{
-    return x + y >= x ? x + y : UINT_MAX;
-}
-
-static unsigned int
-sat_mul(unsigned int x, unsigned int y)
-{
-    assert(y);
-    return x <= UINT_MAX / y ? x * y : UINT_MAX;
+    rc->state_entered = time_now();
 }
 
 static void
 question_connectivity(struct rconn *rc) 
 {
-    time_t now = time(0);
+    time_t now = time_now();
     if (now - rc->last_questioned > 60) {
         rc->questionable_connectivity = true;
         rc->last_questioned = now;
     }
+}
+
+static void
+copy_to_monitor(struct rconn *rc, const struct ofpbuf *b)
+{
+    struct ofpbuf *clone = NULL;
+    int retval;
+    size_t i;
+
+    for (i = 0; i < rc->n_monitors; ) {
+        struct vconn *vconn = rc->monitors[i];
+
+        if (!clone) {
+            clone = ofpbuf_clone(b);
+        }
+        retval = vconn_send(vconn, clone);
+        if (!retval) {
+            clone = NULL;
+        } else if (retval != EAGAIN) {
+            VLOG_DBG("%s: closing monitor connection to %s: %s",
+                     rconn_get_name(rc), vconn_get_name(vconn),
+                     strerror(retval));
+            rc->monitors[i] = rc->monitors[--rc->n_monitors];
+            continue;
+        }
+        i++;
+    }
+    ofpbuf_delete(clone);
+}
+
+static bool
+is_connected_state(enum state state) 
+{
+    return (state & (S_ACTIVE | S_IDLE)) != 0;
+}
+
+static bool
+is_admitted_msg(const struct ofpbuf *b)
+{
+    struct ofp_header *oh = b->data;
+    uint8_t type = oh->type;
+    return !(type < 32
+             && (1u << type) & ((1u << OFPT_HELLO) |
+                                (1u << OFPT_ERROR) |
+                                (1u << OFPT_ECHO_REQUEST) |
+                                (1u << OFPT_ECHO_REPLY) |
+                                (1u << OFPT_VENDOR) |
+                                (1u << OFPT_FEATURES_REQUEST) |
+                                (1u << OFPT_FEATURES_REPLY) |
+                                (1u << OFPT_GET_CONFIG_REQUEST) |
+                                (1u << OFPT_GET_CONFIG_REPLY) |
+                                (1u << OFPT_SET_CONFIG)));
 }

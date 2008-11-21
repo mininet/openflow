@@ -36,18 +36,20 @@
 #include <errno.h>
 #include <getopt.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "buffer.h"
 #include "command-line.h"
 #include "compiler.h"
 #include "daemon.h"
 #include "fault.h"
 #include "learning-switch.h"
+#include "ofpbuf.h"
 #include "openflow.h"
 #include "poll-loop.h"
 #include "rconn.h"
+#include "timeval.h"
 #include "util.h"
 #include "vconn-ssl.h"
 #include "vconn.h"
@@ -82,23 +84,26 @@ int
 main(int argc, char *argv[])
 {
     struct switch_ switches[MAX_SWITCHES];
-    struct vconn *listeners[MAX_LISTENERS];
+    struct pvconn *listeners[MAX_LISTENERS];
     int n_switches, n_listeners;
     int retval;
     int i;
 
     set_program_name(argv[0]);
     register_fault_handlers();
+    time_init();
     vlog_init();
     parse_options(argc, argv);
+    signal(SIGPIPE, SIG_IGN);
 
     if (argc - optind < 1) {
-        fatal(0, "at least one vconn argument required; use --help for usage");
+        ofp_fatal(0, "at least one vconn argument required; "
+                  "use --help for usage");
     }
 
     retval = vlog_server_listen(NULL, NULL);
     if (retval) {
-        fatal(retval, "Could not listen for vlog connections");
+        ofp_fatal(retval, "Could not listen for vlog connections");
     }
 
     n_switches = n_listeners = 0;
@@ -107,28 +112,32 @@ main(int argc, char *argv[])
         struct vconn *vconn;
         int retval;
 
-        retval = vconn_open(name, &vconn);
-        if (retval) {
-            VLOG_ERR("%s: connect: %s", name, strerror(retval));
-            continue;
-        }
-
-        if (vconn_is_passive(vconn)) {
-            if (n_listeners >= MAX_LISTENERS) {
-                fatal(0, "max %d passive connections", n_listeners);
-            }
-            listeners[n_listeners++] = vconn;
-        } else {
+        retval = vconn_open(name, OFP_VERSION, &vconn);
+        if (!retval) {
             if (n_switches >= MAX_SWITCHES) {
-                fatal(0, "max %d switch connections", n_switches);
+                ofp_fatal(0, "max %d switch connections", n_switches);
             }
             new_switch(&switches[n_switches++], vconn, name);
+            continue;
+        } else if (retval == EAFNOSUPPORT) {
+            struct pvconn *pvconn;
+            retval = pvconn_open(name, &pvconn);
+            if (!retval) {
+                if (n_listeners >= MAX_LISTENERS) {
+                    ofp_fatal(0, "max %d passive connections", n_listeners);
+                }
+                listeners[n_listeners++] = pvconn;
+            }
+        }
+        if (retval) {
+            VLOG_ERR("%s: connect: %s", name, strerror(retval));
         }
     }
     if (n_switches == 0 && n_listeners == 0) {
-        fatal(0, "no active or passive switch connections");
+        ofp_fatal(0, "no active or passive switch connections");
     }
 
+    die_if_already_running();
     daemonize();
 
     while (n_switches > 0 || n_listeners > 0) {
@@ -140,14 +149,14 @@ main(int argc, char *argv[])
             struct vconn *new_vconn;
             int retval;
 
-            retval = vconn_accept(listeners[i], &new_vconn);
+            retval = pvconn_accept(listeners[i], OFP_VERSION, &new_vconn);
             if (!retval || retval == EAGAIN) {
                 if (!retval) {
                     new_switch(&switches[n_switches++], new_vconn, "tcp");
                 }
                 i++;
             } else {
-                vconn_close(listeners[i]);
+                pvconn_close(listeners[i]);
                 listeners[i] = listeners[--n_listeners];
             }
         }
@@ -165,8 +174,8 @@ main(int argc, char *argv[])
                     }
                     i++;
                 } else {
-                    lswitch_destroy(this->lswitch);
                     rconn_destroy(this->rconn);
+                    lswitch_destroy(this->lswitch);
                     switches[i] = switches[--n_switches];
                 }
             }
@@ -174,17 +183,22 @@ main(int argc, char *argv[])
                 break;
             }
         }
+        for (i = 0; i < n_switches; i++) {
+            struct switch_ *this = &switches[i];
+            lswitch_run(this->lswitch, this->rconn);
+        }
 
         /* Wait for something to happen. */
         if (n_switches < MAX_SWITCHES) {
             for (i = 0; i < n_listeners; i++) {
-                vconn_accept_wait(listeners[i]);
+                pvconn_wait(listeners[i]);
             }
         }
         for (i = 0; i < n_switches; i++) {
             struct switch_ *sw = &switches[i];
             rconn_run_wait(sw->rconn);
             rconn_recv_wait(sw->rconn);
+            lswitch_wait(sw->lswitch);
         }
         poll_block();
     }
@@ -195,7 +209,7 @@ main(int argc, char *argv[])
 static void
 new_switch(struct switch_ *sw, struct vconn *vconn, const char *name)
 {
-    sw->rconn = rconn_new_from_vconn(name, 128, vconn);
+    sw->rconn = rconn_new_from_vconn(name, vconn);
     sw->lswitch = lswitch_create(sw->rconn, learn_macs,
                                  setup_flows ? max_idle : -1);
 }
@@ -204,14 +218,14 @@ static int
 do_switching(struct switch_ *sw)
 {
     unsigned int packets_sent;
-    struct buffer *msg;
+    struct ofpbuf *msg;
 
     packets_sent = rconn_packets_sent(sw->rconn);
 
     msg = rconn_recv(sw->rconn);
     if (msg) {
         lswitch_process_packet(sw->lswitch, sw->rconn, msg);
-        buffer_delete(msg);
+        ofpbuf_delete(msg);
     }
     rconn_run(sw->rconn);
 
@@ -223,17 +237,22 @@ do_switching(struct switch_ *sw)
 static void
 parse_options(int argc, char *argv[])
 {
-    enum { OPT_MAX_IDLE = UCHAR_MAX + 1 };
+    enum {
+        OPT_MAX_IDLE = UCHAR_MAX + 1,
+        OPT_PEER_CA_CERT,
+        VLOG_OPTION_ENUMS
+    };
     static struct option long_options[] = {
-        {"detach",      no_argument, 0, 'D'},
-        {"pidfile",     optional_argument, 0, 'P'},
         {"hub",         no_argument, 0, 'H'},
         {"noflow",      no_argument, 0, 'n'},
         {"max-idle",    required_argument, 0, OPT_MAX_IDLE},
-        {"verbose",     optional_argument, 0, 'v'},
         {"help",        no_argument, 0, 'h'},
         {"version",     no_argument, 0, 'V'},
+        DAEMON_LONG_OPTIONS,
+#ifdef HAVE_OPENSSL
         VCONN_SSL_LONG_OPTIONS
+        {"peer-ca-cert", required_argument, 0, OPT_PEER_CA_CERT},
+#endif
         {0, 0, 0, 0},
     };
     char *short_options = long_options_to_short_options(long_options);
@@ -248,14 +267,6 @@ parse_options(int argc, char *argv[])
         }
 
         switch (c) {
-        case 'D':
-            set_detach();
-            break;
-
-        case 'P':
-            set_pidfile(optarg);
-            break;
-
         case 'H':
             learn_macs = false;
             break;
@@ -270,8 +281,8 @@ parse_options(int argc, char *argv[])
             } else {
                 max_idle = atoi(optarg);
                 if (max_idle < 1 || max_idle > 65535) {
-                    fatal(0, "--max-idle argument must be between 1 and "
-                          "65535 or the word 'permanent'");
+                    ofp_fatal(0, "--max-idle argument must be between 1 and "
+                              "65535 or the word 'permanent'");
                 }
             }
             break;
@@ -283,11 +294,16 @@ parse_options(int argc, char *argv[])
             printf("%s "VERSION" compiled "__DATE__" "__TIME__"\n", argv[0]);
             exit(EXIT_SUCCESS);
 
-        case 'v':
-            vlog_set_verbosity(optarg);
-            break;
+        VLOG_OPTION_HANDLERS
+        DAEMON_OPTION_HANDLERS
 
+#ifdef HAVE_OPENSSL
         VCONN_SSL_OPTION_HANDLERS
+
+        case OPT_PEER_CA_CERT:
+            vconn_ssl_set_peer_ca_cert_file(optarg);
+            break;
+#endif
 
         case '?':
             exit(EXIT_FAILURE);
@@ -306,17 +322,14 @@ usage(void)
            "usage: %s [OPTIONS] METHOD\n"
            "where METHOD is any OpenFlow connection method.\n",
            program_name, program_name);
-    vconn_usage(true, true);
+    vconn_usage(true, true, false);
+    daemon_usage();
+    vlog_usage();
     printf("\nOther options:\n"
-           "  -D, --detach            run in background as daemon\n"
-           "  -P, --pidfile[=FILE]    create pidfile (default: %s/controller.pid)\n"
            "  -H, --hub               act as hub instead of learning switch\n"
            "  -n, --noflow            pass traffic, but don't add flows\n"
            "  --max-idle=SECS         max idle time for new flows\n"
-           "  -v, --verbose=MODULE[:FACILITY[:LEVEL]]  set logging levels\n"
-           "  -v, --verbose           set maximum verbosity level\n"
            "  -h, --help              display this help message\n"
-           "  -V, --version           display version information\n",
-           RUNDIR);
+           "  -V, --version           display version information\n");
     exit(EXIT_SUCCESS);
 }

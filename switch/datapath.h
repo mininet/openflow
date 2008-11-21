@@ -36,20 +36,22 @@
 #ifndef DATAPATH_H
 #define DATAPATH_H 1
 
-#include <time.h>
-#include "openflow.h"
-#include "switch-flow.h"
-#include "buffer.h"
-#include "list.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include "ofpbuf.h"
 
 struct datapath;
 struct rconn;
-struct vconn;
+struct pvconn;
 
 int dp_new(struct datapath **, uint64_t dpid, struct rconn *);
 int dp_add_port(struct datapath *, const char *netdev);
-void dp_add_listen_vconn(struct datapath *, struct vconn *);
+void dp_add_listen_pvconn(struct datapath *, struct pvconn *);
 void dp_run(struct datapath *);
 void dp_wait(struct datapath *);
+void dp_output_port(struct datapath *, struct ofpbuf *, int in_port, 
+        int out_port, bool ignore_no_fwd);
+void dp_output_control(struct datapath *, struct ofpbuf *, int in_port,
+        size_t max_len, int reason);
 
 #endif /* datapath.h */

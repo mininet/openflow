@@ -60,8 +60,8 @@ SWITCH_IP=dhcp
 
 # CONTROLLER: Location of controller.
 # One of the following formats:
-#  tcp:HOST[:PORT]         via TCP to PORT (default: 975) on HOST
-#  ssl:HOST[:PORT]         via SSL to PORT (default: 976) on HOST
+#  tcp:HOST[:PORT]         via TCP to PORT (default: 6633) on HOST
+#  ssl:HOST[:PORT]         via SSL to PORT (default: 6633) on HOST
 # The default below assumes that the controller is running locally.
 # This setting has no effect when MODE is set to 'discovery'.
 #CONTROLLER="tcp:127.0.0.1"
@@ -78,5 +78,26 @@ SWITCH_IP=dhcp
 # Required if SSL enabled.
 #CACERT=/etc/openflow-switch/cacert.pem
 
-# Additional options to pass to secchan, e.g. "--fail=open"
+# CACERT_MODE: Two modes are available:
+#
+# * secure: The controller CA certificate named in CACERT above must exist.
+#   (You must copy it manually from the PKI server or another trusted source.)
+#
+# * bootstrap: If the controller CA certificate named in CACERT above does
+#   not exist, the switch will obtain it from the controller the first time
+#   it connects and save a copy to the file named in CACERT.  This is insecure,
+#   in the same way that initial connections with ssh are insecure, but
+#   it is convenient.
+# 
+# Set CACERT_MODE to 'secure' or 'bootstrap' for these respective cases.
+#CACERT=secure
+
+# MGMT_VCONNS: List of vconns (space-separated) on which secchan
+# should listen for management connections from dpctl, etc.
+# openflow-switchmon by default connects to
+# unix:/var/run/secchan.socket, so do not disable this if you want to
+# use openflow-switchmon.
+MGMT_VCONNS="punix:/var/run/secchan.socket"
+
+# DAEMON_OPTS: Additional options to pass to secchan, e.g. "--fail=open"
 DAEMON_OPTS=""

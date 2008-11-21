@@ -43,14 +43,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "openflow-netlink.h"
-#include "buffer.h"
 #include "dpif.h"
 #include "netlink.h"
+#include "ofpbuf.h"
+#include "openflow-netlink.h"
+#include "openflow.h"
 #include "poll-loop.h"
 #include "socket-util.h"
 #include "util.h"
-#include "openflow.h"
+#include "vconn-provider.h"
 
 #include "vlog.h"
 #define THIS_MODULE VLM_VCONN_NETLINK
@@ -64,7 +65,7 @@ struct netlink_vconn
 static struct netlink_vconn *
 netlink_vconn_cast(struct vconn *vconn) 
 {
-    assert(vconn->class == &netlink_vconn_class);
+    vconn_assert_class(vconn, &netlink_vconn_class);
     return CONTAINER_OF(vconn, struct netlink_vconn, vconn); 
 }
 
@@ -78,14 +79,12 @@ netlink_open(const char *name, char *suffix, struct vconn **vconnp)
 
     subscribe = 1;
     if (sscanf(suffix, "%d:%d", &dp_idx, &subscribe) < 1) {
-        error(0, "%s: syntax error", name);
+        ofp_error(0, "%s: syntax error", name);
         return EAFNOSUPPORT;
     }
 
     netlink = xmalloc(sizeof *netlink);
-    netlink->vconn.class = &netlink_vconn_class;
-    netlink->vconn.connect_status = 0;
-    netlink->vconn.ip = 0;
+    vconn_init(&netlink->vconn, &netlink_vconn_class, 0, 0, name);
     retval = dpif_open(dp_idx, subscribe, &netlink->dp);
     if (retval) {
         free(netlink);
@@ -105,19 +104,19 @@ netlink_close(struct vconn *vconn)
 }
 
 static int
-netlink_recv(struct vconn *vconn, struct buffer **bufferp)
+netlink_recv(struct vconn *vconn, struct ofpbuf **bufferp)
 {
     struct netlink_vconn *netlink = netlink_vconn_cast(vconn);
     return dpif_recv_openflow(&netlink->dp, bufferp, false);
 }
 
 static int
-netlink_send(struct vconn *vconn, struct buffer *buffer) 
+netlink_send(struct vconn *vconn, struct ofpbuf *buffer) 
 {
     struct netlink_vconn *netlink = netlink_vconn_cast(vconn);
     int retval = dpif_send_openflow(&netlink->dp, buffer, false);
     if (!retval) {
-        buffer_delete(buffer);
+        ofpbuf_delete(buffer);
     }
     return retval;
 }
@@ -143,10 +142,11 @@ netlink_wait(struct vconn *vconn, enum vconn_wait_type wait)
 }
 
 struct vconn_class netlink_vconn_class = {
-    .name = "nl",
-    .open = netlink_open,
-    .close = netlink_close,
-    .recv = netlink_recv,
-    .send = netlink_send,
-    .wait = netlink_wait,
+    "nl",                       /* name */
+    netlink_open,               /* open */
+    netlink_close,              /* close */
+    NULL,                       /* connect */
+    netlink_recv,               /* recv */
+    netlink_send,               /* send */
+    netlink_wait,               /* wait */
 };

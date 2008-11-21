@@ -8,13 +8,18 @@
 
 struct sw_flow;
 struct sw_flow_key;
+struct ofp_action_header;
 struct datapath;
 
 /* Table statistics. */
 struct sw_table_stats {
-	const char *name;	/* Human-readable name. */
-	unsigned long int n_flows; /* Number of active flows. */
-	unsigned long int max_flows; /* Flow capacity. */
+	const char *name;            /* Human-readable name. */
+	uint32_t wildcards;          /* Bitmap of OFPFW_* wildcards that are
+	                                supported by the table. */
+	unsigned int n_flows;        /* Number of active flows. */
+	unsigned int max_flows;      /* Flow capacity. */
+	unsigned long int n_lookup;  /* Number of packets looked up. */
+	unsigned long int n_matched; /* Number of packets that have hit. */
 };
 
 /* Position within an iteration of a sw_table.
@@ -31,6 +36,12 @@ struct sw_table_position {
  * rcu_read_lock.  destroy must be fully serialized.
  */
 struct sw_table {
+	/* The number of packets that have been looked up and matched,
+	 * respecitvely.  To make these 100% accurate, they should be atomic.  
+	 * However, we're primarily concerned about speed. */
+	unsigned long long n_lookup;
+	unsigned long long n_matched;
+
 	/* Searches 'table' for a flow matching 'key', which must not have any
 	 * wildcard fields.  Returns the flow if successful, a null pointer
 	 * otherwise. */
@@ -45,6 +56,13 @@ struct sw_table {
 	 * If successful, 'flow' becomes owned by 'table', otherwise it is
 	 * retained by the caller. */
 	int (*insert)(struct sw_table *table, struct sw_flow *flow);
+
+	/* Modifies the actions in 'table' that match 'key'.  If 'strict'
+	 * set, wildcards and priority must match.  Returns the number of flows 
+	 * that were modified. */
+	int (*modify)(struct sw_table *table, const struct sw_flow_key *key,
+			uint16_t priority, int strict,
+			const struct ofp_action_header *actions, size_t actions_len);
 
 	/* Deletes from 'table' any and all flows that match 'key' from
 	 * 'table'.  If 'strict' set, wildcards and priority must match.  

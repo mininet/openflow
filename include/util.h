@@ -34,11 +34,21 @@
 #ifndef UTIL_H
 #define UTIL_H 1
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include "compiler.h"
+
+#ifndef va_copy
+#ifdef __va_copy
+#define va_copy __va_copy
+#else
+#define va_copy(dst, src) ((dst) = (src))
+#endif
+#endif
 
 #ifndef __cplusplus
 /* Build-time assertion for use in a statement context. */
@@ -59,8 +69,14 @@ extern const char *program_name;
 #define ARRAY_SIZE(ARRAY) (sizeof ARRAY / sizeof *ARRAY)
 #define ROUND_UP(X, Y) (((X) + ((Y) - 1)) / (Y) * (Y))
 #define ROUND_DOWN(X, Y) ((X) / (Y) * (Y))
+
+#ifndef MIN
 #define MIN(X, Y) ((X) < (Y) ? (X) : (Y))
+#endif
+
+#ifndef MAX
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
+#endif
 
 #define NOT_REACHED() abort()
 #define NOT_IMPLEMENTED() abort()
@@ -77,6 +93,7 @@ extern "C" {
 
 void set_program_name(const char *);
 
+void out_of_memory(void);
 void *xmalloc(size_t);
 void *xcalloc(size_t, size_t);
 void *xrealloc(void *, size_t);
@@ -84,12 +101,16 @@ void *xmemdup(const void *, size_t);
 char *xmemdup0(const char *, size_t);
 char *xstrdup(const char *);
 char *xasprintf(const char *format, ...) PRINTF_FORMAT(1, 2);
+char *xvasprintf(const char *format, va_list) PRINTF_FORMAT(1, 0);
 
-void fatal(int err_no, const char *format, ...) PRINTF_FORMAT(2, 3) NO_RETURN;
-void error(int err_no, const char *format, ...) PRINTF_FORMAT(2, 3);
-void debug(int err_no, const char *format, ...) PRINTF_FORMAT(2, 3);
-void debug_msg(int err_no, const char *format, ...) PRINTF_FORMAT(2, 3);
-void hex_dump(FILE *, const void *, size_t, uintptr_t offset, bool ascii);
+#ifndef HAVE_STRLCPY
+void strlcpy(char *dst, const char *src, size_t size);
+#endif
+
+void ofp_fatal(int err_no, const char *format, ...)
+    PRINTF_FORMAT(2, 3) NO_RETURN;
+void ofp_error(int err_no, const char *format, ...) PRINTF_FORMAT(2, 3);
+void ofp_hex_dump(FILE *, const void *, size_t, uintptr_t offset, bool ascii);
 
 #ifdef  __cplusplus
 }
