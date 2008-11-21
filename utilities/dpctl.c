@@ -41,9 +41,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/time.h>
-#ifdef HAVE_CURSES
-#include <curses.h>
-#endif
 
 #include "command-line.h"
 #include "compiler.h"
@@ -57,16 +54,12 @@
 #include "socket-util.h"
 #include "openflow.h"
 #include "ofp-print.h"
-#ifdef HAVE_CURSES
-#include "ofp-printw.h"
-#endif
 #include "random.h"
 #include "signal.h"
 #include "vconn.h"
 #include "vconn-ssl.h"
 
 #include "vlog.h"
-
 #define THIS_MODULE VLM_dpctl
 
 #define DEFAULT_MAX_IDLE 60
@@ -78,7 +71,7 @@ struct command {
     const char *name;
     int min_args;
     int max_args;
-    void (*handler)(int argc, char *argv[], int indicator);
+    void (*handler)(int argc, char *argv[]);
 };
 
 static struct command all_commands[];
@@ -109,8 +102,8 @@ int main(int argc, char *argv[])
                 fatal(0, "'%s' command takes at most %d arguments",
                       p->name, p->max_args);
             else {
-              p->handler(argc, argv, 0);
-              exit(0);
+                p->handler(argc, argv);
+                exit(0);
             }
         }
     }
@@ -204,10 +197,6 @@ usage(void)
            "  add-flow SWITCH FLOW        add flow described by FLOW\n"
            "  add-flows SWITCH FILE       add flows from FILE\n"
            "  del-flows SWITCH FLOW       delete matching FLOWs\n"
-#ifdef HAVE_CURSES
-           "  table-mtr SWITCH            monitor table for FLOWs\n"
-           "  table-mtr SWITCH FLOW       monitor table \n"
-#endif
            "\nFor local datapaths, remote switches, and controllers:\n"
            "  probe VCONN                 probe whether VCONN is up\n"
            "  ping VCONN [N]              latency of N-byte echos\n"
@@ -246,41 +235,6 @@ static void run(int retval, const char *message, ...)
     }
 }
 
-#ifdef HAVE_CURSES
-
-static void runw(int retval, const char *message, ...)
-    PRINTF_FORMAT(2, 3);
-
-static void runw(int retval, const char *message, ...)
-{
-    if (retval) {
-        va_list args;
-        int ch =1, i =1;
-        attron(A_BOLD);
-        for (i = 1; i< COLS -1; i++) mvaddch(LINES-2, i, '*');
-        mvprintw(LINES-2, COLS/2, " ERROR ");
-        mvchgat(LINES-2, COLS/2+1, 5, A_BOLD | A_UNDERLINE, 2, NULL);
-        mvprintw(LINES-1, 0,  "%s: ", program_name);
-        va_start(args, message);
-        vwprintw(stdscr, message, args);
-        va_end(args);
-        if (retval == EOF) {
-            printw(": unexpected end of file\n");
-        } else {
-            printw(": %s\n", strerror(retval));
-        }
-        printw("...Program must terminate...Press 'q' to Quit");
-        attroff(A_BOLD);
-        while (ch != 'q' && ch != 'Q'){
-          ch = getch();
-        }
-        endwin();
-        exit(EXIT_FAILURE);
-    }
-}
-
-#endif
-
 
 #ifdef HAVE_NETLINK
 /* Netlink-only commands. */
@@ -303,7 +257,7 @@ static void open_nl_vconn(const char *name, bool subscribe, struct dpif *dpif)
     run(dpif_open(atoi(name + 3), subscribe, dpif), "opening datapath");
 }
 
-static void do_add_dp(int argc UNUSED, char *argv[], int indicator UNUSED)
+static void do_add_dp(int argc UNUSED, char *argv[])
 {
     struct dpif dp;
     open_nl_vconn(argv[1], false, &dp);
@@ -311,7 +265,7 @@ static void do_add_dp(int argc UNUSED, char *argv[], int indicator UNUSED)
     dpif_close(&dp);
 }
 
-static void do_del_dp(int argc UNUSED, char *argv[], int indicator UNUSED)
+static void do_del_dp(int argc UNUSED, char *argv[])
 {
     struct dpif dp;
     open_nl_vconn(argv[1], false, &dp);
@@ -319,7 +273,7 @@ static void do_del_dp(int argc UNUSED, char *argv[], int indicator UNUSED)
     dpif_close(&dp);
 }
 
-static void do_add_port(int argc UNUSED, char *argv[], int indicator UNUSED)
+static void do_add_port(int argc UNUSED, char *argv[])
 {
     struct dpif dp;
     if_up(argv[2]);
@@ -328,7 +282,7 @@ static void do_add_port(int argc UNUSED, char *argv[], int indicator UNUSED)
     dpif_close(&dp);
 }
 
-static void do_del_port(int argc UNUSED, char *argv[], int indicator UNUSED)
+static void do_del_port(int argc UNUSED, char *argv[])
 {
     struct dpif dp;
     open_nl_vconn(argv[1], false, &dp);
@@ -336,7 +290,7 @@ static void do_del_port(int argc UNUSED, char *argv[], int indicator UNUSED)
     dpif_close(&dp);
 }
 
-static void do_monitor(int argc UNUSED, char *argv[], int indicator UNUSED)
+static void do_monitor(int argc UNUSED, char *argv[])
 {
     struct dpif dp;
     open_nl_vconn(argv[1], true, &dp);
@@ -376,20 +330,14 @@ dump_transaction(const char *vconn_name, struct buffer *request)
     struct buffer *reply;
 
     update_openflow_length(request);
-#ifdef HAVE_CURSES
-        runw(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
-        runw(vconn_transact(vconn, request, &reply), "talking to %s", vconn_name);
-        ofp_printw(stdout, reply->data, reply->size, 1);
-#else
-        run(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
-        run(vconn_transact(vconn, request, &reply), "talking to %s", vconn_name);
-        ofp_print(stdout, reply->data, reply->size, 1);
-#endif
+    run(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
+    run(vconn_transact(vconn, request, &reply), "talking to %s", vconn_name);
+    ofp_print(stdout, reply->data, reply->size, 1);
     vconn_close(vconn);
 }
 
 static void
-dump_trivial_transaction(const char *vconn_name, uint8_t request_type, int indicator)
+dump_trivial_transaction(const char *vconn_name, uint8_t request_type)
 {
     struct buffer *request;
     make_openflow(sizeof(struct ofp_header), request_type, &request);
@@ -397,46 +345,25 @@ dump_trivial_transaction(const char *vconn_name, uint8_t request_type, int indic
 }
 
 static void
-dump_stats_transaction(const char *vconn_name, struct buffer *request, int indicator)
+dump_stats_transaction(const char *vconn_name, struct buffer *request)
 {
     uint32_t send_xid = ((struct ofp_header *) request->data)->xid;
     struct vconn *vconn;
     bool done = false;
-    int y, x;
-    if (indicator) {
-#ifdef HAVE_CURSES
-        runw(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
-#endif
-    }
-    else run(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
     
+    run(vconn_open_block(vconn_name, &vconn), "connecting to %s", vconn_name);
     send_openflow_buffer(vconn, request);
     while (!done) {
         uint32_t recv_xid;
         struct buffer *reply;
 
-        if (indicator) {
-#ifdef HAVE_CURSES
-          runw(vconn_recv_block(vconn, &reply), "OpenFlow packet receive failed");
-#endif
-        }
-        else run(vconn_recv_block(vconn, &reply), "OpenFlow packet receive failed");
+        run(vconn_recv_block(vconn, &reply), "OpenFlow packet receive failed");
 
         recv_xid = ((struct ofp_header *) reply->data)->xid;
         if (send_xid == recv_xid) {
             struct ofp_stats_reply *osr;
           
-            if (indicator) {
-#ifdef HAVE_CURSES
-              getyx(stdscr, y, x);
-              if (y >= LINES-2) {
-                warn_mesg(y+1, 10,"*** Not enough space to display more stats: \
-                Try a more restrictive flow match ***");
-              }
-              else ofp_printw(stdout, reply->data, reply->size, 1);
-#endif
-            }
-            else ofp_print(stdout, reply->data, reply->size, 1);
+            ofp_print(stdout, reply->data, reply->size, 1);
             
             osr = buffer_at(reply, 0, sizeof *osr);
             done = !osr || !(ntohs(osr->flags) & OFPSF_REPLY_MORE);
@@ -450,25 +377,25 @@ dump_stats_transaction(const char *vconn_name, struct buffer *request, int indic
 }
 
 static void
-dump_trivial_stats_transaction(const char *vconn_name, uint8_t stats_type, int indicator)
+dump_trivial_stats_transaction(const char *vconn_name, uint8_t stats_type)
 {
     struct buffer *request;
     alloc_stats_request(0, stats_type, &request);
-    dump_stats_transaction(vconn_name, request, indicator);
+    dump_stats_transaction(vconn_name, request);
 }
 
 static void
-do_show(int argc UNUSED, char *argv[],  int indicator)
+do_show(int argc UNUSED, char *argv[])
 {
-  dump_trivial_transaction(argv[1], OFPT_FEATURES_REQUEST, indicator);
-  dump_trivial_transaction(argv[1], OFPT_GET_CONFIG_REQUEST, indicator);
+  dump_trivial_transaction(argv[1], OFPT_FEATURES_REQUEST);
+  dump_trivial_transaction(argv[1], OFPT_GET_CONFIG_REQUEST);
 }
 
 
 static void
-do_dump_tables(int argc, char *argv[], int indicator)
+do_dump_tables(int argc, char *argv[])
 {
-  dump_trivial_stats_transaction(argv[1], OFPST_TABLE, indicator);
+  dump_trivial_stats_transaction(argv[1], OFPST_TABLE);
 }
 
 
@@ -571,7 +498,6 @@ str_to_action(char *str, struct ofp_action *action, int *n_actions)
     *n_actions = i;
 }
 
-
 static void
 str_to_flow(char *string, struct ofp_match *match, 
         struct ofp_action *action, int *n_actions, uint8_t *table_idx, 
@@ -629,9 +555,9 @@ str_to_flow(char *string, struct ofp_match *match,
     }
     memset(match, 0, sizeof *match);
     wildcards = OFPFW_ALL;
-    for (name = strtok(string, "="), value = strtok(NULL, " \t\r\n");
+    for (name = strtok(string, "="), value = strtok(NULL, ", \t\r\n");
          name && value;
-         name = strtok(NULL, "="), value = strtok(NULL, " \t\r\n"))
+	 name = strtok(NULL, "="), value = strtok(NULL, ", \t\r\n"))
     {
         const struct field *f;
         void *data;
@@ -670,7 +596,7 @@ str_to_flow(char *string, struct ofp_match *match,
     found:
         data = (char *) match + f->offset;
         if (!strcmp(value, "*") || !strcmp(value, "ANY")) {
-          wildcards |= f->wildcard;
+            wildcards |= f->wildcard;
         } else {
             wildcards &= ~f->wildcard;
             if (f->type == F_U8) {
@@ -692,7 +618,7 @@ str_to_flow(char *string, struct ofp_match *match,
     match->wildcards = htons(wildcards);
 }
 
-static void do_dump_flows(int argc, char *argv[], int indicator)
+static void do_dump_flows(int argc, char *argv[])
 {
     struct ofp_flow_stats_request *req;
     struct buffer *request;
@@ -702,10 +628,10 @@ static void do_dump_flows(int argc, char *argv[], int indicator)
             &req->table_id, NULL, NULL);
     memset(req->pad, 0, sizeof req->pad);
 
-    dump_stats_transaction(argv[1], request, indicator);
+    dump_stats_transaction(argv[1], request);
 }
 
-static void do_dump_aggregate(int argc, char *argv[], int indicator)
+static void do_dump_aggregate(int argc, char *argv[])
 {
     struct ofp_aggregate_stats_request *req;
     struct buffer *request;
@@ -715,7 +641,7 @@ static void do_dump_aggregate(int argc, char *argv[], int indicator)
             &req->table_id, NULL, NULL);
     memset(req->pad, 0, sizeof req->pad);
 
-    dump_stats_transaction(argv[1], request, indicator);
+    dump_stats_transaction(argv[1], request);
 }
 
 static void do_add_flow(int argc, char *argv[])
@@ -799,7 +725,7 @@ static void do_add_flows(int argc, char *argv[])
     vconn_close(vconn);
     fclose(file);
 }
-static void do_del_flows(int argc, char *argv[],  int indicator UNUSED)
+static void do_del_flows(int argc, char *argv[])
 {
     struct vconn *vconn;
     uint16_t priority;
@@ -828,9 +754,9 @@ static void do_del_flows(int argc, char *argv[],  int indicator UNUSED)
 
 
 static void
-do_dump_ports(int argc, char *argv[], int indicator)
+do_dump_ports(int argc, char *argv[])
 {
-  dump_trivial_stats_transaction(argv[1], OFPST_PORT, indicator);
+    dump_trivial_stats_transaction(argv[1], OFPST_PORT);
 }
 
 static void
@@ -945,67 +871,6 @@ static void do_help(int argc UNUSED, char *argv[] UNUSED)
     usage();
 }
 
-#ifdef HAVE_CURSES
-
-static void welcome(void)
-{
-  int ch = 1;
-  printw("\n Current Rows = %d, Columns = %d \n", LINES, COLS);
-  printw("\n For best performance, this system requires maximum window size\n");
-  printw(" Please maximize your window and Press 'c' to Continue\n");
-  while (ch != 'c' && ch != 'C') ch = getch();
-  return;
-}
-
-static void do_table_monitoring(int argc, char* argv[],  int indicator)
-{
-  int ch = 1;
-  indicator = 1;
-  initscr();
-  char title[] = "TABLE MONITORING SYSTEM";
-  if (LINES < 35 || COLS < 125) welcome();
-  endwin();
-
-  // Set up curses
-  initscr();
-  cbreak();
-  halfdelay(10);
-  noecho();
-  
-  erase();
-  start_color();			// Start color 			
-  init_pair(1, COLOR_CYAN, COLOR_BLACK);
-  init_pair(2, COLOR_RED, COLOR_BLACK);
-  init_pair(3, COLOR_YELLOW, COLOR_BLACK);
-  init_pair(4, COLOR_WHITE, COLOR_BLUE);
-  init_pair(5, COLOR_GREEN, COLOR_BLACK);
-  init_pair(6, COLOR_CYAN, COLOR_MAGENTA);
-
-  
-  mvprintw(0, (COLS - strlen(title))/2, " OPENFLOW TABLE MONITORING SYSTEM ");
-  mvprintw(0, COLS-8, "Q: Quit");
-  mvchgat(0, 0, -1, A_BOLD , 4, NULL);
-  
-  while (ch != 'q' && ch != 'Q'){
-
-    move(2,0);
-    attron(COLOR_PAIR(1) |  A_BOLD);
-    do_show(argc, argv, indicator);
-
-    do_dump_aggregate(argc, argv, indicator);
-    do_dump_ports(argc, argv, indicator);
-    do_dump_tables(argc, argv, indicator);
-    do_dump_flows(argc, argv, indicator);
-    attroff(COLOR_PAIR(1) | A_BOLD );
-    refresh();
-    ch = getch();
-
-  }
-  endwin();
-
-}
-#endif
-
 static struct command all_commands[] = {
 #ifdef HAVE_NETLINK
     { "adddp", 1, 1, do_add_dp },
@@ -1025,9 +890,6 @@ static struct command all_commands[] = {
     { "add-flows", 2, 2, do_add_flows },
     { "del-flows", 1, 2, do_del_flows },
     { "dump-ports", 1, 1, do_dump_ports },
-#ifdef HAVE_CURSES
-    { "table-mtr", 1, 2, do_table_monitoring },
-#endif
     { "probe", 1, 1, do_probe },
     { "ping", 1, 2, do_ping },
     { "benchmark", 3, 3, do_benchmark },

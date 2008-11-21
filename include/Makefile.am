@@ -35,5 +35,4 @@ noinst_HEADERS = \
 	vconn-stream.h \
 	vlog-socket.h \
 	vlog.h \
-	xtoxll.h \
-	ofp-printw.h
+	xtoxll.h

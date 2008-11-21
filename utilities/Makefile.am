@@ -14,11 +14,6 @@ man_MANS = ofp-pki.8 ofp-discover.8 ofp-kill.8
 dpctl_SOURCES = dpctl.c
 dpctl_LDADD = ../lib/libopenflow.a $(FAULT_LIBS) $(SSL_LIBS)
 
-if HAVE_CURSES
-LIBS += -lncurses
-endif
-
-
 vlogconf_SOURCES = vlogconf.c
 vlogconf_LDADD = ../lib/libopenflow.a
 

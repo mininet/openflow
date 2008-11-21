@@ -70,29 +70,6 @@ if test "$HAVE_NETLINK" = yes; then
              [Define to 1 if Netlink protocol is available.])
 fi
 
-
-AC_CHECK_LIB([ncurses], [initscr], [foundlcurses=yes],[foundlcurses=no],[])
-if test "$foundlcurses" = "yes"; then
-        AC_CHECK_HEADER([curses.h],
-                [HAVE_CURSES=yes],
-                [HAVE_CURSES=no])
-else
-	AC_MSG_WARN(*** curses library not found. Table monitor will not be built.)
-	HAVE_CURSES=no
-fi
-
-AM_CONDITIONAL([HAVE_CURSES], [test "$HAVE_CURSES" = yes])
-if test "$HAVE_CURSES" = yes; then
-   	AC_DEFINE([HAVE_CURSES], [1],[Define to 1 if curses.h is available.])
-   	LIBS="-lncurses"
-else
-	AC_MSG_WARN(*** curses.h not found. Table monitor will not be built.)
-fi
-
-
-
-
-
 AC_CHECK_HEADER([net/if_packet.h],
                 [HAVE_IF_PACKET=yes],
                 [HAVE_IF_PACKET=no])
