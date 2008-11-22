@@ -42,7 +42,7 @@ sub send_expect_exact_with_wildcard {
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
 
 	# 2nd flow entry -- wildcard match, $out_port2
-	$wildcards = 0x300;     # wildcad match (don't care udp src/dst ports)
+	my $wildcards =  $enums{'OFPFW_TP_SRC'} | $enums{'OFPFW_TP_DST'};     # wildcard match (don't care udp src/dst ports)
 	my $flow_mod_wildcard_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port2, $max_idle, $wildcards );
 
@@ -104,7 +104,7 @@ sub delete_strict_send_expect {
 	};
 	my $test_pkt2 = new NF2::UDP_pkt(%$test_pkt_args2);
 
-	my $wildcards = 0x300;    # wildcad match (don't care udp src/dst ports)
+	my $wildcards =  $enums{'OFPFW_TP_SRC'} | $enums{'OFPFW_TP_DST'};     # wildcard match (don't care udp src/dst ports)
 	my $flow_mod_wildcard_pkt =
 
 	  # delete_strict_from_udp( $ofp, $test_pkt, $in_port, $out_port2, $wildcards );
@@ -144,8 +144,8 @@ sub my_test {
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
 		for ( my $j = 0 ; $j < 4 ; $j++ ) {
-			if ( $i != $j ) {
-				my $o_port2 = ( ( $j + 1 ) % 4 );
+			my $o_port2 = ( ( $j + 1 ) % 4 );
+			if ( $i != $j && $i != $o_port2) { 
 				print "sending from $i to $j & $i to $o_port2 -- both should match\n";
 				send_expect_exact_with_wildcard( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle,
 					$pkt_len );

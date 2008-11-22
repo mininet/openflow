@@ -38,6 +38,7 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &create_controller_socket
   &run_learning_switch_test
   &do_hello_sequence
+  &get_switch_features
   &get_config
   &set_config
   &run_black_box_test
@@ -69,7 +70,7 @@ if (! -e "$openflow_dir/include/openflow.h") {
 	die "please set OF_ROOT in path so that OFUtil.pm can extract constants"
 }
 
-use constant CURRENT_OF_VER => 0x85;
+use constant CURRENT_OF_VER => 0x96;
 
 # data length forwarded to the controller if miss (used in do_hello_sequence)
 use constant MISS_SEND_LEN_DEFAULT => 0x80;
@@ -433,6 +434,48 @@ sub do_hello_sequence {
 
 	my ( $ofp, $sock ) = @_;
 
+	my $hdr_args_hello = {
+		version => CURRENT_OF_VER,
+		type 	=> $enums{'OFPT_HELLO'},
+		length  => $ofp->sizeof('ofp_header'),
+		xid 	=> 0
+	};
+	my $hello = $ofp->pack( 'ofp_header', $hdr_args_hello);
+	
+	# Send 'hello' message
+	print $sock $hello;
+
+	# Should add timeout here - will crash if no reply
+	my $recvd_mesg;
+	sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
+
+	#print "received message after features request\n";
+
+	# Inspect  message
+	my $msg_size      = length($recvd_mesg);
+	my $expected_size = $ofp->sizeof('ofp_header');
+#	my $expected_size = $ofp->sizeof('ofp_switch_features') + 4 * $ofp->sizeof('ofp_phy_port');
+
+	# should probably account for the expected 4 ports' info
+	# !!! disabled until we can inspect these
+	#compare( "msg size", length($recvd_mesg), '==', $expected_size );
+
+	#my $msg = $ofp->unpack( 'ofp_switch_features', $recvd_mesg );
+	my $msg = $ofp->unpack( 'ofp_hello', $recvd_mesg );
+
+	#print HexDump ($recvd_mesg);
+	#print Dumper($msg);
+
+	# Verify fields
+	verify_header( $msg, 'OFPT_HELLO', $msg_size );
+	
+	print "received Hello\n";
+}
+
+sub get_switch_features {
+
+	my ( $ofp, $sock ) = @_;
+
 	my $hdr_args_features_request = {
 		version => CURRENT_OF_VER,
 		type    => $enums{'OFPT_FEATURES_REQUEST'},
@@ -452,10 +495,8 @@ sub do_hello_sequence {
 
 	# Inspect  message
 	my $msg_size      = length($recvd_mesg);
-	my $expected_size = $ofp->sizeof('ofp_switch_features') + 4 * $ofp->sizeof('ofp_phy_port');
+	#my $expected_size = $ofp->sizeof('ofp_switch_config');
 
-	# should probably account for the expected 4 ports' info
-	# !!! disabled until we can inspect these
 	#compare( "msg size", length($recvd_mesg), '==', $expected_size );
 
 	my $msg = $ofp->unpack( 'ofp_switch_features', $recvd_mesg );
@@ -463,8 +504,10 @@ sub do_hello_sequence {
 	#print HexDump ($recvd_mesg);
 	#print Dumper($msg);
 
-	# Verify fields
+	# Verify header fields
 	verify_header( $msg, 'OFPT_FEATURES_REPLY', $msg_size );
+
+	return $msg;
 }
 
 sub get_config {
@@ -553,10 +596,10 @@ sub run_black_box_test {
 		print "waiting for secchan to connect\n";
 		my $new_sock = $sock->accept();
 
+		do_hello_sequence( $ofp, $new_sock );
+
 		# Launch PCAP listenting interface
 		nftest_start( \@interfaces );
-
-		do_hello_sequence( $ofp, $new_sock );
 
 		&$test_ref( $new_sock, \%options );
 
@@ -621,7 +664,7 @@ sub create_flow_mod_from_udp_action {
 	my $hdr_args = {
 		version => CURRENT_OF_VER,
 		type    => $enums{'OFPT_FLOW_MOD'},
-		length  => $ofp->sizeof('ofp_flow_mod') + 8, #$ofp->sizeof('ofp_action'), #, #!!!
+		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output'),
 		xid     => 0x0000000
 	};
 
@@ -667,18 +710,13 @@ sub create_flow_mod_from_udp_action {
 	};
 
 	my $action_output_args = {
-		max_len => 0,                                     # send entire packet
-		port    => $out_port
+		type => $enums{'OFPAT_OUTPUT'},
+		len => $ofp->sizeof('ofp_action_output'),
+		port => $out_port,
+		max_len => 0,                                     # send entire packet	
 	};
 
-	my $action_args = {
-		type => $enums{'OFPAT_OUTPUT'},
-		arg  => { output => $action_output_args }
-	};
-	#!!! temporary fix - until we can pull from openflow.h to get the correct structure size. 
-	#my $action = $ofp->pack( 'ofp_action', $action_args );
-	#my $action = pack("SSSS", $enums{'OFPAT_OUTPUT'}, 0, $out_port, 0xbb);
-	my $action = pack("nnnn", $enums{'OFPAT_OUTPUT'}, 0, $out_port, 0xbbbb);
+	my $action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
 	
 	my $flow_mod_args = {
 		header => $hdr_args,
@@ -686,13 +724,14 @@ sub create_flow_mod_from_udp_action {
 
 		#		command   => $enums{$mod_type},
 		command   => $enums{"$mod_type"},
-		max_idle  => $max_idle,
-		buffer_id => 0x0000,
-		group_id  => 0
+		idle_timeout  => $max_idle,
+		hard_timeout  => $max_idle,
+		priority => 0,
+		buffer_id => -1
 	};
 	my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
 
-	my $flow_mod_pkt = $flow_mod . $action;
+	my $flow_mod_pkt = $flow_mod . $action_output;
 
 	return $flow_mod_pkt;
 }

@@ -12,4 +12,4 @@
 #endif
 
 /* Version number of package */
-#define VERSION "0.85.1" /* OpenFlowMajor.OpenFlowMinor.PluginRevForThisMajorMinorRev */
+#define VERSION "0.9.0~b1" /* OpenFlowMajor.OpenFlowMinor.PluginRevForThisMajorMinorRev */

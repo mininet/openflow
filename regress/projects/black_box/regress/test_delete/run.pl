@@ -42,7 +42,8 @@ sub send_expect_exact_with_wildcard {
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
 
 	# 2nd flow entry -- wildcard match, $out_port2
-	$wildcards = 0x300;     # wildcard match (don't care udp src/dst ports)
+	$wildcards =  $enums{'OFPFW_TP_SRC'} | $enums{'OFPFW_TP_DST'};     # wildcard match (don't care udp src/dst ports)
+	print "wildcards = $wildcards\n";
 	my $flow_mod_wildcard_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port2, $max_idle, $wildcards );
 
@@ -69,6 +70,8 @@ sub send_expect_exact_with_wildcard {
 
 	nftest_send( "eth" . ( $in_port_offset + 1 ), $test_pkt2->packed );
 	nftest_expect( "eth" . ( $out_port2_offset + 1 ), $test_pkt2->packed );
+	
+	print "sent two packets\n";
 }
 
 sub delete_send_expect {
@@ -104,20 +107,20 @@ sub delete_send_expect {
 	};
 	my $test_pkt2 = new NF2::UDP_pkt(%$test_pkt_args2);
 
-	my $wildcards = 0x300;    # wildcard match (don't care udp src/dst ports)
+	my $wildcards =  $enums{'OFPFW_TP_SRC'} | $enums{'OFPFW_TP_DST'};     # wildcard match (don't care udp src/dst ports)
 	my $flow_mod_wildcard_pkt =
 	  create_flow_mod_from_udp_action( $ofp, $test_pkt2, $in_port, $out_port2, $max_idle,
 		$wildcards, "OFPFC_DELETE" );
 
 	#print HexDump($flow_mod_exact_pkt);
 	#print HexDump($flow_mod_wildcard_pkt);
-
+ 
 	# Send 'flow_mod' message (delete wildcard entry without STRICT)
 	print $sock $flow_mod_wildcard_pkt;
 	print "sent flow_mod message (delete wildcard entry)\n";
 
 	# Give OF switch time to process the flow mod
-	usleep($$options_ref{'send_delay'});
+	usleep($$options_ref{'send_delay'}); 
 
 	# Send a packet
 	print "Verify packets are forwarded correctly i.e., fwded to contoller\n";
@@ -127,6 +130,7 @@ sub delete_send_expect {
 	# both pkts should go to the controller
 	wait_for_one_packet_in( $ofp, $sock, $pkt_len, $test_pkt->packed );
 	wait_for_one_packet_in( $ofp, $sock, $pkt_len, $test_pkt2->packed );
+
 }
 
 sub my_test {
@@ -137,13 +141,13 @@ sub my_test {
 	my $pkt_len = $$options_ref{'pkt_len'};
 	my $pkt_total = $$options_ref{'pkt_total'};
 
-	enable_flow_expirations( $ofp, $sock );
+	enable_flow_expirations( $ofp, $sock );  
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {
 		for ( my $j = 0 ; $j < 4 ; $j++ ) {
-			if ( $i != $j ) {
-				my $o_port2 = ( ( $j + 1 ) % 4 );
+			my $o_port2 = ( ( $j + 1 ) % 4 );
+			if ( $i != $j && $i != $o_port2) { 
 				print "sending from $i to $j & $i to $o_port2 -- both should match\n";
 				send_expect_exact_with_wildcard( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle,
 					$pkt_len );
