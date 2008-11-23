@@ -19,7 +19,7 @@
 \selectfont
 
 \title{OpenFlow Switch Specification}
-\author{Version 0.9 Draft 5 ( Wire Protocol \input{define/OFP_VERSION})}
+\author{Version 0.8.9 Draft 6 ( Wire Protocol \input{define/OFP_VERSION})}
 \date{\today}
 \maketitle
 
@@ -100,9 +100,8 @@ Table 2 shows the header fields an incoming packet is compared against. Each ent
 \hline Ingress Port & (Implementation dependent) & All packets & Numerical representation of incoming port.  \\
 \hline Ethernet source address & 48 & All packets on enabled ports & \\
 \hline Ethernet destination address & 48 & All packets on enabled ports & \\ 
-\hline Ethernet type & 16 & All packets on enabled ports & A Type 0 switch is required to match the type in both standard Ethernet and 802.2 with a SNAP header and OUI of 0x000000. \\ 
-\hline The special value of 0x05FF is used to match all 802.3 packets without SNAP headers.
-VLAN id & 12 & All packets of Ethernet type 0x8100 & \\
+\hline Ethernet type & 16 & All packets on enabled ports & A Type 0 switch is required to match the type in both standard Ethernet and 802.2 with a SNAP header and OUI of 0x000000.  The special value of 0x05FF is used to match all 802.3 packets without SNAP headers. \\
+\hline VLAN id & 12 & All packets of Ethernet type 0x8100 & \\
 \hline IP source address & 32 & All IP packets & Can be subnet masked \\
 \hline IP destination address & 32 & All IP packets & Can be subnet masked \\
 \hline IP protocol & 8 & All IP packets & \\
@@ -110,11 +109,11 @@ VLAN id & 12 & All packets of Ethernet type 0x8100 & \\
 \hline Transport destination port & 16 & All TCP and UDP packets & \\
 \hline
 \end{tabularx}
-\caption{Field lengths and the way they should be applied to flow entries.}
+\caption{Field lengths and the way they must be applied to flow entries.}
 \label{table:header field details}
 \end{table} 
 
-The field types contained in this document are derived from the OpenFlow protocol and used to describe the valid ranges.  Switch designers are free to implement the internals in any way convenient provided that correct functionality is preserved.  For example, while a flow may have multiple forward actions, each specifying a different port, a switch designer may choose to implement this as a single bitmask within the hardware forwarding table.
+Switch designers are free to implement the internals in any way convenient provided that correct functionality is preserved.  For example, while a flow may have multiple forward actions, each specifying a different port, a switch designer may choose to implement this as a single bitmask within the hardware forwarding table.
 
 \subsection{Counters}
 
@@ -150,7 +149,7 @@ Table \ref{table:counters} contains the required set of counters for Type 0 swit
 \hline Collisions & 64 \\
 \hline
 \end{tabular}
-\caption{Required list of counters for use in statistics messages for tables, flows and ports.}
+\caption{Required list of counters for use in statistics messages.}
 \label{table:counters}
 \end{table}
 
@@ -276,7 +275,7 @@ The flow table is checked for a matching flow entry.  The header fields used for
 \end{itemize}
 A packet matches a flow table entry if the values in the header fields used for the lookup (as defined above) match those defined in the flow table.  If a flow table field has a value of ANY, it matches all possible values in the header.  
 \\\\
-To handle the various Ethernet framing types, matching the Ethernet type is handled in a slightly different manner.  If the packet is an Ethernet II frame, the Ethernet type is handled in the expected way.  If the packet is an 802.3 frame with a SNAP header and Organizationally Unique Identifier (OUI) of 0x000000, the SNAP’s protocol id is matched against the flow’s Ethernet type.  A flow entry that specifies an Ethernet type of 0x05FF, matches all Ethernet 802.2 frames without a SNAP header and those with SNAP headers that do not have an OUI of 0x000000.  
+To handle the various Ethernet framing types, matching the Ethernet type is handled in a slightly different manner.  If the packet is an Ethernet II frame, the Ethernet type is handled in the expected way.  If the packet is an 802.3 frame with a SNAP header and Organizationally Unique Identifier (OUI) of 0x000000, the SNAP protocol id is matched against the flow’s Ethernet type.  A flow entry that specifies an Ethernet type of 0x05FF, matches all Ethernet 802.2 frames without a SNAP header and those with SNAP headers that do not have an OUI of 0x000000.  
 \\\\
 Packets are matched against flow entries based on prioritization.  An entry that specifies an exact match (i.e., it has no wildcards) is always the highest priority.  All wildcard entries have a priority associated with them.  Higher priority entries must match before lower priority ones.  If multiple entries have the same priority, the switch is free to choose any ordering.  Higher numbers have higher priorities.
 \\\\
@@ -288,7 +287,7 @@ The secure channel is the interface that connects each OpenFlow switch to a cont
 Between the datapath and the secure channel, the interface is implementation-specific, however all secure channel messages must be formatted according to the OpenFlow protocol. 
 
 \subsection{OpenFlow Protocol Overview}
-The OpenFlow protocol supports three message types, \emph{controller-to-switch}, \emph{asynchronous}, and \emph{symmetric}, each with multiple sub-types.  Controller-to-switch messages are initiated by the controller and used to directly manage or inspect the state of the switch.  Asynchronous messages are initiated by the switch and used to update the controller of network events and changes to the switch state. Symmetric messages are initiated by either the switch or the controller and used to verify the liveness of the other side.  The message types used by OpenFlow are described below.
+The OpenFlow protocol supports three message types, \emph{controller-to-switch}, \emph{asynchronous}, and \emph{symmetric}, each with multiple sub-types.  Controller-to-switch messages are initiated by the controller and used to directly manage or inspect the state of the switch.  Asynchronous messages are initiated by the switch and used to update the controller of network events and changes to the switch state. Symmetric messages are initiated by either the switch or the controller and sent without solicitation.  The message types used by OpenFlow are described below.
 
 \subsubsection{Controller-to-Switch}
 Controller/switch messages are initiated by the controller and may or may not require a response from the switch.

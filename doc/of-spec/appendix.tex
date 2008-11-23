@@ -2,10 +2,10 @@
 \section{Appendix A: The OpenFlow Protocol}
 The heart of the OpenFlow spec is the set of structures used for OpenFlow Protocol messages.  
 \\\\
-All structs defined here are packed with padding and 8-byte aligned, as checked by the assertion statements.  
+The structures, defines, and enumerations described below are derived from the file \verb|include/openflow.h|, which is part of the standard OpenFlow distribution.  All structures are packed with padding and 8-byte aligned, as checked by the assertion statements.  All OpenFlow messages are sent in big-endian format.  
 
 \subsection{OpenFlow Header}
-All OpenFlow messages are sent in big-endian format.  Each OpenFlow message begins with the OpenFlow header:
+Each OpenFlow message begins with the OpenFlow header:
 
 \input{struct/ofp_header}
 The version specifies the OpenFlow protocol version being used.  During the current draft phase of the OpenFlow Protocol, the most significant bit will be set to indicate an experimental version and the lower bits will indicate a revision number.  The current version is \input{define/OFP_VERSION}.  The final version for a Type 0 switch will be 0x00.  The length field indicates the total length of the message, so no additional framing is used to distinguish one frame from the next.  The type can have the following values:
