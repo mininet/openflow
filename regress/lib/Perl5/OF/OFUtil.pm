@@ -368,7 +368,7 @@ sub run_learning_switch_test {
 	if ( !( $pid = fork ) ) {
 
 		# Run controller from this process
-		exec "controller", "-v", "ptcp:";
+		exec "controller", "ptcp:";
 		die "Failed to launch controller: $!";
 	}
 	else {
