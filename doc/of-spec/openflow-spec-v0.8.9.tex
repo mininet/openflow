@@ -19,7 +19,7 @@
 \selectfont
 
 \title{OpenFlow Switch Specification}
-\author{Version 0.8.9 Draft 6 ( Wire Protocol \input{define/OFP_VERSION})}
+\author{Version 0.8.9 Draft 7 ( Wire Protocol \input{define/OFP_VERSION})}
 \date{\today}
 \maketitle
 
@@ -105,8 +105,8 @@ Table 2 shows the header fields an incoming packet is compared against. Each ent
 \hline IP source address & 32 & All IP packets & Can be subnet masked \\
 \hline IP destination address & 32 & All IP packets & Can be subnet masked \\
 \hline IP protocol & 8 & All IP packets & \\
-\hline Transport source port & 16 & All TCP and UDP packets & \\
-\hline Transport destination port & 16 & All TCP and UDP packets & \\
+\hline Transport source port / ICMP Type & 16 & All TCP, UDP, and ICMP packets & Only lower 8 bits used for ICMP Type \\
+\hline Transport destination port / ICMP Code & 16 & All TCP, UDP, and ICMP packets & Only lower 8 bits used for ICMP Code \\
 \hline
 \end{tabularx}
 \caption{Field lengths and the way they must be applied to flow entries.}
@@ -272,6 +272,7 @@ The flow table is checked for a matching flow entry.  The header fields used for
 \item If the packet is a VLAN (Ethernet type 0x8100), the VLAN ID is used in the lookup.
 \item For IP packets (Ethernet type equal to 0x0800), the lookup fields also include those in the IP header.
 \item For IP packets that are TCP or UDP (IP protocol is equal to 6 or 17), the lookup includes the transport ports.
+\item For IP packets that are ICMP (IP prototcol is equal to 1), the lookup includes the Type and Code fields.  
 \end{itemize}
 A packet matches a flow table entry if the values in the header fields used for the lookup (as defined above) match those defined in the flow table.  If a flow table field has a value of ANY, it matches all possible values in the header.  
 \\\\
