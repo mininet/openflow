@@ -152,6 +152,9 @@ sub my_test {
 				send_expect_exact_with_wildcard( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle,
 					$pkt_len );
 
+				# wait for switch to process last packets	
+				usleep($$options_ref{'send_delay'});
+
 				print "delete wildcard entry (without STRICT) and send packets again\n";
 				delete_send_expect( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle, $pkt_len );
 
