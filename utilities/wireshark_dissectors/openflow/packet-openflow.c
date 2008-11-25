@@ -215,6 +215,8 @@ static gint ofp_match_nw_dst    = -1;
 static gint ofp_match_nw_proto  = -1;
 static gint ofp_match_tp_src    = -1;
 static gint ofp_match_tp_dst    = -1;
+static gint ofp_match_nw_src_mask_bits = -1;
+static gint ofp_match_nw_dst_mask_bits = -1;
 
 static gint ofp_action         = -1;
 static gint ofp_action_type    = -1;
@@ -804,6 +806,11 @@ void proto_register_openflow()
         { &ofp_match_tp_dst,
           { "TCP/UDP Dst Port", "of.match_tp_dst", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Destination Port", HFILL }},
 
+        { &ofp_match_nw_src_mask_bits,
+            { "IP Src Addr Mask Bits", "of.match_nw_src_mask_bits", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Source IP Address Mask Bits", HFILL }},
+
+        { &ofp_match_nw_dst_mask_bits,
+            { "IP Dst Addr Mask Bits", "of.match_nw_dst_mask_bits", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Destination IP Address Mask Bits", HFILL }},
 
         /* CS: action type */
         { &ofp_action,
@@ -1523,7 +1530,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     int i;
     proto_item *match_item = proto_tree_add_item(tree, ofp_match, tvb, *offset, sizeof(struct ofp_match), FALSE);
     proto_tree *match_tree = proto_item_add_subtree(match_item, ett_ofp_match);
-
+    
     /* add wildcard subtree */
     guint32 wildcards = tvb_get_ntohl( tvb, *offset );
     proto_item *wild_item = proto_tree_add_item(match_tree, ofp_match_wildcards_hdr, tvb, *offset, 2, FALSE);
@@ -1531,10 +1538,25 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     for(i=0; i<NUM_WILDCARDS; i++)
         add_child_const(wild_tree, ofp_match_wildcards[i], tvb, *offset, 2 );
     *offset += 4;
-
-    /* show only items whose corresponding wildcard bit is set */
+    
+    /* display mask bits if nonzero */
+    char str[11];
+    guint8 nw_src_bits = (wildcards & OFPFW_NW_SRC_MASK) >> OFPFW_NW_SRC_SHIFT;
+    snprintf( str, 11, "%u", nw_src_bits );
+    add_child_str( wild_tree, ofp_match_nw_src_mask_bits, tvb, offset, 0, str );
+    
+    guint8 nw_dst_bits = (wildcards & OFPFW_NW_DST_MASK) >> OFPFW_NW_DST_SHIFT;
+    snprintf( str, 11, "%u", nw_dst_bits );
+    add_child_str( wild_tree, ofp_match_nw_dst_mask_bits, tvb, offset, 0, str );
+    
+    /* show only items whose corresponding wildcard bit is not set */
     if( ~wildcards & OFPFW_IN_PORT )
         dissect_port(match_tree, ofp_match_in_port, tvb, offset);
+    else
+        *offset += 2;
+    
+    if( ~wildcards & OFPFW_DL_VLAN )
+        add_child(match_tree, ofp_match_dl_vlan, tvb, offset, 2);
     else
         *offset += 2;
 
@@ -1548,11 +1570,6 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 6;
 
-    if( ~wildcards & OFPFW_DL_VLAN )
-        add_child(match_tree, ofp_match_dl_vlan, tvb, offset, 2);
-    else
-        *offset += 2;
-
     if( ~wildcards & OFPFW_DL_TYPE )
         add_child(match_tree, ofp_match_dl_type, tvb, offset, 2);
     else
@@ -1564,7 +1581,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
         *offset += 1;
 
     dissect_pad(match_tree, offset, 1);
-
+    
     if( ~wildcards & OFPFW_NW_SRC_MASK )
         add_child(match_tree, ofp_match_nw_src, tvb, offset, 4);
     else
@@ -1672,9 +1689,7 @@ static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pa
 static void dissect_action_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint len, guint offset)
 {
     guint total_len = len - offset;
-    
-    // FIXME: decide which action we're looking at, use that to parse remaining fields.  
-    
+        
     proto_item* action_item = proto_tree_add_item(tree, ofp_action_output, tvb, offset, total_len, FALSE);
     proto_tree* action_tree = proto_item_add_subtree(action_item, ett_ofp_action_output);
 
@@ -1959,11 +1974,10 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             dissect_match(type_tree, type_item, tvb, pinfo, &offset);
             add_child(type_tree, ofp_flow_expired_priority, tvb, &offset, 2);
-            dissect_pad(type_tree, &offset, 2);
+            add_child(type_tree, ofp_flow_expired_reason, tvb, &offset, 1);
+            dissect_pad(type_tree, &offset, 1);
             add_child(type_tree, ofp_flow_expired_duration, tvb, &offset, 4);
-            if (OFP_VERSION >= 0x85) {
-                dissect_pad(type_tree, &offset, 2);
-            }
+            dissect_pad(type_tree, &offset, 4);
             add_child(type_tree, ofp_flow_expired_packet_count, tvb, &offset, 8);
             add_child(type_tree, ofp_flow_expired_byte_count, tvb, &offset, 8);
             break;
