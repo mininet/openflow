@@ -31,21 +31,35 @@
  * derivatives without specific, written prior permission.
  */
 
-#ifndef SOCKET_UTIL_H
-#define SOCKET_UTIL_H 1
+#ifndef OPENFLOW_OPENFLOW_NETLINK_H
+#define OPENFLOW_OPENFLOW_NETLINK_H 1
 
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <stdbool.h>
+#define DP_GENL_FAMILY_NAME "OpenFlow"
 
-int set_nonblocking(int fd);
-int lookup_ip(const char *host_name, struct in_addr *address);
-int get_socket_error(int sock);
-int check_connection_completion(int fd);
-int drain_rcvbuf(int fd);
-void drain_fd(int fd, size_t n_packets);
-int make_unix_socket(int style, bool nonblock, bool passcred,
-                     const char *bind_path, const char *connect_path);
-int get_unix_name_len(socklen_t sun_len);
+/* Attributes that can be attached to the datapath's netlink messages. */
+enum {
+	DP_GENL_A_UNSPEC,
+	DP_GENL_A_DP_IDX,	 /* Datapath Ethernet device name. */
+	DP_GENL_A_PORTNAME,	 /* Device name for datapath port. */
+	DP_GENL_A_MC_GROUP,	 /* Generic netlink multicast group. */
+	DP_GENL_A_OPENFLOW,  /* OpenFlow packet. */
 
-#endif /* socket-util.h */
+	__DP_GENL_A_MAX,
+	DP_GENL_A_MAX = __DP_GENL_A_MAX - 1
+};
+
+/* Commands that can be executed on the datapath's netlink interface. */
+enum dp_genl_command {
+	DP_GENL_C_UNSPEC,
+	DP_GENL_C_ADD_DP,	 /* Create datapath. */
+	DP_GENL_C_DEL_DP,	 /* Destroy datapath. */
+	DP_GENL_C_QUERY_DP,	 /* Get multicast group for datapath. */
+	DP_GENL_C_ADD_PORT,	 /* Add port to datapath. */
+	DP_GENL_C_DEL_PORT,	 /* Remove port from datapath. */
+	DP_GENL_C_OPENFLOW,  /* Encapsulated OpenFlow protocol. */
+
+	__DP_GENL_C_MAX,
+	DP_GENL_C_MAX = __DP_GENL_C_MAX - 1
+};
+
+#endif /* openflow/openflow-netlink.h */

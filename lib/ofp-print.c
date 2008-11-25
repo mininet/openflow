@@ -47,8 +47,8 @@
 #include "dynamic-string.h"
 #include "flow.h"
 #include "ofpbuf.h"
-#include "openflow.h"
-#include "nicira-ext.h"
+#include "openflow/openflow.h"
+#include "openflow/nicira-ext.h"
 #include "packets.h"
 #include "util.h"
 
@@ -342,8 +342,7 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
         const struct openflow_action *act = &of_actions[type];
         if ((len < act->min_size) || (len > act->max_size)) {
             ds_put_format(string, 
-                    "***action %"PRIu16" wrong length: %"PRIu16"***\n", 
-                    type, len);
+                    "***action %"PRIu16" wrong length: %zu***\n", type, len);
             return -1;
         }
     }
@@ -399,13 +398,13 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
 
     case OFPAT_SET_NW_SRC: {
         struct ofp_action_nw_addr *na = (struct ofp_action_nw_addr *)ah;
-        ds_put_format(string, "mod_nw_src:"IP_FMT, IP_ARGS(na->nw_addr));
+        ds_put_format(string, "mod_nw_src:"IP_FMT, IP_ARGS(&na->nw_addr));
         break;
     }
 
     case OFPAT_SET_NW_DST: {
         struct ofp_action_nw_addr *na = (struct ofp_action_nw_addr *)ah;
-        ds_put_format(string, "mod_nw_dst:"IP_FMT, IP_ARGS(na->nw_addr));
+        ds_put_format(string, "mod_nw_dst:"IP_FMT, IP_ARGS(&na->nw_addr));
         break;
     }
 

@@ -32,6 +32,7 @@
 
 AC_PREREQ(2.59)
 AC_INIT(openflow, 0.9.0~b1, info@openflowswitch.org)
+NX_BUILDNR
 AC_CONFIG_SRCDIR([README.hwtables])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -52,6 +53,8 @@ fi
 OFP_CHECK_LIBOPENFLOW
 OFP_CHECK_IF_PACKET
 OFP_CHECK_HWTABLES
+
+AC_CHECK_FUNCS([strsignal])
 
 AC_ARG_VAR(KARCH, [Kernel Architecture String])
 AC_SUBST(KARCH)

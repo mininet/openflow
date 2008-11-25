@@ -46,7 +46,7 @@
 #include "fault.h"
 #include "learning-switch.h"
 #include "ofpbuf.h"
-#include "openflow.h"
+#include "openflow/openflow.h"
 #include "poll-loop.h"
 #include "rconn.h"
 #include "timeval.h"
@@ -101,11 +101,6 @@ main(int argc, char *argv[])
                   "use --help for usage");
     }
 
-    retval = vlog_server_listen(NULL, NULL);
-    if (retval) {
-        ofp_fatal(retval, "Could not listen for vlog connections");
-    }
-
     n_switches = n_listeners = 0;
     for (i = optind; i < argc; i++) {
         const char *name = argv[i];
@@ -139,6 +134,11 @@ main(int argc, char *argv[])
 
     die_if_already_running();
     daemonize();
+
+    retval = vlog_server_listen(NULL, NULL);
+    if (retval) {
+        ofp_fatal(retval, "Could not listen for vlog connections");
+    }
 
     while (n_switches > 0 || n_listeners > 0) {
         int iteration;
@@ -249,6 +249,7 @@ parse_options(int argc, char *argv[])
         {"help",        no_argument, 0, 'h'},
         {"version",     no_argument, 0, 'V'},
         DAEMON_LONG_OPTIONS,
+        VLOG_LONG_OPTIONS,
 #ifdef HAVE_OPENSSL
         VCONN_SSL_LONG_OPTIONS
         {"peer-ca-cert", required_argument, 0, OPT_PEER_CA_CERT},

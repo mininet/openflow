@@ -6,7 +6,7 @@
 #include <linux/skbuff.h>
 #include <linux/rcupdate.h>
 
-#include "nicira-ext.h"
+#include "openflow/nicira-ext.h"
 #include "datapath.h"
 
 /* Cache of IP->MAC mappings on the side hidden by the SNAT */
@@ -30,7 +30,7 @@ struct snat_conf {
 
 void snat_local_in(struct sk_buff *skb);
 int snat_pre_route(struct sk_buff *skb);
-void snat_skb(struct datapath *dp, struct sk_buff *skb, int out_port);
+void snat_skb(struct datapath *dp, const struct sk_buff *skb, int out_port);
 void snat_maint(struct net_bridge_port *p);
 int snat_mod_config(struct datapath *, const struct nx_act_config *);
 int snat_free_conf(struct net_bridge_port *p);

@@ -44,7 +44,7 @@
 #include "flow.h"
 #include "ofp-print.h"
 #include "ofpbuf.h"
-#include "openflow.h"
+#include "openflow/openflow.h"
 #include "poll-loop.h"
 #include "random.h"
 #include "util.h"
@@ -468,11 +468,11 @@ do_recv(struct vconn *vconn, struct ofpbuf **msgp)
             && oh->type != OFPT_VENDOR)
         {
             if (vconn->version < 0) {
-                VLOG_ERR_RL(&rl, "%s: received OpenFlow version %02"PRIx8" "
+                VLOG_ERR_RL(&rl, "%s: received OpenFlow message type %"PRIu8" "
                             "before version negotiation complete",
-                            vconn->name, oh->version);
+                            vconn->name, oh->type);
             } else {
-                VLOG_ERR_RL(&rl, "%s: received OpenFlow version %02"PRIx8" "
+                VLOG_ERR_RL(&rl, "%s: received OpenFlow version 0x%02"PRIx8" "
                             "!= expected %02x",
                             vconn->name, oh->version, vconn->version);
             }
@@ -552,6 +552,37 @@ vconn_recv_block(struct vconn *vconn, struct ofpbuf **msgp)
     return retval;
 }
 
+/* Waits until a message with a transaction ID matching 'xid' is recived on
+ * 'vconn'.  Returns 0 if successful, in which case the reply is stored in
+ * '*replyp' for the caller to examine and free.  Otherwise returns a positive
+ * errno value, or EOF, and sets '*replyp' to null.
+ *
+ * 'request' is always destroyed, regardless of the return value. */
+int
+vconn_recv_xid(struct vconn *vconn, uint32_t xid, struct ofpbuf **replyp)
+{
+    for (;;) {
+        uint32_t recv_xid;
+        struct ofpbuf *reply;
+        int error;
+
+        error = vconn_recv_block(vconn, &reply);
+        if (error) {
+            *replyp = NULL;
+            return error;
+        }
+        recv_xid = ((struct ofp_header *) reply->data)->xid;
+        if (xid == recv_xid) {
+            *replyp = reply;
+            return 0;
+        }
+
+        VLOG_DBG_RL(&rl, "%s: received reply with xid %08"PRIx32" != expected "
+                    "%08"PRIx32, vconn->name, recv_xid, xid);
+        ofpbuf_delete(reply);
+    }
+}
+
 /* Sends 'request' to 'vconn' and blocks until it receives a reply with a
  * matching transaction ID.  Returns 0 if successful, in which case the reply
  * is stored in '*replyp' for the caller to examine and free.  Otherwise
@@ -569,26 +600,8 @@ vconn_transact(struct vconn *vconn, struct ofpbuf *request,
     error = vconn_send_block(vconn, request);
     if (error) {
         ofpbuf_delete(request);
-        return error;
     }
-    for (;;) {
-        uint32_t recv_xid;
-        struct ofpbuf *reply;
-
-        error = vconn_recv_block(vconn, &reply);
-        if (error) {
-            return error;
-        }
-        recv_xid = ((struct ofp_header *) reply->data)->xid;
-        if (send_xid == recv_xid) {
-            *replyp = reply;
-            return 0;
-        }
-
-        VLOG_DBG_RL(&rl, "%s: received reply with xid %08"PRIx32" != expected "
-                    "%08"PRIx32, vconn->name, recv_xid, send_xid);
-        ofpbuf_delete(reply);
-    }
+    return error ? error : vconn_recv_xid(vconn, send_xid, replyp);
 }
 
 void

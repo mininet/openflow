@@ -3,6 +3,7 @@ export builddir = @abs_builddir@
 export srcdir = @abs_srcdir@
 export top_srcdir = @abs_top_srcdir@
 export VERSION = @VERSION@
+export BUILDNR = @BUILDNR@
 
 include $(srcdir)/../Modules.mk
 include $(srcdir)/Modules.mk
@@ -14,6 +15,12 @@ EXTRA_CFLAGS += -I$(builddir)/..
 EXTRA_CFLAGS += -I$(top_srcdir)/include
 EXTRA_CFLAGS += -I$(top_srcdir)/datapath
 EXTRA_CFLAGS += @SUPPORT_SNAT@
+ifeq '$(BUILDNR)' '0'
+EXTRA_CFLAGS += -DBUILDNR=\"\"
+else
+EXTRA_CFLAGS += -DBUILDNR=\"+build$(BUILDNR)\"
+endif
+EXTRA_CFLAGS += -g
 
 # These include directories have to go before -I$(KSRC)/include.
 # NOSTDINC_FLAGS just happens to be a variable that goes in the

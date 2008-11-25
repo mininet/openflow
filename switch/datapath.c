@@ -44,7 +44,7 @@
 #include "list.h"
 #include "netdev.h"
 #include "ofpbuf.h"
-#include "openflow.h"
+#include "openflow/openflow.h"
 #include "packets.h"
 #include "poll-loop.h"
 #include "rconn.h"
@@ -992,7 +992,7 @@ add_flow(struct datapath *dp, const struct sender *sender,
     if (v_code != ACT_VALIDATION_OK) {
         dp_send_error_msg(dp, sender, OFPET_BAD_ACTION, v_code,
                   ofm, ntohs(ofm->header.length));
-        goto error;
+        goto error_free_flow;
     }
 
     /* Fill out flow. */

@@ -1,11 +1,13 @@
-#! /bin/sh -e
+#! /bin/sh
+
+set -e
 
 pkidir='@PKIDIR@'
 command=
 prev=
 force=no
 batch=no
-log=ofp-pki.log
+log='@LOGDIR@/ofp-pki.log'
 keytype=rsa
 bits=2048
 for option; do
@@ -45,6 +47,8 @@ The valid stand-alone commands and their arguments are:
   req+sign NAME [TYPE] Combine the above two steps, producing all three files.
   verify NAME [TYPE]   Checks that NAME-cert.pem is a valid TYPE certificate
   fingerprint FILE     Prints the fingerprint for FILE
+  self-sign NAME       Sign NAME-req.pem with NAME-privkey.pem,
+                       producing self-signed certificate NAME-cert.pem
 
 The following additional commands manage an online PKI:
   ls [PREFIX] [TYPE]   Lists incoming requests of the given TYPE, optionally 
@@ -153,6 +157,10 @@ fi
 if test -z "$dsaparam"; then
     dsaparam=$pkidir/dsaparam.pem
 fi
+case $log in
+    /*) ;;
+    *) $log="$PWD/$log" ;;
+esac
 
 if test "$command" = "init"; then
     if test -e "$pkidir" && test "$force" != "yes"; then
@@ -454,15 +462,7 @@ glob() {
     fi
 }
 
-case $log in
-    /*)
-        exec 3>>$log || true
-        ;;
-    *)
-        exec 3>>$pkidir/$log || true
-        ;;
-esac
-
+exec 3>>$log || true
 if test "$command" = req; then
     one_arg
 
@@ -493,6 +493,14 @@ elif test "$command" = fingerprint; then
     one_arg
 
     fingerprint "$arg1"
+elif test "$command" = self-sign; then
+    one_arg
+    must_exist "$arg1-req.pem"
+    must_exist "$arg1-privkey.pem"
+    must_not_exist "$arg1-cert.pem"
+
+    openssl x509 -in "$arg1-req.pem" -out "$arg1-cert.pem" \
+        -signkey "$arg1-privkey.pem" -req -text 2>&3
 elif test "$command" = ls; then
     check_type "$arg2"
 

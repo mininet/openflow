@@ -44,7 +44,7 @@
 #include "daemon.h"
 #include "datapath.h"
 #include "fault.h"
-#include "openflow.h"
+#include "openflow/openflow.h"
 #include "poll-loop.h"
 #include "queue.h"
 #include "util.h"
@@ -119,13 +119,13 @@ main(int argc, char *argv[])
         add_ports(dp, port_list); 
     }
 
+    die_if_already_running();
+    daemonize();
+
     error = vlog_server_listen(NULL, NULL);
     if (error) {
         ofp_fatal(error, "could not listen for vlog connections");
     }
-
-    die_if_already_running();
-    daemonize();
 
     for (;;) {
         dp_run(dp);
@@ -214,7 +214,8 @@ parse_options(int argc, char *argv[])
             usage();
 
         case 'V':
-            printf("%s "VERSION" compiled "__DATE__" "__TIME__"\n", argv[0]);
+            printf("%s %s compiled "__DATE__" "__TIME__"\n",
+                   program_name, VERSION BUILDNR);
             exit(EXIT_SUCCESS);
 
         case 'v':

@@ -24,10 +24,10 @@ openflow_headers = \
 	dp_dev.h \
 	flow.h \
 	forward.h \
+	dp_act.h \
 	nx_act.h \
 	nx_act_snat.h \
 	nx_msg.h \
-	snap.h \
 	table.h 
 
 dist_sources = $(foreach module,$(dist_modules),$($(module)_sources))

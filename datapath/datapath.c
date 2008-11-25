@@ -31,8 +31,10 @@
 #include <linux/list.h>
 #include <linux/rculist.h>
 #include <linux/workqueue.h>
+#include <linux/dmi.h>
 
-#include "openflow-netlink.h"
+#include "openflow/nicira-ext.h"
+#include "openflow/openflow-netlink.h"
 #include "datapath.h"
 #include "nx_act_snat.h"
 #include "table.h"
@@ -46,9 +48,9 @@
 
 /* Strings to describe the manufacturer, hardware, and software.  This data 
  * is queriable through the switch description stats message. */
-static char mfr_desc[DESC_STR_LEN] = "Nicira Networks";
+static char mfr_desc[DESC_STR_LEN] = "Nicira Networks, Inc.";
 static char hw_desc[DESC_STR_LEN] = "Reference Linux Kernel Module";
-static char sw_desc[DESC_STR_LEN] = VERSION;
+static char sw_desc[DESC_STR_LEN] = VERSION BUILDNR;
 static char serial_num[SERIAL_NUM_LEN] = "None";
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
@@ -220,37 +222,15 @@ send_openflow_skb(struct sk_buff *skb, const struct sender *sender)
 		: genlmsg_multicast(skb, 0, mc_group.id, GFP_ATOMIC));
 }
 
-/* Generates a unique datapath id.  It incorporates the datapath index
- * and a hardware address, if available.  If not, it generates a random
- * one.
- */
+/* Retrieves the datapath id, which is the MAC address of the "of" device. */
 static 
-uint64_t gen_datapath_id(uint16_t dp_idx)
+uint64_t get_datapath_id(struct net_device *dev)
 {
-	uint64_t id;
+	uint64_t id = 0;
 	int i;
-	struct net_device *dev;
 
-	/* The top 16 bits are used to identify the datapath.  The lower 48 bits
-	 * use an interface address.  */
-	id = (uint64_t)dp_idx << 48;
-	if ((dev = dev_get_by_name(&init_net, "ctl0")) 
-			|| (dev = dev_get_by_name(&init_net, "eth0"))) {
-		for (i=0; i<ETH_ALEN; i++) {
-			id |= (uint64_t)dev->dev_addr[i] << (8*(ETH_ALEN-1 - i));
-		}
-		dev_put(dev);
-	} else {
-		/* Randomly choose the lower 48 bits if we cannot find an
-		 * address and mark the most significant bit to indicate that
-		 * this was randomly generated. */
-		uint8_t rand[ETH_ALEN];
-		get_random_bytes(rand, ETH_ALEN);
-		id |= (uint64_t)1 << 63;
-		for (i=0; i<ETH_ALEN; i++) {
-			id |= (uint64_t)rand[i] << (8*(ETH_ALEN-1 - i));
-		}
-	}
+	for (i=0; i<ETH_ALEN; i++) 
+		id |= (uint64_t)dev->dev_addr[i] << (8*(ETH_ALEN-1 - i));
 
 	return id;
 }
@@ -285,7 +265,7 @@ static int new_dp(int dp_idx)
 		goto err_free_dp;
 
 	dp->dp_idx = dp_idx;
-	dp->id = gen_datapath_id(dp_idx);
+	dp->id = get_datapath_id(dp->netdev);
 	dp->chain = chain_create(dp);
 	if (dp->chain == NULL)
 		goto err_destroy_dp_dev;
@@ -475,16 +455,24 @@ static int dp_maint_func(void *data)
 static void
 do_port_input(struct net_bridge_port *p, struct sk_buff *skb) 
 {
+	/* Make our own copy of the packet.  Otherwise we will mangle the
+	 * packet for anyone who came before us (e.g. tcpdump via AF_PACKET).
+	 * (No one comes after us, since we tell handle_bridge() that we took
+	 * the packet.) */
+	skb = skb_share_check(skb, GFP_ATOMIC);
+	if (!skb)
+		return;
+
 #ifdef SUPPORT_SNAT
 	/* Check if this packet needs early SNAT processing. */
 	if (snat_pre_route(skb)) {
-		kfree_skb(skb);
 		return;
 	}
 #endif
 
 	/* Push the Ethernet header back on. */
 	skb_push(skb, ETH_HLEN);
+	skb_reset_mac_header(skb);
 	fwd_port_input(p->dp->chain, skb, p);
 }
 
@@ -681,7 +669,6 @@ dp_output_control(struct datapath *dp, struct sk_buff *skb,
 	 * forward the whole packet? */
 	struct sk_buff *f_skb;
 	struct ofp_packet_in *opi;
-	struct net_bridge_port *p;
 	size_t fwd_len, opi_len;
 	int err;
 
@@ -697,11 +684,12 @@ dp_output_control(struct datapath *dp, struct sk_buff *skb,
 	}
 	opi->buffer_id      = htonl(buffer_id);
 	opi->total_len      = htons(skb->len);
-	p = skb->dev->br_port;
-	opi->in_port        = htons(p ? p->port_no : OFPP_LOCAL);
+	opi->in_port        = htons(skb->dev && skb->dev->br_port
+				    ? skb->dev->br_port->port_no
+				    : OFPP_LOCAL);
 	opi->reason         = reason;
 	opi->pad            = 0;
-	memcpy(opi->data, skb_mac_header(skb), fwd_len);
+	skb_copy_bits(skb, 0, opi->data, fwd_len);
 	err = send_openflow_skb(f_skb, NULL);
 
 out:
@@ -1187,13 +1175,11 @@ static int dp_genl_query(struct sk_buff *skb, struct genl_info *info)
 
 		genlmsg_end(ans_skb, data);
 		err = genlmsg_reply(ans_skb, info);
-		if (!err)
-			ans_skb = NULL;
+		ans_skb = NULL;
 	}
 err:
 nla_put_failure:
-	if (ans_skb)
-		kfree_skb(ans_skb);
+	kfree_skb(ans_skb);
 	rcu_read_unlock();
 	return err;
 }
@@ -1803,12 +1789,39 @@ static void dp_uninit_netlink(void)
 	genl_unregister_family(&dp_genl_family);
 }
 
+/* Set the description strings if appropriate values are available from
+ * the DMI. */
+static void set_desc(void)
+{
+	const char *uuid = dmi_get_system_info(DMI_PRODUCT_UUID);
+	const char *uptr = uuid + 24;
+
+	if (!uuid || *uuid == '\0' || strlen(uuid) != 36) 
+		return;
+
+	/* We are only interested version 1 UUIDs, since the last six bytes
+	 * are an IEEE 802 MAC address. */
+	if (uuid[14] != '1') 
+		return;
+
+	/* Only set if the UUID is from Nicira. */
+	if (strncmp(uptr, NICIRA_OUI_STR, strlen(NICIRA_OUI_STR)))
+		return;
+
+	strlcpy(mfr_desc, dmi_get_system_info(DMI_SYS_VENDOR), sizeof(mfr_desc));
+	snprintf(hw_desc, sizeof(hw_desc), "%s %s", 
+			dmi_get_system_info(DMI_PRODUCT_NAME), 
+			dmi_get_system_info(DMI_PRODUCT_VERSION));
+	strlcpy(serial_num, dmi_get_system_info(DMI_PRODUCT_SERIAL), 
+			sizeof(serial_num));
+}
+
 static int __init dp_init(void)
 {
 	int err;
 
-	printk("OpenFlow "VERSION", built "__DATE__" "__TIME__", "
-	       "protocol 0x%02x\n", OFP_VERSION);
+	printk("OpenFlow %s, built "__DATE__" "__TIME__", "
+	       "protocol 0x%02x\n", VERSION BUILDNR, OFP_VERSION);
 
 	err = flow_init();
 	if (err)
@@ -1821,6 +1834,10 @@ static int __init dp_init(void)
 	err = dp_init_netlink();
 	if (err)
 		goto error_unreg_notifier;
+
+	/* Check if better descriptions of the switch are available than the
+	 * defaults. */
+	set_desc();
 
 	/* Hook into callback used by the bridge to intercept packets.
 	 * Parasites we are. */

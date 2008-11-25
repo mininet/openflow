@@ -17,7 +17,7 @@
 #include <net/checksum.h>
 #include "forward.h"
 #include "dp_act.h"
-#include "nicira-ext.h"
+#include "openflow/nicira-ext.h"
 #include "nx_act.h"
 
 
@@ -461,6 +461,7 @@ void execute_actions(struct datapath *dp, struct sk_buff *skb,
 		struct ofp_action_header *ah = (struct ofp_action_header *)p;
 		size_t len = htons(ah->len);
 
+		WARN_ON_ONCE(skb_shared(skb));
 		if (prev_port != -1) {
 			do_output(dp, skb_clone(skb, GFP_ATOMIC),
 				  max_len, prev_port, ignore_no_fwd);
@@ -503,26 +504,17 @@ void execute_actions(struct datapath *dp, struct sk_buff *skb,
 int
 make_writable(struct sk_buff **pskb)
 {
-	/* Based on skb_make_writable() in net/netfilter/core.c. */
-	struct sk_buff *nskb;
-
-	/* Not exclusive use of packet?  Must copy. */
-	if (skb_shared(*pskb) || skb_cloned(*pskb))
-		goto copy_skb;
-
-	return pskb_may_pull(*pskb, 40); /* FIXME? */
-
-copy_skb:
-	nskb = skb_copy(*pskb, GFP_ATOMIC);
-	if (!nskb)
-		return 0;
-	BUG_ON(skb_is_nonlinear(nskb));
-
-	/* Rest of kernel will get very unhappy if we pass it a
-	   suddenly-orphaned skbuff */
-	if ((*pskb)->sk)
-		skb_set_owner_w(nskb, (*pskb)->sk);
-	kfree_skb(*pskb);
-	*pskb = nskb;
-	return 1;
+	struct sk_buff *skb = *pskb;
+	if (skb_shared(skb) || skb_cloned(skb)) {
+		struct sk_buff *nskb = skb_copy(skb, GFP_ATOMIC);
+		if (!nskb)
+			return 0;
+		kfree_skb(skb);
+		*pskb = nskb;
+		return 1;
+	} else {
+		unsigned int hdr_len = (skb_transport_offset(skb)
+					+ sizeof(struct tcphdr));
+		return pskb_may_pull(skb, min(hdr_len, skb->len));
+	}
 }

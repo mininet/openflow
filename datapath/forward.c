@@ -12,7 +12,7 @@
 #include <linux/types.h>
 #include "forward.h"
 #include "datapath.h"
-#include "nicira-ext.h"
+#include "openflow/nicira-ext.h"
 #include "dp_act.h"
 #include "nx_msg.h"
 #include "chain.h"
@@ -68,6 +68,8 @@ int run_flow_through_tables(struct sw_chain *chain, struct sk_buff *skb,
 void fwd_port_input(struct sw_chain *chain, struct sk_buff *skb,
 		    struct net_bridge_port *p)
 {
+	WARN_ON_ONCE(skb_shared(skb));
+	WARN_ON_ONCE(skb->destructor);
 	if (run_flow_through_tables(chain, skb, p))
 		dp_output_control(chain->dp, skb, fwd_save_skb(skb), 
 				  chain->dp->miss_send_len,
@@ -120,8 +122,6 @@ recv_packet_out(struct sw_chain *chain, const struct sender *sender,
 {
 	const struct ofp_packet_out *opo = msg;
 	struct sk_buff *skb;
-	struct vlan_ethhdr *mac;
-	int nh_ofs;
 	uint16_t v_code;
 	struct sw_flow_key key;
 	size_t actions_len = ntohs(opo->actions_len);
@@ -143,16 +143,11 @@ recv_packet_out(struct sw_chain *chain, const struct sender *sender,
 		/* FIXME?  We don't reserve NET_IP_ALIGN or NET_SKB_PAD since
 		 * we're just transmitting this raw without examining anything
 		 * at those layers. */
-		memcpy(skb_put(skb, data_len), (uint8_t *)opo->actions + actions_len, 
-				data_len);
-
-		skb_set_mac_header(skb, 0);
-		mac = vlan_eth_hdr(skb);
-		if (likely(mac->h_vlan_proto != htons(ETH_P_8021Q)))
-			nh_ofs = sizeof(struct ethhdr);
-		else
-			nh_ofs = sizeof(struct vlan_ethhdr);
-		skb_set_network_header(skb, nh_ofs);
+		skb_put(skb, data_len);
+		skb_copy_to_linear_data(skb,
+					(uint8_t *)opo->actions + actions_len, 
+					data_len);
+		skb_reset_mac_header(skb);
 	} else {
 		skb = retrieve_skb(ntohl(opo->buffer_id));
 		if (!skb)
@@ -470,6 +465,11 @@ uint32_t fwd_save_skb(struct sk_buff *skb)
 	unsigned long int flags;
 	uint32_t id;
 
+	/* FIXME: Probably just need a skb_clone() here. */
+	skb = skb_copy(skb, GFP_ATOMIC);
+	if (!skb)
+		return -1;
+
 	spin_lock_irqsave(&buffer_lock, flags);
 	buffer_idx = (buffer_idx + 1) & PKT_BUFFER_MASK;
 	p = &buffers[buffer_idx];
@@ -478,9 +478,13 @@ uint32_t fwd_save_skb(struct sk_buff *skb)
 		 * OVERWRITE_SECS old. */
 		if (time_before(jiffies, p->exp_jiffies)) {
 			spin_unlock_irqrestore(&buffer_lock, flags);
+			kfree_skb(skb);
 			return -1;
 		} else {
-			/* Defer kfree_skb() until interrupts re-enabled. */
+			/* Defer kfree_skb() until interrupts re-enabled.
+			 * FIXME: we only need to do that if it has a
+			 * destructor, but it never should since we orphan
+			 * sk_buffs on entry. */
 			old_skb = p->skb;
 		}
 	}
@@ -488,7 +492,6 @@ uint32_t fwd_save_skb(struct sk_buff *skb)
 	 * special. */
 	if (++p->cookie >= (1u << PKT_COOKIE_BITS) - 1)
 		p->cookie = 0;
-	skb_get(skb);
 	p->skb = skb;
 	p->exp_jiffies = jiffies + OVERWRITE_JIFFIES;
 	id = buffer_idx | (p->cookie << PKT_BUFFER_BITS);

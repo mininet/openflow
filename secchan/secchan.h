@@ -40,6 +40,8 @@
 #include "list.h"
 #include "packets.h"
 
+struct secchan;
+
 /* Behavior when the connection to the controller fails. */
 enum fail_mode {
     FAIL_OPEN,                  /* Act as learning switch. */
@@ -79,6 +81,10 @@ struct settings {
 
     /* Spanning tree protocol. */
     bool enable_stp;
+
+    /* Remote command execution. */
+    char *command_acl;          /* Command white/blacklist, as shell globs. */
+    char *command_dir;          /* Directory that contains commands. */
 };
 
 struct half {
@@ -97,18 +103,16 @@ struct relay {
     bool is_mgmt_conn;
 };
 
-struct hook {
-    bool (*packet_cb[2])(struct relay *, void *aux);
+struct hook_class {
+    bool (*local_packet_cb)(struct relay *, void *aux);
+    bool (*remote_packet_cb)(struct relay *, void *aux);
     void (*periodic_cb)(void *aux);
     void (*wait_cb)(void *aux);
-    void *aux;
+    void (*closing_cb)(struct relay *, void *aux);
 };
 
-struct hook make_hook(bool (*local_packet_cb)(struct relay *, void *),
-                      bool (*remote_packet_cb)(struct relay *, void *),
-                      void (*periodic_cb)(void *),
-                      void (*wait_cb)(void *),
-                      void *aux);
+void add_hook(struct secchan *, const struct hook_class *, void *);
+
 struct ofp_packet_in *get_ofp_packet_in(struct relay *);
 bool get_ofp_packet_eth_header(struct relay *, struct ofp_packet_in **,
                                struct eth_header **);

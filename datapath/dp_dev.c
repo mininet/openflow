@@ -4,6 +4,7 @@
 #include <linux/rcupdate.h>
 #include <linux/skbuff.h>
 #include <linux/workqueue.h>
+#include <linux/dmi.h>
 
 #include "datapath.h"
 #include "forward.h"
@@ -61,6 +62,20 @@ static int dp_dev_xmit(struct sk_buff *skb, struct net_device *netdev)
 	struct dp_dev *dp_dev = dp_dev_priv(netdev);
 	struct datapath *dp = dp_dev->dp;
 
+	/* By orphaning 'skb' we will screw up socket accounting slightly, but
+	 * the effect is limited to the device queue length.  If we don't
+	 * do this, then the sk_buff will be destructed eventually, but it is
+	 * harder to predict when. */
+	skb_orphan(skb);
+
+	/* We are going to modify 'skb', by sticking it on &dp_dev->xmit_queue,
+	 * so we need to have our own clone.  (At any rate, fwd_port_input()
+	 * will need its own clone, so there's no benefit to queuing any other
+	 * way.) */
+	skb = skb_share_check(skb, GFP_ATOMIC);
+	if (!skb)
+		return 0;
+
 	dp_dev->stats.tx_packets++;
 	dp_dev->stats.tx_bytes += skb->len;
 
@@ -107,6 +122,44 @@ static int dp_dev_stop(struct net_device *netdev)
 	return 0;
 }
 
+/* Check if the DMI UUID contains a Nicira mac address that should be 
+ * used for this interface.  The UUID is assumed to be RFC 4122
+ * compliant. */
+static void
+set_uuid_mac(struct net_device *netdev)
+{
+	const char *uuid = dmi_get_system_info(DMI_PRODUCT_UUID);
+	const char *uptr = uuid + 24;
+	uint8_t mac[ETH_ALEN];
+	int i;
+
+	if (!uuid || *uuid == '\0' || strlen(uuid) != 36)
+		return;
+
+	/* We are only interested version 1 UUIDs, since the last six bytes
+	 * are an IEEE 802 MAC address. */
+	if (uuid[14] != '1') 
+		return;
+
+	/* Pull out the embedded MAC address.  The kernel's sscanf doesn't
+	 * support field widths on hex digits, so we use this hack. */
+	for (i=0; i<ETH_ALEN; i++) {
+		unsigned char d[3];
+		
+		d[0] = *uptr++;
+		d[1] = *uptr++;
+		d[2] = '\0';
+		
+		mac[i] = simple_strtoul(d, NULL, 16);
+	}
+
+	/* If this is a Nicira one, then use it. */
+	if (mac[0] != 0x00 || mac[1] != 0x23 || mac[2] != 0x20) 
+		return;
+
+	memcpy(netdev->dev_addr, mac, ETH_ALEN);
+}
+
 static void
 do_setup(struct net_device *netdev)
 {
@@ -122,9 +175,14 @@ do_setup(struct net_device *netdev)
 	netdev->flags = IFF_BROADCAST | IFF_MULTICAST;
 
 	random_ether_addr(netdev->dev_addr);
+
+	/* Set the OUI to the Nicira one. */
 	netdev->dev_addr[0] = 0x00;
 	netdev->dev_addr[1] = 0x23;
 	netdev->dev_addr[2] = 0x20;
+
+	/* Set the top bits to indicate random Nicira address. */
+	netdev->dev_addr[3] |= 0xc0;
 }
 
 
@@ -145,6 +203,11 @@ int dp_dev_setup(struct datapath *dp)
 		free_netdev(netdev);
 		return err;
 	}
+
+	/* For "of0", we check the DMI UUID to see if a Nicira mac address
+	 * is available to use instead of the random one just generated. */
+	if (dp->dp_idx == 0) 
+		set_uuid_mac(netdev);
 
 	dp_dev = dp_dev_priv(netdev);
 	dp_dev->dp = dp;

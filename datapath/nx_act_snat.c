@@ -116,23 +116,13 @@ void snat_local_in(struct sk_buff *skb)
 static int
 dnat_mac(struct net_bridge_port *p, struct sk_buff *skb)
 {
-	struct snat_conf *sc;
+	struct snat_conf *sc = p->snat;
 	struct iphdr *iph = ip_hdr(skb);
 	struct ethhdr *eh = eth_hdr(skb);
 	struct snat_mapping *m;
-	unsigned long flags;
 
-	spin_lock_irqsave(&p->lock, flags);
-	sc = p->snat;
-	if (!sc) {
-		spin_unlock_irqrestore(&p->lock, flags);
-		return -EINVAL;
-	}
-
-	if (skb->protocol != htons(ETH_P_IP)) {
-		spin_unlock_irqrestore(&p->lock, flags);
+	if (skb->protocol != htons(ETH_P_IP)) 
 		return 0;
-	}
 
 	list_for_each_entry (m, &sc->mappings, node) {
 		if (m->ip_addr == iph->daddr){
@@ -140,7 +130,6 @@ dnat_mac(struct net_bridge_port *p, struct sk_buff *skb)
 			if (!make_writable(&skb)) {
 				if (net_ratelimit())
 					printk("make_writable failed\n");
-				spin_unlock_irqrestore(&p->lock, flags);
 				return -EINVAL;
 			}
 			m->used = jiffies;
@@ -149,22 +138,62 @@ dnat_mac(struct net_bridge_port *p, struct sk_buff *skb)
 		}
 	}
 
-	spin_unlock_irqrestore(&p->lock, flags);
 	return 0;
+}
+
+static int
+__snat_this_address(struct snat_conf *sc, u32 ip_addr)
+{
+	if (sc) {
+		u32 h_ip_addr = ntohl(ip_addr);
+		return (h_ip_addr >= sc->ip_addr_start &&
+			h_ip_addr <= sc->ip_addr_end);
+	}
+	return 0;
+}
+
+static int
+snat_this_address(struct net_bridge_port *p, u32 ip_addr)
+{
+	unsigned long int flags;
+	int retval;
+
+	spin_lock_irqsave(&p->lock, flags);
+	retval = __snat_this_address(p->snat, ip_addr);
+	spin_unlock_irqrestore(&p->lock, flags);
+
+	return retval;
 }
 
 static int
 snat_pre_route_finish(struct sk_buff *skb)
 {
 	struct net_bridge_port *p = skb->dev->br_port;
+	struct snat_conf *sc;
+	struct iphdr *iph = ip_hdr(skb);
+	unsigned long flags;
 
 	skb->dst = (struct dst_entry *)&__fake_rtable;
 	dst_hold(skb->dst);
 
-	/* If SNAT is configured for this input device, check the IP->MAC
-	 * mappings to see if we should update the destination MAC. */
-	if (p->snat)
-		dnat_mac(skb->dev->br_port, skb);
+	/* Don't process packets that were not translated due to NAT */
+	spin_lock_irqsave(&p->lock, flags);
+	sc = p->snat;
+	if (!__snat_this_address(sc, iph->daddr)) {
+		/* If SNAT is configured for this input device, check the
+		 * IP->MAC mappings to see if we should update the destination
+		 * MAC. */
+		if (sc)
+			dnat_mac(skb->dev->br_port, skb);
+
+	}
+	spin_unlock_irqrestore(&p->lock, flags);
+
+	/* Pass the translated packet as input to the OpenFlow stack, which
+	 * consumes it. */
+	skb_push(skb, ETH_HLEN);
+	skb_reset_mac_header(skb);
+	fwd_port_input(p->dp->chain, skb, p);
 
 	return 0;
 }
@@ -178,28 +207,22 @@ static int
 handle_arp_snat(struct sk_buff *skb)
 {
 	struct net_bridge_port *p = skb->dev->br_port;
-	struct ip_arphdr *ah = (struct ip_arphdr *)arp_hdr(skb);
-	uint32_t ip_addr;
-	unsigned long flags;
-	struct snat_conf *sc;
+	struct ip_arphdr *ah;
 
+	if (!pskb_may_pull(skb, sizeof *ah))
+		return 0;
+
+	ah = (struct ip_arphdr *)arp_hdr(skb);
 	if ((ah->ar_op != htons(ARPOP_REQUEST)) 
 			|| ah->ar_hln != ETH_ALEN
 			|| ah->ar_pro != htons(ETH_P_IP)
 			|| ah->ar_pln != 4)
 		return 0;
 
-	ip_addr = ntohl(ah->ar_tip);
-	spin_lock_irqsave(&p->lock, flags);
-	sc = p->snat;
-
 	/* We're only interested in addresses we rewrite. */
-	if (!sc || (sc && ((ip_addr < sc->ip_addr_start) 
-			|| (ip_addr > sc->ip_addr_end)))) {
-		spin_unlock_irqrestore(&p->lock, flags);
+	if (!snat_this_address(p, ah->ar_tip)) {
 		return 0;
 	}
-	spin_unlock_irqrestore(&p->lock, flags);
 
 	arp_send(ARPOP_REPLY, ETH_P_ARP, ah->ar_sip, skb->dev, ah->ar_tip, 
 			 ah->ar_sha, p->dp->netdev->dev_addr, ah->ar_sha);
@@ -216,41 +239,29 @@ static int
 handle_icmp_snat(struct sk_buff *skb)
 {
 	struct net_bridge_port *p = skb->dev->br_port;
-	struct snat_conf *sc;
 	struct ethhdr *eh;
-	struct iphdr *iph = ip_hdr(skb);
-	uint32_t ip_addr;
+	struct iphdr *iph;
 	struct icmphdr *icmph;
-	unsigned int datalen;
 	uint8_t tmp_eth[ETH_ALEN];
 	uint32_t tmp_ip;
 	struct sk_buff *nskb;
-	unsigned long flags;
-
-
-	ip_addr = ntohl(iph->daddr);
-	spin_lock_irqsave(&p->lock, flags);
-	sc = p->snat;
 
 	/* We're only interested in addresses we rewrite. */
-	if (!sc || (sc && ((ip_addr < sc->ip_addr_start) 
-			|| (ip_addr > sc->ip_addr_end)))) {
-		spin_unlock_irqrestore(&p->lock, flags);
+	iph = ip_hdr(skb);
+	if (!snat_this_address(p, iph->daddr)) {
 		return 0;
 	}
-	spin_unlock_irqrestore(&p->lock, flags);
-
-	icmph = (struct icmphdr *) ((u_int32_t *)iph + iph->ihl);
-	datalen = skb->len - iph->ihl * 4;
 
 	/* Drop fragments and packets not long enough to hold the ICMP
 	 * header. */
-	if (((ntohs(iph->frag_off) & IP_OFFSET) != 0) || datalen < 4) 
+	if ((ntohs(iph->frag_off) & IP_OFFSET) != 0 ||
+	    !pskb_may_pull(skb, skb_transport_offset(skb) + 4))
 		return 0;
 
 	/* We only respond to echo requests to our address.  Continue 
 	 * processing replies and other ICMP messages since they may be 
 	 * intended for NAT'd hosts. */
+	icmph = icmp_hdr(skb);
 	if (icmph->type != ICMP_ECHO)
 		return 0;
 
@@ -262,19 +273,31 @@ handle_icmp_snat(struct sk_buff *skb)
 		return -1;
 	}
 
+	/* Update Ethernet header. */
 	eh = eth_hdr(nskb);
-	iph = ip_hdr(nskb);
-	icmph = (struct icmphdr *) ((u_int32_t *)iph + iph->ihl);
-
-	tmp_ip = iph->daddr;
-	iph->daddr = iph->saddr;
-	iph->saddr = tmp_ip;
-
 	memcpy(tmp_eth, eh->h_dest, ETH_ALEN);
 	memcpy(eh->h_dest, eh->h_source, ETH_ALEN);
 	memcpy(eh->h_source, tmp_eth, ETH_ALEN);
-	
+
+	/* Update IP header.
+	 * This is kind of busted, at least in that it doesn't check that the
+	 * echoed IP options make sense. */
+	iph = ip_hdr(nskb);
+	iph->id = 0;
+	iph->frag_off = 0;
+	iph->ttl = IPDEFTTL;
+	iph->check = 0;
+	tmp_ip = iph->daddr;
+	iph->daddr = iph->saddr;
+	iph->saddr = tmp_ip;
+	iph->check = ip_fast_csum(iph, iph->ihl);
+
+	/* Update ICMP header. */
+	icmph = icmp_hdr(nskb);
 	icmph->type = ICMP_ECHOREPLY;
+	icmph->checksum = 0;
+	icmph->checksum = ip_compute_csum(icmph,
+					  nskb->tail - nskb->transport_header);
 
 	dp_xmit_skb_push(nskb);
 
@@ -286,9 +309,8 @@ handle_icmp_snat(struct sk_buff *skb)
  * modification based on prior SNAT action and responding to ARP and
  * echo requests for the SNAT interface. 
  *
- * Returns 0 if 'skb' should continue to be processed by the caller.
- * Returns -1 if the packet was handled, and the caller should free
- * 'skb'.
+ * Returns -1 if the packet was handled and consumed, 0 if the caller
+ * should continue to process 'skb'.
  */
 int
 snat_pre_route(struct sk_buff *skb)
@@ -296,36 +318,48 @@ snat_pre_route(struct sk_buff *skb)
 	struct iphdr *iph;
 	int len;
 
-	if (skb->protocol == htons(ETH_P_ARP)) 
-		return handle_arp_snat(skb);
+	WARN_ON_ONCE(skb_network_offset(skb));
+	if (skb->protocol == htons(ETH_P_ARP)) {
+		if (handle_arp_snat(skb))
+			goto consume;
+		return 0;
+	}
 	else if (skb->protocol != htons(ETH_P_IP)) 
 		return 0;
 
+	if (!pskb_may_pull(skb, sizeof *iph))
+		goto consume;
+
 	iph = ip_hdr(skb);
 	if (iph->ihl < 5 || iph->version != 4)
-		goto ipv4_error;
+		goto consume;
 
-	if (!pskb_may_pull(skb, iph->ihl*4))
-		goto ipv4_error;
+	if (!pskb_may_pull(skb, ip_hdrlen(skb)))
+		goto consume;
+	skb_set_transport_header(skb, ip_hdrlen(skb));
 
 	/* Check if we need to echo reply for this address */
+	iph = ip_hdr(skb);
 	if ((iph->protocol == IPPROTO_ICMP) && (handle_icmp_snat(skb))) 
-		return -1;
+		goto consume;
 
-	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl)))
-		goto ipv4_error;
+	iph = ip_hdr(skb);
+	if (unlikely(ip_fast_csum(iph, iph->ihl)))
+		goto consume;
 
 	len = ntohs(iph->tot_len);
 	if ((skb->len < len) || len < (iph->ihl*4))
-		goto ipv4_error;
+		goto consume;
 
 	if (pskb_trim_rcsum(skb, len))
-		goto ipv4_error;
+		goto consume;
 
-	return NF_HOOK(PF_INET, NF_INET_PRE_ROUTING, skb, skb->dev, NULL,
-			snat_pre_route_finish);
+	NF_HOOK(PF_INET, NF_INET_PRE_ROUTING, skb, skb->dev, NULL,
+		snat_pre_route_finish);
+	return -1;
 
-ipv4_error:
+consume:
+	kfree_skb(skb);
 	return -1;
 }
 
@@ -342,12 +376,12 @@ snat_skb_finish(struct sk_buff *skb)
 /* Update the MAC->IP mappings for the private side of the SNAT'd
  * interface. */
 static void
-update_mapping(struct net_bridge_port *p, struct sk_buff *skb)
+update_mapping(struct net_bridge_port *p, const struct sk_buff *skb)
 {
 	unsigned long flags;
 	struct snat_conf *sc;
-	struct iphdr *iph = ip_hdr(skb);
-	struct ethhdr *eh = eth_hdr(skb);
+	const struct iphdr *iph = ip_hdr(skb);
+	const struct ethhdr *eh = eth_hdr(skb);
 	struct snat_mapping *m;
 
 	spin_lock_irqsave(&p->lock, flags);
@@ -357,15 +391,15 @@ update_mapping(struct net_bridge_port *p, struct sk_buff *skb)
 	
 	list_for_each_entry (m, &sc->mappings, node) {
 		if (m->ip_addr == iph->saddr){
-			if (memcmp(m->hw_addr, eh->h_source, ETH_ALEN)) {
-				memcpy(m->hw_addr, eh->h_source, ETH_ALEN);
-			}
+			memcpy(m->hw_addr, eh->h_source, ETH_ALEN);
 			m->used = jiffies;
 			goto done;
 		}
 	}
 
 	m = kmalloc(sizeof *m, GFP_ATOMIC);
+	if (!m)
+		goto done;
 	m->ip_addr = iph->saddr;
 	memcpy(m->hw_addr, eh->h_source, ETH_ALEN);
 	m->used = jiffies;
@@ -381,7 +415,7 @@ done:
  * unmodified.  'skb' is not consumed, so caller will need to free it.
  */
 void 
-snat_skb(struct datapath *dp, struct sk_buff *skb, int out_port)
+snat_skb(struct datapath *dp, const struct sk_buff *skb, int out_port)
 {
 	struct net_bridge_port *p = dp->ports[out_port];
 	struct sk_buff *nskb;
@@ -389,6 +423,9 @@ snat_skb(struct datapath *dp, struct sk_buff *skb, int out_port)
 	if (!p)
 		return;
 
+	/* FIXME: Expensive.  Just need to skb_clone() here?
+	 * (However, the skb_copy() does linearize and ensure that the headers
+	 * are accessible.) */
 	nskb = skb_copy(skb, GFP_ATOMIC);
 	if (!nskb)
 		return;
@@ -492,7 +529,7 @@ snat_add_port(struct datapath *dp, uint16_t port,
 	spin_lock_irqsave(&p->lock, flags);
 	if (p->snat) {
 		if ((p->snat->ip_addr_start == ip_addr_start) 
-				&& (p->snat->ip_addr_end = ip_addr_end)) {
+				&& (p->snat->ip_addr_end == ip_addr_end)) {
 			p->snat->mac_timeout = mac_timeout;
 			spin_unlock_irqrestore(&p->lock, flags);
 			return 0;

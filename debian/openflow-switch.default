@@ -4,8 +4,8 @@
 # uncomment them.  Afterward, the secure channel will come up
 # automatically at boot time.  It can be started immediately with
 #       /etc/init.d/openflow-switch start
-# Alternatively, use the ofp-switch-setup program to do everything
-# automatically.
+# Alternatively, use the ofp-switch-setup program (from the
+# openflow-switch-config package) to do everything automatically.
 
 # NETDEVS: Which network devices should the OpenFlow switch include?
 #
@@ -48,7 +48,8 @@ MODE=discovery
 # configured statically or dynamically:
 # 
 # * For static configuration, specify the switch's IP address as a
-#   string.
+#   string.  In this case you may also set SWITCH_NETMASK and
+#   SWITCH_GATEWAY appropriately.
 # 
 # * For dynamic configuration with DHCP (the most common case),
 #   specify "dhcp".  Configuration with DHCP will only work reliably
@@ -57,6 +58,8 @@ MODE=discovery
 #
 # This setting has no effect unless MODE is set to 'in-band'.
 SWITCH_IP=dhcp
+#SWITCH_NETMASK=255.255.255.0
+#SWITCH_GATEWAY=192.168.1.1
 
 # CONTROLLER: Location of controller.
 # One of the following formats:
@@ -90,14 +93,32 @@ SWITCH_IP=dhcp
 #   it is convenient.
 # 
 # Set CACERT_MODE to 'secure' or 'bootstrap' for these respective cases.
-#CACERT=secure
+#CACERT_MODE=secure
 
 # MGMT_VCONNS: List of vconns (space-separated) on which secchan
 # should listen for management connections from dpctl, etc.
-# openflow-switchmon by default connects to
-# unix:/var/run/secchan.socket, so do not disable this if you want to
-# use openflow-switchmon.
-MGMT_VCONNS="punix:/var/run/secchan.socket"
+# openflow-switchui by default connects to
+# unix:/var/run/secchan.mgmt, so do not disable this if you want to
+# use openflow-switchui.
+MGMT_VCONNS="punix:/var/run/secchan.mgmt"
+
+# MONITOR_VCONN:  Name of vconn on which secchan should listen for 
+# monitoring connections from dpctl.
+MONITOR_VCONN="punix:/var/run/secchan.monitor"
+
+# COMMANDS: Access control list for the commands that can be executed
+# remotely over the OpenFlow protocol, as a comma-separated list of
+# shell glob patterns.  Negative patterns (beginning with !) act as a
+# blacklist.  To be executable, a command name must match one positive
+# pattern and not match any negative patterns.
+#COMMANDS="reboot,update"
 
 # DAEMON_OPTS: Additional options to pass to secchan, e.g. "--fail=open"
 DAEMON_OPTS=""
+
+# CORE_LIMIT: Maximum size for core dumps.
+#
+# Leaving this unset will use the system default.  Setting it to 0
+# will disable core dumps.  Setting it to "unlimited" will dump all
+# core files regardless of size.
+#CORE_LIMIT=unlimited

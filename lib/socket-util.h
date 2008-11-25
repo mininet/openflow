@@ -31,10 +31,22 @@
  * derivatives without specific, written prior permission.
  */
 
-#ifndef DIRS_H
-#define DIRS_H 1
+#ifndef SOCKET_UTIL_H
+#define SOCKET_UTIL_H 1
 
-extern const char ofp_rundir[];  /* /usr/local/var/run */
-extern const char ofp_logdir[];  /* /usr/local/var/log */
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <stdbool.h>
 
-#endif /* dirs.h */
+int set_nonblocking(int fd);
+int get_max_fds(void);
+int lookup_ip(const char *host_name, struct in_addr *address);
+int get_socket_error(int sock);
+int check_connection_completion(int fd);
+int drain_rcvbuf(int fd);
+void drain_fd(int fd, size_t n_packets);
+int make_unix_socket(int style, bool nonblock, bool passcred,
+                     const char *bind_path, const char *connect_path);
+int get_unix_name_len(socklen_t sun_len);
+
+#endif /* socket-util.h */

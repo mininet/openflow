@@ -34,6 +34,18 @@ DODTIME=1                   # Time to wait for the server to die, in seconds
                             # 'restart' will not work
 
 # Include secchan defaults if available
+unset NETDEVS
+unset MODE
+unset SWITCH_IP
+unset CONTROLLER
+unset PRIVKEY
+unset CERT
+unset CACERT
+unset CACERT_MODE
+unset MGMT_VCONNS
+unset COMMANDS
+unset DAEMON_OPTS
+unset CORE_LIMIT
 default=/etc/default/openflow-switch
 if [ -f $default ] ; then
 	. $default
@@ -84,7 +96,7 @@ force_stop() {
             kill -9 $pid
             [ -n "$DODTIME" ] && sleep "$DODTIME"s
             if running ; then
-                echo "Cannot kill $LABEL (pid=$pid)!"
+                echo "Cannot kill $NAME (pid=$pid)!"
                 exit 1
             fi
         fi
@@ -131,7 +143,7 @@ configure_ssl() {
         if test ! -e "$CACERT" && test "$CACERT_MODE" != bootstrap; then
             echo "$CACERT: CA certificate missing (and CA certificate bootstrapping not enabled)" >&2
         fi
-        echo "Run ofp-switch-setup or edit /etc/default/openflow-switch to configure" >&2
+        echo "Run ofp-switch-setup (in the openflow-switch-config package) or edit /etc/default/openflow-switch to configure" >&2
         if test "$MODE" = discovery; then
             echo "You may also delete or rename $PRIVKEY to disable SSL requirement" >&2
         fi
@@ -150,7 +162,7 @@ case "$1" in
     start)
         if test -z "$NETDEVS"; then
             echo "$default: No network devices configured, switch disabled" >&2
-            echo "Run ofp-switch-setup or edit /etc/default/openflow-switch to configure" >&2
+            echo "Run ofp-switch-setup (in the openflow-switch-config package) or edit /etc/default/openflow-switch to configure" >&2
             exit 0
         fi
         if test "$MODE" = discovery; then
@@ -158,12 +170,12 @@ case "$1" in
         elif test "$MODE" = in-band || test "$MODE" = out-of-band; then
             if test -z "$CONTROLLER"; then
                 echo "$default: No controller configured and not configured for discovery, switch disabled" >&2
-                echo "Run ofp-switch-setup or edit /etc/default/openflow-switch to configure" >&2
+                echo "Run ofp-switch-setup (in the openflow-switch-config package) or edit /etc/default/openflow-switch to configure" >&2
                 exit 0
             fi
         else
             echo "$default: MODE must set to 'discovery', 'in-band', or 'out-of-band'" >&2
-            echo "Run ofp-switch-setup or edit /etc/default/openflow-switch to configure" >&2
+            echo "Run ofp-switch-setup (in the openflow-switch-config package) or edit /etc/default/openflow-switch to configure" >&2
             exit 1
         fi
         : ${PRIVKEY:=/etc/openflow-switch/of0-privkey.pem}
@@ -183,15 +195,17 @@ case "$1" in
                 ;;
             *)
                 echo "$default: CONTROLLER must be in the form 'ssl:HOST[:PORT]' or 'tcp:HOST[:PORT]' when not in discovery mode" >&2
-                echo "Run ofp-switch-setup or edit /etc/default/openflow-switch to configure" >&2
+                echo "Run ofp-switch-setup (in the openflow-switch-config package) or edit /etc/default/openflow-switch to configure" >&2
                 exit 1
         esac
 
         echo -n "Loading openflow_mod: "
-        if modprobe openflow_mod; then
+        if grep -q '^openflow_mod$' /proc/modules; then
+            echo "already loaded, nothing to do."
+        elif modprobe openflow_mod; then
             echo "success."
         else
-            echo " ERROR."
+            echo "ERROR."
             echo "openflow_mod has probably not been built for this kernel."
             if ! test -d /usr/share/doc/openflow-datapath-source; then
                 echo "Install the openflow-datapath-source package, then read"
@@ -212,7 +226,17 @@ case "$1" in
             if test "$SWITCH_IP" = dhcp; then
                 must_succeed "Temporarily disabling of0" ifconfig of0 down
             else
-                must_succeed "Configuring of0 as $SWITCH_IP" ifconfig of0 $SWITCH_IP
+                COMMAND="ifconfig of0 $SWITCH_IP"
+                if test -n "$SWITCH_NETMASK"; then
+                    COMMAND="$COMMAND netmask $SWITCH_NETMASK"
+                fi
+                must_succeed "Configuring of0: $COMMAND" $COMMAND
+                if test -n "$SWITCH_GATEWAY"; then
+                    # This can fail because the route already exists,
+                    # so we don't insist that it succeed.
+                    COMMAND="route add default gw $SWITCH_GATEWAY"
+                    check_op "Adding default route: $COMMAND" $COMMAND
+                fi
             fi
         else
             must_succeed "Disabling of0" ifconfig of0 down
@@ -223,10 +247,29 @@ case "$1" in
             MGMT_OPTS="$MGMT_OPTS --listen=$vconn"
         done
 
+        MONITOR_OPT=
+        if test -n "$MONITOR_VCONN"; then
+            MONITOR_OPT="--monitor=$MONITOR_VCONN"
+        fi
+
+        COMMAND_OPT=
+        if test -n "$COMMANDS"; then
+            COMMAND_OPT="--command-acl=$COMMANDS"
+        fi
+
+        if test "$MODE" = out-of-band; then
+            DAEMON_OPTS="$DAEMON_OPTS --out-of-band"
+        fi
+
+        if test -n "$CORE_LIMIT"; then
+            check_op "Setting core limit to $CORE_LIMIT" ulimit -c "$CORE_LIMIT"
+        fi
+
 	echo -n "Starting $DESC: "
 	start-stop-daemon --start --quiet --pidfile $PIDFILE \
 	    --exec $DAEMON -- nl:0 $CONTROLLER --detach --pidfile=$PIDFILE \
-            --verbose=ANY:console:emer $DAEMON_OPTS $MGMT_OPTS $SSL_OPTS
+            --verbose=ANY:console:emer --verbose=ANY:syslog:err --log-file \
+            $DAEMON_OPTS $MGMT_OPTS $MONITOR_OPT $SSL_OPTS "$COMMAND_OPT"
         if running; then
             echo "$NAME."
         else
@@ -261,6 +304,7 @@ case "$1" in
             check_op "Removing $netdev from datapath" dpctl delif nl:0 $netdev
         done
         check_op "Deleting datapath" dpctl deldp nl:0
+        check_op "Unloading kernel module" modprobe -r openflow_mod
 	;;
     force-stop)
 	echo -n "Forcefully stopping $DESC: "
@@ -284,7 +328,7 @@ case "$1" in
         $0 start
 	;;
     status)
-        echo -n "$LABEL is "
+        echo -n "$NAME is "
         if running ;  then
             echo "running"
         else
