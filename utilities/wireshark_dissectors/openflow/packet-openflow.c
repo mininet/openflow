@@ -101,7 +101,7 @@ static const value_string names_ofp_action_type[] = {
 // FIXME: kinda equal to 20
 #define NUM_WILDCARDS 8
 #define NUM_CAPABILITIES_FLAGS 6
-#define NUM_CONFIG_FLAGS 2
+#define NUM_CONFIG_FLAGS 1
 #define NUM_SF_REPLY_FLAGS 1
 
 /** yes/no for bitfields field */
@@ -152,6 +152,14 @@ static const value_string names_ofp_flow_expired_reason[] = {
     { OFPER_IDLE_TIMEOUT, "Flow idle time exceeded idle_timeout" },
     { OFPER_HARD_TIMEOUT, "Time exceeded hard_timeout" },  
     { 0,                  NULL }
+};
+
+/** names from ofp_flow_expired_reason */
+static const value_string names_ip_frag[] = {
+    { OFPC_FRAG_NORMAL, "No special handling for fragments." },
+    { OFPC_FRAG_DROP,   "Drop fragments." },
+    { OFPC_FRAG_REASM,  "Reassemble (only if OFPC_IP_REASM set)" },    
+    { 0,                NULL }
 };
 
 
@@ -245,6 +253,7 @@ static gint ofp_switch_features_ports_warn = -1;
 static gint ofp_switch_config               = -1;
 static gint ofp_switch_config_flags_hdr = -1;
 static gint ofp_switch_config_flags[NUM_CONFIG_FLAGS];
+static gint ofp_switch_config_flags_ip_frag = -1;
 static gint ofp_switch_config_miss_send_len = -1;
 
 static gint ofp_flow_mod              = -1;
@@ -804,7 +813,7 @@ void proto_register_openflow()
           { "Type", "of.action_type", FT_UINT16, BASE_DEC, VALS(names_ofp_action_type), NO_MASK, "Type", HFILL }},
 
         { &ofp_action_len,
-          { "Len", "of.action_len", FT_UINT16, BASE_DEC, VALS(names_ofp_action_type), NO_MASK, "Len", HFILL }},
+          { "Len", "of.action_len", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Len", HFILL }},
           
         { &ofp_action_vlan_vid,
           { "VLAN ID", "of.action_vlan_vid", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "VLAN ID", HFILL }},
@@ -940,7 +949,10 @@ void proto_register_openflow()
         { &ofp_switch_config_flags[0],
           { "  Send flow expirations", "of.sc_flags_send_flow_exp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_SEND_FLOW_EXP, "Send flow expirations", HFILL }},
 
-        { &ofp_switch_config_flags[1],
+        { &ofp_switch_config_flags_ip_frag,
+          { "  Handling of IP fragments", "of.sc_flags_ip_frag", FT_UINT8, BASE_DEC, VALS(names_ip_frag), NO_MASK, "Handling of IP fragments", HFILL }},
+      
+/*        { &ofp_switch_config_flags[1],
           { "  No special fragment handling", "of.sc_flags_frag_normal", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_FRAG_NORMAL, "No special fragment handling", HFILL }},
 
         { &ofp_switch_config_flags[2],
@@ -948,7 +960,8 @@ void proto_register_openflow()
  
         { &ofp_switch_config_flags[3],
           { "  Reassemble (only if OFPC_IP_REASM set)", "of.sc_flags_frag_reasm", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_FRAG_REASM, "Reassemble (only if OFPC_IP_REASM set)", HFILL }},
-            
+
+*/            
         { &ofp_switch_config_miss_send_len,
           { "Max Bytes of New Flow to Send to Controller", "of.sc_miss_send_len", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Max Bytes of New Flow to Send to Controller", HFILL } },
 
@@ -1575,6 +1588,8 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
 
 static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offset)
 {
+    guint16 len = tvb_get_ntohs( tvb, *offset );
+	
     /* add the output port */
     dissect_port( tree, ofp_action_output_port, tvb, offset );
 
@@ -1590,31 +1605,28 @@ static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offs
 }
 
 /** returns the number of bytes dissected (-1 if an unknown action type is
- *  encountered; and 12 for all other actions as of 0x83) */
+ *  encountered; and 8/16 for all other actions as of 0x96) */
 static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
 {
     guint32 offset_start = *offset;
     guint16 type = tvb_get_ntohs( tvb, *offset );
 	guint16 len = tvb_get_ntohs( tvb, *offset + 2);
 	
-	// FIXME: verify len = 8 or 16 only
-	if (!(len == 8 || len == 16)) {
-		printf("wrong length field: %d\n", len);
-	}
-	
-    //proto_item *action_item = proto_tree_add_item(tree, ofp_action, tvb, *offset, sizeof(struct ofp_action), FALSE);
-    // FIXME: assert that len = 8 or 16
     proto_item *action_item = proto_tree_add_item(tree, ofp_action, tvb, *offset, len, FALSE);
     proto_tree *action_tree = proto_item_add_subtree(action_item, ett_ofp_action);
 
+    if (!(len == 8 || len == 16)) { 
+        add_child_str(action_tree, ofp_action_unknown, tvb, &offset, len, "Invalid Action Length");
+        return -1;
+    }
+    
     add_child( action_tree, ofp_action_type, tvb, offset, 2 );
     add_child( action_tree, ofp_action_len, tvb, offset, 2 );
 
     switch( type ) {
-    case OFPAT_OUTPUT: {
+    case OFPAT_OUTPUT:
         dissect_action_output(action_tree, tvb, offset);
         break;
-    }
 
     case OFPAT_SET_VLAN_VID:
         add_child( action_tree, ofp_action_vlan_vid, tvb, offset, 2 );
@@ -1663,7 +1675,7 @@ static void dissect_action_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     
     // FIXME: decide which action we're looking at, use that to parse remaining fields.  
     
-    proto_item* action_item = proto_tree_add_item(tree, ofp_action_output, tvb, offset, -1, FALSE);
+    proto_item* action_item = proto_tree_add_item(tree, ofp_action_output, tvb, offset, total_len, FALSE);
     proto_tree* action_tree = proto_item_add_subtree(action_item, ett_ofp_action_output);
 
     if( total_len == 0 )
@@ -1698,8 +1710,13 @@ static void dissect_switch_config_flags(tvbuff_t *tvb, packet_info *pinfo, proto
     proto_item *sf_pc_item = proto_tree_add_item(tree, ofp_switch_config_flags_hdr, tvb, offset, field_size, FALSE);
     proto_tree *sf_pc_tree = proto_item_add_subtree(sf_pc_item, ett_ofp_switch_config_flags_hdr);
     gint i;
-    for(i=0; i<NUM_PORT_CONFIG_FLAGS; i++)
-        add_child_const(sf_pc_tree, ofp_switch_config_flags[i], tvb, offset, field_size);
+
+    //for(i=0; i<NUM_PORT_CONFIG_FLAGS; i++)
+    add_child_const(sf_pc_tree, ofp_switch_config_flags[0], tvb, offset, field_size);
+    
+    // handle IP fragmentation flags
+    // FIXME: is add_child_const the right thing to use here?
+    add_child_const(sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, field_size);
 }
 
 static void dissect_switch_features_actions(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, guint field_size) {
@@ -1793,7 +1810,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         ofp_tree = proto_item_add_subtree(item, ett_ofp);
 
         /* put the header in its own node as a child of the openflow node */
-        sub_item = proto_tree_add_item( ofp_tree, ofp_header, tvb, offset, -1, FALSE );
+        sub_item = proto_tree_add_item( ofp_tree, ofp_header, tvb, offset, 8, FALSE );
         header_tree = proto_item_add_subtree(sub_item, ett_ofp_header);
 
         if( ver_warning )
@@ -1966,9 +1983,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             type_item = proto_tree_add_item(ofp_tree, ofp_packet_out, tvb, offset, -1, FALSE);
             type_tree = proto_item_add_subtree(type_item, ett_ofp_packet_out);
 
-            /* explicitly pull out the buffer id so we can use it to determine
-               what the last field is */
-            
+            /* get buffer_id value for later use */
             guint32 buffer_id = tvb_get_ntohl( tvb, offset );
             
             if( buffer_id == 0xFFFFFFFF )
@@ -1978,7 +1993,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 add_child_str(type_tree, ofp_packet_out_buffer_id, tvb, &offset, 4, str);
             }
             
-            /* check whether in_port exists */
+            /* display in port */
             // FIXME: bug in dissect_port for latest version
             dissect_port(type_tree, ofp_packet_out_in_port, tvb, &offset);
             
