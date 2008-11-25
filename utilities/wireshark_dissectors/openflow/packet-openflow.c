@@ -99,7 +99,6 @@ static const value_string names_ofp_action_type[] = {
 #define NUM_PORT_CONFIG_FLAGS 4
 #define NUM_PORT_STATE_FLAGS 1
 #define NUM_PORT_FEATURES_FLAGS 12
-// FIXME: kinda equal to 20
 #define NUM_WILDCARDS 8
 #define NUM_CAPABILITIES_FLAGS 6
 #define NUM_CONFIG_FLAGS 1
@@ -1526,16 +1525,15 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
     }
 }
 
-static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
+static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
 {
-    int i;
-    proto_item *match_item = proto_tree_add_item(tree, ofp_match, tvb, *offset, sizeof(struct ofp_match), FALSE);
-    proto_tree *match_tree = proto_item_add_subtree(match_item, ett_ofp_match);
-    
-    /* add wildcard subtree */
-    guint32 wildcards = tvb_get_ntohl( tvb, *offset );
     proto_item *wild_item = proto_tree_add_item(match_tree, ofp_match_wildcards_hdr, tvb, *offset, 2, FALSE);
     proto_tree *wild_tree = proto_item_add_subtree(wild_item, ett_ofp_match_wildcards_hdr);
+    
+	/* add wildcard subtree */
+    guint32 wildcards = tvb_get_ntohl( tvb, *offset );   
+    
+    int i;
     for(i=0; i<NUM_WILDCARDS; i++)
         add_child_const(wild_tree, ofp_match_wildcards[i], tvb, *offset, 2 );
     *offset += 4;
@@ -1549,7 +1547,18 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     guint8 nw_dst_bits = (wildcards & OFPFW_NW_DST_MASK) >> OFPFW_NW_DST_SHIFT;
     snprintf( str, 11, "%u", nw_dst_bits );
     add_child_str( wild_tree, ofp_match_nw_dst_mask_bits, tvb, offset, 0, str );
+}
+
+static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
+{
+    proto_item *match_item = proto_tree_add_item(tree, ofp_match, tvb, *offset, sizeof(struct ofp_match), FALSE);
+    proto_tree *match_tree = proto_item_add_subtree(match_item, ett_ofp_match);
     
+	/* save wildcards field for later */
+    guint32 wildcards = tvb_get_ntohl( tvb, *offset );   
+    
+    dissect_wildcards(match_tree, match_item, tvb, pinfo, &offset);
+
     /* show only items whose corresponding wildcard bit is not set */
     if( ~wildcards & OFPFW_IN_PORT )
         dissect_port(match_tree, ofp_match_in_port, tvb, offset);
@@ -2210,8 +2219,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     proto_tree *table_tree = proto_item_add_subtree(table_item, ett_ofp_table_stats);
 
                     add_child(table_tree, ofp_table_stats_table_id, tvb, &offset, 1);
-                    dissect_pad(table_tree, &offset, 3);             
-                    add_child(table_tree, ofp_table_stats_name, tvb, &offset, OFP_MAX_TABLE_NAME_LEN);
+                    dissect_pad(table_tree, &offset, 3);
+                    dissect_wildcards(table_tree, table_item, tvb, pinfo, &offset);                    
                     add_child(table_tree, ofp_table_stats_wildcards, tvb, &offset, 4);       
                     add_child(table_tree, ofp_table_stats_max_entries, tvb, &offset, 4);
                     add_child(table_tree, ofp_table_stats_active_count, tvb, &offset, 4);
@@ -2246,7 +2255,6 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             }
 
             case OFPST_VENDOR: {
-            	// FIXME: add vendor stats
                 proto_item* vendor_item = proto_tree_add_item(type_tree, ofp_vendor_stats, tvb, offset, -1, FALSE);
                 proto_tree* vendor_tree = proto_item_add_subtree(vendor_item, ett_ofp_vendor_stats);
 
