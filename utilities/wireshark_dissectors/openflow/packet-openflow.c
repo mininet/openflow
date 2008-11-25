@@ -957,7 +957,7 @@ void proto_register_openflow()
           { "  Send flow expirations", "of.sc_flags_send_flow_exp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_SEND_FLOW_EXP, "Send flow expirations", HFILL }},
 
         { &ofp_switch_config_flags_ip_frag,
-          { "  Handling of IP fragments", "of.sc_flags_ip_frag", FT_UINT8, BASE_DEC, VALS(names_ip_frag), NO_MASK, "Handling of IP fragments", HFILL }},
+          { "  Handling of IP fragments", "of.sc_flags_ip_frag", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Handling of IP fragments", HFILL }},
       
 /*        { &ofp_switch_config_flags[1],
           { "  No special fragment handling", "of.sc_flags_frag_normal", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_FRAG_NORMAL, "No special fragment handling", HFILL }},
@@ -1726,12 +1726,21 @@ static void dissect_switch_config_flags(tvbuff_t *tvb, packet_info *pinfo, proto
     proto_tree *sf_pc_tree = proto_item_add_subtree(sf_pc_item, ett_ofp_switch_config_flags_hdr);
     gint i;
 
-    //for(i=0; i<NUM_PORT_CONFIG_FLAGS; i++)
-    add_child_const(sf_pc_tree, ofp_switch_config_flags[0], tvb, offset, field_size);
-    
-    // handle IP fragmentation flags
-    // FIXME: is add_child_const the right thing to use here?
-    add_child_const(sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, field_size);
+    /* grab the IP fragmentation state */
+    guint16 flags = tvb_get_ntohs( tvb, offset );
+
+    if (flags & OFPC_SEND_FLOW_EXP)
+    	add_child_const(sf_pc_tree, ofp_switch_config_flags[0], tvb, offset, field_size);
+
+    guint16 frag_state = flags & OFPC_FRAG_MASK;
+    if (frag_state == OFPC_FRAG_NORMAL)
+    	add_child_str_const( sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, 2, "No special handling for fragments" );
+    else if (frag_state == OFPC_FRAG_DROP)
+    	add_child_str_const( sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, 2, "Drop fragments" );
+    else if (frag_state == OFPC_FRAG_REASM)
+    	add_child_str_const( sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, 2, "Reassemble (only if OFPC_IP_REASM set)" );
+    else	
+    	add_child_str_const( sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, 2, "Unknown IP fragmentation states" );    
 }
 
 static void dissect_switch_features_actions(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, guint field_size) {
