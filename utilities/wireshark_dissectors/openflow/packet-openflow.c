@@ -4,8 +4,9 @@
  * Changelog:
  * dgu 	     2008-Aug-26 created
  * brandonh  2008-Oct-5  updated to 0x95
+ * brandonh  2008-Nov-25 updated to 0x96 + bugfixes
  *
- * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x95.
+ * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x96.
  */
 
 /** the version of openflow this dissector was written for */
@@ -1030,7 +1031,7 @@ void proto_register_openflow()
           { "Priority", "of.fm_priority", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Priority", HFILL } },          
           
         { &ofp_flow_mod_buffer_id,
-          { "Buffer ID", "of.fm_buffer_id", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Buffer ID", HFILL } },
+          { "Buffer ID", "of.fm_buffer_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Buffer ID", HFILL } },
 
         { &ofp_flow_mod_reserved,
           { "Reserved", "of.fm_reserved", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Reserved", HFILL } },
@@ -2056,7 +2057,17 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(type_tree, ofp_flow_mod_idle_timeout, tvb, &offset, 2);
             add_child(type_tree, ofp_flow_mod_hard_timeout, tvb, &offset, 2);
             add_child(type_tree, ofp_flow_mod_priority, tvb, &offset, 2);
-            add_child(type_tree, ofp_flow_mod_buffer_id, tvb, &offset, 4);
+            
+            /* get buffer_id value for later use */
+            guint32 buffer_id = tvb_get_ntohl( tvb, offset );
+            
+            if( buffer_id == 0xFFFFFFFF )
+                add_child_str(type_tree, ofp_flow_mod_buffer_id, tvb, &offset, 4, "None");
+            else {
+                snprintf(str, STR_LEN, "%u", buffer_id);
+                add_child_str(type_tree, ofp_flow_mod_buffer_id, tvb, &offset, 4, str);
+            }
+            
             add_child(type_tree, ofp_flow_mod_reserved, tvb, &offset, 4);
             dissect_action_array(tvb, pinfo, type_tree, len, offset);
             break;
