@@ -63,7 +63,7 @@ foreach my $type ('enum', 'struct', 'define') {
  mkdir $type;
 }
 
-open(INFILE, "<../../include/openflow.h");
+open(INFILE, "<../../include/openflow/openflow.h");
 
 my $last_comment;
 while(<INFILE>)
