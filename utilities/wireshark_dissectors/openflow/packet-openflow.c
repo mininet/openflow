@@ -2167,7 +2167,6 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     dissect_pad(flow_tree, &offset, 1);
                     dissect_match(flow_tree, flow_item, tvb, pinfo, &offset);
                     add_child(flow_tree, ofp_flow_stats_reply_duration, tvb, &offset, 4);
-                 
                     add_child(flow_tree, ofp_flow_stats_reply_priority, tvb, &offset, 2);
                     add_child(flow_tree, ofp_flow_stats_reply_idle_timeout, tvb, &offset, 2);
                     add_child(flow_tree, ofp_flow_stats_reply_hard_timeout, tvb, &offset, 2);
@@ -2189,9 +2188,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 add_child(aggr_tree, ofp_aggr_stats_reply_byte_count, tvb, &offset, 8);
                 add_child(aggr_tree, ofp_aggr_stats_reply_flow_count, tvb, &offset, 4);
 
-                if (OFP_VERSION >= 0x85) {
-                    dissect_pad(aggr_tree, &offset, 4);
-                }
+                dissect_pad(aggr_tree, &offset, 4);
                 break;
             }
 
@@ -2202,13 +2199,12 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     proto_tree *table_tree = proto_item_add_subtree(table_item, ett_ofp_table_stats);
 
                     add_child(table_tree, ofp_table_stats_table_id, tvb, &offset, 1);
-                    dissect_pad(table_tree, &offset, 3);
+                    dissect_pad(table_tree, &offset, 3);             
                     add_child(table_tree, ofp_table_stats_name, tvb, &offset, OFP_MAX_TABLE_NAME_LEN);
+                    add_child(table_tree, ofp_table_stats_wildcards, tvb, &offset, 4);       
                     add_child(table_tree, ofp_table_stats_max_entries, tvb, &offset, 4);
                     add_child(table_tree, ofp_table_stats_active_count, tvb, &offset, 4);
-                    if (OFP_VERSION >= 0x85) {
-                        dissect_pad(table_tree, &offset, 2);
-                    }
+                    add_child(table_tree, ofp_table_stats_lookup_count, tvb, &offset, 8);
                     add_child(table_tree, ofp_table_stats_matched_count, tvb, &offset, 8);
                 }
                 break;
