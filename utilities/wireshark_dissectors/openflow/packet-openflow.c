@@ -27,7 +27,7 @@
 #include <epan/prefs.h>
 #include <string.h>
 #include <arpa/inet.h>
-#include <openflow.h>
+#include <openflow/openflow.h>
 
 /** if 0, padding bytes will not be shown in the dissector */
 #define SHOW_PADDING 0

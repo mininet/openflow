@@ -33,7 +33,7 @@ mkdir $tmpdir
 cp -r ../ "$tmpdir/$topdir"
 
 # add the openflow header to the build folder which is in the include search path
-cp ../../../include/openflow.h "$builddir/"
+cp ../../../include/openflow/openflow.h "$builddir/"
 
 # cleanup the contents of the build folder
 cd "$builddir"
