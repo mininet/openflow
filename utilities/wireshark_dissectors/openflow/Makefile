@@ -33,7 +33,7 @@ else
 endif
 
 # specify the port on which event capture packets will be destined
-DISSECT_PORT = -DOPENFLOW_DST_TCP_PORT=975
+DISSECT_PORT = -DOPENFLOW_DST_TCP_PORT=6633
 
 OSTYPE = $(shell uname)
 ifeq ($(OSTYPE),Linux)

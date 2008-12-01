@@ -51,6 +51,7 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &wait_for_one_packet_in
   &verify_header
   &get_of_ver
+  &get_of_port
   &get_of_miss_send_len_default
   &enable_flow_expirations
   &get_default_black_box_pkt
@@ -70,10 +71,17 @@ if (! -e "$openflow_dir/include/openflow/openflow.h") {
 	die "please set OF_ROOT in path so that OFUtil.pm can extract constants"
 }
 
-use constant CURRENT_OF_VER => 0x96;
+sub get_define {
+	my $val = shift;
+	my $retval = `grep \"#define $val \" \$OF_ROOT/include/openflow/openflow.h | awk '{print \$3}'`;
+	chomp $retval;
+	return $retval;
+}
 
-# data length forwarded to the controller if miss (used in do_hello_sequence)
-use constant MISS_SEND_LEN_DEFAULT => 0x80;
+# extract #defines from openflow.h
+my $of_ver = get_define('OFP_VERSION');
+my $of_port = get_define('OFP_TCP_PORT');
+my $of_miss_send_len = get_define('OFP_DEFAULT_MISS_SEND_LEN');
 
 # sending/receiving interfaces - NOT OpenFlow ones
 my @interfaces = ( "eth1", "eth2", "eth3", "eth4" );
@@ -435,7 +443,7 @@ sub do_hello_sequence {
 	my ( $ofp, $sock ) = @_;
 
 	my $hdr_args_hello = {
-		version => CURRENT_OF_VER,
+		version => $of_ver,
 		type 	=> $enums{'OFPT_HELLO'},
 		length  => $ofp->sizeof('ofp_header'),
 		xid 	=> 0
@@ -477,7 +485,7 @@ sub get_switch_features {
 	my ( $ofp, $sock ) = @_;
 
 	my $hdr_args_features_request = {
-		version => CURRENT_OF_VER,
+		version => $of_ver,
 		type    => $enums{'OFPT_FEATURES_REQUEST'},
 		length  => $ofp->sizeof('ofp_header'),        # should generate automatically!
 		xid     => 0x00000000
@@ -515,7 +523,7 @@ sub get_config {
 	my ( $ofp, $sock ) = @_;
 
 	my $hdr_args_get_config_request = {
-		version => CURRENT_OF_VER,
+		version => $of_ver,
 		type    => $enums{'OFPT_GET_CONFIG_REQUEST'},
 		length  => $ofp->sizeof('ofp_header'),
 		xid     => 0x0000000
@@ -554,7 +562,7 @@ sub set_config {
 	my ( $ofp, $sock, $flags, $miss_send_len ) = @_;
 
 	my $hdr_args = {
-		version => CURRENT_OF_VER,
+		version => $of_ver,
 		type    => $enums{'OFPT_SET_CONFIG'},
 		length  => $ofp->sizeof('ofp_switch_config'),
 		xid     => 0x0000000
@@ -579,7 +587,7 @@ sub run_black_box_test {
 	my %options = nftest_init( $argv_ref, \@interfaces, );
 
 	my $host = 'localhost';
-	my $port = 975;
+	my $port = $of_port;
 	# extract host and port from controller string if passed in
 	if (defined $options{'controller'}) {
 		($host, $port) = split(/:/,$options{'controller'});
@@ -662,7 +670,7 @@ sub create_flow_mod_from_udp_action {
 	}
 
 	my $hdr_args = {
-		version => CURRENT_OF_VER,
+		version => $of_ver,
 		type    => $enums{'OFPT_FLOW_MOD'},
 		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output'),
 		xid     => 0x0000000
@@ -787,7 +795,7 @@ sub wait_for_flow_expired_total_bytes {
 	#print Dumper($msg);
 
 	# Verify fields
-	compare( "header version", $$msg{'header'}{'version'}, '==', CURRENT_OF_VER );
+	compare( "header version", $$msg{'header'}{'version'}, '==', $of_ver );
 	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_EXPIRED'} );
 	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
 	compare( "byte_count",     $$msg{'byte_count'},        '==', $bytes );
@@ -804,13 +812,13 @@ sub wait_for_one_packet_in {
 	my ( $ofp, $sock, $pkt_len, $pkt ) = @_;
 
 	my $pkt_in_msg_size;    # read size from socket
-	if ( $pkt_len < MISS_SEND_LEN_DEFAULT ) {
+	if ( $pkt_len < $of_miss_send_len ) {
 
 		# Due to padding, the size of ofp_packet_in header is $ofp->sizeof('ofp_packet_in')-2
 		$pkt_in_msg_size = ( $ofp->sizeof('ofp_packet_in') - 2 ) + $pkt_len;
 	}
 	else {
-		$pkt_in_msg_size = ( $ofp->sizeof('ofp_packet_in') - 2 ) + MISS_SEND_LEN_DEFAULT;
+		$pkt_in_msg_size = ( $ofp->sizeof('ofp_packet_in') - 2 ) + $of_miss_send_len;
 	}
 
 	my $recvd_mesg;
@@ -827,7 +835,7 @@ sub wait_for_one_packet_in {
 	#	print Dumper($msg);
 
 	# Verify fields
-	compare( "header version", $$msg{'header'}{'version'}, '==', CURRENT_OF_VER );
+	compare( "header version", $$msg{'header'}{'version'}, '==', $of_ver );
 	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_PACKET_IN'} );
 	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
 	compare( "header length",  $$msg{'total_len'},         '==', $pkt_len );
@@ -848,17 +856,21 @@ sub verify_header {
 
 	my ( $msg, $ofpt, $msg_size ) = @_;
 
-	compare( "header version", $$msg{'header'}{'version'}, '==', CURRENT_OF_VER );
+	compare( "header version", $$msg{'header'}{'version'}, '==', $of_ver );
 	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{$ofpt} );
 	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
 }
 
 sub get_of_ver {
-	return CURRENT_OF_VER;
+	return $of_ver;
+}
+
+sub get_of_port {
+	return $of_port;
 }
 
 sub get_of_miss_send_len_default {
-	return MISS_SEND_LEN_DEFAULT;
+	return $of_miss_send_len;
 }
 
 sub enable_flow_expirations {
@@ -866,7 +878,7 @@ sub enable_flow_expirations {
 	my ( $ofp, $sock ) = @_;
 
 	my $flags         = 1;                       # OFPC_SEND_FLOW_EXP = 0x0001;
-	my $miss_send_len = MISS_SEND_LEN_DEFAULT;
+	my $miss_send_len = $of_miss_send_len;
 	set_config( $ofp, $sock, $flags, $miss_send_len );
 }
 

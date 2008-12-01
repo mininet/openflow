@@ -10,6 +10,7 @@
 use OF::Base;
 use Test::RegressTest; 
 use strict; 
+use OF::OFUtil;
 
 # check vars are set.
 check_OF_vars_set();
@@ -21,6 +22,7 @@ sub INT_Handler {
 	exit(1);
 }
 
-push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=hp", "--controller=10.9.8.4:975", "--port_base=1";
+my $of_port = get_of_port();
+push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=hp", "--controller=10.9.8.4:$of_port", "--port_base=1";
 
 run_regress_test( \&INT_Handler, @ARGV );
