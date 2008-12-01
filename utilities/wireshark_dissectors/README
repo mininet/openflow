@@ -7,11 +7,10 @@ I) Installation
 
 1) Install glib-devel; on Debian this can be done with 'sudo apt-get install libgtk2.0-dev'
 2) Install wireshark v1.0.0 or greater
-3) tar -zxvf openflow_wireshark_dissector-X.Y.Z.tgz
-4) cd wireshark_dissectors/openflow
-5) make
-6) sudo make install
-6a) Note that this prints out where the plugin was installed.
+3) cd wireshark_dissectors/openflow
+4) make
+5) sudo make install
+5a) Note that this prints out where the plugin was installed.
 
 
 ----------------------------------------
@@ -26,7 +25,12 @@ II) Installation Verification
 
 
 ----------------------------------------
-III) Feedback and Bug Reporting
+III) Port Changes
+
+To have the dissector handle OpenFlow packets for any port other than the default, you must change the DISSECT_PORT variable in utilities/wireshark_dissectors/oepnflow/Makefile.
+
+----------------------------------------
+IV) Feedback and Bug Reporting
 
 Please post a message on the OpenFlow forums at openflowswitch.org or email
 David Underhill at dgu@cs.stanford.edu if you have any feedback or discover any
