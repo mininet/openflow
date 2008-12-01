@@ -13,7 +13,7 @@ sub send_expect_exact {
 	
 	# in_port refers to the flow mod entry's input
 
-	my $test_pkt_args = {
+	my $test_pkt_frag_args = {
 		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
 		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
 		src_ip => "192.168.200." .     ( $in_port + 1 ),
@@ -22,6 +22,19 @@ sub send_expect_exact {
 		len    => $pkt_len,
 		frag     => 0x2fff,    # IP_frag > IP_len
 		src_port => 1,
+		dst_port => 0
+	};
+	my $test_pkt_frag = new NF2::UDP_pkt(%$test_pkt_frag_args);
+
+	my $test_pkt_args = {
+		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
+		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
+		src_ip => "192.168.200." .     ( $in_port + 1 ),
+		dst_ip => "192.168.201." .     ( $out_port + 1 ),
+		ttl    => 64,
+		len    => $pkt_len,
+		frag     => 0, 
+		src_port => 0,
 		dst_port => 0
 	};
 	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
@@ -41,8 +54,8 @@ sub send_expect_exact {
 	usleep($$options_ref{'send_delay'});
 
 	# Send a packet - ensure packet comes out desired port
-	nftest_send( "eth" . ( $in_port_offset + 1 ), $test_pkt->packed );
-	nftest_expect( "eth" . ( $out_port_offset + 1 ), $test_pkt->packed );
+	nftest_send( "eth" . ( $in_port_offset + 1 ), $test_pkt_frag->packed );
+	nftest_expect( "eth" . ( $out_port_offset + 1 ), $test_pkt_frag->packed );
 }
 
 sub my_test {
