@@ -1527,7 +1527,7 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
 
 static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
 {
-    proto_item *wild_item = proto_tree_add_item(match_tree, ofp_match_wildcards_hdr, tvb, *offset, 2, FALSE);
+    proto_item *wild_item = proto_tree_add_item(match_tree, ofp_match_wildcards_hdr, tvb, *offset, 4, FALSE);
     proto_tree *wild_tree = proto_item_add_subtree(wild_item, ett_ofp_match_wildcards_hdr);
     
 	/* add wildcard subtree */
@@ -1535,7 +1535,7 @@ static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tv
     
     int i;
     for(i=0; i<NUM_WILDCARDS; i++)
-        add_child_const(wild_tree, ofp_match_wildcards[i], tvb, *offset, 2 );
+        add_child_const(wild_tree, ofp_match_wildcards[i], tvb, *offset, 4 );
     *offset += 4;
     
     /* display mask bits if nonzero */
@@ -1557,16 +1557,11 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
 	/* save wildcards field for later */
     guint32 wildcards = tvb_get_ntohl( tvb, *offset );   
     
-    dissect_wildcards(match_tree, match_item, tvb, pinfo, &offset);
+    dissect_wildcards(match_tree, match_item, tvb, pinfo, offset);
 
     /* show only items whose corresponding wildcard bit is not set */
     if( ~wildcards & OFPFW_IN_PORT )
         dissect_port(match_tree, ofp_match_in_port, tvb, offset);
-    else
-        *offset += 2;
-    
-    if( ~wildcards & OFPFW_DL_VLAN )
-        add_child(match_tree, ofp_match_dl_vlan, tvb, offset, 2);
     else
         *offset += 2;
 
@@ -1574,12 +1569,17 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
         add_child(match_tree, ofp_match_dl_src, tvb, offset, 6);
     else
         *offset += 6;
-
+    
     if( ~wildcards & OFPFW_DL_DST )
         add_child(match_tree, ofp_match_dl_dst, tvb, offset, 6);
     else
         *offset += 6;
 
+    if( ~wildcards & OFPFW_DL_VLAN )
+        add_child(match_tree, ofp_match_dl_vlan, tvb, offset, 2);
+    else
+        *offset += 2;
+    
     if( ~wildcards & OFPFW_DL_TYPE )
         add_child(match_tree, ofp_match_dl_type, tvb, offset, 2);
     else
@@ -1643,7 +1643,7 @@ static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pa
     proto_tree *action_tree = proto_item_add_subtree(action_item, ett_ofp_action);
 
     if (!(len == 8 || len == 16)) { 
-        add_child_str(action_tree, ofp_action_unknown, tvb, &offset, len, "Invalid Action Length");
+        add_child_str(action_tree, ofp_action_unknown, tvb, offset, len, "Invalid Action Length");
         return -1;
     }
     
