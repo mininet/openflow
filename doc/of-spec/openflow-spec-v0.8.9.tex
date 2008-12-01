@@ -273,6 +273,7 @@ The flow table is checked for a matching flow entry.  The header fields used for
 \item For IP packets (Ethernet type equal to 0x0800), the lookup fields also include those in the IP header.
 \item For IP packets that are TCP or UDP (IP protocol is equal to 6 or 17), the lookup includes the transport ports.
 \item For IP packets that are ICMP (IP prototcol is equal to 1), the lookup includes the Type and Code fields.  
+\item For IP packets with nonzero fragment offset or More Fragments bit set, the transport ports are set to zero for the lookup.
 \end{itemize}
 A packet matches a flow table entry if the values in the header fields used for the lookup (as defined above) match those defined in the flow table.  If a flow table field has a value of ANY, it matches all possible values in the header.  
 \\\\
