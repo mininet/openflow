@@ -38,6 +38,11 @@ static inline unsigned char *skb_transport_header(const struct sk_buff *skb)
 	return skb->h.raw;
 }
 
+static inline void skb_reset_transport_header(struct sk_buff *skb)
+{
+	skb->h.raw = skb->data;
+}
+
 static inline void skb_set_transport_header(struct sk_buff *skb,
 			const int offset)
 {
@@ -73,6 +78,19 @@ static inline int skb_transport_offset(const struct sk_buff *skb)
 {
     return skb_transport_header(skb) - skb->data;
 }
+
+static inline int skb_network_offset(const struct sk_buff *skb)
+{
+	return skb_network_header(skb) - skb->data;
+}
+
+static inline void skb_copy_to_linear_data(struct sk_buff *skb,
+					   const void *from,
+					   const unsigned int len)
+{
+	memcpy(skb->data, from, len);
+}
+
 #endif /* rhel version < 5.2 */
 
 #endif /* linux kernel < 2.6.22 */
