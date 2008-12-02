@@ -2,7 +2,7 @@
 \section{Appendix A: The OpenFlow Protocol}
 The heart of the OpenFlow spec is the set of structures used for OpenFlow Protocol messages.  
 \\\\
-The structures, defines, and enumerations described below are derived from the file \verb|include/openflow.h|, which is part of the standard OpenFlow distribution.  All structures are packed with padding and 8-byte aligned, as checked by the assertion statements.  All OpenFlow messages are sent in big-endian format.  
+The structures, defines, and enumerations described below are derived from the file \verb|include/openflow/openflow.h|, which is part of the standard OpenFlow distribution.  All structures are packed with padding and 8-byte aligned, as checked by the assertion statements.  All OpenFlow messages are sent in big-endian format.  
 
 \subsection{OpenFlow Header}
 Each OpenFlow message begins with the OpenFlow header:
@@ -106,26 +106,10 @@ Upon SSL session establishment, the controller sends an \verb|OFPT_FEATURES_REQU
 \input{struct/ofp_switch_features}
 The \verb|n_tables| field describes the number of tables supported by the switch, each of which can have a different set of supported wildcard bits and number of entries.  When the controller and switch first communicate, the controller will find out how many tables the switch supports from the Features Reply. If it wishes to understand the size, types, and order in which tables are consulted, the controller sends a \verb|OFPST_TABLE| stats request. A switch must return these tables in the order the packets traverse the tables, with all exact-match tables listed before all tables with wildcards.
 \\\\
-The \verb|actions| field is a bitmap of supported actions on the hardware.  It uses the values from \verb|ofp_action_type| as the number of bits to shift left for an associated action.  For example, \verb|OFPAT_SET_DL_VLAN| would use the flag \verb|0x00000002|.
-\\\\
 The \verb|capabilities| field uses the following flags:
 
 \input{enum/ofp_capabilities} 
-Interleaving refers to the switch's ability to do combinations of actions, beyond the OpenFlow requirement that modification actions precede output actions. For example, an application may need for a single entry:
-\begin{itemize}
-\item Send out port 5
-\item Add VLAN tag 99 and send out port 7
-\item Add VLAN tag 200 and send out port 9
-\end{itemize}
-This behavior may not be possible on some hardware platforms, because they must "squish" the actions flat and thus lose the ordering.  However, some switches may be able to handle this specific combination because a VLAN tag can be associated with a physical port outside of the actions.  If the switch supports this, it must set the \verb|OFPC_VO_INTERLEAVE| bit in the capabilities field.  If the controller attempts to send a flow mod message with an action that requires VLAN-output interleaving, and the switch does not support it, the switch must respond with an \verb|OFPEFM_VOI_UNSUPPORTED| error message.
-\\\\
-A switch may also support arbitrarily interleaved actions like this:
-\begin{itemize}
-\item Send out port 5
-\item Change source IP address to 172.16.99.244 and send out port 7
-\item Change VLAN tag to 200 and send out port 9
-\end{itemize}
-If the switch supports arbitrary interleaving, it must set the \verb|OFPC_ARB_INTERLEAVE| bit in the capabilities field. If the controller attempts to send a flow mod message with an action that requires arbitrary interleaving, and the switch does not support it, the switch must respond with an \verb|OFPEFM_AI_UNSUPPORTED| error message.
+The \verb|actions| field is a bitmap of supported actions on the hardware.  It uses the values from \verb|ofp_action_type| as the number of bits to shift left for an associated action.  For example, \verb|OFPAT_SET_DL_VLAN| would use the flag \verb|0x00000002|.
 \\\\
 The \verb|ports| field is an array of \verb|ofp_phy_port| structures that describe all the physical ports in the system that support OpenFlow.  The number of port elements is inferred from the length field in the OpenFlow header. 
 
@@ -161,6 +145,8 @@ If both \verb|idle_timeout| and \verb|hard_timeout| are set, the flow will timeo
 The \verb|priority| field is only relevant for flow entries with wildcard fields.  The priority field indicates table priority, where higher numbers are higher priorities; the switch must keep the highest-priority wildcard entries in the lowest-numbered (fastest) wildcard table, to ensure correctness.  It is the responsibility of each switch implementer to ensure that exact entries always match before wildcards entries, regardless of the table configuration.  
 \\\\
 The \verb|buffer_id| refers to a buffered packet sent by the \verb|OFPT_PACKET_IN| message.
+\\\\
+The \verb|out_port| field optionally filters the scope of DELETE and DELETE\_STRICT messages by output port.  If \verb|out_port| contains a value other than \verb|OFPP_NONE|, it introduces a constraint when matching.  This constraint is that the rule must contain an output action directed at that port.  Other constraints such as \verb|ofp_match| structs and priorities are still used; this is purely an \emph{additional} constraint.  Note that to disable output port filtering, \verb|out_port| must be set to \verb|OFPP_NONE|, since 0 is a valid port id.  This field is ignored by ADD, MODIFY, and MODIFY\_STRICT messages.
 
 \paragraph{Port Modification Message}
 The controller uses the \verb|OFPT_PORT_MOD| message to modify the behavior of the physical port:
@@ -195,6 +181,8 @@ The \verb|match| field contains a description of the flows that should be matche
 \\\\
 The \verb|table_id| field indicates the index of a single table to read, or \verb|0xff| for all tables.
 \\\\
+The \verb|out_port| field optionally filters by output port.  If \verb|out_port| contains a value other than \verb|OFPP_NONE|, it introduces a constraint when matching.  This constraint is that the rule must contain an output action directed at that port.  Other constraints such as \verb|ofp_match| structs are still used; this is purely an \emph{additional} constraint.  Note that to disable output port filtering, \verb|out_port| must be set to \verb|OFPP_NONE|, since 0 is a valid port id. 
+\\\\
 The \verb|body| of the reply consists of an array of the following:
 
 \input{struct/ofp_flow_stats}
@@ -207,6 +195,8 @@ Aggregate information about multiple flows is requested with the \verb|OFPST_AGG
 The \verb|match| field contains a description of the flows that should be matched and may contain wildcards. 
 \\\\
 The \verb|table_id| field indicates the index of a single table to read, or \verb|0xff| for all tables.
+\\\\
+The \verb|out_port| field optionally filters by output port.  If \verb|out_port| contains a value other than \verb|OFPP_NONE|, it introduces a constraint when matching.  This constraint is that the rule must contain an output action directed at that port.  Other constraints such as \verb|ofp_match| structs are still used; this is purely an \emph{additional} constraint.  Note that to disable output port filtering, \verb|out_port| must be set to \verb|OFPP_NONE|, since 0 is a valid port id. 
 \\\\
 The \verb|body| of the reply consists of the following:
 

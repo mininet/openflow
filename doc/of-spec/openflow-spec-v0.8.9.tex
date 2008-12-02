@@ -19,12 +19,12 @@
 \selectfont
 
 \title{OpenFlow Switch Specification}
-\author{Version 0.8.9 Draft 7 ( Wire Protocol \input{define/OFP_VERSION})}
+\author{Version 0.8.9 ( Wire Protocol \input{define/OFP_VERSION})}
 \date{\today}
 \maketitle
 
 \begin{center}
-Current Maintainer: Brandon Heller
+Current Maintainer: Brandon Heller (brandonh@stanford.edu)
 \end{center}
 
 \section{Introduction}
@@ -335,7 +335,7 @@ If the negotiated version is supported by the recipient, then the connection pro
 In the case that the switch loses contact with the controller, the default behavior must be to do nothing - to let flows timeout naturally.  Other behaviors can be implemented via vendor-specific command line interface or vendor extension OpenFlow messages.  
 
 \subsection{Encryption}
-The switch and controller communicate through an SSL connection.  The SSL connection is initiated by the switch on startup to the controller’s server, which is located by default on TCP port 976.   The switch and controller mutually authenticate by exchanging certificates signed by a site-specific private key.  Each switch must be user-configurable with one certificate for authenticating the controller (controller certificate) and the other for authenticating to the controller (switch certificate).
+The switch and controller communicate through an SSL connection.  The SSL connection is initiated by the switch on startup to the controller’s server, which is located by default on TCP port \input{define/OFP_TCP_PORT}.   The switch and controller mutually authenticate by exchanging certificates signed by a site-specific private key.  Each switch must be user-configurable with one certificate for authenticating the controller (controller certificate) and the other for authenticating to the controller (switch certificate).
 
 \subsection{Spanning Tree}
 \label{flow_table:stp_support}
@@ -360,7 +360,9 @@ For DELETE requests, if no flow entry matches, no error is recorded, and no flow
 \\\\
 If a switch cannot find any table in which to add the incoming flow entry, the switch should send an \verb|OFPT_ERROR_MSG| with \verb|OFPET_FLOW_MOD_FAILED| type and \verb|OFPFMFC_ALL_TABLES_FULL| type.
 \\\\
-MODIFY and DELETE flow mod commands have corresponding \_STRICT versions.   Without \_STRICT appended, the wildcards are “active” and all flows that match the description are modified or removed.  If \_STRICT is appended, all fields, including the wildcards and priority, are strictly matched against the entry, and only an identical flow is modified or removed.  For example, if a message to remove entries is sent that has all the wildcard flags set, the \verb|DELETE| command would delete all flows from all tables, while the \verb|DELETE_STRICT| command would only delete a rule that applies to all packets at the specified priority. 
+MODIFY and DELETE flow mod commands have corresponding \_STRICT versions.   Without \_STRICT appended, the wildcards are “active” and all flows that match the description are modified or removed.  If \_STRICT is appended, all fields, including the wildcards and priority, are strictly matched against the entry, and only an identical flow is modified or removed.  For example, if a message to remove entries is sent that has all the wildcard flags set, the DELETE command would delete all flows from all tables, while the DELETE\_STRICT command would only delete a rule that applies to all packets at the specified priority. 
+\\\\
+DELETE and DELETE\_STRICT commands can be optionally filtered by output port.  If the \verb|out_port| field contains a value other than \verb|OFPP_NONE|, it introduces a constraint when matching.  This constraint is that the rule must contain an output action directed at that port.  This field is ignored by ADD, MODIFY, and MODIFY\_STRICT messages.
 
 \subsection{Flow Removal}
 
