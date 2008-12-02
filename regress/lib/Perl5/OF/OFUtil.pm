@@ -735,7 +735,8 @@ sub create_flow_mod_from_udp_action {
 		idle_timeout  => $max_idle,
 		hard_timeout  => $max_idle,
 		priority => 0,
-		buffer_id => -1
+		buffer_id => -1,
+		out_port => $enums{'OFPP_NONE'}
 	};
 	my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
 

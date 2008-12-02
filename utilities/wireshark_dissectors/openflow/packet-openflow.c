@@ -10,9 +10,9 @@
  */
 
 /** the version of openflow this dissector was written for */
-#define DISSECTOR_OPENFLOW_MIN_VERSION 0x95
-#define DISSECTOR_OPENFLOW_MAX_VERSION 0x96
-#define DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD 0x96
+#define DISSECTOR_OPENFLOW_MIN_VERSION 0x97
+#define DISSECTOR_OPENFLOW_MAX_VERSION 0x97
+#define DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD 0x97
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
@@ -265,6 +265,7 @@ static gint ofp_flow_mod_idle_timeout = -1;
 static gint ofp_flow_mod_hard_timeout = -1; 
 static gint ofp_flow_mod_priority     = -1;
 static gint ofp_flow_mod_buffer_id    = -1;
+static gint ofp_flow_mod_out_port     = -1;
 static gint ofp_flow_mod_reserved     = -1;
 static gint ofp_flow_mod_actions      = -1;
 
@@ -1032,6 +1033,9 @@ void proto_register_openflow()
         { &ofp_flow_mod_buffer_id,
           { "Buffer ID", "of.fm_buffer_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Buffer ID", HFILL } },
 
+        { &ofp_flow_mod_out_port,
+          { "Out Port (delete* only)", "of.fm_out_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Out Port (delete* only)", HFILL } },          
+          
         { &ofp_flow_mod_reserved,
           { "Reserved", "of.fm_reserved", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Reserved", HFILL } },
 
@@ -2077,6 +2081,9 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 add_child_str(type_tree, ofp_flow_mod_buffer_id, tvb, &offset, 4, str);
             }
             
+            /* add the output port */
+            dissect_port(type_tree, ofp_flow_mod_out_port, tvb, &offset );
+            dissect_pad(type_tree, &offset, 2);
             add_child(type_tree, ofp_flow_mod_reserved, tvb, &offset, 4);
             dissect_action_array(tvb, pinfo, type_tree, len, offset);
             break;
