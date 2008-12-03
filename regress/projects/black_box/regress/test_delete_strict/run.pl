@@ -13,10 +13,10 @@ sub send_expect_exact_with_wildcard {
 	my $out_port2 = $out_port2_offset + $$options_ref{'port_base'};
 
 	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
-		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
-		src_ip => "192.168.200." .           ( $in_port + 1 ),
-		dst_ip => "192.168.201." .           ( $out_port + 1 ),
+		DA     => "00:00:00:00:00:0" . ( $out_port ),
+		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		src_ip => "192.168.200." .           ( $in_port ),
+		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,
 		len    => $pkt_len,
 		src_port => 70,
@@ -25,10 +25,10 @@ sub send_expect_exact_with_wildcard {
 	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
 
 	my $test_pkt_args2 = {
-		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
-		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
-		src_ip => "192.168.200." .           ( $in_port + 1 ),
-		dst_ip => "192.168.201." .           ( $out_port + 1 ),
+		DA     => "00:00:00:00:00:0" . ( $out_port ),
+		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		src_ip => "192.168.200." .           ( $in_port ),
+		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,
 		len    => $pkt_len,
 		src_port => 170,
@@ -81,10 +81,10 @@ sub delete_strict_send_expect {
 
 	# in_port refers to the flow mod entry's input
 	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
-		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
-		src_ip => "192.168.200." .           ( $in_port + 1 ),
-		dst_ip => "192.168.201." .           ( $out_port + 1 ),
+		DA     => "00:00:00:00:00:0" . ( $out_port ),
+		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		src_ip => "192.168.200." .           ( $in_port ),
+		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,
 		len    => $pkt_len,
 		src_port => 70,
@@ -93,10 +93,10 @@ sub delete_strict_send_expect {
 	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
 
 	my $test_pkt_args2 = {
-		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
-		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
-		src_ip => "192.168.200." .           ( $in_port + 1 ),
-		dst_ip => "192.168.201." .           ( $out_port + 1 ),
+		DA     => "00:00:00:00:00:0" . ( $out_port ),
+		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		src_ip => "192.168.200." .           ( $in_port ),
+		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,
 		len    => $pkt_len,
 		src_port => 170,
@@ -119,6 +119,8 @@ sub delete_strict_send_expect {
 	print "sent flow_mod message (delete (strict) wildcard entry)\n";
 
 	# Give OF switch time to process the flow mod
+	usleep($$options_ref{'send_delay'});
+	# Give extra time, delete takes more time - Jean II
 	usleep($$options_ref{'send_delay'});
 
 	# Send a packet
@@ -156,7 +158,7 @@ sub my_test {
 				print "delete wildcard entry (with STRICT) \n";
 				print "sending from $i to $j & $i to $o_port2 ";
 				delete_strict_send_expect( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle, $pkt_len );
-				wait_for_flow_expired_one( $ofp, $sock, $pkt_len, 2 );
+				wait_for_flow_expired_readone( $ofp, $sock, $options_ref, $pkt_len, 2 );
 			}
 		}
 	}

@@ -72,12 +72,12 @@ sub send_expect_exact {
 
 sub my_test {
 
-	my ($sock) = @_;
+	my ($sock, $options_ref) = @_;
 
 	my $inport = 0;
 	my $outport = 3;
 	my $bytes_sent = send_expect_exact( $ofp, $sock, $inport, $outport, $max_idle );
-	wait_for_flow_expired_total_bytes( $ofp, $sock, $bytes_sent, $pkt_total );
+	wait_for_flow_expired_total_bytes( $ofp, $sock, $options_ref, $bytes_sent, $pkt_total );
 }
 
 run_black_box_test( \&my_test );

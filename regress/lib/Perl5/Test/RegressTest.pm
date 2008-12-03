@@ -61,6 +61,9 @@ my $commonTeardown = $teardown;
 my $commonSTArgs   = '';  
 my $controller;
 my $portBase = 0;
+my $sendDelay;
+my $baseIdle;
+my $ignoreByteCount;
 
 sub run_regress_test {
 
@@ -84,7 +87,10 @@ sub run_regress_test {
 			"common-st-args=s"  => \$commonSTArgs,
 			"root=s"            => \$rootOverride,
 			"controller=s"		=> \$controller,
-			"port_base=s"		=> \$portBase
+			"port_base=s"		=> \$portBase,
+			"send_delay=s"		=> \$sendDelay,
+			"base_idle=s"		=> \$baseIdle,
+			"ignore_byte_count"	=> \$ignoreByteCount
 		)
 		and ( $help eq '' )
 	  )
@@ -500,6 +506,18 @@ sub runTest {
 
 	if ( defined($portBase) ) {
 		$args .= " --port_base=$portBase";
+	}
+
+	# Some platforms need bigger delay and bigger base idle - Jean II
+	if ( defined($sendDelay) ) {
+		$args .= " --send_delay=$sendDelay";
+	}
+	if ( defined($baseIdle) ) {
+		$args .= " --base_idle=$baseIdle";
+	}
+	# Some platforms can't do byte counts - Jean II
+	if ( defined($ignoreByteCount) ) {
+		$args .= " --ignore_byte_count";
 	}
 
 	if ( -d "$_ROOT_DIR/$projectRoot/$project/$regressRoot/$test" ) {

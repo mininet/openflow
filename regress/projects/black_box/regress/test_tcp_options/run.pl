@@ -165,7 +165,7 @@ sub my_test {
 				print "sending from offset $i to $j\n";
 				send_tcp_op_expect_exact( $ofp, $sock, $options_ref, $i, $j, $max_idle, $pkt_len );
 				#sleep(5);
-				wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+				wait_for_flow_expired( $ofp, $sock, $options_ref, $pkt_len, $pkt_total );
 			}
 		}
 	}

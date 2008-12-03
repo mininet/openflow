@@ -28,7 +28,7 @@ sub my_test {
 
 	my $pkt_len   = 0;
 	my $pkt_total = 0;
-	wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+	wait_for_flow_expired( $ofp, $sock, $options_ref, $pkt_len, $pkt_total );
 
 }
 

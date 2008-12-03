@@ -175,6 +175,7 @@ sub nftest_init {
 
 	$options{'port_base'} = 0;
 	$options{'send_delay'} = 100000; # delay in us
+	$options{'base_idle'} = 2;
 
 	unless (
 		GetOptions( 
@@ -182,6 +183,9 @@ sub nftest_init {
 			"map=s",
 			"controller=s",
 			"port_base=i",
+			"send_delay=i",
+			"base_idle=i",
+			"ignore_byte_count",
 			"num_ports=i"
 			)
 		) 
@@ -193,7 +197,8 @@ sub nftest_init {
 	# probably don't need to be changed
 	$options{'pkt_len'} = 64;
 	$options{'pkt_total'} = 1;
-	$options{'max_idle'} = 2;
+	# Make sure to take send_delay into account - Jean II
+	$options{'max_idle'} = $options{'base_idle'} + ($options{'send_delay'} / 1000000);
 
 	# next in line for generalizing the tests
 	$options{'num_ports'} = 4;
@@ -204,10 +209,16 @@ sub nftest_init {
 	if ( defined( $options{'map'} ) ) {
 		nftest_process_iface_map( $options{'map'} );
 	} else {
-		foreach my $iface (@$active_ports_ref) {
-			# add the interface with a default name
-			$ifaceNameMap{$iface} = $iface;
-		}		
+		# If not specified on command line, use enviroment variable
+		# Jean II
+		if (defined($ENV{'OFT_MAP_ETH'})) {
+			nftest_process_iface_map( $ENV{OFT_MAP_ETH} );
+		} else {
+			foreach my $iface (@$active_ports_ref) {
+				# add the interface with a default name
+				$ifaceNameMap{$iface} = $iface;
+			}
+		}
 	}
 
 	return %options;

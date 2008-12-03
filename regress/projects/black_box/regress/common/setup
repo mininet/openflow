@@ -38,7 +38,7 @@ my $filename = "of_${platform}_setup.pl";
 # exit if of_${platform}_setup.pl not in path
 if (-e "$ENV{'OFT_ROOT'}/bin/$filename") {
 	#system("$filename " . $args . " 2> /dev/null > /dev/null");
-	system("$filename " . $args );
+	system("$ENV{'OFT_ROOT'}/bin/$filename " . $args );
 	#setup_kmod();
 	exit (0);
 } else {

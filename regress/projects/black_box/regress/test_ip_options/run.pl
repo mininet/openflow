@@ -72,7 +72,7 @@ sub my_test {
 			if ( $i != $j ) {
 				print "sending from $i to $j\n";
 				send_expect_exact( $ofp, $sock, $options_ref, $i, $j, $max_idle, $pkt_len );
-				wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+				wait_for_flow_expired( $ofp, $sock, $options_ref, $pkt_len, $pkt_total );
 			}
 		}
 	}

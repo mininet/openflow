@@ -76,9 +76,9 @@ sub my_test {
 		print "sending from $i to (all ports but $i)\n";
 		send_expect_multi_flow( $ofp, $sock, $options_ref, $i, $j, $max_idle, $pkt_len );
 		print "waiting for first flow to expire\n";
-		wait_for_flow_expired( $ofp, $sock, $pkt_len, 0 );
+		wait_for_flow_expired( $ofp, $sock, $options_ref, $pkt_len, 0 );
 		print "waiting for second flow to expire\n";
-		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+		wait_for_flow_expired( $ofp, $sock, $options_ref, $pkt_len, $pkt_total );
 	#}
 }
 

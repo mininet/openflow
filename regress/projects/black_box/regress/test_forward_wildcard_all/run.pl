@@ -118,46 +118,46 @@ run_black_box_test( \&my_test, \@ARGV );
 #		#wildcarding one at a time.
 #		print "wildcards 0x0001 : IN_PORT\n";
 #		send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0001 );
-#		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #		#DL_VLAN fixed at 0xffff currently.
 #		#print "wildcards 0x0002 : DL_VLAN\n";
 #		#send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0002);
-#		#wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		#wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #		print "wildcards 0x0004 : DL_SRC\n";
 #		send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0004 );
-#		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #		print "wildcards 0x0008 : DL_DST\n";
 #		send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0008 );
-#		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #		#DL_TYPE fixed at 0x0800 currently.
 #		#print "wildcards 0x0010 : DL_TYPE\n";
 #		#send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0010);
-#		#wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		#wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #		print "wildcards 0x0020 : NW_SRC\n";
 #		send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0020 );
-#		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #		print "wildcards 0x0040 : NW_DST\n";
 #		send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0040 );
-#		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #		#NW_PROTO fixed at 17 currently.
 #		#print "wildcards 0x0080 : NW_PROTO\n";
 #		#send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0080);
-#		#wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		#wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #		print "wildcards 0x0100 : TP_SRC\n";
 #		send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0100 );
-#		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #		print "wildcards 0x0200 : TP_SRC\n";
 #		send_expect_exact( $ofp, $sock, $options_ref, $i, $j, 0x0200 );
-#		wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+#		wait_for_flow_expired_all( $ofp, $sock, $options_ref );
 #
 #	}
 #}

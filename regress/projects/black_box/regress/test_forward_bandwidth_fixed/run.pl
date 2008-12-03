@@ -70,13 +70,13 @@ sub send_expect_exact {
 
 sub my_test {
 
-	my ($sock) = @_;
+	my ($sock, $options_ref) = @_;
 
 	my $inport = 0;
 	my $outport = 1;
 	print "Checking forwarding bandwidth from $inport to $outport\n";
 	send_expect_exact( $ofp, $sock, $inport, $outport, $max_idle, $pkt_len );
-	wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+	wait_for_flow_expired( $ofp, $sock, $options_ref, $pkt_len, $pkt_total );
 }
 
 run_black_box_test( \&my_test );

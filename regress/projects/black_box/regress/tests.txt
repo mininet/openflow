@@ -9,8 +9,8 @@ test_flow_expired/run.pl
 test_miss_send_length/run.pl
 
 # Read State Tests
-#test_port_stats/run.pl
-#test_flow_stats/run.pl
+test_port_stats/run.pl
+test_flow_stats/run.pl
 
 ## Forwarding Tests
 test_forward_any_port/run.pl
@@ -24,6 +24,7 @@ test_forward_after_expiration/run.pl
 test_forward_overlapping_flow_entries/run.pl
 test_delete/run.pl
 test_delete_strict/run.pl
+test_drop_exact/run.pl
 
 ## Unusual Data
 test_ip_options/run.pl

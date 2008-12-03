@@ -100,7 +100,8 @@ sub my_test {
 				print "sending from $i to $j\n";
 				send_expect_exact( $ofp, $sock, $options_ref, $i, $j);
 				print "waiting for flow to expire\n";
-				wait_for_flow_expired( $ofp, $sock, $pkt_len, $pkt_total );
+				wait_for_flow_expired_all( $ofp, $sock, $options_ref );
+				usleep($$options_ref{'send_delay'});
 				send_expect_secchan_nomatch( $ofp, $sock, $options_ref, $i, $j);
 			}
 		}

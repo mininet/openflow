@@ -16,7 +16,9 @@ use OF::OFPacketLib;
 use Test::PacketLib;
 use Exporter;
 use Data::Dumper;
+use Socket qw(:all);
 use IO::Socket;
+#use IO::Socket::INET;
 use Data::HexDump;
 use Time::HiRes qw(sleep gettimeofday tv_interval usleep); 
 
@@ -45,8 +47,9 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &create_flow_mod_from_udp
   &create_flow_mod_from_udp_action
   &wait_for_flow_expired
-  &wait_for_flow_expired_one
-  &wait_for_flow_expired_size
+  &wait_for_flow_expired_all
+  &wait_for_flow_expired_readone
+  &wait_for_flow_expired_readsize
   &wait_for_flow_expired_total_bytes
   &wait_for_one_packet_in
   &verify_header
@@ -344,10 +347,15 @@ sub create_controller_socket {
 		Reuse     => 1
 	);
 	die "Could not create socket: $!\n" unless $sock;
+	# Don't hold to data - Jean II
+	$sock->sockopt(TCP_NODELAY, 1) or die "\$sock->sockopt NODELAY, 1: $! ($^E)";
+	$sock->autoflush();
+	# It also tried $| = 1; before the print but it did not help - Jean II
 	print "made socket\n";
 	return $sock;
 }
 
+# This does not look like it's used ? - Jean II
 sub process_command_line() {
 	my %options = ();
 
@@ -356,6 +364,12 @@ sub process_command_line() {
 	# Process the mappings if specified
 	if ( defined( $options{'map'} ) ) {
 		nftest_process_iface_map( $options{'map'} );
+	} else {
+		# If not specified on command line, use enviroment variable
+		# Jean II
+		if (defined($ENV{'OFT_MAP_ETH'})) {
+			nftest_process_iface_map( $ENV{OFT_MAP_ETH} );
+		}
 	}
 
 	return %options;
@@ -376,7 +390,7 @@ sub run_learning_switch_test {
 	if ( !( $pid = fork ) ) {
 
 		# Run controller from this process
-		exec "controller", "ptcp:";
+		exec "$ENV{'OF_ROOT'}/controller/controller", "ptcp:";
 		die "Failed to launch controller: $!";
 	}
 	else {
@@ -451,7 +465,7 @@ sub do_hello_sequence {
 	my $hello = $ofp->pack( 'ofp_header', $hdr_args_hello);
 	
 	# Send 'hello' message
-	print $sock $hello;
+	syswrite( $sock, $hello );
 
 	# Should add timeout here - will crash if no reply
 	my $recvd_mesg;
@@ -493,7 +507,7 @@ sub get_switch_features {
 	my $features_request = $ofp->pack( 'ofp_header', $hdr_args_features_request );
 
 	# Send 'features_request' message
-	print $sock $features_request;
+	syswrite( $sock, $features_request );
 
 	# Should add timeout here - will crash if no reply
 	my $recvd_mesg;
@@ -532,7 +546,7 @@ sub get_config {
 	my $get_config_request = $ofp->pack( 'ofp_header', $hdr_args_get_config_request );
 
 	# Send 'get_config_request' message
-	print $sock $get_config_request;
+	syswrite( $sock, $get_config_request );
 
 	# Should add timeout here - will crash if no reply
 	my $recvd_mesg;
@@ -577,7 +591,7 @@ sub set_config {
 	my $set_config = $ofp->pack( 'ofp_switch_config', $set_config_args );
 
 	# Send 'get_config_request' message
-	print $sock $set_config;
+	syswrite( $sock, $set_config );
 }
 
 sub run_black_box_test {
@@ -590,7 +604,14 @@ sub run_black_box_test {
 	my $port = $of_port;
 	# extract host and port from controller string if passed in
 	if (defined $options{'controller'}) {
-		($host, $port) = split(/:/,$options{'controller'});
+		# Assume fully qualified string : tcp:<controller>:<port>
+		# Jean II
+		($proto, $host, $port) = split(/:/,$options{'controller'});
+		# Check for string missing the protocol - Jean II
+		if ( ! defined ($port) ) {
+			$proto = "tcp";
+			($host, $port) = split(/:/,$options{'controller'});
+		}
 	}
 	#!!!
 	print "using host $host and port $port\n";
@@ -662,17 +683,25 @@ sub create_flow_mod_from_udp_action {
 
 	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $mod_type ) = @_;
 
-	if (   $mod_type ne 'OFPFC_ADD'
+	if (   $mod_type ne 'drop' 
+		&& $mod_type ne 'OFPFC_ADD'
 		&& $mod_type ne 'OFPFC_DELETE'
 		&& $mod_type ne 'OFPFC_DELETE_STRICT' )
 	{
 		die "Undefined flow mod type: $mod_type\n";
 	}
 
+	my $length;
+	if ($mod_type eq 'drop') {
+		$length = $ofp->sizeof('ofp_flow_mod') + 0; # Careful, no actions for drop - Jean II
+	} else {
+		$length = $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output');		
+	}
+
 	my $hdr_args = {
 		version => $of_ver,
 		type    => $enums{'OFPT_FLOW_MOD'},
-		length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output'),
+		length  => $length,
 		xid     => 0x0000000
 	};
 
@@ -717,14 +746,19 @@ sub create_flow_mod_from_udp_action {
 		tp_dst    => ${ $udp_pkt->{UDP_pdu} }->DstPort
 	};
 
-	my $action_output_args = {
-		type => $enums{'OFPAT_OUTPUT'},
-		len => $ofp->sizeof('ofp_action_output'),
-		port => $out_port,
-		max_len => 0,                                     # send entire packet	
-	};
-
-	my $action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
+	my $action_output_args;
+	my $action_output;
+	
+	# no action for drops
+	if ($mod_type ne 'drop') {
+		$action_output_args = {
+			type => $enums{'OFPAT_OUTPUT'},
+			len => $ofp->sizeof('ofp_action_output'),
+			port => $out_port,
+			max_len => 0,                                     # send entire packet	
+		};
+		$action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
+	}
 	
 	my $flow_mod_args = {
 		header => $hdr_args,
@@ -747,60 +781,70 @@ sub create_flow_mod_from_udp_action {
 
 sub wait_for_flow_expired {
 
-	my ( $ofp, $sock, $pkt_len, $pkt_total ) = @_;
+	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total ) = @_;
 
-	wait_for_flow_expired_size( $ofp, $sock, $pkt_len, $pkt_total, 1512 );
+	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len, $pkt_total );
 }
 
-sub wait_for_flow_expired_one {
+sub wait_for_flow_expired_all {
 
-	my ( $ofp, $sock, $pkt_len, $pkt_total ) = @_;
+	my ( $ofp, $sock, $options_ref ) = @_;
 
-	wait_for_flow_expired_size( $ofp, $sock, $pkt_len, $pkt_total,
+	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );
+}
+
+sub wait_for_flow_expired_readone {
+
+	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total ) = @_;
+
+	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len, $pkt_total,
 		$ofp->sizeof('ofp_flow_expired') );
 }
 
-sub wait_for_flow_expired_size {
+sub wait_for_flow_expired_readsize {
 
 	# can specify the reading size from socket (by the last argument, $read_size_)
 
-	my ( $ofp, $sock, $pkt_len, $pkt_total, $read_size_ ) = @_;
-	wait_for_flow_expired_total_bytes( $ofp, $sock, ( $pkt_len * $pkt_total ),
+	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $read_size_ ) = @_;
+	wait_for_flow_expired_total_bytes( $ofp, $sock, $options_ref, ( $pkt_len * $pkt_total ),
 		$pkt_total, $read_size_ );
 }
 
 sub wait_for_flow_expired_total_bytes {
-	my ( $ofp, $sock, $bytes, $pkt_total, $read_size_ ) = @_;
+	my ( $ofp, $sock, $options_ref, $bytes, $pkt_total, $read_size_ ) = @_;
 	my $read_size;
 
 	if ( defined $read_size_ ) {
 		$read_size = $read_size_;
-	}
-	else {
+	} else {
 		$read_size = 1512;
 	}
 
 	my $recvd_mesg;
 	sysread( $sock, $recvd_mesg, $read_size )
-	  || die "Failed to receive message: $!";
+	  || die "Failed to receive ofp_flow_expired message: $!";
 
 	#print HexDump ($recvd_mesg);
 
 	# Inspect  message
 	my $msg_size      = length($recvd_mesg);
 	my $expected_size = $ofp->sizeof('ofp_flow_expired');
-	compare( "msg size", length($recvd_mesg), '==', $expected_size );
+	compare( "ofp_flow_expired msg size", length($recvd_mesg), '==', $expected_size );
 
 	my $msg = $ofp->unpack( 'ofp_flow_expired', $recvd_mesg );
 
 	#print Dumper($msg);
 
 	# Verify fields
-	compare( "header version", $$msg{'header'}{'version'}, '==', $of_ver );
-	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_EXPIRED'} );
-	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
-	compare( "byte_count",     $$msg{'byte_count'},        '==', $bytes );
-	compare( "packet_count",   $$msg{'packet_count'},      '==', $pkt_total );
+	compare( "ofp_flow_expired header version", $$msg{'header'}{'version'}, '==', $of_ver );
+	compare( "ofp_flow_expired header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_EXPIRED'} );
+	compare( "ofp_flow_expired header length",  $$msg{'header'}{'length'},  '==', $msg_size );
+
+	# Disable for platforms that don't have byte counts... - Jean II
+	if ( not defined( $$options_ref{'ignore_byte_count'} ) ) {
+	    compare( "ofp_flow_expired byte_count",     $$msg{'byte_count'},        '==', $bytes );
+	}
+	compare( "ofp_flow_expired packet_count",   $$msg{'packet_count'},      '==', $pkt_total );
 }
 
 sub wait_for_one_packet_in {
@@ -995,14 +1039,19 @@ sub forward_simple {
 
 	#print HexDump ( $test_pkt->packed );
 
-	my $flow_mod_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $wildcards );
+	my $flow_mod_pkt;
+	
+	if ($type eq 'drop') {
+		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $wildcards, 'drop' );
+	} else {
+		$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $wildcards );
+	}
 
 	#print HexDump($flow_mod_pkt);
 	#print Dumper($flow_mod_pkt);
 
 	# Send 'flow_mod' message
-	print $sock $flow_mod_pkt;
+	syswrite( $sock, $flow_mod_pkt );
 	print "sent flow_mod message\n";
 	
 	# Give OF switch time to process the flow mod
@@ -1058,13 +1107,16 @@ sub forward_simple {
 		}
 			
 	}
+	elsif ($type eq 'drop') {
+		# do nothing!
+	}
 	else {
 		die "invalid input to forward_simple\n";
 	}
 	
 	if (not defined($nowait)) {
 		print "wait \n";
-		wait_for_flow_expired( $ofp, $sock, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );	
+		wait_for_flow_expired_all( $ofp, $sock, $options_ref );	
 	}
 }
 
