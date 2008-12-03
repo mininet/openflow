@@ -22,7 +22,12 @@ sub INT_Handler {
 	exit(1);
 }
 
-my $of_port = get_of_port();
-push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=hp", "--controller=10.9.8.4:$of_port", "--port_base=1";
+# HP switch starts at port 1 == A1
+# Test need extra delay due to slow controller socket (local buffers ?)
+# byte coutn is not available - Jean II
+push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=hp", "--controller=".$ENV{'OFT_HP_CONTROLLER'}, "--port_base=1", "--send_delay=300000", "--base_idle=3", "--ignore_byte_count";
+
+# Other configuration is through Environment Variables, See of_hp_setup.pl
+# Jean II
 
 run_regress_test( \&INT_Handler, @ARGV );
