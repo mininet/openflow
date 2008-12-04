@@ -1880,7 +1880,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         case OFPT_ECHO_REQUEST:
         case OFPT_ECHO_REPLY: {
             add_child(tree, ofp_echo, tvb, &offset, len - offset);
-        	break;
+            break;
         }
         	 	
         case OFPT_VENDOR: {
