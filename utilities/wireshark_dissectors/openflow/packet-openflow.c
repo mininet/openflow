@@ -1634,6 +1634,17 @@ static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tv
     add_child_str( wild_tree, ofp_match_nw_dst_mask_bits, tvb, offset, 0, str );
 }
 
+static void dissect_nw_proto(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offset) {
+    /* get the port number */
+    guint8 nw_proto = tvb_get_guint8( tvb, *offset );
+
+    /* put the string-representation in the GUI tree */
+    proto_tree_add_uint_format(tree, hf, tvb, *offset, 1, nw_proto,
+            "Protocol: %s (0x%02x)", ipprotostr(nw_proto), nw_proto);
+
+    *offset += 1;
+}
+
 /* Based on: dissect_icmp from wireshark: epan/dissectors/packet-ip.c */
 static void dissect_icmp_type_code_match(proto_tree* tree, tvbuff_t *tvb, guint32 *offset, gint show_type, gint show_code)
 {
@@ -1782,7 +1793,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     guint8 nw_proto = tvb_get_guint8( tvb, *offset);
 
     if( ~wildcards & OFPFW_NW_PROTO )
-        add_child(match_tree, ofp_match_nw_proto, tvb, offset, 1);
+        dissect_nw_proto(match_tree, ofp_match_nw_proto, tvb, offset);
     else
         *offset += 1;
 
