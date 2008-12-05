@@ -1740,12 +1740,12 @@ static void dissect_icmp_type_code_match(proto_tree* tree, tvbuff_t *tvb, guint3
     }
 
     if (show_type)
-        proto_tree_add_uint_format(tree, ofp_match_icmp_type, tvb, 0, 1,
+        proto_tree_add_uint_format(tree, ofp_match_icmp_type, tvb, *offset, 2,
                    icmp_type,
                    "ICMP Type: %u (%s)",
                    icmp_type, type_str);
     if (show_code)
-        proto_tree_add_uint_format(tree, ofp_match_icmp_code, tvb, 1, 1,
+        proto_tree_add_uint_format(tree, ofp_match_icmp_code, tvb, *offset, 2,
                    icmp_code,
                    "ICMP Code: %u (%s)",
                    icmp_code, code_str);
