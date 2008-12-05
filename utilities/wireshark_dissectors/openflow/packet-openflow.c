@@ -1978,7 +1978,6 @@ static void dissect_capability_array(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 static void dissect_switch_config_flags(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, guint field_size) {
     proto_item *sf_pc_item = proto_tree_add_item(tree, ofp_switch_config_flags_hdr, tvb, offset, field_size, FALSE);
     proto_tree *sf_pc_tree = proto_item_add_subtree(sf_pc_item, ett_ofp_switch_config_flags_hdr);
-    gint i;
 
     /* grab the IP fragmentation state */
     guint16 flags = tvb_get_ntohs( tvb, offset );
@@ -2135,11 +2134,9 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
         case OFPT_FEATURES_REPLY: {
 
-        	proto_item *sf_act_item = NULL;
-            proto_tree *sf_act_tree = NULL;
             proto_item *sf_port_item = NULL;
             proto_tree *sf_port_tree = NULL;
-            guint i, num_ports;
+            guint num_ports;
             gint sz;
             
             type_item = proto_tree_add_item(ofp_tree, ofp_switch_features, tvb, offset, -1, FALSE);
