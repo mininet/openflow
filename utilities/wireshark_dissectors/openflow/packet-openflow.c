@@ -27,6 +27,7 @@
 #include <epan/prefs.h>
 #include <epan/ipproto.h>
 #include <epan/etypes.h>
+#include <epan/addr_resolv.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <openflow/openflow.h>
@@ -1659,6 +1660,20 @@ static void dissect_nw_proto(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *
     *offset += 1;
 }
 
+static void dissect_tp_port(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offset) {
+    /* get the transport port */
+    guint16 port = tvb_get_ntohs( tvb, *offset );
+
+    /* Get the header field info corresponding to the field */
+    header_field_info *hfinfo = proto_registrar_get_nth(hf);
+
+    /* put the string-representation in the GUI tree */
+    proto_tree_add_uint_format(tree, hf, tvb, *offset, 2, port,
+            "%s: %s (%u)", hfinfo->name, get_tcp_port(port), port);
+
+    *offset += 2;
+}
+
 /* Based on: dissect_icmp from wireshark: epan/dissectors/packet-ip.c */
 static void dissect_icmp_type_code_match(proto_tree* tree, tvbuff_t *tvb, guint32 *offset, gint show_type, gint show_code)
 {
@@ -1831,12 +1846,12 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     }
     else {
         if( ~wildcards & OFPFW_TP_SRC )
-            add_child(match_tree, ofp_match_tp_src, tvb, offset, 2);
+            dissect_tp_port(match_tree, ofp_match_tp_src, tvb, offset);
         else
             *offset += 2;
 
         if( ~wildcards & OFPFW_TP_DST )
-            add_child(match_tree, ofp_match_tp_dst, tvb, offset, 2);
+            dissect_tp_port(match_tree, ofp_match_tp_dst, tvb, offset);
         else
             *offset += 2;
     }
