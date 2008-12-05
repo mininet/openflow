@@ -25,6 +25,7 @@
 #include <epan/packet.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/prefs.h>
+#include <epan/ipproto.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <openflow/openflow.h>
@@ -215,6 +216,8 @@ static gint ofp_match_nw_dst    = -1;
 static gint ofp_match_nw_proto  = -1;
 static gint ofp_match_tp_src    = -1;
 static gint ofp_match_tp_dst    = -1;
+static gint ofp_match_icmp_type = -1;
+static gint ofp_match_icmp_code = -1;
 static gint ofp_match_nw_src_mask_bits = -1;
 static gint ofp_match_nw_dst_mask_bits = -1;
 
@@ -806,6 +809,12 @@ void proto_register_openflow()
 
         { &ofp_match_tp_dst,
           { "TCP/UDP Dst Port", "of.match_tp_dst", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Destination Port", HFILL }},
+
+        { &ofp_match_icmp_type,
+          { "ICMP Type", "of.match_tp_src", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "ICMP Type", HFILL }},
+
+        { &ofp_match_icmp_code,
+          { "ICMP Code", "of.match_tp_dst", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "ICMP Code", HFILL }},
 
         { &ofp_match_nw_src_mask_bits,
             { "IP Src Addr Mask Bits", "of.match_nw_src_mask_bits", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Source IP Address Mask Bits", HFILL }},
@@ -1589,6 +1598,9 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 2;
 
+    /* Save NW proto for later */
+    guint8 nw_proto = tvb_get_guint8( tvb, *offset);
+
     if( ~wildcards & OFPFW_NW_PROTO )
         add_child(match_tree, ofp_match_nw_proto, tvb, offset, 1);
     else
@@ -1606,13 +1618,21 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 4;
     
-    if( ~wildcards & OFPFW_TP_SRC )
-        add_child(match_tree, ofp_match_tp_src, tvb, offset, 2);
+    if( ~wildcards & OFPFW_TP_SRC ) {
+        if( nw_proto == IP_PROTO_ICMP)
+            add_child(match_tree, ofp_match_icmp_type, tvb, offset, 2);
+        else
+            add_child(match_tree, ofp_match_tp_src, tvb, offset, 2);
+    }
     else
         *offset += 2;
 
-    if( ~wildcards & OFPFW_TP_DST )
-        add_child(match_tree, ofp_match_tp_dst, tvb, offset, 2);
+    if( ~wildcards & OFPFW_TP_DST ) {
+        if( nw_proto == IP_PROTO_ICMP)
+            add_child(match_tree, ofp_match_icmp_code, tvb, offset, 2);
+        else
+            add_child(match_tree, ofp_match_tp_dst, tvb, offset, 2);
+    }
     else
         *offset += 2;
 }
