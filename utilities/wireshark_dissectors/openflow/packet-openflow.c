@@ -163,6 +163,78 @@ static const value_string names_ip_frag[] = {
     { 0,                NULL }
 };
 
+/* ICMP definitions from wireshark source: epan/dissectors/packet-ip.c */
+/* ICMP definitions */
+
+#define ICMP_ECHOREPLY     0
+#define ICMP_UNREACH       3
+#define ICMP_SOURCEQUENCH  4
+#define ICMP_REDIRECT      5
+#define ICMP_ECHO          8
+#define ICMP_RTRADVERT     9
+#define ICMP_RTRSOLICIT   10
+#define ICMP_TIMXCEED     11
+#define ICMP_PARAMPROB    12
+#define ICMP_TSTAMP       13
+#define ICMP_TSTAMPREPLY  14
+#define ICMP_IREQ         15
+#define ICMP_IREQREPLY    16
+#define ICMP_MASKREQ      17
+#define ICMP_MASKREPLY    18
+
+/* ICMP UNREACHABLE */
+
+#define ICMP_NET_UNREACH        0       /* Network Unreachable */
+#define ICMP_HOST_UNREACH       1       /* Host Unreachable */
+#define ICMP_PROT_UNREACH       2       /* Protocol Unreachable */
+#define ICMP_PORT_UNREACH       3       /* Port Unreachable */
+#define ICMP_FRAG_NEEDED        4       /* Fragmentation Needed/DF set */
+#define ICMP_SR_FAILED          5       /* Source Route failed */
+#define ICMP_NET_UNKNOWN        6
+#define ICMP_HOST_UNKNOWN       7
+#define ICMP_HOST_ISOLATED      8
+#define ICMP_NET_ANO            9
+#define ICMP_HOST_ANO           10
+#define ICMP_NET_UNR_TOS        11
+#define ICMP_HOST_UNR_TOS       12
+#define ICMP_PKT_FILTERED       13      /* Packet filtered */
+#define ICMP_PREC_VIOLATION     14      /* Precedence violation */
+#define ICMP_PREC_CUTOFF        15      /* Precedence cut off */
+
+static const gchar *unreach_str[] = {"Network unreachable",
+                                     "Host unreachable",
+                                     "Protocol unreachable",
+                                     "Port unreachable",
+                                     "Fragmentation needed",
+                                     "Source route failed",
+                                     "Destination network unknown",
+                                     "Destination host unknown",
+                                     "Source host isolated",
+                                     "Network administratively prohibited",
+                                     "Host administratively prohibited",
+                                     "Network unreachable for TOS",
+                                     "Host unreachable for TOS",
+                                     "Communication administratively filtered",
+                                     "Host precedence violation",
+                                     "Precedence cutoff in effect"};
+
+#define	N_UNREACH	(sizeof unreach_str / sizeof unreach_str[0])
+
+static const gchar *redir_str[] = {"Redirect for network",
+                                   "Redirect for host",
+                                   "Redirect for TOS and network",
+                                   "Redirect for TOS and host"};
+
+#define	N_REDIRECT	(sizeof redir_str / sizeof redir_str[0])
+
+static const gchar *ttl_str[] = {"Time to live exceeded in transit",
+                                 "Fragment reassembly time exceeded"};
+
+#define	N_TIMXCEED	(sizeof ttl_str / sizeof ttl_str[0])
+
+static const gchar *par_str[] = {"IP header bad", "Required option missing"};
+
+#define	N_PARAMPROB	(sizeof par_str / sizeof par_str[0])
 
 
 /* These variables are used to hold the IDs of our fields; they are
@@ -1562,6 +1634,111 @@ static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tv
     add_child_str( wild_tree, ofp_match_nw_dst_mask_bits, tvb, offset, 0, str );
 }
 
+/* Based on: dissect_icmp from wireshark: epan/dissectors/packet-ip.c */
+static void dissect_icmp_type_code_match(proto_tree* tree, tvbuff_t *tvb, guint32 *offset) {
+    guint16    icmp_type;
+    guint16    icmp_code;
+    const gchar *type_str, *code_str;
+
+    type_str="";
+    code_str="";
+
+    /* Get the ICMP type/code */
+    icmp_type = tvb_get_ntohs(tvb, *offset);
+    icmp_code = tvb_get_ntohs(tvb, *offset + 2);
+
+    /* Get string representations of the ICMP types/codes */
+    switch (icmp_type) {
+        case ICMP_ECHOREPLY:
+            type_str="Echo (ping) reply";
+            break;
+        case ICMP_UNREACH:
+            type_str="Destination unreachable";
+            if (icmp_code < N_UNREACH) {
+                code_str = unreach_str[icmp_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+        case ICMP_SOURCEQUENCH:
+            type_str="Source quench (flow control)";
+            break;
+        case ICMP_REDIRECT:
+            type_str="Redirect";
+            if (icmp_code < N_REDIRECT) {
+                code_str = redir_str[icmp_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+        case ICMP_ECHO:
+            type_str="Echo (ping) request";
+            break;
+        case ICMP_RTRADVERT:
+            switch (icmp_code) {
+            case 0: /* Mobile-Ip */
+            case 16: /* Mobile-Ip */
+                type_str="Mobile IP Advertisement";
+                break;
+            default:
+                type_str="Router advertisement";
+                break;
+            } /* switch icmp_code */
+            break;
+        case ICMP_RTRSOLICIT:
+            type_str="Router solicitation";
+            break;
+        case ICMP_TIMXCEED:
+            type_str="Time-to-live exceeded";
+            if (icmp_code < N_TIMXCEED) {
+                code_str = ttl_str[icmp_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+        case ICMP_PARAMPROB:
+            type_str="Parameter problem";
+            if (icmp_code < N_PARAMPROB) {
+                code_str = par_str[icmp_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+        case ICMP_TSTAMP:
+            type_str="Timestamp request";
+            break;
+        case ICMP_TSTAMPREPLY:
+            type_str="Timestamp reply";
+            break;
+        case ICMP_IREQ:
+            type_str="Information request";
+            break;
+        case ICMP_IREQREPLY:
+            type_str="Information reply";
+            break;
+        case ICMP_MASKREQ:
+            type_str="Address mask request";
+            break;
+        case ICMP_MASKREPLY:
+            type_str="Address mask reply";
+            break;
+        default:
+            type_str="Unknown ICMP (obsolete or malformed?)";
+            break;
+    }
+
+    proto_tree_add_uint_format(tree, ofp_match_icmp_type, tvb, 0, 1,
+                   icmp_type,
+                   "ICMP Type: %u (%s)",
+                   icmp_type, type_str);
+    proto_tree_add_uint_format(tree, ofp_match_icmp_code, tvb, 1, 1,
+                   icmp_code,
+                   "ICMP Code: %u (%s)",
+                   icmp_code, code_str);
+
+    *offset += 4;
+}
+
 static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
 {
     proto_item *match_item = proto_tree_add_item(tree, ofp_match, tvb, *offset, sizeof(struct ofp_match), FALSE);
@@ -1618,23 +1795,20 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 4;
     
-    if( ~wildcards & OFPFW_TP_SRC ) {
-        if( nw_proto == IP_PROTO_ICMP)
-            add_child(match_tree, ofp_match_icmp_type, tvb, offset, 2);
-        else
+    if( nw_proto == IP_PROTO_ICMP) {
+        dissect_icmp_type_code_match(match_tree, tvb, offset);
+    }
+    else {
+        if( ~wildcards & OFPFW_TP_SRC )
             add_child(match_tree, ofp_match_tp_src, tvb, offset, 2);
-    }
-    else
-        *offset += 2;
-
-    if( ~wildcards & OFPFW_TP_DST ) {
-        if( nw_proto == IP_PROTO_ICMP)
-            add_child(match_tree, ofp_match_icmp_code, tvb, offset, 2);
         else
+            *offset += 2;
+
+        if( ~wildcards & OFPFW_TP_DST )
             add_child(match_tree, ofp_match_tp_dst, tvb, offset, 2);
+        else
+            *offset += 2;
     }
-    else
-        *offset += 2;
 }
 
 static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offset)
