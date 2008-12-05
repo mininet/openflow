@@ -26,6 +26,7 @@
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/prefs.h>
 #include <epan/ipproto.h>
+#include <epan/etypes.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <openflow/openflow.h>
@@ -1634,6 +1635,19 @@ static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tv
     add_child_str( wild_tree, ofp_match_nw_dst_mask_bits, tvb, offset, 0, str );
 }
 
+static void dissect_dl_type(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offset) {
+    /* get the datalink type */
+    guint16 dl_type = tvb_get_ntohs( tvb, *offset );
+
+	const char* description = match_strval(dl_type, etype_vals);
+
+    /* put the string-representation in the GUI tree */
+    proto_tree_add_uint_format(tree, hf, tvb, *offset, 2, dl_type,
+            "Ethernet Type: %s (0x%04x)", description, dl_type);
+
+    *offset += 2;
+}
+
 static void dissect_nw_proto(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offset) {
     /* get the port number */
     guint8 nw_proto = tvb_get_guint8( tvb, *offset );
@@ -1785,7 +1799,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
         *offset += 2;
     
     if( ~wildcards & OFPFW_DL_TYPE )
-        add_child(match_tree, ofp_match_dl_type, tvb, offset, 2);
+        dissect_dl_type(match_tree, ofp_match_nw_proto, tvb, offset);
     else
         *offset += 2;
 
