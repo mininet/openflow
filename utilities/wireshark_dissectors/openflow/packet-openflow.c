@@ -1649,7 +1649,7 @@ static void dissect_dl_type(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *o
 }
 
 static void dissect_nw_proto(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offset) {
-    /* get the port number */
+    /* get the network protocol */
     guint8 nw_proto = tvb_get_guint8( tvb, *offset );
 
     /* put the string-representation in the GUI tree */
