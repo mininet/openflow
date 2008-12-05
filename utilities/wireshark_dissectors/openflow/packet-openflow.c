@@ -1635,7 +1635,8 @@ static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tv
 }
 
 /* Based on: dissect_icmp from wireshark: epan/dissectors/packet-ip.c */
-static void dissect_icmp_type_code_match(proto_tree* tree, tvbuff_t *tvb, guint32 *offset) {
+static void dissect_icmp_type_code_match(proto_tree* tree, tvbuff_t *tvb, guint32 *offset, gint show_type, gint show_code)
+{
     guint16    icmp_type;
     guint16    icmp_code;
     const gchar *type_str, *code_str;
@@ -1727,11 +1728,13 @@ static void dissect_icmp_type_code_match(proto_tree* tree, tvbuff_t *tvb, guint3
             break;
     }
 
-    proto_tree_add_uint_format(tree, ofp_match_icmp_type, tvb, 0, 1,
+    if (show_type)
+        proto_tree_add_uint_format(tree, ofp_match_icmp_type, tvb, 0, 1,
                    icmp_type,
                    "ICMP Type: %u (%s)",
                    icmp_type, type_str);
-    proto_tree_add_uint_format(tree, ofp_match_icmp_code, tvb, 1, 1,
+    if (show_code)
+        proto_tree_add_uint_format(tree, ofp_match_icmp_code, tvb, 1, 1,
                    icmp_code,
                    "ICMP Code: %u (%s)",
                    icmp_code, code_str);
@@ -1795,8 +1798,11 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 4;
     
+    /* Display either ICMP type/code or TCP/UDP ports */
     if( nw_proto == IP_PROTO_ICMP) {
-        dissect_icmp_type_code_match(match_tree, tvb, offset);
+        dissect_icmp_type_code_match(match_tree, tvb, offset,
+                ~wildcards & OFPFW_TP_SRC,
+                ~wildcards & OFPFW_TP_DST );
     }
     else {
         if( ~wildcards & OFPFW_TP_SRC )
