@@ -165,6 +165,15 @@ static const value_string names_ip_frag[] = {
     { 0,                NULL }
 };
 
+/** names from ofp_error_type */
+static const value_string names_ofp_error_type_reason[] = {
+    { OFPET_HELLO_FAILED,       "Hello protocol failed" },
+    { OFPET_BAD_REQUEST,        "Request was not understood" },
+    { OFPET_BAD_ACTION,         "Error in action description" },
+    { OFPET_FLOW_MOD_FAILED,    "Problem modifying flow entry" },
+    { 0,                        NULL }
+};
+
 /* ICMP definitions from wireshark source: epan/dissectors/packet-ip.c */
 /* ICMP definitions */
 
@@ -1338,7 +1347,7 @@ void proto_register_openflow()
           { "Error Message", "of.err", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Error Message", HFILL } },
 
         { &ofp_error_msg_type,
-          { "Type", "of.err_type", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Type", HFILL } },
+          { "Type", "of.err_type", FT_UINT16, BASE_DEC, VALS(names_ofp_error_type_reason), NO_MASK, "Type", HFILL } },
 
         { &ofp_error_msg_code,
           { "Code", "of.err_code", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Code", HFILL } },
