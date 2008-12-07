@@ -174,6 +174,32 @@ static const value_string names_ofp_error_type_reason[] = {
     { 0,                        NULL }
 };
 
+/* Error strings for the various error types */
+static const gchar *hello_failed_err_str[] = {"No compatible version"};
+
+#define N_HELLOFAILED   (sizeof hello_failed_err_str / sizeof hello_failed_err_str[0])
+
+static const gchar *bad_request_err_str[] = {"ofp_header.version not supported",
+                                             "ofp_header.type not supported",
+                                             "ofp_stats_request.type not supported",
+                                             "Vendor not supported (in ofp_vendor or ofp_stats_request or ofp_stats_reply)",
+                                             "Vendor subtype not supported"};
+
+#define N_BADREQUEST    (sizeof bad_request_err_str / sizeof bad_request_err_str[0])
+
+static const gchar *bad_action_err_str[] = {"Unknown action type",
+                                            "Length problem in actions",
+                                            "Unknown vendor id specified",
+                                            "Unknown action type for vendor id",
+                                            "Problem validating output action",
+                                            "Bad action argument"};
+
+#define N_BADACTION     (sizeof bad_action_err_str / sizeof bad_action_err_str[0])
+
+static const gchar *flow_mod_failed_err_str[] = {"Flow not added because of full tables"};
+
+#define N_FLOWMODFAILED (sizeof flow_mod_failed_err_str / sizeof flow_mod_failed_err_str[0])
+
 /* ICMP definitions from wireshark source: epan/dissectors/packet-ip.c */
 /* ICMP definitions */
 
@@ -246,7 +272,6 @@ static const gchar *ttl_str[] = {"Time to live exceeded in transit",
 static const gchar *par_str[] = {"IP header bad", "Required option missing"};
 
 #define	N_PARAMPROB	(sizeof par_str / sizeof par_str[0])
-
 
 /* These variables are used to hold the IDs of our fields; they are
  * set when we call proto_register_field_array() in proto_register_openflow()
@@ -2029,6 +2054,60 @@ static void dissect_ethernet(tvbuff_t *next_tvb, packet_info *pinfo, proto_tree 
     call_dissector(data_ethernet, next_tvb, pinfo, data_tree);
 }
 
+static void dissect_error_code(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offset, guint16 err_type) {
+    guint16 err_code;
+    guint8  valid;
+    const gchar *code_str;
+
+    err_code = tvb_get_ntohs(tvb, *offset);
+    code_str = "";
+    valid = TRUE;
+
+    switch (err_type) {
+        case OFPET_HELLO_FAILED:
+            if (err_code < N_HELLOFAILED) {
+                code_str = hello_failed_err_str[err_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+        case OFPET_BAD_REQUEST:
+            if (err_code < N_BADREQUEST) {
+                code_str = bad_request_err_str[err_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+        case OFPET_BAD_ACTION:
+            if (err_code < N_BADACTION) {
+                code_str = bad_action_err_str[err_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+        case OFPET_FLOW_MOD_FAILED:
+            if (err_code < N_FLOWMODFAILED) {
+                code_str = flow_mod_failed_err_str[err_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+        default:
+            valid = FALSE;
+            break;
+    }
+
+    if (valid)
+        proto_tree_add_uint_format(tree, hf, tvb, *offset, 2,
+                   err_code,
+                   "Code: %s (%u)",
+                   code_str, err_code);
+    else
+        proto_tree_add_item(tree, hf, tvb, *offset, 2, FALSE);
+
+    *offset += 2;
+}
+
 static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 #   define STR_LEN 1024
@@ -2119,8 +2198,11 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             type_item = proto_tree_add_item(ofp_tree, ofp_error_msg, tvb, offset, -1, FALSE);
             type_tree = proto_item_add_subtree(type_item, ett_ofp_error_msg);
 
+            /* Extract the type for use later */
+            guint16 type = tvb_get_ntohs(tvb, offset);
+
             add_child(type_tree, ofp_error_msg_type, tvb, &offset, 2);
-            add_child(type_tree, ofp_error_msg_code, tvb, &offset, 2);
+            dissect_error_code(type_tree, ofp_error_msg_code, tvb, &offset, type);
             add_child(type_tree, ofp_error_msg_data, tvb, &offset, len - offset);
             break;
         }
