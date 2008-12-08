@@ -172,12 +172,13 @@ static int table_nf2_timeout(struct datapath *dp, struct sw_table *swt)
 		}
 
 		if ((packet_count > flow->packet_count)
-                    && (flow->max_idle != OFP_FLOW_PERMANENT)) {
+                    && (flow->idle_timeout != OFP_FLOW_PERMANENT)) {
 			flow->packet_count = packet_count;
-			flow->timeout = jiffies + HZ * flow->max_idle;
+			flow->used = jiffies;
 		}
 
-		if (flow_timeout(flow)) {
+		if ((flow_timeout(flow) == OFPER_IDLE_TIMEOUT)
+		    || (flow_timeout(flow) == OFPER_HARD_TIMEOUT)) {
 			if (dp->flags & OFPC_SEND_FLOW_EXP) {
 				dp_send_flow_expired(dp, flow);
 			}
