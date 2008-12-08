@@ -220,6 +220,12 @@ void nf2_populate_of_entry(nf2_of_entry_wrap *key, struct sw_flow *flow) {
 	key->entry.vlan_id = ntohs(flow->key.dl_vlan);
 }
 
+static uint32_t make_nw_wildcard(int n_wild_bits)
+{
+	n_wild_bits &= (1u << OFPFW_NW_SRC_BITS) - 1;
+	return n_wild_bits < 32 ? htonl((1u << n_wild_bits) - 1) : 0xFFFFFFFF;
+}
+
 /*
  * Populate a nf2_of_mask_wrap with entries from a struct sw_flow's wildcards
  */
@@ -243,10 +249,10 @@ void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow) {
 	}
 	if (OFPFW_DL_TYPE & flow->key.wildcards)
 		mask->entry.eth_type = 0xFFFF;
-	if (OFPFW_NW_SRC & flow->key.wildcards)
-		mask->entry.ip_src = 0xFFFFFFFF;
-	if (OFPFW_NW_DST & flow->key.wildcards)
-		mask->entry.ip_dst = 0xFFFFFFFF;
+	if ((OFPFW_NW_SRC_ALL & flow->key.wildcards) || (OFPFW_NW_SRC_MASK & flow->key.wildcards))
+		mask->entry.ip_src = make_nw_wildcard(flow->wildcards >> OFPFW_NW_SRC_SHIFT);
+	if ((OFPFW_NW_DST_ALL & flow->key.wildcards) || (OFPFW_NW_DST_MASK & flow->key.wildcards))
+		mask->entry.ip_dst = make_nw_wildcard(flow0>wildcards >> OFPFW_NW_DST_SHIFT);
 	if (OFPFW_NW_PROTO & flow->key.wildcards)
 		mask->entry.ip_proto = 0xFF;
 	if (OFPFW_TP_SRC & flow->key.wildcards)
