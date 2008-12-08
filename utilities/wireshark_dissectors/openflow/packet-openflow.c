@@ -2203,7 +2203,24 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             add_child(type_tree, ofp_error_msg_type, tvb, &offset, 2);
             dissect_error_code(type_tree, ofp_error_msg_code, tvb, &offset, type);
-            add_child(type_tree, ofp_error_msg_data, tvb, &offset, len - offset);
+
+            if (type == OFPET_HELLO_FAILED)
+                add_child(type_tree, ofp_error_msg_data, tvb, &offset, len - offset);
+            else {
+                /* Dissect the data as an OpenFlow packet */
+                proto_item *data_item = proto_tree_add_item(type_tree, ofp_error_msg_data, tvb, offset, -1, FALSE);
+                proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_packet_in_data_hdr);
+                tvbuff_t *next_tvb = tvb_new_subset(tvb, offset, -1, len - offset);
+
+                /* Temporarily disable writing */
+                gboolean writeable = col_get_writable(pinfo->cinfo);
+                col_set_writable( pinfo->cinfo, FALSE);
+
+                /* Finally do the dissection */
+                dissect_openflow_message(next_tvb, pinfo, data_tree);
+
+                col_set_writable( pinfo->cinfo, writeable);
+            }
             break;
         }
         
