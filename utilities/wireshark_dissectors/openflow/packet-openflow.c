@@ -2206,7 +2206,9 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             if (type == OFPET_HELLO_FAILED)
                 add_child(type_tree, ofp_error_msg_data, tvb, &offset, len - offset);
-            else {
+            else if (type == OFPET_BAD_REQUEST ||
+                     type == OFPET_BAD_ACTION ||
+                     type == OFPET_FLOW_MOD_FAILED) {
                 /* Dissect the data as an OpenFlow packet */
                 proto_item *data_item = proto_tree_add_item(type_tree, ofp_error_msg_data, tvb, offset, -1, FALSE);
                 proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_packet_in_data_hdr);
@@ -2221,6 +2223,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
                 col_set_writable( pinfo->cinfo, writeable);
             }
+            else
+                add_child(type_tree, ofp_error_msg_data, tvb, &offset, len - offset);
             break;
         }
         
