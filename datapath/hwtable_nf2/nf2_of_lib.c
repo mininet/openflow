@@ -41,7 +41,8 @@ int nf2_are_actions_supported(struct sw_flow *flow) {
 		// Only support ports 0-3, ALL, FLOOD. Let CONTROLLER/LOCAL fall through
 		if (!(ntohs(flow->actions[i].arg.output.port) < 4) &&
 			!(ntohs(flow->actions[i].arg.output.port) == OFPP_ALL) &&
-			!(ntohs(flow->actions[i].arg.output.port) == OFPP_FLOOD)) {
+			!(ntohs(flow->actions[i].arg.output.port) == OFPP_FLOOD) &&
+			!(ntohs(flow->actions[i].arg.output.port) == OFPP_IN_PORT)) {
 
 			LOG("Flow action output port %#0x is not supported in hardware\n",
 					ntohs(flow->actions[i].arg.output.port));
@@ -284,6 +285,11 @@ void nf2_populate_of_action(nf2_of_action_wrap *action,
 				action->action.forward_bitmask |= (1 << (port * 2));
 				LOG("Output Port: %i Forward Bitmask: %x\n",
 					port, action->action.forward_bitmask);
+			} else if (port == OFPP_IN_PORT) {
+				// send out to input port
+				action->action.forward_bitmask |= (1 << (entry->entry.src_port));
+				LOG("Output Port = Input Port  Forward Bitmask: %x\n",
+					action->action.forward_bitmask);
 			} else if ((port == OFPP_ALL) || (port == OFPP_FLOOD)) {
 				// Send out all ports except the source
 				for (j = 0; j < 4; ++j) {
