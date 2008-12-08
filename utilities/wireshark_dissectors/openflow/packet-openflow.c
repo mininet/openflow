@@ -551,6 +551,7 @@ static gint ett_ofp_packet_in_data_hdr = -1;
 static gint ett_ofp_flow_expired = -1;
 static gint ett_ofp_port_status = -1;
 static gint ett_ofp_error_msg = -1;
+static gint ett_ofp_error_msg_data = -1;
 
 void proto_reg_handoff_openflow()
 {
@@ -1424,6 +1425,7 @@ void proto_register_openflow()
         &ett_ofp_flow_expired,
         &ett_ofp_port_status,
         &ett_ofp_error_msg,
+        &ett_ofp_error_msg_data,
     };
 
     proto_openflow = proto_register_protocol( "OpenFlow Protocol",
@@ -2211,7 +2213,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                      type == OFPET_FLOW_MOD_FAILED) {
                 /* Dissect the data as an OpenFlow packet */
                 proto_item *data_item = proto_tree_add_item(type_tree, ofp_error_msg_data, tvb, offset, -1, FALSE);
-                proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_packet_in_data_hdr);
+                proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_error_msg_data);
                 tvbuff_t *next_tvb = tvb_new_subset(tvb, offset, -1, len - offset);
 
                 /* Temporarily disable writing */
