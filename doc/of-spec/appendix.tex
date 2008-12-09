@@ -267,15 +267,15 @@ There are times that the switch needs to notify the controller of a problem.  Th
 \input{struct/ofp_error_msg}
 The \verb|type| value indicates the high-level type of error.  The \verb|code| value is interpreted based on the type.  The \verb|data| is variable length and interpreted based on the \verb|type| and \verb|code|; in most cases this is the message that caused the problem.  
 \\\\
-Define error types include the following:
+Currently defined error types are:
 
 \input{enum/ofp_error_type}
 For the \verb|OFPET_HELLO_FAILED| error \verb|type|, one \verb|code| is currently defined:
 
 \input{enum/ofp_hello_failed_code}
-The \verb|data| field adds detail on why the error occurred.   
+The \verb|data| field contains an ASCII text string that adds detail on why the error occurred.
 \\\\
-Bad Request error \verb|code|s include the following:
+For the \verb|OFPET_BAD_REQUEST| error \verb|type|, five \verb|code|s are currently defined:
 
 \input{enum/ofp_bad_request_code}
 The \verb|data| field contains at least 64 bytes of the failed request.
