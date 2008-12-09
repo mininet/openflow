@@ -275,9 +275,19 @@ For the \verb|OFPET_HELLO_FAILED| error \verb|type|, one \verb|code| is currentl
 \input{enum/ofp_hello_failed_code}
 The \verb|data| field contains an ASCII text string that adds detail on why the error occurred.
 \\\\
-For the \verb|OFPET_BAD_REQUEST| error \verb|type|, five \verb|code|s are currently defined:
+For the \verb|OFPET_BAD_REQUEST| error \verb|type|, the following \verb|code|s are currently defined:
 
 \input{enum/ofp_bad_request_code}
+The \verb|data| field contains at least 64 bytes of the failed request.
+\\\\
+For the \verb|OFPET_BAD_ACTION| error \verb|type|, the following \verb|code|s are currently defined:
+
+\input{enum/ofp_bad_action_code}
+The \verb|data| field contains at least 64 bytes of the failed request.
+\\\\
+For the \verb|OFPET_FLOW_MOD_FAILED| error \verb|type|, one \verb|code| is currently defined:
+
+\input{enum/ofp_flow_mod_failed_code}
 The \verb|data| field contains at least 64 bytes of the failed request.
 
 %If the controller attempts a \verb|flow_mod| and fails, and the \verb|flow_mod| entry had the \verb|REPORT_ERROR| flag set, then the switch responds with one of the following.  The data field must include the full message that failed. 
