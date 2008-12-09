@@ -303,6 +303,60 @@ int nf2_write_of_exact(struct net_device *dev, int row,
 	return 0;
 }
 
+/*
+ * Write a wildcard entry to the specified device and row, to modify its action(s).
+ */
+int nf2_modify_write_of_wildcard(struct net_device *dev, int row,
+        nf2_of_action_wrap* action) {
+
+        int i;
+        int val;
+        struct timeval t;
+
+        LOG("** Begin wildcard entry modify-write to row: %i\n", row);
+        logAction(action);
+        logActionRaw(action);
+
+        for     (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
+                nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_ACTION_BASE_REG +
+                        (4*i), &(action->raw[i]));
+        }
+
+        nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_WRITE_ADDR_REG, &row);
+        do_gettimeofday(&t);
+        LOG("** End wildcard entry write to row: %i time: %i.%i\n", row,
+                        (int)t.tv_sec, (int)t.tv_usec);
+
+        return 0;
+}
+
+int nf2_modify_write_of_exact(struct net_device *dev, int row,
+        nf2_of_action_wrap* action) {
+
+        int i;
+        int val;
+        struct timeval t;
+
+        unsigned int index = row << 7;
+
+        LOG("** Begin exact match entry write to row: %i\n", row);
+        logAction(action);
+        logActionRaw(action);
+
+        // write the actions
+        for     (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
+                nf2k_reg_write(dev, SRAM_BASE_ADDR_REG + index +
+                        sizeof(nf2_of_entry_wrap) + sizeof(nf2_of_exact_counters_wrap) +
+                        (4*i), &(action->raw[i]));
+        }
+
+        do_gettimeofday(&t);
+        LOG("** End exact match entry write to row: %i time: %i.%i\n", row,
+                        (int)t.tv_sec, (int)t.tv_usec);
+
+        return 0;
+}
+
 unsigned int nf2_get_exact_packet_count(struct net_device *dev, int row) {
 	unsigned int val = 0;
 	unsigned int index = 0;
@@ -382,3 +436,38 @@ unsigned int nf2_get_wildcard_byte_count(struct net_device *dev, int row) {
 #endif
 	return val;
 }
+
+unsigned long int nf2_get_matched_count(struct net_device *dev) {
+	unsigned int val_wild = 0;
+	unsigned int val_exact = 0;
+
+	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_HITS_REG, &val_wild);
+	nf2k_reg_read(dev, OPENFLOW_EXACT_LOOKUP_HITS_REG, &val_exact);
+
+#ifdef NF2_DEBUG
+	do_gettimeofday(&t);
+	LOG("** Wildcard Matched count request count: %i time: %i.%i\n", val_wild,
+			(int)t.tv_sec, (int)t.tv_usec);
+	LOG("** Exact Matched count request count: %i time: %i.%i\n", val_exact,
+			(int)t.tv_sec, (int)t.tv_usec);
+#endif
+	return (unsigned long int(val_wild + val_exact));
+}
+
+
+unsigned long int nf2_get_missed_count(struct net_device *dev) {
+	unsigned int val_wild = 0;
+	unsigned int val_exact = 0;
+
+	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_MISSES_REG, &val_wild);
+	nf2k_reg_read(dev, OPENFLOW_EXACT_LOOKUP_MISSES_REG, &val_exact);
+
+#ifdef NF2_DEBUG
+	do_gettimeofday(&t);
+	LOG("** Wildcard Missed count request count: %i time: %i.%i\n", val_wild,
+			(int)t.tv_sec, (int)t.tv_usec);
+	LOG("** Exact Missed count request count: %i time: %i.%i\n", val_exact,
+			(int)t.tv_sec, (int)t.tv_usec);
+#endif
+}
+

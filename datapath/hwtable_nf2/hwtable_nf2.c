@@ -52,6 +52,9 @@
 
 
 static int table_nf2_delete(struct sw_table *swt, const struct sw_flow_key *key,
+		uint16_t out_port, uint16_t priority, int strict);
+
+static int table_nf2_modify(struct sw_table *swt, const struct sw_flow_key *key,
 		uint16_t priority, int strict);
 
 static void table_nf2_rcu_callback(struct rcu_head *rcu)
@@ -71,7 +74,7 @@ static struct sw_flow *table_nf2_lookup(struct sw_table *swt,
 	struct sw_table_nf2 *td = (struct sw_table_nf2 *) swt;
 	struct sw_flow *flow;
 	list_for_each_entry (flow, &td->flows, node) {
-		if (flow_matches(&flow->key, key)) {
+		if (flow_matches_1wild(key, &flow->key)) {
 			return flow;
 		}
 	}
@@ -131,15 +134,17 @@ static int do_delete(struct sw_table *swt, struct sw_flow *flow)
 }
 
 static int table_nf2_delete(struct sw_table *swt,
-			      const struct sw_flow_key *key, uint16_t priority, int strict)
+			      const struct sw_flow_key *key, uint16_t out_port,
+			      uint16_t priority, int strict)
 {
 	struct sw_table_nf2 *td = (struct sw_table_nf2 *) swt;
 	struct sw_flow *flow;
 	unsigned int count = 0;
 
 	list_for_each_entry (flow, &td->flows, node) {
-		if (flow_del_matches(&flow->key, key, strict)
-		    && (!strict || (flow->priority == priority)))
+		if (flow_matches_desc(&flow->key, key, strict)
+		    && (!strict || (flow->priority == priority)
+		    && flow_has_out_port(flow, out_port)))
 			count += do_delete(swt, flow);
 	}
 	if (count)
@@ -147,6 +152,35 @@ static int table_nf2_delete(struct sw_table *swt,
 	return count;
 }
 
+static int do_modify(struct sw_table *swt, struct sw_flow *flow)
+{
+        if (flow && flow->private) {
+                nf2_modify_private(flow->private);
+                return 1;
+        }
+
+        return 0;
+}
+
+static int table_nf2_modify(struct sw_table *swt,
+		const struct sw_flow_key *key, uint16_t priority, int strict,
+		const struct ofp_action_header *actions, size_t actions_len) 
+{
+        struct sw_table_nf2 *td = (struct sw_table_nf2 *) swt;
+        struct sw_flow *flow;
+        unsigned int count = 0;
+
+        list_for_each_entry (flow, &td->flows, node) {
+                if (flow_matches_desc(&flow->key, key, strict)
+                    && (!strict || (flow->priority == priority))) {
+                        if (nf2_are_actions_supported(flow)) {
+                                LOG("---Actions are supported---\n");
+                                flow_replace_acts(flow, actions, actions_len);
+                                count += do_modify(swt, flow);
+                        }
+                }
+        return count;
+}
 
 static int table_nf2_timeout(struct datapath *dp, struct sw_table *swt)
 {
@@ -229,7 +263,7 @@ static void table_nf2_destroy(struct sw_table *swt)
 }
 
 static int table_nf2_iterate(struct sw_table *swt,
-			       const struct sw_flow_key *key,
+			       const struct sw_flow_key *key, uint16_t out_port,
 			       struct sw_table_position *position,
 			       int (*callback)(struct sw_flow *, void *),
 			       void *private)
@@ -240,7 +274,8 @@ static int table_nf2_iterate(struct sw_table *swt,
 
 	start = ~position->private[0];
 	list_for_each_entry (flow, &tl->iter_flows, iter_node) {
-		if (flow->serial <= start && flow_matches(key, &flow->key)) {
+		if (flow->serial <= start && flow_matches_2wild(key, &flow->key)
+		&& flow_has_out_port(flow, out_port)) {
 			int error = callback(flow, private);
 			if (error) {
 				position->private[0] = ~flow->serial;
@@ -254,10 +289,15 @@ static int table_nf2_iterate(struct sw_table *swt,
 static void table_nf2_stats(struct sw_table *swt,
 			      struct sw_table_stats *stats)
 {
+	struct net_device *dev;
+	dev = nf2_get_net_device();
+
 	struct sw_table_nf2 *td = (struct sw_table_nf2 *) swt;
 	stats->name = "nf2";
 	stats->n_flows = atomic_read(&td->n_flows);
 	stats->max_flows = td->max_flows;
+	stats->n_lookup = nf2_get_matched_count(dev) + nf2_get_missed_count(dev);
+	stats->n_matched = nf2_get_matched_count(dev);
 }
 
 
@@ -279,6 +319,7 @@ static struct sw_table *table_nf2_create(void)
 	swt = &td->swt;
 	swt->lookup = table_nf2_lookup;
 	swt->insert = table_nf2_insert;
+	swt->modify = table_nf2_modify;
 	swt->delete = table_nf2_delete;
 	swt->timeout = table_nf2_timeout;
 	swt->destroy = table_nf2_destroy;

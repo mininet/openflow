@@ -13,5 +13,4 @@
 
 #endif
 
-
 #endif /* compat.h */

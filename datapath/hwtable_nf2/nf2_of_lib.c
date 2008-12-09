@@ -571,6 +571,33 @@ void nf2_delete_private(void* private) {
 	}
 }
 
+void nf2_modify_private(void* private) {
+        struct sw_flow_nf2 *sfw = (struct sw_flow_nf2*)private;
+        struct sw_flow_nf2 *sfw_next;
+        struct list_head *next;
+        struct net_device *dev;
+
+        dev = nf2_get_net_device();
+        
+        switch (sfw->type) {
+                case NF2_TABLE_EXACT:
+                        nf2_modify_write_of_exact(dev, sfw->pos, sfw->action);
+                        flow->private = (void*)sfw;
+                        break;
+                        
+                case NF2_TABLE_WILDCARD:
+                        while (!list_empty(&sfw->node)) {
+                                next = sfw->node.next;
+                                sfw_next = list_entry(next, struct sw_flow_nf2, node);
+                                list_del_init(&sfw_next->node);
+                                nf2_modify_write_of_wildcard(dev, sfw_next->pos, sfw_next->action);
+                        }
+
+                        nf2_modify_write_of_wildcard(dev, sfw->pos, sfw->action);
+                        break;
+        }
+}
+
 uint64_t nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
 	uint32_t count = 0;
 	uint32_t hw_count = 0;

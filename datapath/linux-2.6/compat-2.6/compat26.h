@@ -7,6 +7,8 @@
 #error "CONFIG_PREEMPT is broken with 2.6.x before 2.6.21--see commit 4498121ca3, \"[NET]: Handle disabled preemption in gfp_any()\""
 #endif
 
+#if 0
+
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,23)
 /*----------------------------------------------------------------------------
  * In 2.6.24, a namespace argument became required for dev_get_by_name. */
@@ -25,6 +27,8 @@
 		kmem_cache_create((n), (s), (a), (f), (c), NULL)
 
 #endif /* linux kernel <= 2.6.22 */
+
+#endif
 
 /* For CentOS / RHEL kernel compatibility */
 #ifndef RHEL_RELEASE_VERSION
