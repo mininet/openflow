@@ -114,6 +114,20 @@ static const value_string names_choice[] = {
     { 0, NULL  }
 };
 
+/** wildcard or not for bitfields field */
+static const value_string wildcard_choice[] = {
+    { 0, "Exact"  },
+    { 1, "Wildcard" },
+    { 0, NULL  }
+};
+
+/** wildcard or not for bitfields field */
+static const value_string ts_wildcard_choice[] = {
+    { 0, "Exact only"  },
+    { 1, "Wildcard allowed" },
+    { 0, NULL  }
+};
+
 /** names from ofp_flow_mod_command */
 static const value_string names_flow_mod_command[] = {
     { OFPFC_ADD,           "New flow" },
@@ -209,6 +223,14 @@ static const value_string addr_mask[] = {
     { 30, "/2" },
     { 31, "/1" },
     { 32, "/0" },
+    { 63, "/0" },
+    { 0, NULL  }
+};
+
+/** Address masks */
+static const value_string ts_addr_mask[] = {
+    { 0, "Exact only"  },
+    { 63, "Wildcard allowed" },
     { 0, NULL  }
 };
 
@@ -637,6 +659,7 @@ void proto_register_openflow()
     }
     for( i=0; i<NUM_WILDCARDS; i++ ) {
         ofp_match_wildcards[i] = -1;
+        ofp_table_stats_wildcards[i] = -1;
     }
     for( i=0; i<NUM_SF_REPLY_FLAGS; i++ ) {
         ofp_stats_reply_flag[i] = -1;
@@ -896,34 +919,64 @@ void proto_register_openflow()
           { "Match Types", "of.wildcards", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Match Types (Wildcards)", HFILL }},
 
         { &ofp_match_wildcards[0],
-          { "  Input port", "of.wildcard_in_port" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPFW_IN_PORT, "Input Port", HFILL }},
+          { "  Input port", "of.wildcard_in_port" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_IN_PORT, "Input Port", HFILL }},
 
         { &ofp_match_wildcards[1],
-          { "  VLAN", "of.wildcard_dl_vlan" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPFW_DL_VLAN, "VLAN", HFILL }},
+          { "  VLAN", "of.wildcard_dl_vlan" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_DL_VLAN, "VLAN", HFILL }},
 
         { &ofp_match_wildcards[2],
-          { "  Ethernet Src Addr", "of.wildcard_dl_src" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPFW_DL_SRC, "Ethernet Source Address", HFILL }},
+          { "  Ethernet Src Addr", "of.wildcard_dl_src" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_DL_SRC, "Ethernet Source Address", HFILL }},
 
         { &ofp_match_wildcards[3],
-          { "  Ethernet Dst Addr", "of.wildcard_dl_dst" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPFW_DL_DST, "Ethernet Destination Address", HFILL }},
+          { "  Ethernet Dst Addr", "of.wildcard_dl_dst" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_DL_DST, "Ethernet Destination Address", HFILL }},
 
         { &ofp_match_wildcards[4],
-          { "  Ethernet Type", "of.wildcard_dl_type" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPFW_DL_TYPE, "Ethernet Type", HFILL }},
+          { "  Ethernet Type", "of.wildcard_dl_type" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_DL_TYPE, "Ethernet Type", HFILL }},
 
         { &ofp_match_wildcards[5],
-          { "  IP Protocol", "of.wildcard_nw_proto" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPFW_NW_PROTO, "IP Protocol", HFILL }},
+          { "  IP Protocol", "of.wildcard_nw_proto" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_NW_PROTO, "IP Protocol", HFILL }},
 
         { &ofp_match_wildcards[6],
-          { "  TCP/UDP Src Port", "of.wildcard_tp_src" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPFW_TP_SRC, "TCP/UDP Source Port", HFILL }},
+          { "  TCP/UDP Src Port", "of.wildcard_tp_src" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_TP_SRC, "TCP/UDP Source Port", HFILL }},
 
         { &ofp_match_wildcards[7],
-          { "  TCP/UDP Dst Port", "of.wildcard_tp_dst" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPFW_TP_DST, "TCP/UDP Destinatoin Port", HFILL }},
+          { "  TCP/UDP Dst Port", "of.wildcard_tp_dst" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_TP_DST, "TCP/UDP Destinatoin Port", HFILL }},
 
         { &ofp_match_wildcards[8],
             { "  IP Src Addr Mask", "of.wildcard_nw_src" , FT_UINT32, BASE_DEC, VALS(addr_mask), OFPFW_NW_SRC_MASK, "IP Source Address Mask", HFILL }},
 
         { &ofp_match_wildcards[9],
             { "  IP Dst Addr Mask", "of.wildcard_nw_dst" , FT_UINT32, BASE_DEC, VALS(addr_mask), OFPFW_NW_DST_MASK , "IP Destination Address Mask", HFILL }},
+
+        { &ofp_table_stats_wildcards[0],
+          { "  Input port", "of.wildcard_in_port" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_IN_PORT, "Input Port", HFILL }},
+
+        { &ofp_table_stats_wildcards[1],
+          { "  VLAN", "of.wildcard_dl_vlan" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_DL_VLAN, "VLAN", HFILL }},
+
+        { &ofp_table_stats_wildcards[2],
+          { "  Ethernet Src Addr", "of.wildcard_dl_src" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_DL_SRC, "Ethernet Source Address", HFILL }},
+
+        { &ofp_table_stats_wildcards[3],
+          { "  Ethernet Dst Addr", "of.wildcard_dl_dst" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_DL_DST, "Ethernet Destination Address", HFILL }},
+
+        { &ofp_table_stats_wildcards[4],
+          { "  Ethernet Type", "of.wildcard_dl_type" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_DL_TYPE, "Ethernet Type", HFILL }},
+
+        { &ofp_table_stats_wildcards[5],
+          { "  IP Protocol", "of.wildcard_nw_proto" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_NW_PROTO, "IP Protocol", HFILL }},
+
+        { &ofp_table_stats_wildcards[6],
+          { "  TCP/UDP Src Port", "of.wildcard_tp_src" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_TP_SRC, "TCP/UDP Source Port", HFILL }},
+
+        { &ofp_table_stats_wildcards[7],
+          { "  TCP/UDP Dst Port", "of.wildcard_tp_dst" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_TP_DST, "TCP/UDP Destinatoin Port", HFILL }},
+
+        { &ofp_table_stats_wildcards[8],
+            { "  IP Src Addr Mask", "of.wildcard_nw_src" , FT_UINT32, BASE_DEC, VALS(ts_addr_mask), OFPFW_NW_SRC_MASK, "IP Source Address Mask", HFILL }},
+
+        { &ofp_table_stats_wildcards[9],
+            { "  IP Dst Addr Mask", "of.wildcard_nw_dst" , FT_UINT32, BASE_DEC, VALS(ts_addr_mask), OFPFW_NW_DST_MASK , "IP Destination Address Mask", HFILL }},
 
         { &ofp_match_in_port,
           { "Input Port", "of.match_in_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Input Port", HFILL }},
@@ -1687,7 +1740,7 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
     }
 }
 
-static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
+static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset, gint wildcard_list[])
 {
     proto_item *wild_item = proto_tree_add_item(match_tree, ofp_match_wildcards_hdr, tvb, *offset, 4, FALSE);
     proto_tree *wild_tree = proto_item_add_subtree(wild_item, ett_ofp_match_wildcards_hdr);
@@ -1697,7 +1750,7 @@ static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tv
     
     int i;
     for(i=0; i<NUM_WILDCARDS; i++)
-        add_child_const(wild_tree, ofp_match_wildcards[i], tvb, *offset, 4 );
+        add_child_const(wild_tree, wildcard_list[i], tvb, *offset, 4 );
     *offset += 4;
 }
 
@@ -1855,7 +1908,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
 	/* save wildcards field for later */
     guint32 wildcards = tvb_get_ntohl( tvb, *offset );   
     
-    dissect_wildcards(match_tree, match_item, tvb, pinfo, offset);
+    dissect_wildcards(match_tree, match_item, tvb, pinfo, offset, ofp_match_wildcards);
 
     /* show only items whose corresponding wildcard bit is not set */
     if( ~wildcards & OFPFW_IN_PORT )
@@ -2611,8 +2664,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     add_child(table_tree, ofp_table_stats_table_id, tvb, &offset, 1);
                     dissect_pad(table_tree, &offset, 3);
                     add_child( table_tree, ofp_table_stats_name, tvb, &offset, OFP_MAX_TABLE_NAME_LEN);
-                    dissect_wildcards(table_tree, table_item, tvb, pinfo, &offset);                    
-                    add_child(table_tree, ofp_table_stats_wildcards, tvb, &offset, 4);       
+                    dissect_wildcards(table_tree, table_item, tvb, pinfo, &offset, ofp_table_stats_wildcards);                    
                     add_child(table_tree, ofp_table_stats_max_entries, tvb, &offset, 4);
                     add_child(table_tree, ofp_table_stats_active_count, tvb, &offset, 4);
                     add_child(table_tree, ofp_table_stats_lookup_count, tvb, &offset, 8);
