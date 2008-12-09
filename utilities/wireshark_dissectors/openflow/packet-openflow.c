@@ -2585,6 +2585,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
                     add_child(table_tree, ofp_table_stats_table_id, tvb, &offset, 1);
                     dissect_pad(table_tree, &offset, 3);
+                    add_child( table_tree, ofp_table_stats_name, tvb, &offset, OFP_MAX_TABLE_NAME_LEN);
                     dissect_wildcards(table_tree, table_item, tvb, pinfo, &offset);                    
                     add_child(table_tree, ofp_table_stats_wildcards, tvb, &offset, 4);       
                     add_child(table_tree, ofp_table_stats_max_entries, tvb, &offset, 4);
