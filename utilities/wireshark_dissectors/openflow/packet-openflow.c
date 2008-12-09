@@ -2228,6 +2228,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 dissect_openflow_message(next_tvb, pinfo, data_tree);
 
                 col_set_writable( pinfo->cinfo, writeable);
+                
+                offset += (len - offset);
             }
             else
                 add_child(type_tree, ofp_error_msg_data, tvb, &offset, len - offset);
