@@ -102,7 +102,7 @@ static const value_string names_ofp_action_type[] = {
 #define NUM_PORT_CONFIG_FLAGS 4
 #define NUM_PORT_STATE_FLAGS 1
 #define NUM_PORT_FEATURES_FLAGS 12
-#define NUM_WILDCARDS 8
+#define NUM_WILDCARDS 10
 #define NUM_CAPABILITIES_FLAGS 6
 #define NUM_CONFIG_FLAGS 1
 #define NUM_SF_REPLY_FLAGS 1
@@ -173,6 +173,45 @@ static const value_string names_ofp_error_type_reason[] = {
     { OFPET_FLOW_MOD_FAILED,    "Problem modifying flow entry" },
     { 0,                        NULL }
 };
+
+/** Address masks */
+static const value_string addr_mask[] = {
+    { 0, "/32"  },
+    { 1, "/31" },
+    { 2, "/30" },
+    { 3, "/29" },
+    { 4, "/28" },
+    { 5, "/27" },
+    { 6, "/26" },
+    { 7, "/25" },
+    { 8, "/24" },
+    { 9, "/23" },
+    { 10, "/22" },
+    { 11, "/21" },
+    { 12, "/20" },
+    { 13, "/19" },
+    { 14, "/18" },
+    { 15, "/17" },
+    { 16, "/16" },
+    { 17, "/15" },
+    { 18, "/14" },
+    { 19, "/13" },
+    { 20, "/12" },
+    { 21, "/11" },
+    { 22, "/10" },
+    { 23, "/9" },
+    { 24, "/8" },
+    { 25, "/7" },
+    { 26, "/6" },
+    { 27, "/5" },
+    { 28, "/4" },
+    { 29, "/3" },
+    { 30, "/2" },
+    { 31, "/1" },
+    { 32, "/0" },
+    { 0, NULL  }
+};
+
 
 /* Error strings for the various error types */
 static const gchar *hello_failed_err_str[] = {"No compatible version"};
@@ -880,16 +919,12 @@ void proto_register_openflow()
         { &ofp_match_wildcards[7],
           { "  TCP/UDP Dst Port", "of.wildcard_tp_dst" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPFW_TP_DST, "TCP/UDP Destinatoin Port", HFILL }},
 
-          /* FIXME: support new ip subnet format for wildcards  
-            
-          { &ofp_match_wildcards[5],
-            { "  IP Src Addr", "of.wildcard_nw_src" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_NW_SRC, "IP Source Address", HFILL }},
+        { &ofp_match_wildcards[8],
+            { "  IP Src Addr Mask", "of.wildcard_nw_src" , FT_UINT32, BASE_DEC, VALS(addr_mask), OFPFW_NW_SRC_MASK, "IP Source Address Mask", HFILL }},
 
-          { &ofp_match_wildcards[6],
-            { "  IP Dst Addr", "of.wildcard_nw_dst" , FT_UINT16, BASE_DEC, VALS(names_choice), OFPFW_NW_DST, "IP Destination Address", HFILL }},
+        { &ofp_match_wildcards[9],
+            { "  IP Dst Addr Mask", "of.wildcard_nw_dst" , FT_UINT32, BASE_DEC, VALS(addr_mask), OFPFW_NW_DST_MASK , "IP Destination Address Mask", HFILL }},
 
-  		*/
-          
         { &ofp_match_in_port,
           { "Input Port", "of.match_in_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Input Port", HFILL }},
 
@@ -1664,16 +1699,6 @@ static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tv
     for(i=0; i<NUM_WILDCARDS; i++)
         add_child_const(wild_tree, ofp_match_wildcards[i], tvb, *offset, 4 );
     *offset += 4;
-    
-    /* display mask bits if nonzero */
-    char str[11];
-    guint8 nw_src_bits = (wildcards & OFPFW_NW_SRC_MASK) >> OFPFW_NW_SRC_SHIFT;
-    snprintf( str, 11, "%u", nw_src_bits );
-    add_child_str( wild_tree, ofp_match_nw_src_mask_bits, tvb, offset, 0, str );
-    
-    guint8 nw_dst_bits = (wildcards & OFPFW_NW_DST_MASK) >> OFPFW_NW_DST_SHIFT;
-    snprintf( str, 11, "%u", nw_dst_bits );
-    add_child_str( wild_tree, ofp_match_nw_dst_mask_bits, tvb, offset, 0, str );
 }
 
 static void dissect_dl_type(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offset) {
