@@ -126,12 +126,12 @@ static const value_string names_flow_mod_command[] = {
 
 /** names of stats_types */
 static const value_string names_stats_types[] = {
-	{ OFPST_DESC,      "Description of this OpenFlow switch. The request body is empty. The reply body is struct ofp_desc_stats." }, 
-	{ OFPST_FLOW,      "Individual flow statistics. The request body is struct ofp_flow_stats_request. The reply body is an array of struct ofp_flow_stats." },
-    { OFPST_AGGREGATE, "Aggregate flow statistics. The request body is struct ofp_aggregate_stats_request. The reply body is struct ofp_aggregate_stats_reply." },
-    { OFPST_TABLE,     "Flow table statistics. The request body is empty. The reply body is an array of struct ofp_table_stats." },
-    { OFPST_PORT,      "Physical port statistics. The request body is empty. The reply body is an array of struct ofp_port_stats." },
-    { OFPST_VENDOR,    "Vendor extension. The request and reply bodies begin with a 32-bit vendor ID, which takes the same form as in struct ofp_vendor.  The request and reply bodies are otherwise vendor-defined." },
+    { OFPST_DESC,      "Description of this OpenFlow switch" }, 
+    { OFPST_FLOW,      "Individual flow statistics" },
+    { OFPST_AGGREGATE, "Aggregate flow statistics" },
+    { OFPST_TABLE,     "Flow table statistics" },
+    { OFPST_PORT,      "Physical port statistics" },
+    { OFPST_VENDOR,    "Vendor extension" },
     { 0, NULL }
 };
 
