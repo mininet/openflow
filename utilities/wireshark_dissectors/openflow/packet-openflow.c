@@ -489,10 +489,11 @@ static gint ofp_port_status        = -1;
 static gint ofp_port_status_reason = -1;
 /* field: ofp_phy_port desc */
 
-static gint ofp_error_msg      = -1;
-static gint ofp_error_msg_type = -1;
-static gint ofp_error_msg_code = -1;
-static gint ofp_error_msg_data = -1;
+static gint ofp_error_msg          = -1;
+static gint ofp_error_msg_type     = -1;
+static gint ofp_error_msg_code     = -1;
+static gint ofp_error_msg_data     = -1;
+static gint ofp_error_msg_data_str = -1;
 
 static gint ofp_echo = -1;
 static gint ofp_vendor = -1;
@@ -1378,6 +1379,9 @@ void proto_register_openflow()
         { &ofp_error_msg_code,
           { "Code", "of.err_code", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Code", HFILL } },
 
+        { &ofp_error_msg_data_str,
+          { "Data", "of.err_data", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Data", HFILL } },
+
         { &ofp_error_msg_data,
           { "Data", "of.err_data", FT_BYTES, BASE_NONE, NO_STRINGS, NO_MASK, "Data", HFILL } },
     };
@@ -2207,7 +2211,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             dissect_error_code(type_tree, ofp_error_msg_code, tvb, &offset, type);
 
             if (type == OFPET_HELLO_FAILED)
-                add_child(type_tree, ofp_error_msg_data, tvb, &offset, len - offset);
+                add_child(type_tree, ofp_error_msg_data_str, tvb, &offset, len - offset);
             else if (type == OFPET_BAD_REQUEST ||
                      type == OFPET_BAD_ACTION ||
                      type == OFPET_FLOW_MOD_FAILED) {
