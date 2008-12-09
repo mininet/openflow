@@ -1393,7 +1393,7 @@ void proto_register_openflow()
           { "Active Entry Count", "of.stats_table_active_count", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Active Entry Count", HFILL } },
 
         { &ofp_table_stats_lookup_count,
-          { "Lookup Count", "of.stats_table_lookup_count", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Lookup Count", HFILL } },
+          { "Lookup Count", "of.stats_table_lookup_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Lookup Count", HFILL } },
           
         { &ofp_table_stats_matched_count,
           { "Packet Match Count", "of.stats_table_match_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Packet Match Count", HFILL } },
