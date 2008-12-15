@@ -4,7 +4,8 @@
 #include_next <linux/ipv6.h>
 
 #include <linux/version.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
+#if ((LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)) && \
+	(RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,2)))
 
 #ifdef __KERNEL__
 #include <linux/skbuff.h>

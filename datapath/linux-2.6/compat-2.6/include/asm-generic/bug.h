@@ -7,6 +7,8 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 
+#ifndef WARN_ON_ONCE
+
 #define WARN_ON_ONCE(condition)	({				\
 	static int __warned;					\
 	int __ret_warn_once = !!(condition);			\
@@ -17,6 +19,8 @@
 	}							\
 	unlikely(__ret_warn_once);				\
 })
+
+#endif /* ifndef WARN_ON_ONCE */
 
 #endif /* linux kernel < 2.6.19 */
 

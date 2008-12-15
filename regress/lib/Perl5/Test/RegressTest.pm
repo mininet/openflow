@@ -608,7 +608,7 @@ sub runScript {
 	# Verify that the test exists
 	unless ( -x "$_ROOT_DIR/$projectRoot/$project/$regressRoot/$dir/$script" ) {
 		if ( $required == REQUIRED ) {
-			my_die "Unable to run test '$dir' for project '$project'";
+			my_die "Unable to run test '$dir' for project '$project' : '$_ROOT_DIR/$projectRoot/$project/$regressRoot/$dir/$script' : '$required'";
 		}
 		else {
 			return ( 1, "" );

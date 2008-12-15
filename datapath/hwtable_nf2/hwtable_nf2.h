@@ -62,7 +62,7 @@ int nf2_get_table_type(struct sw_flow *flow);
 int nf2_build_and_write_flow(struct sw_flow *flow);
 void nf2_delete_private(void* private);
 
-void nf2_modify_private(void* private);
+int nf2_modify_acts(struct sw_table *swt, struct sw_flow *flow);
 
 uint64_t nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw);
 uint64_t nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw);

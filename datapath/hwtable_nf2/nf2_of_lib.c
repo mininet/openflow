@@ -29,25 +29,38 @@ void nf2_free_net_device(struct net_device* dev) {
  * done in the NF2 hardware. Returns 1 if yes, 0 for no.
  */
 int nf2_are_actions_supported(struct sw_flow *flow) {
-	int i;
-	for (i=0; i < flow->n_actions; ++i) {
+
+	struct sw_flow_actions *sfa = flow -> sf_acts;
+	struct ofp_action_header *ah = sfa -> actions;
+	size_t actions_len = sfa -> actions_len;
+	
+	uint8_t *p = (uint8_t *)ah;
+	
+	while (actions_len > 0) {
+		struct ofp_action_output *oa = (struct ofp_action_output *)p;
+		struct ofp_action_header *ah = (struct ofp_action_header *)p;
+		size_t len = htons(ah->len);
+
 		// Currently only support the output port(s) action
-		if (flow->actions[i].type != OFPAT_OUTPUT) {
+		if (ah->type != htons(OFPAT_OUTPUT)) {
 			LOG("Flow action type %#0x not supported in hardware\n",
-					flow->actions[i].type);
+					ah->type);
 			return 0;
 		}
-
-		// Only support ports 0-3, ALL, FLOOD. Let CONTROLLER/LOCAL fall through
-		if (!(ntohs(flow->actions[i].arg.output.port) < 4) &&
-			!(ntohs(flow->actions[i].arg.output.port) == OFPP_ALL) &&
-			!(ntohs(flow->actions[i].arg.output.port) == OFPP_FLOOD) &&
-			!(ntohs(flow->actions[i].arg.output.port) == OFPP_IN_PORT)) {
+		
+		// Only support ports 0-3(incl. IN_PORT), ALL, FLOOD.
+		// Let CONTROLLER/LOCAL fall through
+		if (!(ntohs(oa->port) < 4) &&
+			!(ntohs(oa->port) == OFPP_ALL) &&
+			!(ntohs(oa->port) == OFPP_FLOOD) &&
+			!(ntohs(oa->port) == OFPP_IN_PORT)) {
 
 			LOG("Flow action output port %#0x is not supported in hardware\n",
-					ntohs(flow->actions[i].arg.output.port));
+					ntohs(oa->port));
 			return 0;
 		}
+		p += len;
+		actions_len -= len;
 	}
 	return 1;
 }
@@ -250,10 +263,12 @@ void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow) {
 	}
 	if (OFPFW_DL_TYPE & flow->key.wildcards)
 		mask->entry.eth_type = 0xFFFF;
-	if ((OFPFW_NW_SRC_ALL & flow->key.wildcards) || (OFPFW_NW_SRC_MASK & flow->key.wildcards))
-		mask->entry.ip_src = make_nw_wildcard(flow->wildcards >> OFPFW_NW_SRC_SHIFT);
-	if ((OFPFW_NW_DST_ALL & flow->key.wildcards) || (OFPFW_NW_DST_MASK & flow->key.wildcards))
-		mask->entry.ip_dst = make_nw_wildcard(flow0>wildcards >> OFPFW_NW_DST_SHIFT);
+	if ((OFPFW_NW_SRC_ALL & flow->key.wildcards) ||
+		(OFPFW_NW_SRC_MASK & flow->key.wildcards))
+		mask->entry.ip_src = make_nw_wildcard(flow->key.wildcards >> OFPFW_NW_SRC_SHIFT);
+	if ((OFPFW_NW_DST_ALL & flow->key.wildcards) ||
+		(OFPFW_NW_DST_MASK & flow->key.wildcards))
+		mask->entry.ip_dst = make_nw_wildcard(flow->key.wildcards >> OFPFW_NW_DST_SHIFT);
 	if (OFPFW_NW_PROTO & flow->key.wildcards)
 		mask->entry.ip_proto = 0xFF;
 	if (OFPFW_TP_SRC & flow->key.wildcards)
@@ -269,16 +284,29 @@ void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow) {
  */
 void nf2_populate_of_action(nf2_of_action_wrap *action,
 	nf2_of_entry_wrap *entry, nf2_of_mask_wrap *mask, struct sw_flow *flow) {
+	
+	struct sw_flow_actions *sfa = flow -> sf_acts;
+	struct ofp_action_header *ah = sfa -> actions;
+	size_t actions_len = sfa -> actions_len;
+
+	uint8_t *p = (uint8_t *)ah;
+
 	unsigned short port = 0;
-	int i, j;
+	int j;
+
 	// zero it out for now
 	memset(action, 0, sizeof(nf2_of_action_wrap));
-	LOG("Number of actions: %i\n", flow->n_actions);
-	for (i=0; i < flow->n_actions; ++i) {
-		if (flow->actions[i].type == OFPAT_OUTPUT) {
-			port = ntohs(flow->actions[i].arg.output.port);
+	
+	while (actions_len > 0) {
+		struct ofp_action_output *oa = (struct ofp_action_output *)p;
+		struct ofp_action_header *ah = (struct ofp_action_header *)p;
+		size_t len = htons(ah->len);
+
+                LOG("Length of actions: %i\n", actions_len);
+		if (ah->type == htons(OFPAT_OUTPUT)) {
+			port = ntohs(oa->port);
 			LOG("Action Type: %i Output Port: %i\n",
-				flow->actions[i].type, port);
+				ah->type, port);
 
 			if (port < 4)  {
 				// bitmask for output port(s), evens are phys odds cpu
@@ -296,12 +324,17 @@ void nf2_populate_of_action(nf2_of_action_wrap *action,
 					if ((j*2) != entry->entry.src_port) {
 						// bitmask for output port(s), evens are phys odds cpu
 						action->action.forward_bitmask |= (1 << (j * 2));
+						LOG("Output Port: %i Forward Bitmask: %x\n",
+							port, action->action.forward_bitmask);
 					}
 				}
 			}
 		}
+		p += len;
+		actions_len -= len;
 	}
 }
+
 
 /*
  * Add a free hardware entry back to the exact pool
@@ -407,19 +440,29 @@ int nf2_get_table_type(struct sw_flow *flow) {
  * equivalent to OFPP_ALL.
  */
 int is_action_forward_all(struct sw_flow *flow) {
-	int i;
-	for (i=0; i < flow->n_actions; ++i) {
-		// Currently only support the output port(s) action
-		if ((flow->actions[i].type == OFPAT_OUTPUT) &&
-			((flow->actions[i].arg.output.port == OFPP_ALL) ||
-			 (flow->actions[i].arg.output.port == OFPP_FLOOD))) {
+	struct sw_flow_actions *sfa = flow -> sf_acts;
+	struct ofp_action_header *ah = sfa -> actions;
+	size_t actions_len = sfa -> actions_len;
 
+	uint8_t *p = (uint8_t *)ah;
+
+	while (actions_len > 0) {
+		struct ofp_action_output *oa = (struct ofp_action_output *)p;
+		struct ofp_action_header *ah = (struct ofp_action_header *)p;
+		size_t len = htons(ah->len);
+		
+		// Currently only support the output port(s) action
+		if ((ntohs(ah->type) == OFPAT_OUTPUT) &&
+			((ntohs(oa->port) == OFPP_ALL) ||
+			 (ntohs(oa->port) == OFPP_FLOOD))) {
 			return 1;
 		}
+		p += len;
+		actions_len -= len;
 	}
-
 	return 0;
 }
+
 
 /*
  * Attempts to build and write the flow to hardware.
@@ -504,7 +547,7 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 				sfw_next = list_entry(sfw->node.next, struct sw_flow_nf2, node);
 				// walk through and write the remaining 3 entries
 				while (sfw_next != sfw) {
-					key.entry.src_port = i;
+					key.entry.src_port = i*2;
 					nf2_populate_of_action(&action, &key, &mask, flow);
 					nf2_write_of_wildcard(dev, sfw->pos, &key, &mask, &action);
 					sfw_next = list_entry(sfw_next->node.next,
@@ -571,32 +614,43 @@ void nf2_delete_private(void* private) {
 	}
 }
 
-void nf2_modify_private(void* private) {
-        struct sw_flow_nf2 *sfw = (struct sw_flow_nf2*)private;
+
+int nf2_modify_acts(struct sw_table *swt, struct sw_flow *flow)
+{
+        struct sw_flow_nf2 *sfw = (struct sw_flow_nf2*)flow->private; 
         struct sw_flow_nf2 *sfw_next;
         struct list_head *next;
         struct net_device *dev;
+        nf2_of_entry_wrap key;
+        nf2_of_action_wrap action;
 
         dev = nf2_get_net_device();
+        memset(&key, 0, sizeof(nf2_of_entry_wrap));
         
         switch (sfw->type) {
                 case NF2_TABLE_EXACT:
-                        nf2_modify_write_of_exact(dev, sfw->pos, sfw->action);
-                        flow->private = (void*)sfw;
-                        break;
+                        nf2_populate_of_entry(&key, flow);
+                        nf2_populate_of_action(&action, &key, NULL, flow);
+                        nf2_modify_write_of_exact(dev, sfw->pos, &action);
+//                        flow->private = (void*)sfw;
+                        return 1;
                         
                 case NF2_TABLE_WILDCARD:
+                        nf2_populate_of_entry(&key, flow);
                         while (!list_empty(&sfw->node)) {
                                 next = sfw->node.next;
                                 sfw_next = list_entry(next, struct sw_flow_nf2, node);
-                                list_del_init(&sfw_next->node);
-                                nf2_modify_write_of_wildcard(dev, sfw_next->pos, sfw_next->action);
+                                nf2_populate_of_action(&action, &key, NULL, flow);
+                                nf2_modify_write_of_wildcard(dev, sfw_next->pos, &action);
                         }
-
-                        nf2_modify_write_of_wildcard(dev, sfw->pos, sfw->action);
-                        break;
+                        nf2_populate_of_action(&action, &key, NULL, flow);
+                        nf2_modify_write_of_wildcard(dev, sfw->pos, &action);
+//                        flow->private = (void*)sfw;
+                        return 1;
         }
+        return 0;
 }
+
 
 uint64_t nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
 	uint32_t count = 0;

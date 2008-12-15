@@ -1,9 +1,21 @@
 #ifndef __LINUX_SKBUFF_WRAPPER_H
 #define __LINUX_SKBUFF_WRAPPER_H 1
 
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
+#undef kmem_cache_create
+#endif /* linux kernel <= 2.6.22 */
+
 #include_next <linux/skbuff.h>
 
-#include <linux/version.h>
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22)
+/*----------------------------------------------------------------------------
+ * In 2.6.23, the last argument was dropped from kmem_cache_create. */
+#define kmem_cache_create(n, s, a, f, c) \
+		kmem_cache_create((n), (s), (a), (f), (c), NULL)
+
+#endif /* linux kernel <= 2.6.22 */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 /* Emulate Linux 2.6.17 and later behavior, in which kfree_skb silently ignores

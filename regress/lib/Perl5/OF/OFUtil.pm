@@ -947,14 +947,16 @@ sub for_all_wildcards {
 	my %wildcards = (
 		0x0001 => 'IN_PORT',
 		#0x0002 => 'DL_VLAN', # currently fixed at 0xffff
-		0x0004 => 'DL_SRC',
-		0x0008 => 'DL_DST',
+		#####0x0004 => 'DL_SRC',
+		#####0x0008 => 'DL_DST',
 		#0x0010 => 'DL_TYPE', # currently fixed at 0x0800
-		0x0020 => 'NW_SRC',
-		0x0040 => 'NW_DST',
+		#####0x0020 => 'NW_SRC',
+		0x2000 => 'NW_SRC',
+		#####0x0040 => 'NW_DST',
 		#0x0080 => 'NW_PROTO', # currently fixed at 0x17
-		0x0100 => 'TP_SRC',
-		0x0200 => 'TP_DST',
+		#####0x0100 => 'TP_SRC',
+		#0x0040 => 'TP_SRC',
+		#####0x0200 => 'TP_DST',
 	);
 
 	# send from every port

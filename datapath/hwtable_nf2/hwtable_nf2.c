@@ -38,6 +38,8 @@
 #include <linux/delay.h>
 #include <linux/if_arp.h>
 
+#include <linux/rculist.h>
+
 #include "chain.h"
 #include "table.h"
 #include "flow.h"
@@ -54,8 +56,9 @@
 static int table_nf2_delete(struct sw_table *swt, const struct sw_flow_key *key,
 		uint16_t out_port, uint16_t priority, int strict);
 
-static int table_nf2_modify(struct sw_table *swt, const struct sw_flow_key *key,
-		uint16_t priority, int strict);
+static int table_nf2_modify(struct sw_table *swt,
+                const struct sw_flow_key *key, uint16_t priority, int strict,
+                const struct ofp_action_header *actions, size_t actions_len);
 
 static void table_nf2_rcu_callback(struct rcu_head *rcu)
 {
@@ -92,7 +95,7 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
 	 */
 
     /* Delete flows that match exactly. */
-    table_nf2_delete(swt, &flow->key, flow->priority, true);
+    table_nf2_delete(swt, &flow->key, OFPP_NONE, flow->priority, true);
 
 	if (nf2_are_actions_supported(flow)) {
 		LOG("---Actions are supported---\n");
@@ -143,8 +146,8 @@ static int table_nf2_delete(struct sw_table *swt,
 
 	list_for_each_entry (flow, &td->flows, node) {
 		if (flow_matches_desc(&flow->key, key, strict)
-		    && (!strict || (flow->priority == priority)
-		    && flow_has_out_port(flow, out_port)))
+		    && (!strict || (flow->priority == priority))
+		    && flow_has_out_port(flow, out_port))
 			count += do_delete(swt, flow);
 	}
 	if (count)
@@ -152,44 +155,36 @@ static int table_nf2_delete(struct sw_table *swt,
 	return count;
 }
 
-static int do_modify(struct sw_table *swt, struct sw_flow *flow)
-{
-        if (flow && flow->private) {
-                nf2_modify_private(flow->private);
-                return 1;
-        }
-
-        return 0;
-}
-
 static int table_nf2_modify(struct sw_table *swt,
 		const struct sw_flow_key *key, uint16_t priority, int strict,
 		const struct ofp_action_header *actions, size_t actions_len) 
 {
-        struct sw_table_nf2 *td = (struct sw_table_nf2 *) swt;
+        struct sw_table_nf2 *td = (struct sw_table_nf2 *)swt;
         struct sw_flow *flow;
         unsigned int count = 0;
 
-        list_for_each_entry (flow, &td->flows, node) {
+        list_for_each_entry(flow, &td->flows, node) {
                 if (flow_matches_desc(&flow->key, key, strict)
                     && (!strict || (flow->priority == priority))) {
                         if (nf2_are_actions_supported(flow)) {
                                 LOG("---Actions are supported---\n");
                                 flow_replace_acts(flow, actions, actions_len);
-                                count += do_modify(swt, flow);
+                                count += nf2_modify_acts(swt, flow);
                         }
                 }
+	}
         return count;
 }
 
 static int table_nf2_timeout(struct datapath *dp, struct sw_table *swt)
 {
-	struct sw_table_nf2 *td = (struct sw_table_nf2 *) swt;
+	struct sw_table_nf2 *td = (struct sw_table_nf2 *)swt;
 	struct sw_flow *flow;
 	struct sw_flow_nf2 *sfw;
 	int del_count = 0;
 	uint64_t packet_count = 0;
 	struct net_device* dev;
+	int reason;
 
 	dev = nf2_get_net_device();
 
@@ -211,12 +206,13 @@ static int table_nf2_timeout(struct datapath *dp, struct sw_table *swt)
 			flow->used = jiffies;
 		}
 
-		if ((flow_timeout(flow) == OFPER_IDLE_TIMEOUT)
-		    || (flow_timeout(flow) == OFPER_HARD_TIMEOUT)) {
+		reason = flow_timeout(flow);
+		if (reason >= 0) {
 			if (dp->flags & OFPC_SEND_FLOW_EXP) {
-				dp_send_flow_expired(dp, flow);
+//				flow->byte_count = 0;
+				dp_send_flow_expired(dp, flow, reason);
 			}
-			del_count += do_delete(swt, flow);
+		del_count += do_delete(swt, flow);
 		}
 	}
 	mutex_unlock(&dp_mutex);
@@ -289,15 +285,21 @@ static int table_nf2_iterate(struct sw_table *swt,
 static void table_nf2_stats(struct sw_table *swt,
 			      struct sw_table_stats *stats)
 {
-	struct net_device *dev;
-	dev = nf2_get_net_device();
-
+	
 	struct sw_table_nf2 *td = (struct sw_table_nf2 *) swt;
+        struct net_device *dev;
+	unsigned long int lookup_cnt;
+	unsigned long int matched_cnt;
+	dev = nf2_get_net_device();
+	matched_cnt = nf2_get_matched_count(dev);
+	lookup_cnt = matched_cnt + nf2_get_missed_count(dev);
+
 	stats->name = "nf2";
+	stats->wildcards = OPENFLOW_WILDCARD_TABLE_SIZE-8;
 	stats->n_flows = atomic_read(&td->n_flows);
 	stats->max_flows = td->max_flows;
-	stats->n_lookup = nf2_get_matched_count(dev) + nf2_get_missed_count(dev);
-	stats->n_matched = nf2_get_matched_count(dev);
+	stats->n_lookup = lookup_cnt;
+	stats->n_matched = matched_cnt;
 }
 
 
@@ -325,6 +327,8 @@ static struct sw_table *table_nf2_create(void)
 	swt->destroy = table_nf2_destroy;
 	swt->iterate = table_nf2_iterate;
 	swt->stats = table_nf2_stats;
+	swt->n_lookup = (unsigned long long)(nf2_get_matched_count(dev) + nf2_get_missed_count(dev));
+	swt->n_matched = (unsigned long long)(nf2_get_matched_count(dev));
 
 	td->max_flows = OPENFLOW_NF2_EXACT_TABLE_SIZE +
 	OPENFLOW_WILDCARD_TABLE_SIZE-8;
@@ -347,6 +351,7 @@ static struct sw_table *table_nf2_create(void)
 static int __init nf2_init(void)
 {
 	return chain_set_hw_hook(table_nf2_create, THIS_MODULE);
+
 }
 module_init(nf2_init);
 
@@ -359,4 +364,3 @@ module_exit(nf2_cleanup);
 MODULE_DESCRIPTION("NetFPGA OpenFlow Hardware Table Driver");
 MODULE_AUTHOR("Copyright (c) 2008 The Board of Trustees of The Leland Stanford Junior University");
 MODULE_LICENSE("GPL");
-
