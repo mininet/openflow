@@ -247,7 +247,10 @@ void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow) {
 	int i;
 
 	if (OFPFW_IN_PORT & flow->key.wildcards)
+{
 		mask->entry.src_port = 0xFF;
+LOG("CHECKPOINT: IN_PORT\n");
+}
 	if (OFPFW_DL_VLAN & flow->key.wildcards) {
 		mask->entry.vlan_id = 0xFFFF;
 	}
@@ -450,7 +453,8 @@ int is_action_forward_all(struct sw_flow *flow) {
 		struct ofp_action_output *oa = (struct ofp_action_output *)p;
 		struct ofp_action_header *ah = (struct ofp_action_header *)p;
 		size_t len = htons(ah->len);
-		
+		LOG("action type: %x\n", ntohs(ah->type));
+		LOG("output port: %x\n", ntohs(oa->port));
 		// Currently only support the output port(s) action
 		if ((ntohs(ah->type) == OFPAT_OUTPUT) &&
 			((ntohs(oa->port) == OFPP_ALL) ||
@@ -514,6 +518,7 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 			// if action is all out and source port is wildcarded
 			if ((is_action_forward_all(flow)) &&
 				(flow->key.wildcards & OFPFW_IN_PORT)) {
+LOG("CHECKPOINT: TRY TO GET FOUR TABLES\n");
 				if (!(sfw = get_free_wildcard())) {
 					LOG("No free wildcard entries found.");
 					// no free entries
@@ -549,11 +554,12 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 				while (sfw_next != sfw) {
 					key.entry.src_port = i*2;
 					nf2_populate_of_action(&action, &key, &mask, flow);
-					nf2_write_of_wildcard(dev, sfw->pos, &key, &mask, &action);
+					nf2_write_of_wildcard(dev, sfw_next->pos, &key, &mask, &action);
 					sfw_next = list_entry(sfw_next->node.next,
 						struct sw_flow_nf2, node);
 					++i;
 				}
+				flow->private = (void*)sfw;
 			} else {
 				/* Get a free position here, and write to it */
 				if ((sfw = get_free_wildcard())) {

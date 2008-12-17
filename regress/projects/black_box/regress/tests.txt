@@ -27,10 +27,10 @@ test_delete_strict/run.pl
 
 ## Unusual Data
 test_ip_options/run.pl
-####test_ip_protocol/run.pl
+##test_ip_protocol/run.pl
 test_ip_offset/run.pl	
 test_tcp_options/run.pl
-####test_llc/run.pl
+##test_llc/run.pl
 
 # BELOW NOT INCLUDED IN CURRRENT RELEASE 
 # WILL BE AVAILABLE SOON
