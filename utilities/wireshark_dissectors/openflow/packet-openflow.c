@@ -99,7 +99,7 @@ static const value_string names_ofp_action_type[] = {
     { 0,                  NULL }
 };
 #define NUM_ACTIONS_FLAGS 10
-#define NUM_PORT_CONFIG_FLAGS 4
+#define NUM_PORT_CONFIG_FLAGS 7
 #define NUM_PORT_STATE_FLAGS 1
 #define NUM_PORT_FEATURES_FLAGS 12
 #define NUM_WILDCARDS 10
