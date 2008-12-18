@@ -647,6 +647,8 @@ void proto_register_openflow()
     }
     for( i=0; i<NUM_PORT_CONFIG_FLAGS; i++ ) {
         ofp_phy_port_config[i] = -1;
+        ofp_port_mod_config[i] = -1;
+        ofp_port_mod_mask[i] = -1;
     }
     for( i=0; i<NUM_PORT_STATE_FLAGS; i++ ) {
         ofp_phy_port_state[i] = -1;	
@@ -656,6 +658,7 @@ void proto_register_openflow()
         ofp_phy_port_advertised[i] = -1;
         ofp_phy_port_supported[i] = -1;
         ofp_phy_port_peer[i] = -1;
+        ofp_port_mod_advertise[i] = -1;
     }
     for( i=0; i<NUM_WILDCARDS; i++ ) {
         ofp_match_wildcards[i] = -1;
@@ -1274,6 +1277,100 @@ void proto_register_openflow()
         /* CSM: Port Mod */
         { &ofp_port_mod,
           { "Port Modification", "of.pm", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Modification", HFILL } },
+
+        { &ofp_port_mod_port_no,
+          { "Port #", "of.port_no", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port #", HFILL }},
+
+        { &ofp_port_mod_hw_addr,
+          { "MAC Address", "of.port_hw_addr", FT_ETHER, BASE_NONE, NO_STRINGS, NO_MASK, "MAC Address", HFILL }},
+
+        { &ofp_port_mod_config_hdr,
+          { "Port Config Flags", "of.port_config", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Config Flags", HFILL }},
+
+        { &ofp_port_mod_config[0],
+          { "  Port is administratively down", "of.port_config_port_down", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_PORT_DOWN, "Port is administratively down", HFILL }},
+
+        { &ofp_port_mod_config[1],
+          { "  Disable 802.1D spanning tree on port", "of.port_config_no_stp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_STP, "Disable 802.1D spanning tree on port", HFILL }},
+
+        { &ofp_port_mod_config[2],
+          { "  Drop non-802.1D packets received on port", "of.port_config_no_recv", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_RECV, "Drop non-802.1D packets received on port", HFILL }},
+
+        { &ofp_port_mod_config[3],
+          { "  Drop received 802.1D STP packets", "of.port_config_no_revc_stp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_RECV_STP, "Drop received 802.1D STP packets", HFILL }},
+     
+        { &ofp_port_mod_config[4],
+          { "  Do not include this port when flooding", "of.port_config_no_flood", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FLOOD, "Do not include this port when flooding", HFILL }},
+            
+        { &ofp_port_mod_config[5],
+          { "  Drop packets forwarded to port", "of.port_config_no_fwd", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FWD, "Drop packets forwarded to port", HFILL }},
+
+        { &ofp_port_mod_config[6],
+          { "  Do not send packet-in msgs for port", "of.port_config_no_packet_in", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_PACKET_IN, "Do not send packet-in msgs for port", HFILL }},
+
+        { &ofp_port_mod_mask_hdr,
+          { "Port Config Mask", "of.port_mask", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Config Mask", HFILL }},
+
+        { &ofp_port_mod_mask[0],
+          { "  Port is administratively down", "of.port_mask_port_down", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_PORT_DOWN, "Port is administratively down", HFILL }},
+
+        { &ofp_port_mod_mask[1],
+          { "  Disable 802.1D spanning tree on port", "of.port_mask_no_stp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_STP, "Disable 802.1D spanning tree on port", HFILL }},
+
+        { &ofp_port_mod_mask[2],
+          { "  Drop non-802.1D packets received on port", "of.port_mask_no_recv", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_RECV, "Drop non-802.1D packets received on port", HFILL }},
+
+        { &ofp_port_mod_mask[3],
+          { "  Drop received 802.1D STP packets", "of.port_mask_no_revc_stp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_RECV_STP, "Drop received 802.1D STP packets", HFILL }},
+     
+        { &ofp_port_mod_mask[4],
+          { "  Do not include this port when flooding", "of.port_mask_no_flood", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FLOOD, "Do not include this port when flooding", HFILL }},
+            
+        { &ofp_port_mod_mask[5],
+          { "  Drop packets forwarded to port", "of.port_mask_no_fwd", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FWD, "Drop packets forwarded to port", HFILL }},
+
+        { &ofp_port_mod_mask[6],
+          { "  Do not send packet-in msgs for port", "of.port_mask_no_packet_in", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_PACKET_IN, "Do not send packet-in msgs for port", HFILL }},
+
+        { &ofp_port_mod_advertise_hdr,
+          { "Port Advertise Flags", "of.port_advertise", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Advertise Flags", HFILL }},            
+		
+        { &ofp_port_mod_advertise[0],
+            { "   10 Mb half-duplex rate support", "of.port_advertise_10mb_hd" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10MB_HD, "10 Mb half-duplex rate support", HFILL }},
+		
+        { &ofp_port_mod_advertise[1],
+            { "   10 Mb full-duplex rate support", "of.port_advertise_10mb_fd",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10MB_FD, "10 Mb full-duplex rate support", HFILL }},
+		
+        { &ofp_port_mod_advertise[2],
+            { "  100 Mb half-duplex rate support", "of.port_advertise_100mb_hd", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_100MB_HD, "100 Mb half-duplex rate support", HFILL }},
+		
+        { &ofp_port_mod_advertise[3],
+            { "  100 Mb full-duplex rate support", "of.port_advertise_100mb_fd", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_100MB_FD, "100 Mb full-duplex rate support", HFILL }},
+		
+        { &ofp_port_mod_advertise[4],
+            { "    1 Gb half-duplex rate support", "of.port_advertise_1gb_hd",   FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_1GB_HD, "1 Gb half-duplex rate support", HFILL }},
+		
+        { &ofp_port_mod_advertise[5],
+            { "    1 Gb full-duplex rate support", "of.port_advertise_1gb_fd",   FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_1GB_FD, "1 Gb full-duplex rate support", HFILL }},
+		
+        { &ofp_port_mod_advertise[6],
+            { "   10 Gb full-duplex rate support", "of.port_advertise_10gb_hd",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10GB_FD, "10 Gb full-duplex rate support", HFILL }},
+		
+        { &ofp_port_mod_advertise[7],
+            { "   Copper medium support", "of.port_advertise_copper",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_COPPER, "Copper medium support", HFILL }},
+		
+        { &ofp_port_mod_advertise[8],
+            { "   Fiber medium support", "of.port_advertise_fiber",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_FIBER, "Fiber medium support", HFILL }},
+		
+        { &ofp_port_mod_advertise[9],
+            { "   Auto-negotiation support", "of.port_advertise_autoneg",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_AUTONEG, "Auto-negotiation support", HFILL }},
+		
+        { &ofp_port_mod_advertise[10],
+            { "   Pause support", "of.port_advertise_pause",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_PAUSE, "Pause support", HFILL }},
+		
+        { &ofp_port_mod_advertise[11],
+            { "   Asymmetric pause support", "of.port_advertise_pause_asym",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_PAUSE_ASYM, "Asymmetric pause support", HFILL }},
+
 
 
         /* AM: Port Status */
