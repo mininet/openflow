@@ -445,11 +445,11 @@ static gint ofp_port_mod      = -1;
 static gint ofp_port_mod_port_no = -1;
 static gint ofp_port_mod_hw_addr = -1;
 static gint ofp_port_mod_config_hdr = -1;
-static gint ofp_port_mod_config[NUM_CONFIG_FLAGS];
+static gint ofp_port_mod_config[NUM_PORT_CONFIG_FLAGS];
 static gint ofp_port_mod_mask_hdr = -1;
-static gint ofp_port_mod_mask[NUM_CONFIG_FLAGS];
+static gint ofp_port_mod_mask[NUM_PORT_CONFIG_FLAGS];
 static gint ofp_port_mod_advertise_hdr = -1;
-static gint ofp_port_mod_advertise[NUM_CONFIG_FLAGS];
+static gint ofp_port_mod_advertise[NUM_PORT_FEATURES_FLAGS];
 
 static gint ofp_stats_request       = -1;
 static gint ofp_stats_request_type  = -1;
