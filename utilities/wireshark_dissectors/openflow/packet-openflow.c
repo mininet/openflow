@@ -2775,12 +2775,13 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     add_child(flow_tree, ofp_flow_stats_reply_priority, tvb, &offset, 2);
                     add_child(flow_tree, ofp_flow_stats_reply_idle_timeout, tvb, &offset, 2);
                     add_child(flow_tree, ofp_flow_stats_reply_hard_timeout, tvb, &offset, 2);
-                    dissect_pad(flow_tree, &offset, 3);                    
+                    dissect_pad(flow_tree, &offset, 6);
                     add_child(flow_tree, ofp_flow_stats_reply_packet_count, tvb, &offset, 8);
                     add_child(flow_tree, ofp_flow_stats_reply_byte_count, tvb, &offset, 8);
 
                     /* parse the actions for this flow */
                     dissect_action_array(tvb, pinfo, flow_tree, total_len + offset_start, offset);
+                    offset = total_len + offset_start;
                 }
                 break;
             }
