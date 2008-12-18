@@ -1845,10 +1845,6 @@ static void dissect_port_mod(proto_tree* tree, proto_item* item, tvbuff_t *tvb, 
     proto_tree *mask_tree;
     proto_item *advertise_item;
     proto_tree *advertise_tree;
-    proto_item *supported_item;
-    proto_tree *supported_tree;
-    proto_item *peer_item;
-    proto_tree *peer_tree;
 
     int i;
     dissect_port( tree, ofp_port_mod_port_no, tvb, offset );
@@ -1887,9 +1883,7 @@ static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tv
     proto_item *wild_item = proto_tree_add_item(match_tree, ofp_match_wildcards_hdr, tvb, *offset, 4, FALSE);
     proto_tree *wild_tree = proto_item_add_subtree(wild_item, ett_ofp_match_wildcards_hdr);
     
-	/* add wildcard subtree */
-    guint32 wildcards = tvb_get_ntohl( tvb, *offset );   
-    
+    /* add wildcard subtree */
     int i;
     for(i=0; i<NUM_WILDCARDS; i++)
         add_child_const(wild_tree, wildcard_list[i], tvb, *offset, 4 );
@@ -2119,8 +2113,6 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
 
 static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offset)
 {
-    guint16 len = tvb_get_ntohs( tvb, *offset );
-	
     /* add the output port */
     dissect_port( tree, ofp_action_output_port, tvb, offset );
 
