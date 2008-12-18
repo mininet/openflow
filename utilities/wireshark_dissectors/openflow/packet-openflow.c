@@ -1837,6 +1837,51 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
     }
 }
 
+static void dissect_port_mod(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
+{
+    proto_item *config_item;
+    proto_tree *config_tree;
+    proto_item *mask_item;
+    proto_tree *mask_tree;
+    proto_item *advertise_item;
+    proto_tree *advertise_tree;
+    proto_item *supported_item;
+    proto_tree *supported_tree;
+    proto_item *peer_item;
+    proto_tree *peer_tree;
+
+    int i;
+    dissect_port( tree, ofp_port_mod_port_no, tvb, offset );
+    add_child( tree, ofp_port_mod_hw_addr, tvb, offset, OFP_ETH_ALEN );
+    
+    /* config */
+    config_item = proto_tree_add_item(tree, ofp_port_mod_config_hdr, tvb, *offset, 4, FALSE);
+    config_tree = proto_item_add_subtree(config_item, ett_ofp_port_mod_config_hdr);
+    for(i=0; i<NUM_PORT_CONFIG_FLAGS; i++) {
+        add_child_const(config_tree, ofp_port_mod_config[i], tvb, *offset, 4);
+    }
+    *offset += 4;
+            
+    /* mask */
+    mask_item = proto_tree_add_item(tree, ofp_port_mod_mask_hdr, tvb, *offset, 4, FALSE);
+    mask_tree = proto_item_add_subtree(mask_item, ett_ofp_port_mod_mask_hdr);
+    for(i=0; i<NUM_PORT_CONFIG_FLAGS; i++) {
+        add_child_const(mask_tree, ofp_port_mod_mask[i], tvb, *offset, 4);
+    }
+    *offset += 4;
+
+    /* advertise */
+    advertise_item = proto_tree_add_item(tree, ofp_port_mod_advertise_hdr, tvb, *offset, 4, FALSE);
+    advertise_tree = proto_item_add_subtree(advertise_item, ett_ofp_port_mod_advertise_hdr);
+    for(i=0; i<NUM_PORT_FEATURES_FLAGS; i++) {
+        add_child_const(advertise_tree, ofp_port_mod_advertise[i], tvb, *offset, 4);
+    }
+    *offset += 4;
+
+    /* pad */
+    dissect_pad(tree, offset, 4);
+}
+
 static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset, gint wildcard_list[])
 {
     proto_item *wild_item = proto_tree_add_item(match_tree, ofp_match_wildcards_hdr, tvb, *offset, 4, FALSE);
@@ -2626,7 +2671,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             type_item = proto_tree_add_item(ofp_tree, ofp_port_mod, tvb, offset, -1, FALSE);
             type_tree = proto_item_add_subtree(type_item, ett_ofp_port_mod);
 
-            dissect_phy_ports(type_tree, type_item, tvb, pinfo, &offset, 1);
+            dissect_port_mod(type_tree, type_item, tvb, pinfo, &offset);
             break;
         }
 
