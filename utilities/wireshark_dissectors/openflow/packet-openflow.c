@@ -234,6 +234,14 @@ static const value_string ts_addr_mask[] = {
     { 0, NULL  }
 };
 
+/** Switch config frag values */
+static const value_string sc_frag_choices[] = {
+    { 0, "No special fragment handling"  },
+    { 1, "Drop fragments" },
+    { 2, "Reassemble (only if OFPC_IP_REASM set)" },
+    { 0, NULL  }
+};
+
 
 /* Error strings for the various error types */
 static const gchar *hello_failed_err_str[] = {"No compatible version"};
@@ -1165,10 +1173,10 @@ void proto_register_openflow()
           { "Flags", "of.sc_flags", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flags", HFILL } },
 
         { &ofp_switch_config_flags[0],
-          { "  Send flow expirations", "of.sc_flags_send_flow_exp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_SEND_FLOW_EXP, "Send flow expirations", HFILL }},
+          { "  Send flow expirations", "of.sc_flags_send_flow_exp", FT_UINT16, BASE_DEC, VALS(names_choice), OFPC_SEND_FLOW_EXP, "Send flow expirations", HFILL }},
 
         { &ofp_switch_config_flags_ip_frag,
-          { "  Handling of IP fragments", "of.sc_flags_ip_frag", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Handling of IP fragments", HFILL }},
+          { "  Handling of IP fragments", "of.sc_flags_ip_frag", FT_UINT16, BASE_DEC, VALS(sc_frag_choices), OFPC_FRAG_MASK, "Handling of IP fragments", HFILL }},
       
 /*        { &ofp_switch_config_flags[1],
           { "  No special fragment handling", "of.sc_flags_frag_normal", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_FRAG_NORMAL, "No special fragment handling", HFILL }},
@@ -2227,25 +2235,15 @@ static void dissect_capability_array(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         add_child_const(sf_cap_tree, ofp_switch_features_capabilities[i], tvb, offset, field_size);
 }
 
-static void dissect_switch_config_flags(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, guint field_size) {
-    proto_item *sf_pc_item = proto_tree_add_item(tree, ofp_switch_config_flags_hdr, tvb, offset, field_size, FALSE);
+static void dissect_switch_config_flags(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint *offset) {
+    proto_item *sf_pc_item = proto_tree_add_item(tree, ofp_switch_config_flags_hdr, tvb, *offset, 2, FALSE);
     proto_tree *sf_pc_tree = proto_item_add_subtree(sf_pc_item, ett_ofp_switch_config_flags_hdr);
 
-    /* grab the IP fragmentation state */
-    guint16 flags = tvb_get_ntohs( tvb, offset );
+    add_child_const(sf_pc_tree, ofp_switch_config_flags[0], tvb, *offset, 2);
+    add_child_const(sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, *offset, 2);
 
-    if (flags & OFPC_SEND_FLOW_EXP)
-    	add_child_const(sf_pc_tree, ofp_switch_config_flags[0], tvb, offset, field_size);
+    *offset += 2;
 
-    guint16 frag_state = flags & OFPC_FRAG_MASK;
-    if (frag_state == OFPC_FRAG_NORMAL)
-    	add_child_str_const( sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, 2, "No special handling for fragments" );
-    else if (frag_state == OFPC_FRAG_DROP)
-    	add_child_str_const( sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, 2, "Drop fragments" );
-    else if (frag_state == OFPC_FRAG_REASM)
-    	add_child_str_const( sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, 2, "Reassemble (only if OFPC_IP_REASM set)" );
-    else	
-    	add_child_str_const( sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, offset, 2, "Unknown IP fragmentation states" );    
 }
 
 static void dissect_switch_features_actions(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, guint field_size) {
@@ -2525,8 +2523,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         case OFPT_SET_CONFIG: {
             type_item = proto_tree_add_item(ofp_tree, ofp_switch_config, tvb, offset, -1, FALSE);
             type_tree = proto_item_add_subtree(type_item, ett_ofp_switch_config);           
-            dissect_switch_config_flags(tvb, pinfo, type_tree, offset, 2);
-            offset += 2;
+            dissect_switch_config_flags(tvb, pinfo, type_tree, &offset);
             add_child(type_tree, ofp_switch_config_miss_send_len, tvb, &offset, 2);
             break;
         }
