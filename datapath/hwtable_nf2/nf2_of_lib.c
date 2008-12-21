@@ -667,6 +667,7 @@ uint64_t nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
 	switch (sfw->type) {
 		case NF2_TABLE_EXACT:
 			count = nf2_get_exact_packet_count(dev, sfw->pos);
+			total = count;
 			break;
 		case NF2_TABLE_WILDCARD:
 			sfw_next = sfw;
@@ -687,8 +688,8 @@ uint64_t nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
 			break;
 	}
 
-	LOG("Return nf2_get_packet_count value: %i\n", count);
-	return count;
+	LOG("Return nf2_get_packet_count value: %i\n", total);
+	return total;
 }
 
 uint64_t nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
@@ -700,6 +701,7 @@ uint64_t nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
 	switch (sfw->type) {
 		case NF2_TABLE_EXACT:
 			count = nf2_get_exact_byte_count(dev, sfw->pos);
+			total = count;
 			break;
 		case NF2_TABLE_WILDCARD:
 			sfw_next = sfw;
@@ -721,7 +723,7 @@ uint64_t nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
 			break;
 	}
 
-	LOG("Return nf2_get_byte_count value: %i\n", count);
-	return count;
+	LOG("Return nf2_get_byte_count value: %i\n", total);
+	return total;
 }
 
