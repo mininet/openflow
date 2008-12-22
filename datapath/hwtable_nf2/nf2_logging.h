@@ -2,7 +2,7 @@
 #ifndef _NF2_LOGGING_H
 #define _NF2_LOGGING_H	1
 
-//#define NF2_DEBUG 1
+#define NF2_DEBUG 1
 
 #ifdef NF2_DEBUG
 

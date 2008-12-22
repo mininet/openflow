@@ -65,6 +65,7 @@ int nf2_write_of_exact(struct net_device *dev, int row,
 	nf2_of_entry_wrap* entry, nf2_of_action_wrap* action);
 
 int nf2_modify_write_of_wildcard(struct net_device *dev, int row,
+        nf2_of_entry_wrap* entry, nf2_of_mask_wrap* mask,
 	nf2_of_action_wrap* action);
 int nf2_modify_write_of_exact(struct net_device *dev, int row,
 	nf2_of_action_wrap* action);
@@ -82,4 +83,5 @@ unsigned int nf2_get_wildcard_byte_count(struct net_device *dev, int row);
 /* Functions to get the table-matched and table-missed counts */
 unsigned long int nf2_get_matched_count(struct net_device *dev);
 unsigned long int nf2_get_missed_count(struct net_device *dev);
+
 #endif /*NF2_OPENFLOW_H_*/

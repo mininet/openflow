@@ -97,6 +97,7 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
     /* Delete flows that match exactly. */
     table_nf2_delete(swt, &flow->key, OFPP_NONE, flow->priority, true);
 
+	LOG("ACTION SUPPORT CHECK\n");
 	if (nf2_are_actions_supported(flow)) {
 		LOG("---Actions are supported---\n");
 		if (nf2_build_and_write_flow(flow)) {
@@ -155,9 +156,10 @@ static int table_nf2_delete(struct sw_table *swt,
 	return count;
 }
 
+
 static int table_nf2_modify(struct sw_table *swt,
-		const struct sw_flow_key *key, uint16_t priority, int strict,
-		const struct ofp_action_header *actions, size_t actions_len) 
+                const struct sw_flow_key *key, uint16_t priority, int strict,
+                const struct ofp_action_header *actions, size_t actions_len)
 {
         struct sw_table_nf2 *td = (struct sw_table_nf2 *)swt;
         struct sw_flow *flow;
@@ -166,15 +168,20 @@ static int table_nf2_modify(struct sw_table *swt,
         list_for_each_entry(flow, &td->flows, node) {
                 if (flow_matches_desc(&flow->key, key, strict)
                     && (!strict || (flow->priority == priority))) {
+                        flow_replace_acts(flow, actions, actions_len);
+                        LOG("MODIFY: ACTION SUPPORT CHECK\n");
                         if (nf2_are_actions_supported(flow)) {
-                                LOG("---Actions are supported---\n");
-                                flow_replace_acts(flow, actions, actions_len);
+                                LOG("---MODIFY: Actions are supported---\n");
                                 count += nf2_modify_acts(swt, flow);
                         }
+                } else {
+                        LOG("---unsupported actions or no netdevice---\n");
+                        return 0;
                 }
-	}
+        }
         return count;
 }
+
 
 static int table_nf2_timeout(struct datapath *dp, struct sw_table *swt)
 {
@@ -282,24 +289,41 @@ static int table_nf2_iterate(struct sw_table *swt,
 	return 0;
 }
 
+
+unsigned long int matched_cnt(void) {
+        unsigned long int cnt;
+        struct net_device *dev;
+
+        dev = nf2_get_net_device();
+        cnt = nf2_get_matched_count(dev);
+        nf2_free_net_device(dev);
+        return cnt;
+}
+
+
+unsigned long int lookup_cnt(void){
+        unsigned long int cnt;
+        struct net_device *dev;
+
+        dev = nf2_get_net_device();
+        cnt = nf2_get_missed_count(dev);
+        nf2_free_net_device(dev);
+        return (cnt + matched_cnt());
+}
+
+
+
 static void table_nf2_stats(struct sw_table *swt,
 			      struct sw_table_stats *stats)
 {
-	
 	struct sw_table_nf2 *td = (struct sw_table_nf2 *) swt;
-        struct net_device *dev;
-	unsigned long int lookup_cnt;
-	unsigned long int matched_cnt;
-	dev = nf2_get_net_device();
-	matched_cnt = nf2_get_matched_count(dev);
-	lookup_cnt = matched_cnt + nf2_get_missed_count(dev);
 
 	stats->name = "nf2";
 	stats->wildcards = OPENFLOW_WILDCARD_TABLE_SIZE-8;
 	stats->n_flows = atomic_read(&td->n_flows);
 	stats->max_flows = td->max_flows;
-	stats->n_lookup = lookup_cnt;
-	stats->n_matched = matched_cnt;
+	stats->n_lookup = lookup_cnt();
+	stats->n_matched = matched_cnt();
 }
 
 
@@ -327,8 +351,8 @@ static struct sw_table *table_nf2_create(void)
 	swt->destroy = table_nf2_destroy;
 	swt->iterate = table_nf2_iterate;
 	swt->stats = table_nf2_stats;
-	swt->n_lookup = (unsigned long long)(nf2_get_matched_count(dev) + nf2_get_missed_count(dev));
-	swt->n_matched = (unsigned long long)(nf2_get_matched_count(dev));
+	swt->n_lookup = (unsigned long long)lookup_cnt();
+	swt->n_matched = (unsigned long long)matched_cnt();
 
 	td->max_flows = OPENFLOW_NF2_EXACT_TABLE_SIZE +
 	OPENFLOW_WILDCARD_TABLE_SIZE-8;

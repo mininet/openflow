@@ -303,23 +303,51 @@ int nf2_write_of_exact(struct net_device *dev, int row,
 	return 0;
 }
 
+
 /*
  * Write wildcard action(s) to the specified device and row.
  */
 int nf2_modify_write_of_wildcard(struct net_device *dev, int row,
+        nf2_of_entry_wrap* entry, nf2_of_mask_wrap* mask,
         nf2_of_action_wrap* action) {
 
         int i;
+        int bytes_reg_val;
+        int pkts_reg_val;
+        int last_reg_val;
         struct timeval t;
 
         LOG("** Begin wildcard modified action write to row: %i\n", row);
+        logEntry(entry);
+        logMask(mask);
         logAction(action);
+        logEntryRaw(entry);
+        logMaskRaw(mask);
         logActionRaw(action);
+
+        nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_READ_ADDR_REG, &row);
+        nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_BASE_REG+(4*row), &bytes_reg_val);
+        nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_BASE_REG+(4*row), &pkts_reg_val);
+        nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_REG, &last_reg_val);
+
+        for     (i = 0; i < NF2_OF_ENTRY_WORD_LEN; ++i) {
+                nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_CMP_BASE_REG + (4*i),
+                        &(entry->raw[i]));
+        }
+
+        for     (i = 0; i < NF2_OF_MASK_WORD_LEN; ++i) {
+                nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_CMP_MASK_BASE_REG +
+                        (4*i), &(mask->raw[i]));
+        }
 
         for     (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
                 nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_ACTION_BASE_REG +
                         (4*i), &(action->raw[i]));
         }
+        
+        nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_BASE_REG, &bytes_reg_val);
+        nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_BASE_REG, &pkts_reg_val);
+        nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_REG, &last_reg_val);
 
         nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_WRITE_ADDR_REG, &row);
         do_gettimeofday(&t);
@@ -328,6 +356,7 @@ int nf2_modify_write_of_wildcard(struct net_device *dev, int row,
 
         return 0;
 }
+
 
 int nf2_modify_write_of_exact(struct net_device *dev, int row,
         nf2_of_action_wrap* action) {
@@ -473,3 +502,4 @@ unsigned long int nf2_get_missed_count(struct net_device *dev) {
 #endif
 	return ((unsigned long int)(val_wild + val_exact));
 }
+
