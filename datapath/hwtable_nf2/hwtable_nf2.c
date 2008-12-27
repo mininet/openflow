@@ -97,7 +97,7 @@ static int table_nf2_insert(struct sw_table *swt, struct sw_flow *flow)
     /* Delete flows that match exactly. */
     table_nf2_delete(swt, &flow->key, OFPP_NONE, flow->priority, true);
 
-	LOG("ACTION SUPPORT CHECK\n");
+	LOG("Action suppoert check\n");
 	if (nf2_are_actions_supported(flow)) {
 		LOG("---Actions are supported---\n");
 		if (nf2_build_and_write_flow(flow)) {
@@ -169,9 +169,9 @@ static int table_nf2_modify(struct sw_table *swt,
                 if (flow_matches_desc(&flow->key, key, strict)
                     && (!strict || (flow->priority == priority))) {
                         flow_replace_acts(flow, actions, actions_len);
-                        LOG("MODIFY: ACTION SUPPORT CHECK\n");
+                        LOG("Action Modify: Action support check\n");
                         if (nf2_are_actions_supported(flow)) {
-                                LOG("---MODIFY: Actions are supported---\n");
+                                LOG("---Action Modify: Actions are supported---\n");
                                 count += nf2_modify_acts(swt, flow);
                         }
                 } else {

@@ -527,7 +527,7 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 			// if action is all out and source port is wildcarded
 			if ((is_action_forward_all(flow)) &&
 				(flow->key.wildcards & OFPFW_IN_PORT)) {
-				LOG("CHECKPOINT: TRY TO GET FOUR TABLES\n");
+				LOG("Grab four wildcard tables\n");
 				if (!(sfw = get_free_wildcard())) {
 					LOG("No free wildcard entries found.");
 					// no free entries
@@ -653,8 +653,7 @@ int nf2_modify_acts(struct sw_table *swt, struct sw_flow *flow)
                         break;
                 case NF2_TABLE_WILDCARD:
                         if (flow->key.wildcards & OFPFW_IN_PORT) {
-                                LOG("**Action Modify when src port wildcard\n");
-                                LOG("Currently not supported\n");
+                                
                                 return 0;
                         } else {
                                 nf2_populate_of_entry(&key, flow);
@@ -700,7 +699,7 @@ uint64_t nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
 			break;
 	}
 
-	LOG("Return nf2_get_packet_count value: %i\n", total);
+	LOG("Return nf2_get_packet_count value: %llu\n", total);
 	return total;
 }
 
@@ -735,7 +734,7 @@ uint64_t nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
 			break;
 	}
 
-	LOG("Return nf2_get_byte_count value: %i\n", total);
+	LOG("Return nf2_get_byte_count value: %llu\n", total);
 	return total;
 }
 

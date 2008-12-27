@@ -351,8 +351,12 @@ int nf2_modify_write_of_wildcard(struct net_device *dev, int row,
 
         nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_WRITE_ADDR_REG, &row);
         do_gettimeofday(&t);
+
         LOG("** End wildcard modified action write to row: %i time: %i.%i\n", row,
                         (int)t.tv_sec, (int)t.tv_usec);
+        LOG("   Bytes hit count: %d\n", bytes_reg_val);
+        LOG("   Pkts  hit count: %d\n", pkts_reg_val);
+        LOG("   Last seen      : %d\n", last_reg_val);
 
         return 0;
 }
