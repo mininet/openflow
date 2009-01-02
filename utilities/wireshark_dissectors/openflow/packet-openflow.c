@@ -1086,7 +1086,7 @@ void proto_register_openflow()
           { "Switch Features", "of.sf", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Switch Features", HFILL }},
 
         { &ofp_switch_features_datapath_id,
-          { "Datapath ID", "of.sf_datapath_id", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Datapath ID", HFILL }},
+          { "Datapath ID", "of.sf_datapath_id", FT_UINT64, BASE_HEX, NO_STRINGS, NO_MASK, "Datapath ID", HFILL }},
 
         { &ofp_switch_features_n_buffers,
           { "Max packets buffered", "of.sf_n_buffers", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Max packets buffered", HFILL }},
