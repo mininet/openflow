@@ -212,6 +212,13 @@ sub setup_NF2 {
     # load the openflow bitfile on the NetFPGA
 	system("nf2_download ${openflow_dir}/datapath/hwtable_nf2/openflow_switch.bit");
 
+    # turn on phy(0-3) interrupt mask
+    # in order to avoid asynchronous port_mod_change message
+        `regwrite 0x04c006c 0xffff`;
+        `regwrite 0x04c00ec 0xffff`;
+        `regwrite 0x04c016c 0xffff`;
+        `regwrite 0x04c01ec 0xffff`;
+
 	# create openflow switch on four ports
 	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
 
