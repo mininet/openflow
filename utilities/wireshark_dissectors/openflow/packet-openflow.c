@@ -134,7 +134,7 @@ static const value_string names_flow_mod_command[] = {
     { OFPFC_MODIFY,         "Modify all matching flows" },
     { OFPFC_MODIFY_STRICT,  "Modify entry strictly matching wildcards" },
     { OFPFC_DELETE,        "Delete all matching flows" },
-    { OFPFC_DELETE_STRICT, "Strictly match wildcards and priority" },
+    { OFPFC_DELETE_STRICT, "Delete entry strictly matching wildcards and priority" },
     { 0,                   NULL }
 };
 
