@@ -50,6 +50,7 @@ struct nf2_of_exact_counters {
 	uint8_t		last_seen : 7;
 	uint32_t	byte_count;
 };
+
 #define NF2_OF_EXACT_COUNTERS_WORD_LEN 2
 typedef union nf2_of_exact_counters_wrap {
 	struct nf2_of_exact_counters	counters;
@@ -59,10 +60,16 @@ typedef union nf2_of_exact_counters_wrap {
 #pragma pack(pop)   /* restore original alignment from stack */
 
 int nf2_write_of_wildcard(struct net_device *dev, int row, 
-	nf2_of_entry_wrap* entry, nf2_of_mask_wrap* mask, 
-	nf2_of_action_wrap* action);
+			  nf2_of_entry_wrap* entry, nf2_of_mask_wrap* mask, 
+			  nf2_of_action_wrap* action);
 int nf2_write_of_exact(struct net_device *dev, int row, 
-	nf2_of_entry_wrap* entry, nf2_of_action_wrap* action);
+		       nf2_of_entry_wrap* entry, nf2_of_action_wrap* action);
+
+int nf2_modify_write_of_wildcard(struct net_device *dev, int row,
+				 nf2_of_entry_wrap* entry, nf2_of_mask_wrap* mask,
+				 nf2_of_action_wrap* action);
+int nf2_modify_write_of_exact(struct net_device *dev, int row,
+			      nf2_of_action_wrap* action);
 
 void nf2_reset_card(struct net_device *dev);
 
@@ -74,5 +81,8 @@ unsigned int nf2_get_exact_byte_count(struct net_device *dev, int row);
 unsigned int nf2_get_wildcard_packet_count(struct net_device *dev, int row);
 unsigned int nf2_get_wildcard_byte_count(struct net_device *dev, int row);
 
+/* Functions to get the table-matched and table-missed counts */
+unsigned long int nf2_get_matched_count(struct net_device *dev);
+unsigned long int nf2_get_missed_count(struct net_device *dev);
 
-#endif /*NF2_OPENFLOW_H_*/
+#endif /* NF2_OPENFLOW_H_ */

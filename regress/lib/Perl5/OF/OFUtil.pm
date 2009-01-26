@@ -63,6 +63,11 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &for_all_ports
   &for_all_wildcards
   &forward_simple
+  &forward_simple_icmp
+  &get_default_black_box_pkt_len_icmp
+  &create_flow_mod_from_icmp_action
+  &create_flow_mod_from_icmp
+  &wait_for_two_flow_expired
 );
 
 my $nf2_kernel_module_path        = 'datapath/linux-2.6';
@@ -209,6 +214,13 @@ sub setup_NF2 {
 	
     # load the openflow bitfile on the NetFPGA
 	system("nf2_download ${openflow_dir}/datapath/hwtable_nf2/openflow_switch.bit");
+
+    # turn on phy(0-3) interrupt mask
+    # in order to avoid asynchronous port_mod_change message
+        `regwrite 0x04c006c 0xffff`;
+        `regwrite 0x04c00ec 0xffff`;
+        `regwrite 0x04c016c 0xffff`;
+        `regwrite 0x04c01ec 0xffff`;
 
 	# create openflow switch on four ports
 	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
@@ -994,11 +1006,11 @@ sub for_all_wildcards {
 		0x0004 => 'DL_SRC',
 		0x0008 => 'DL_DST',
 		#0x0010 => 'DL_TYPE', # currently fixed at 0x0800
-		0x0020 => 'NW_SRC',
-		0x0040 => 'NW_DST',
+		0x2000 => 'NW_SRC',
+		0x80000 => 'NW_DST',
 		#0x0080 => 'NW_PROTO', # currently fixed at 0x17
-		0x0100 => 'TP_SRC',
-		0x0200 => 'TP_DST',
+		0x0040 => 'TP_SRC',
+		0x0080 => 'TP_DST',
 	);
 
 	# send from every port
@@ -1118,6 +1130,288 @@ sub forward_simple {
 		print "wait \n";
 		wait_for_flow_expired_all( $ofp, $sock, $options_ref );	
 	}
+}
+
+
+#Sub functions for ICMP handling tests
+
+sub get_default_black_box_pkt_len_icmp {
+
+        my ($in_port, $out_port, $len) = @_;
+
+        my $pkt_args = {
+                DA     => "00:00:00:00:00:0" . ( $out_port ),
+                SA     => "00:00:00:00:00:0" . ( $in_port ),
+                src_ip => "192.168.200." .     ( $in_port ),
+                dst_ip => "192.168.201." .     ( $out_port ),
+                ttl    => 64,
+                len    => $len,
+                src_port => 1,
+                dst_port => 0
+        };
+        return new_icmp_test_pkt NF2::ICMP_pkt(%$pkt_args);
+}
+
+sub create_flow_mod_from_icmp {
+
+        my ( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $wildcards, $fool ) = @_;
+
+        my $flow_mod_pkt;
+
+        $flow_mod_pkt =
+          create_flow_mod_from_icmp_action( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $wildcards,
+                'OFPFC_ADD', $fool );
+
+        return $flow_mod_pkt;
+}
+
+sub create_flow_mod_from_icmp_action {
+
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $mod_type, $fool ) = @_;
+
+        if (   $mod_type ne 'OFPFC_ADD'
+                && $mod_type ne 'OFPFC_DELETE'
+                && $mod_type ne 'OFPFC_DELETE_STRICT' )
+        {
+                die "Undefined flow mod type: $mod_type\n";
+        }
+
+        my $hdr_args = {
+                version => $of_ver,
+                type    => $enums{'OFPT_FLOW_MOD'},
+                length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output'),
+                xid     => 0x0000000
+        };
+
+        # might be cleaner to convert the exported colon-hex MAC addrs
+        #print ${$udp_pkt->{Ethernet_hdr}}->SA . "\n";
+        #print ${$test_pkt->{Ethernet_hdr}}->SA . "\n";
+        my $ref_to_eth_hdr = ( $udp_pkt->{'Ethernet_hdr'} );
+        my $ref_to_ip_hdr  = ( $udp_pkt->{'IP_hdr'} );
+
+        # pointer to array
+        my $eth_hdr_bytes    = $$ref_to_eth_hdr->{'bytes'};
+        my $ip_hdr_bytes     = $$ref_to_ip_hdr->{'bytes'};
+        my @dst_mac_subarray = @{$eth_hdr_bytes}[ 0 .. 5 ];
+        my @src_mac_subarray = @{$eth_hdr_bytes}[ 6 .. 11 ];
+
+        my @src_ip_subarray = @{$ip_hdr_bytes}[ 12 .. 15 ];
+        my @dst_ip_subarray = @{$ip_hdr_bytes}[ 16 .. 19 ];
+
+        my $src_ip =
+          ( ( 2**24 ) * $src_ip_subarray[0] +
+                  ( 2**16 ) * $src_ip_subarray[1] +
+                  ( 2**8 ) * $src_ip_subarray[2] +
+                  $src_ip_subarray[3] );
+
+        my $dst_ip =
+          ( ( 2**24 ) * $dst_ip_subarray[0] +
+                  ( 2**16 ) * $dst_ip_subarray[1] +
+                  ( 2**8 ) * $dst_ip_subarray[2] +
+                  $dst_ip_subarray[3] );
+
+        my $icmp_type;
+        if ($fool == 1) {
+                $icmp_type = ~(${ $udp_pkt->{ICMP_pdu} }->Type);
+        } else {
+                $icmp_type = (${ $udp_pkt->{ICMP_pdu} }->Type);
+        }
+
+        my $icmp_code = ${ $udp_pkt->{ICMP_pdu} }->Code;
+
+        my $match_args = {
+                wildcards => $wildcards,
+                in_port   => $in_port,
+                dl_src    => \@src_mac_subarray,
+                dl_dst    => \@dst_mac_subarray,
+                dl_vlan   => 0xffff,
+                dl_type   => 0x0800,
+                nw_src    => $src_ip,
+                nw_dst    => $dst_ip,
+                nw_proto  => 1,                                  #ICMP
+                tp_src    => $icmp_type,
+                tp_dst    => $icmp_code
+        };
+
+        my $action_output_args = {
+                type => $enums{'OFPAT_OUTPUT'},
+                len => $ofp->sizeof('ofp_action_output'),
+                port => $out_port,
+                max_len => 0,                                     # send entire packet
+        };
+
+        my $action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
+
+        my $flow_mod_args = {
+                header => $hdr_args,
+                match  => $match_args,
+
+                #               command   => $enums{$mod_type},
+                command   => $enums{"$mod_type"},
+                idle_timeout  => $max_idle,
+                hard_timeout  => $max_idle,
+                priority => 0,
+                buffer_id => -1,
+                out_port => $enums{'OFPP_NONE'}
+        };
+        my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
+
+        my $flow_mod_pkt = $flow_mod . $action_output;
+
+        return $flow_mod_pkt;
+}
+
+sub forward_simple_icmp {
+
+        my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $wildcards, $type, $fool, $nowait ) = @_;
+
+        my $in_port = $in_port_offset + $$options_ref{'port_base'};
+        my $out_port;
+
+        my $fool_port = 0;
+        my $flow_mod_pkt_fool;
+
+        if ($type eq 'all') {
+                $out_port = $enums{'OFPP_ALL'};    # all physical ports except the input
+        }
+        elsif ($type eq 'controller') {
+                $out_port = $enums{'OFPP_CONTROLLER'};   #send to the secure channel
+        }
+        else {
+                $out_port = $out_port_offset + $$options_ref{'port_base'};
+        }
+
+        if ($fool == 1) {
+                $fool_port = ($out_port_offset + $$options_ref{'port_base'} + 1) % $$options_ref{'num_ports'};
+                if ($fool_port == $in_port) {
+                        $fool_port = ($out_port_offset + $$options_ref{'port_base'} + 2) % $$options_ref{'num_ports'};
+                }
+        }
+
+        my $test_pkt = get_default_black_box_pkt_len_icmp( $in_port, $out_port, $$options_ref{'pkt_len'} );
+
+        #print HexDump ( $test_pkt->packed );
+
+        if (($fool == 1) && ($type eq 'port') && ($wildcards != 0x40)) {
+                my $flow_mod_pkt_fool =
+                  create_flow_mod_from_icmp( $ofp, $test_pkt, $in_port, $fool_port, $$options_ref{'max_idle'}, $wildcards, $fool );
+                print HexDump($flow_mod_pkt_fool);
+                #print Dumper($flow_mod_pkt_fool);
+                # Send 'flow_mod' message
+                print $sock $flow_mod_pkt_fool;
+                print "sent flow_mod message\n";
+                # Give OF switch time to process the flow mod
+                usleep($$options_ref{'send_delay'});
+        }
+
+        my $flow_mod_pkt =
+          create_flow_mod_from_icmp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $wildcards, 0 );
+
+        #print HexDump($flow_mod_pkt);
+        #print Dumper($flow_mod_pkt);
+
+        # Send 'flow_mod' message
+        print $sock $flow_mod_pkt;
+        print "sent flow_mod message\n";
+
+        # Give OF switch time to process the flow mod
+        usleep($$options_ref{'send_delay'});
+
+        nftest_send( "eth" . ($in_port_offset + 1), $test_pkt->packed );
+        #print HexDump($test_pkt->packed);
+
+        if ($type eq 'any' || $type eq 'port') {
+                # expect single packet
+                print "expect single packet\n";
+                nftest_expect( "eth" . ( $out_port_offset + 1 ), $test_pkt->packed );
+        }
+        elsif ($type eq 'all') {
+                # expect packets on all other interfaces
+                print "expect multiple packets\n";
+                for ( my $k = 0 ; $k < $$options_ref{'num_ports'} ; $k++ ) {
+                        if ( $k != $in_port_offset ) {
+                                nftest_expect( "eth" . ( $k + 1), $test_pkt->packed );
+                        }
+                }
+        }
+        elsif ($type eq 'controller') {
+                # expect at controller
+
+                my $recvd_mesg;
+                sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
+
+                # Inspect  message
+                my $msg_size = length($recvd_mesg);
+                my $expected_size = $ofp->offsetof( 'ofp_packet_in', 'data' ) + length( $test_pkt->packed );
+                compare( "msg size", $msg_size, '==', $expected_size );
+
+                my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
+
+                #print HexDump ($recvd_mesg);
+                #print Dumper($msg);
+
+                # Verify fields
+                print "Verifying secchan message for packet sent in to eth" . ( $in_port + 1 ) . "\n";
+
+                verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
+
+                compare( "total len", $$msg{'total_len'}, '==', length( $test_pkt->packed ) );
+                compare( "in_port",   $$msg{'in_port'},   '==', $in_port );
+                compare( "reason",    $$msg{'reason'},    '==', $enums{'OFPR_ACTION'} );
+
+                # verify packet was unchanged!
+                my $recvd_pkt_data = substr( $recvd_mesg, $ofp->offsetof( 'ofp_packet_in', 'data' ) );
+                if ( $recvd_pkt_data ne $test_pkt->packed ) {
+                        die "ERROR: sending from eth"
+                          . ($in_port_offset + 1)
+                          . " received packet data didn't match packet sent\n";
+                }
+        }
+        else {
+                die "invalid input to forward_simple_icmp\n";
+        }
+
+        if (not defined($nowait)) {
+                print "wait \n";
+		if ($fool == 1) {
+                        print "wait for two flow exprired\n";
+                        wait_for_two_flow_expired( $ofp, $sock, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );
+                } else {
+                        print "wait for flow expired\n";
+                        wait_for_flow_expired( $ofp, $sock, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );
+                }
+        }
+}
+
+sub wait_for_two_flow_expired {
+
+        my ( $ofp, $sock, $pkt_len, $pkt_total ) = @_;
+        my $read_size = 1512;
+        my $pkt_total_size = $pkt_len * $pkt_total;
+
+        my $recvd_mesg;
+
+        sysread( $sock, $recvd_mesg, $read_size )
+          || die "Failed to receive message: $!";
+
+        #print HexDump ($recvd_mesg);
+
+        # Inspect  message
+        my $msg_size      = length($recvd_mesg);
+        my $expected_size = $ofp->sizeof('ofp_flow_expired');
+        #compare( "msg size", length($recvd_mesg), '==', $expected_size );
+
+        my $msg = $ofp->unpack( 'ofp_flow_expired', $recvd_mesg );
+
+        #print Dumper($msg);
+
+        # Verify fields
+        #compare( "header version", $$msg{'header'}{'version'}, '==', $of_ver );
+        #compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_EXPIRED'} );
+        #compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
+        #compare( "byte_count",     $$msg{'byte_count'},        '==', $bytes );
+        #compare( "packet_count",   $$msg{'packet_count'},      '==', $pkt_total_size );
+        sleep 3;
 }
 
 # Always end library in 1

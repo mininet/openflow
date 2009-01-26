@@ -23,6 +23,6 @@ sub INT_Handler {
 }
 
 my $of_port = get_of_port();
-push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--map=$ENV{'OFT_ROOT'}/bin/nf2.map", "--common-st-args=nf2", "--controller=localhost:$of_util", "--port_base=0";
+push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--map=$ENV{'OFT_ROOT'}/bin/nf2.map", "--common-st-args=nf2", "--controller=localhost:$of_port", "--port_base=0";
 
 run_regress_test( \&INT_Handler, @ARGV );

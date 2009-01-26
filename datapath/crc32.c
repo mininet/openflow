@@ -4,6 +4,7 @@
  * Stanford Junior University
  */
 
+#include <linux/module.h>
 #include "crc32.h"
 
 void crc32_init(struct crc32 *crc, unsigned int polynomial)
@@ -23,6 +24,8 @@ void crc32_init(struct crc32 *crc, unsigned int polynomial)
 	}
 }
 
+EXPORT_SYMBOL(crc32_init);
+
 unsigned int crc32_calculate(const struct crc32 *crc,
 			const void *data_, size_t n_bytes)
 {
@@ -38,3 +41,5 @@ unsigned int crc32_calculate(const struct crc32 *crc,
 	}
 	return result;
 }
+
+EXPORT_SYMBOL(crc32_calculate);

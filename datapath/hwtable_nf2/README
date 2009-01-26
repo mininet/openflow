@@ -1,7 +1,5 @@
 NetFPGA Hardware Table
-  Date - 10/13/08
-  Software - David Erickson - derickso@stanford.edu
-  Hardware - Jad Naous - jnaous@stanford.edu
+  Date - 12/26/08
 ----------------------------------------
 
 The NetFPGA Hardware Table creates a single software table that contains all
@@ -58,4 +56,11 @@ At this point your OpenFlow switch should be ready to go.
 
 Known Bugs
 ----------------------------------------
+Link status detection is currently not supported.
 There is currently no support for priority amongst wildcard-match entries.
+
+Contact
+-------
+e-mail: info@openflowswitch.org
+www: http://openflowswitch.org/
+

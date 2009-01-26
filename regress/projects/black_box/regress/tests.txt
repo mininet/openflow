@@ -26,12 +26,22 @@ test_delete/run.pl
 test_delete_strict/run.pl
 test_drop_exact/run.pl
 
+## ICMP handling Tests
+test_forward_exact_icmp_port/run.pl
+test_forward_exact_icmp_all/run.pl
+test_forward_exact_icmp_controller/run.pl
+test_forward_exact_icmp_fool/run.pl
+test_forward_wildcard_icmp_port/run.pl
+test_forward_wildcard_icmp_all/run.pl
+test_forward_wildcard_icmp_controller/run.pl
+test_forward_wildcard_icmp_fool/run.pl
+
 ## Unusual Data
 test_ip_options/run.pl
-####test_ip_protocol/run.pl
+##test_ip_protocol/run.pl
 test_ip_offset/run.pl	
 test_tcp_options/run.pl
-####test_llc/run.pl
+##test_llc/run.pl
 
 # BELOW NOT INCLUDED IN CURRRENT RELEASE 
 # WILL BE AVAILABLE SOON

@@ -1969,6 +1969,22 @@ sub new_time_exceeded
     return $class->new(%arg);
   }
 
+
+# Create a new echo request for ICMP handling tests
+sub new_icmp_test_pkt
+  {
+    my ($class, %arg) = @_;
+
+    my $data_len = $arg{'len'} - NF2::IP_pkt::MIN_LEN() - 8;
+
+    $arg{'Type'} = NF2::ICMP->ECHO_REQ;
+    $arg{'Code'} = 0xa5;  # value for test
+    $arg{'Data'} = [map {$_ % 256} (1..$data_len)];
+
+    return $class->new(%arg);
+  }
+
+
 # Change both headers
 sub set {
   my ($self, %arg) = @_;

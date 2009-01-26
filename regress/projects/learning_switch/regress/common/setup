@@ -22,7 +22,7 @@ unless (
 }
 
 if (defined($mapFile)) {
-        $args = "map=$mapFile";
+        $args = "--map=$mapFile";
 }
 
 if (!defined($platform)) {
