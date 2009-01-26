@@ -15,21 +15,22 @@ struct list_head wildcard_free_list;
 
 struct sw_flow_nf2* exact_free_list[OPENFLOW_NF2_EXACT_TABLE_SIZE];
 
-struct net_device* nf2_get_net_device(void) {
+struct net_device* nf2_get_net_device(void)
+{
 	return dev_get_by_name(&init_net, "nf2c0");
 }
 
-void nf2_free_net_device(struct net_device* dev) {
+void nf2_free_net_device(struct net_device* dev)
+{
 	dev_put(dev);
 }
-
 
 /*
  * Checks to see if the actions requested by the flow are capable of being
  * done in the NF2 hardware. Returns 1 if yes, 0 for no.
  */
-int nf2_are_actions_supported(struct sw_flow *flow) {
-
+int nf2_are_actions_supported(struct sw_flow *flow)
+{
         struct sw_flow_actions *sfa;
         size_t actions_len;
         uint8_t *p;
@@ -55,12 +56,12 @@ int nf2_are_actions_supported(struct sw_flow *flow) {
                 // Only support ports 0-3(incl. IN_PORT), ALL, FLOOD.
                 // Let CONTROLLER/LOCAL fall through
                 if (!(ntohs(oa->port) < 4) &&
-                        !(ntohs(oa->port) == OFPP_ALL) &&
-                        !(ntohs(oa->port) == OFPP_FLOOD) &&
-                        !(ntohs(oa->port) == OFPP_IN_PORT)) {
+		    !(ntohs(oa->port) == OFPP_ALL) &&
+		    !(ntohs(oa->port) == OFPP_FLOOD) &&
+		    !(ntohs(oa->port) == OFPP_IN_PORT)) {
 
                         LOG("Flow action output port %#0x is not supported in hardware\n",
-                                        ntohs(oa->port));
+			    ntohs(oa->port));
                         return 0;
                 }
                 p += len;
@@ -72,7 +73,8 @@ int nf2_are_actions_supported(struct sw_flow *flow) {
 /*
  * Write all 0's out to an exact entry position
  */
-void nf2_clear_of_exact(uint32_t pos) {
+void nf2_clear_of_exact(uint32_t pos)
+{
 	nf2_of_entry_wrap entry;
 	nf2_of_action_wrap action;
 	struct net_device* dev = NULL;
@@ -89,7 +91,8 @@ void nf2_clear_of_exact(uint32_t pos) {
 /*
  * Write all 0's out to a wildcard entry position
  */
-void nf2_clear_of_wildcard(uint32_t pos) {
+void nf2_clear_of_wildcard(uint32_t pos)
+{
 	nf2_of_entry_wrap entry;
 	nf2_of_mask_wrap mask;
 	nf2_of_action_wrap action;
@@ -105,9 +108,11 @@ void nf2_clear_of_wildcard(uint32_t pos) {
 	}
 }
 
-int init_exact_free_list(void) {
+int init_exact_free_list(void)
+{
 	struct sw_flow_nf2* sfw = NULL;
 	int i;
+
 	for (i = 0; i < (OPENFLOW_NF2_EXACT_TABLE_SIZE); ++i) {
 		sfw = kzalloc(sizeof(struct sw_flow_nf2), GFP_ATOMIC);
 		if (sfw == NULL) {
@@ -122,7 +127,8 @@ int init_exact_free_list(void) {
 	return 0;
 }
 
-int init_wildcard_free_list(void) {
+int init_wildcard_free_list(void)
+{
 	struct sw_flow_nf2* sfw = NULL;
 	int i;
 	INIT_LIST_HEAD(&wildcard_free_list);
@@ -144,7 +150,8 @@ int init_wildcard_free_list(void) {
 /*
  * Called when the table is being deleted
  */
-void destroy_exact_free_list(void) {
+void destroy_exact_free_list(void)
+{
 	struct sw_flow_nf2* sfw = NULL;
 	int i;
 
@@ -160,11 +167,12 @@ void destroy_exact_free_list(void) {
 /*
  * Called when the table is being deleted
  */
-void destroy_wildcard_free_list(void) {
+void destroy_wildcard_free_list(void)
+{
 	struct sw_flow_nf2* sfw = NULL;
 	struct list_head *next = NULL;
 
-	while(!list_empty(&wildcard_free_list)) {
+	while (!list_empty(&wildcard_free_list)) {
 		next = wildcard_free_list.next;
 		sfw = list_entry(next, struct sw_flow_nf2, node);
 		list_del(&sfw->node);
@@ -177,7 +185,8 @@ void destroy_wildcard_free_list(void) {
  * misses by sending them up to the cpu ports, and handle packets coming
  * back down from the cpu by sending them out the corresponding port.
  */
-int nf2_write_static_wildcard(void) {
+int nf2_write_static_wildcard(void)
+{
 	nf2_of_entry_wrap entry;
 	nf2_of_mask_wrap mask;
 	nf2_of_action_wrap action;
@@ -193,18 +202,18 @@ int nf2_write_static_wildcard(void) {
 
 		// write the catch all entries to send to the cpu
 		for (i = 0; i < 4; ++i) {
-			entry.entry.src_port = i*2;
-			action.action.forward_bitmask = 0x1 << ((i*2)+1);
+			entry.entry.src_port = i * 2;
+			action.action.forward_bitmask = 0x1 << ((i * 2) + 1);
 			nf2_write_of_wildcard(dev, (OPENFLOW_WILDCARD_TABLE_SIZE-4) +i,
-					&entry, &mask, &action);
+					      &entry, &mask, &action);
 		}
 
 		// write the entries to send out packets coming from the cpu
 		for (i = 0; i < 4; ++i) {
-			entry.entry.src_port = (i*2)+1;
-			action.action.forward_bitmask = 0x1 << (i*2);
+			entry.entry.src_port = (i * 2) + 1;
+			action.action.forward_bitmask = 0x1 << (i * 2);
 			nf2_write_of_wildcard(dev, (OPENFLOW_WILDCARD_TABLE_SIZE-8)+i,
-					&entry, &mask, &action);
+					      &entry, &mask, &action);
 		}
 
 		nf2_free_net_device(dev);
@@ -218,8 +227,10 @@ int nf2_write_static_wildcard(void) {
 /*
  * Populate a nf2_of_entry_wrap with entries from a struct sw_flow
  */
-void nf2_populate_of_entry(nf2_of_entry_wrap *key, struct sw_flow *flow) {
+void nf2_populate_of_entry(nf2_of_entry_wrap *key, struct sw_flow *flow)
+{
 	int i;
+
 	key->entry.transp_dst = ntohs(flow->key.tp_dst);
 	key->entry.transp_src = ntohs(flow->key.tp_src);
 	key->entry.ip_proto = flow->key.nw_proto;
@@ -227,11 +238,11 @@ void nf2_populate_of_entry(nf2_of_entry_wrap *key, struct sw_flow *flow) {
 	key->entry.ip_src = ntohl(flow->key.nw_src);
 	key->entry.eth_type = ntohs(flow->key.dl_type);
 	// Blame Jad for applying endian'ness to character arrays
-	for (i=0; i<6; ++i) {
-		key->entry.eth_dst[i] = flow->key.dl_dst[5-i];
+	for (i = 0; i < 6; ++i) {
+		key->entry.eth_dst[i] = flow->key.dl_dst[5 - i];
 	}
-	for (i=0; i<6; ++i) {
-		key->entry.eth_src[i] = flow->key.dl_src[5-i];
+	for (i = 0; i < 6; ++i) {
+		key->entry.eth_src[i] = flow->key.dl_src[5 - i];
 	}
 
 	key->entry.src_port = ntohs(flow->key.in_port)*2;
@@ -247,10 +258,11 @@ static uint32_t make_nw_wildcard(int n_wild_bits)
 /*
  * Populate a nf2_of_mask_wrap with entries from a struct sw_flow's wildcards
  */
-void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow) {
+void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow)
+{
 	int i;
 
-	if (OFPFW_IN_PORT & flow->key.wildcards){
+	if (OFPFW_IN_PORT & flow->key.wildcards) {
 		mask->entry.src_port = 0xFF;
 	}
 	if (OFPFW_DL_VLAN & flow->key.wildcards) {
@@ -269,10 +281,10 @@ void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow) {
 	if (OFPFW_DL_TYPE & flow->key.wildcards)
 		mask->entry.eth_type = 0xFFFF;
 	if ((OFPFW_NW_SRC_ALL & flow->key.wildcards) ||
-		(OFPFW_NW_SRC_MASK & flow->key.wildcards))
+	    (OFPFW_NW_SRC_MASK & flow->key.wildcards))
 		mask->entry.ip_src = make_nw_wildcard(flow->key.wildcards >> OFPFW_NW_SRC_SHIFT);
 	if ((OFPFW_NW_DST_ALL & flow->key.wildcards) ||
-		(OFPFW_NW_DST_MASK & flow->key.wildcards))
+	    (OFPFW_NW_DST_MASK & flow->key.wildcards))
 		mask->entry.ip_dst = make_nw_wildcard(flow->key.wildcards >> OFPFW_NW_DST_SHIFT);
 	if (OFPFW_NW_PROTO & flow->key.wildcards)
 		mask->entry.ip_proto = 0xFF;
@@ -288,8 +300,9 @@ void nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow) {
  * Populate an nf2_of_action_wrap
  */
 void nf2_populate_of_action(nf2_of_action_wrap *action,
-        nf2_of_entry_wrap *entry, nf2_of_mask_wrap *mask, struct sw_flow *flow) {
-
+			    nf2_of_entry_wrap *entry, nf2_of_mask_wrap *mask,
+			    struct sw_flow *flow)
+{
         unsigned short port = 0;
         int j;
         struct sw_flow_actions *sfa;
@@ -313,18 +326,18 @@ void nf2_populate_of_action(nf2_of_action_wrap *action,
                         struct ofp_action_output *oa = (struct ofp_action_output *)p;
                         port = ntohs(oa->port);
                         LOG("Action Type: %i Output Port: %i\n",
-                                ntohs(ah->type), port);
+			    ntohs(ah->type), port);
 
                         if (port < 4)  {
                                 // bitmask for output port(s), evens are phys odds cpu
                                 action->action.forward_bitmask |= (1 << (port * 2));
                                 LOG("Output Port: %i Forward Bitmask: %x\n",
-                                        port, action->action.forward_bitmask);
+				    port, action->action.forward_bitmask);
                         } else if (port == OFPP_IN_PORT) {
                                 // send out to input port
                                 action->action.forward_bitmask |= (1 << (entry->entry.src_port));
                                 LOG("Output Port = Input Port  Forward Bitmask: %x\n",
-                                        action->action.forward_bitmask);
+				    action->action.forward_bitmask);
                         } else if ((port == OFPP_ALL) || (port == OFPP_FLOOD)) {
                                 // Send out all ports except the source
                                 for (j = 0; j < 4; ++j) {
@@ -332,7 +345,7 @@ void nf2_populate_of_action(nf2_of_action_wrap *action,
                                                 // bitmask for output port(s), evens are phys odds cpu
                                                 action->action.forward_bitmask |= (1 << (j * 2));
                                                 LOG("Output Port: %i Forward Bitmask: %x\n",
-                                                        port, action->action.forward_bitmask);
+						    port, action->action.forward_bitmask);
                                         }
                                 }
                         }
@@ -342,11 +355,11 @@ void nf2_populate_of_action(nf2_of_action_wrap *action,
         }
 }
 
-
 /*
  * Add a free hardware entry back to the exact pool
  */
-void add_free_exact(struct sw_flow_nf2* sfw) {
+void add_free_exact(struct sw_flow_nf2* sfw)
+{
 	// clear the node entry
 	INIT_LIST_HEAD(&sfw->node);
 
@@ -357,7 +370,8 @@ void add_free_exact(struct sw_flow_nf2* sfw) {
 /*
  * Add a free hardware entry back to the wildcard pool
  */
-void add_free_wildcard(struct sw_flow_nf2* sfw) {
+void add_free_wildcard(struct sw_flow_nf2* sfw)
+{
 	// clear the hw values
 	sfw->hw_packet_count = 0;
 	sfw->hw_byte_count = 0;
@@ -370,7 +384,8 @@ void add_free_wildcard(struct sw_flow_nf2* sfw) {
  * Hashes the entry to find where it should exist in the exact table
  * returns NULL on failure
  */
-struct sw_flow_nf2* get_free_exact(nf2_of_entry_wrap *entry) {
+struct sw_flow_nf2* get_free_exact(nf2_of_entry_wrap *entry)
+{
 	unsigned int poly1 = 0x04C11DB7;
 	unsigned int poly2 = 0x1EDC6F41;
 	struct sw_flow_nf2 *sfw = NULL;
@@ -410,7 +425,8 @@ struct sw_flow_nf2* get_free_exact(nf2_of_entry_wrap *entry) {
  * Get the first free position in the wildcard hardware table
  * to write into
  */
-struct sw_flow_nf2* get_free_wildcard(void) {
+struct sw_flow_nf2* get_free_wildcard(void)
+{
 	struct sw_flow_nf2 *sfw = NULL;
 	struct list_head *next = NULL;
 
@@ -430,7 +446,8 @@ struct sw_flow_nf2* get_free_wildcard(void) {
 /*
  * Retrieves the type of table this flow should go into
  */
-int nf2_get_table_type(struct sw_flow *flow) {
+int nf2_get_table_type(struct sw_flow *flow)
+{
 	if (flow->key.wildcards != 0) {
 		LOG("--- TABLE TYPE: WILDCARD ---\n");
 		return NF2_TABLE_WILDCARD;
@@ -446,8 +463,8 @@ int nf2_get_table_type(struct sw_flow *flow) {
  * since we do not perform the spanning tree protocol (STP) then OFPP_FLOOD is
  * equivalent to OFPP_ALL.
  */
-int is_action_forward_all(struct sw_flow *flow) {
-
+int is_action_forward_all(struct sw_flow *flow)
+{
         struct sw_flow_actions *sfa;
         size_t actions_len;
         uint8_t *p;
@@ -466,22 +483,23 @@ int is_action_forward_all(struct sw_flow *flow) {
                 LOG("Fwd Action Chk: Len of actions    : %i\n", actions_len);
                 // Currently only support the output port(s) action
                 if ((ntohs(ah->type) == OFPAT_OUTPUT) &&
-                        ((ntohs(oa->port) == OFPP_ALL) ||
+		    ((ntohs(oa->port) == OFPP_ALL) ||
                          (ntohs(oa->port) == OFPP_FLOOD))) {
                         return 1;
                 }
                 p += len;
                 actions_len -= len;
         }
+
         return 0;
 }
-
 
 /*
  * Attempts to build and write the flow to hardware.
  * Returns 0 on success, 1 on failure.
  */
-int nf2_build_and_write_flow(struct sw_flow *flow) {
+int nf2_build_and_write_flow(struct sw_flow *flow)
+{
 	struct sw_flow_nf2 *sfw = NULL;
 	struct sw_flow_nf2 *sfw_next = NULL;
 
@@ -504,131 +522,135 @@ int nf2_build_and_write_flow(struct sw_flow *flow) {
 
 	table_type = nf2_get_table_type(flow);
 	switch (table_type) {
-		case NF2_TABLE_EXACT:
-			LOG("---Exact Entry---\n");
-			nf2_populate_of_entry(&key, flow);
-			nf2_populate_of_action(&action, &key, NULL, flow);
-			sfw = get_free_exact(&key);
-			if (sfw == NULL) {
-				LOG("Collision getting free exact match entry\n");
-				// collision
+	default:
+		break;
+
+	case NF2_TABLE_EXACT:
+		LOG("---Exact Entry---\n");
+		nf2_populate_of_entry(&key, flow);
+		nf2_populate_of_action(&action, &key, NULL, flow);
+		sfw = get_free_exact(&key);
+		if (sfw == NULL) {
+			LOG("Collision getting free exact match entry\n");
+			// collision
+			return 1;
+		}
+
+		// set the active bit on this entry
+		key.entry.pad = 0x8000;
+		nf2_write_of_exact(dev, sfw->pos, &key, &action);
+		flow->private = (void*)sfw;
+		break;
+
+	case NF2_TABLE_WILDCARD:
+		LOG("---Wildcard Entry---\n");
+		// if action is all out and source port is wildcarded
+		if ((is_action_forward_all(flow)) &&
+		    (flow->key.wildcards & OFPFW_IN_PORT)) {
+			LOG("Grab four wildcard tables\n");
+			if (!(sfw = get_free_wildcard())) {
+				LOG("No free wildcard entries found.");
+				// no free entries
+				return 1;
+			}
+			// try to get 3 more positions
+			for (i = 0; i < 3; ++i) {
+				if(!(sfw_next = get_free_wildcard())) {
+					break;
+				}
+				list_add_tail(&sfw_next->node, &sfw->node);
+				++num_entries;
+			}
+
+			if (num_entries < 3) {
+				// failed to get enough entries, return them and exit
+				nf2_delete_private((void*)sfw);
 				return 1;
 			}
 
-			// set the active bit on this entry
-			key.entry.pad = 0x8000;
+			nf2_populate_of_entry(&key, flow);
+			nf2_populate_of_mask(&mask, flow);
 
-			nf2_write_of_exact(dev, sfw->pos, &key, &action);
+			// set first entry's src port to 0, remove wildcard mask on src
+			key.entry.src_port = 0;
+			mask.entry.src_port = 0;
+			nf2_populate_of_action(&action, &key, &mask, flow);
+			nf2_write_of_wildcard(dev, sfw->pos, &key, &mask, &action);
 
+			i = 1;
+			sfw_next = list_entry(sfw->node.next, struct sw_flow_nf2, node);
+			// walk through and write the remaining 3 entries
+			while (sfw_next != sfw) {
+				key.entry.src_port = i*2;
+				nf2_populate_of_action(&action, &key, &mask, flow);
+				nf2_write_of_wildcard(dev, sfw_next->pos, &key, &mask, &action);
+				sfw_next = list_entry(sfw_next->node.next,
+						      struct sw_flow_nf2, node);
+				++i;
+			}
 			flow->private = (void*)sfw;
-			break;
-		case NF2_TABLE_WILDCARD:
-			LOG("---Wildcard Entry---\n");
-			// if action is all out and source port is wildcarded
-			if ((is_action_forward_all(flow)) &&
-				(flow->key.wildcards & OFPFW_IN_PORT)) {
-				LOG("Grab four wildcard tables\n");
-				if (!(sfw = get_free_wildcard())) {
-					LOG("No free wildcard entries found.");
-					// no free entries
-					return 1;
-				}
-				// try to get 3 more positions
-				for (i=0; i < 3; ++i) {
-					if(!(sfw_next = get_free_wildcard())) {
-						break;
-					}
-					list_add_tail(&sfw_next->node, &sfw->node);
-					++num_entries;
-				}
-
-				if (num_entries < 3) {
-					// failed to get enough entries, return them and exit
-					nf2_delete_private((void*)sfw);
-					return 1;
-				}
-
+		} else {
+			/* Get a free position here, and write to it */
+			if ((sfw = get_free_wildcard())) {
 				nf2_populate_of_entry(&key, flow);
 				nf2_populate_of_mask(&mask, flow);
-
-				// set first entry's src port to 0, remove wildcard mask on src
-				key.entry.src_port = 0;
-				mask.entry.src_port = 0;
 				nf2_populate_of_action(&action, &key, &mask, flow);
-				nf2_write_of_wildcard(dev, sfw->pos, &key, &mask, &action);
-
-				i = 1;
-				sfw_next = list_entry(sfw->node.next, struct sw_flow_nf2, node);
-				// walk through and write the remaining 3 entries
-				while (sfw_next != sfw) {
-					key.entry.src_port = i*2;
-					nf2_populate_of_action(&action, &key, &mask, flow);
-					nf2_write_of_wildcard(dev, sfw_next->pos, &key, &mask, &action);
-					sfw_next = list_entry(sfw_next->node.next,
-						struct sw_flow_nf2, node);
-					++i;
-				}
-				flow->private = (void*)sfw;
-			} else {
-				/* Get a free position here, and write to it */
-				if ((sfw = get_free_wildcard())) {
-					nf2_populate_of_entry(&key, flow);
-					nf2_populate_of_mask(&mask, flow);
-					nf2_populate_of_action(&action, &key, &mask, flow);
-					if (nf2_write_of_wildcard(dev, sfw->pos, &key, &mask, &action)) {
-						// failure writing to hardware
-						add_free_wildcard(sfw);
-						LOG("Failure writing to hardware\n");
-					    return 1;
-					} else {
-						// success writing to hardware, store the position
-						flow->private = (void*)sfw;
-					}
-				} else {
-					// hardware is full, return 0
-					LOG("No free wildcard entries found.");
+				if (nf2_write_of_wildcard(dev, sfw->pos, &key, &mask, &action)) {
+					// failure writing to hardware
+					add_free_wildcard(sfw);
+					LOG("Failure writing to hardware\n");
 					return 1;
+				} else {
+					// success writing to hardware, store the position
+					flow->private = (void*)sfw;
 				}
+			} else {
+				// hardware is full, return 0
+				LOG("No free wildcard entries found.");
+				return 1;
 			}
-			break;
+		}
+		break;
 	}
 
 	nf2_free_net_device(dev);
-	// success
 	return 0;
 }
 
-void nf2_delete_private(void* private) {
+void nf2_delete_private(void* private)
+{
 	struct sw_flow_nf2 *sfw = (struct sw_flow_nf2*)private;
 	struct sw_flow_nf2 *sfw_next;
 	struct list_head *next;
 
 	switch (sfw->type) {
-		case NF2_TABLE_EXACT:
-			nf2_clear_of_exact(sfw->pos);
-			add_free_exact(sfw);
-			break;
-		case NF2_TABLE_WILDCARD:
-			while (!list_empty(&sfw->node)) {
-				next = sfw->node.next;
-				sfw_next = list_entry(next, struct sw_flow_nf2, node);
-				list_del_init(&sfw_next->node);
-				// Immediately zero out the entry in hardware
-				nf2_clear_of_wildcard(sfw_next->pos);
-				// add it back to the pool
-				add_free_wildcard(sfw_next);
-			}
+	default:
+		break;
 
-			// zero the core entry
-			nf2_clear_of_wildcard(sfw->pos);
+	case NF2_TABLE_EXACT:
+		nf2_clear_of_exact(sfw->pos);
+		add_free_exact(sfw);
+		break;
 
-			// add back the core entry
-			add_free_wildcard(sfw);
+	case NF2_TABLE_WILDCARD:
+		while (!list_empty(&sfw->node)) {
+			next = sfw->node.next;
+			sfw_next = list_entry(next, struct sw_flow_nf2, node);
+			list_del_init(&sfw_next->node);
+			// Immediately zero out the entry in hardware
+			nf2_clear_of_wildcard(sfw_next->pos);
+			// add it back to the pool
+			add_free_wildcard(sfw_next);
+		}
 
-			break;
+		// zero the core entry
+		nf2_clear_of_wildcard(sfw->pos);
+
+		// add back the core entry
+		add_free_wildcard(sfw);
+		break;
 	}
 }
-
 
 int nf2_modify_acts(struct sw_table *swt, struct sw_flow *flow)
 {
@@ -645,96 +667,108 @@ int nf2_modify_acts(struct sw_table *swt, struct sw_flow *flow)
         dev = nf2_get_net_device();
 
         switch (sfw->type) {
-                case NF2_TABLE_EXACT:
-                        nf2_populate_of_entry(&key, flow);
-                        nf2_populate_of_action(&action, &key, NULL, flow);
-                        key.entry.pad= 0x8000;
-                        nf2_modify_write_of_exact(dev, sfw->pos, &action);
-                        break;
-                case NF2_TABLE_WILDCARD:
-                        if (flow->key.wildcards & OFPFW_IN_PORT) {
-                                
-                                return 0;
-                        } else {
-                                nf2_populate_of_entry(&key, flow);
-                                nf2_populate_of_mask(&mask, flow);
-                                nf2_populate_of_action(&action, &key, &mask, flow);
-                                nf2_modify_write_of_wildcard
-                                    (dev, sfw->pos, &key, &mask, &action);
-                        }
-                        break;
+	default:
+		break;
+
+	case NF2_TABLE_EXACT:
+		nf2_populate_of_entry(&key, flow);
+		nf2_populate_of_action(&action, &key, NULL, flow);
+		key.entry.pad= 0x8000;
+		nf2_modify_write_of_exact(dev, sfw->pos, &action);
+		break;
+
+	case NF2_TABLE_WILDCARD:
+		if (flow->key.wildcards & OFPFW_IN_PORT) {
+			return 0;
+		} else {
+			nf2_populate_of_entry(&key, flow);
+			nf2_populate_of_mask(&mask, flow);
+			nf2_populate_of_action(&action, &key, &mask, flow);
+			nf2_modify_write_of_wildcard(dev, sfw->pos,
+						     &key, &mask, &action);
+		}
+		break;
         }
+
         nf2_free_net_device(dev);
         return 1;
 }
 
-
-uint64_t nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
+uint64_t nf2_get_packet_count(struct net_device *dev, struct sw_flow_nf2 *sfw)
+{
 	uint32_t count = 0;
 	uint32_t hw_count = 0;
 	uint64_t total = 0;
 	struct sw_flow_nf2 *sfw_next = NULL;
 
 	switch (sfw->type) {
-		case NF2_TABLE_EXACT:
-			count = nf2_get_exact_packet_count(dev, sfw->pos);
-			total = count;
-			break;
-		case NF2_TABLE_WILDCARD:
-			sfw_next = sfw;
-			do {
-				hw_count = nf2_get_wildcard_packet_count(dev, sfw_next->pos);
-				if (hw_count >= sfw_next->hw_packet_count) {
-					count = hw_count - sfw_next->hw_packet_count;
-					sfw_next->hw_packet_count = hw_count;
-				} else {
-					// wrapping occurred
-					count = (MAX_INT_32 - sfw_next->hw_packet_count) + hw_count;
-					sfw_next->hw_packet_count = hw_count;
-				}
-				total += count;
-				sfw_next = list_entry(sfw_next->node.next, struct sw_flow_nf2,
-						node);
-			} while (sfw_next != sfw);
-			break;
+	default:
+		break;
+
+	case NF2_TABLE_EXACT:
+		count = nf2_get_exact_packet_count(dev, sfw->pos);
+		total = count;
+		break;
+
+	case NF2_TABLE_WILDCARD:
+		sfw_next = sfw;
+		do {
+			hw_count = nf2_get_wildcard_packet_count(dev, sfw_next->pos);
+			if (hw_count >= sfw_next->hw_packet_count) {
+				count = hw_count - sfw_next->hw_packet_count;
+				sfw_next->hw_packet_count = hw_count;
+			} else {
+				// wrapping occurred
+				count = (MAX_INT_32 - sfw_next->hw_packet_count) + hw_count;
+				sfw_next->hw_packet_count = hw_count;
+			}
+			total += count;
+			sfw_next = list_entry(sfw_next->node.next,
+					      struct sw_flow_nf2, node);
+		} while (sfw_next != sfw);
+		break;
 	}
 
 	LOG("Return nf2_get_packet_count value: %llu\n", total);
 	return total;
 }
 
-uint64_t nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw) {
+uint64_t nf2_get_byte_count(struct net_device *dev, struct sw_flow_nf2 *sfw)
+{
 	uint32_t count = 0;
 	uint32_t hw_count = 0;
 	uint64_t total = 0;
 	struct sw_flow_nf2 *sfw_next = NULL;
 
 	switch (sfw->type) {
-		case NF2_TABLE_EXACT:
-			count = nf2_get_exact_byte_count(dev, sfw->pos);
-			total = count;
-			break;
-		case NF2_TABLE_WILDCARD:
-			sfw_next = sfw;
-			do {
-				hw_count = nf2_get_wildcard_byte_count(dev, sfw_next->pos);
-				if (hw_count >= sfw_next->hw_byte_count) {
-					count = hw_count - sfw_next->hw_byte_count;
-					sfw_next->hw_byte_count = hw_count;
-				} else {
-					// wrapping occurred
-					count = (MAX_INT_32 - sfw_next->hw_byte_count) + hw_count;
-					sfw_next->hw_byte_count = hw_count;
-				}
+	default:
+		break;
 
-				total += count;
-				sfw_next = list_entry(sfw_next->node.next, struct sw_flow_nf2,
-						node);
-			} while (sfw_next != sfw);
-			break;
+	case NF2_TABLE_EXACT:
+		count = nf2_get_exact_byte_count(dev, sfw->pos);
+		total = count;
+		break;
+
+	case NF2_TABLE_WILDCARD:
+		sfw_next = sfw;
+		do {
+			hw_count = nf2_get_wildcard_byte_count(dev, sfw_next->pos);
+			if (hw_count >= sfw_next->hw_byte_count) {
+				count = hw_count - sfw_next->hw_byte_count;
+				sfw_next->hw_byte_count = hw_count;
+			} else {
+				// wrapping occurred
+				count = (MAX_INT_32 - sfw_next->hw_byte_count) + hw_count;
+				sfw_next->hw_byte_count = hw_count;
+			}
+
+			total += count;
+			sfw_next = list_entry(sfw_next->node.next,
+					      struct sw_flow_nf2, node);
+		} while (sfw_next != sfw);
+		break;
 	}
 
 	LOG("Return nf2_get_byte_count value: %llu\n", total);
 	return total;
 }
-
