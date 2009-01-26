@@ -6,7 +6,6 @@
 
 /* Functions for executing OpenFlow actions. */
 
-#include "compat.h"
 #include <linux/skbuff.h>
 #include <linux/in.h>
 #include <linux/ip.h>
