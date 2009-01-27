@@ -1136,7 +1136,6 @@ sub forward_simple {
 #Sub functions for ICMP handling tests
 
 sub get_default_black_box_pkt_len_icmp {
-
         my ($in_port, $out_port, $len) = @_;
 
         my $pkt_args = {
@@ -1378,7 +1377,7 @@ sub forward_simple_icmp {
                         wait_for_two_flow_expired( $ofp, $sock, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );
                 } else {
                         print "wait for flow expired\n";
-                        wait_for_flow_expired( $ofp, $sock, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );
+                        wait_for_flow_expired( $ofp, $sock, $options_ref, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );
                 }
         }
 }
