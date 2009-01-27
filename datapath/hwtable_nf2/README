@@ -54,10 +54,16 @@ Add the NetFPGA interfaces to the datapath:
 
 At this point your OpenFlow switch should be ready to go.
 
+Fixed Bug
+----------------------------------------
+* On V.0.8.2, when "source port = wild and action = OFPP_ALL" entry is
+  written, it is not correctly written to NetFPGA and packets and bytes
+  are not correctly counted.
+
 Known Bugs
 ----------------------------------------
-Link status detection is currently not supported.
-There is currently no support for priority amongst wildcard-match entries.
+* Link status detection is currently not supported.
+* There is currently no support for priority amongst wildcard-match entries.
 
 Contact
 -------
