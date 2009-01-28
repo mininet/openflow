@@ -1,3 +1,9 @@
+v0.8.9 r2 - 23 Jan 2009
+-----------------------
+    - Added NetFPGA hardware table support
+    - Added regression tests on port_stats, flow_stats, drop, ICMP handling
+    - Bug fixes
+
 v0.8.9 - 01 Dec 2008
 --------------------
     - Added support for IP netmasks
