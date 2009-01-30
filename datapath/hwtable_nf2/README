@@ -25,6 +25,12 @@ line from within <openflow>/datapath/hwtable_nf2/nf2_logging.h, then recompile:
 For further help regarding building OpenFlow please see the INSTALL file in
 the OpenFlow root directory.
 
+Platform support
+----------------
+
+OpenFlow v0.8.9 with hwtable_nf2 has been tested on CentOS 5.2(Linux 2.6.18),
+which is the officially supported platform of NetFPGA.
+
 Running
 ----------------------------------------
 
