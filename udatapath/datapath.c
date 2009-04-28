@@ -41,19 +41,19 @@
 #include "chain.h"
 #include "csum.h"
 #include "flow.h"
-#include "list.h"
 #include "netdev.h"
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
+#include "openflow/nicira-ext.h"
 #include "packets.h"
 #include "poll-loop.h"
 #include "rconn.h"
 #include "stp.h"
 #include "switch-flow.h"
 #include "table.h"
-#include "timeval.h"
 #include "vconn.h"
 #include "xtoxll.h"
+#include "nx_msg.h"
 #include "dp_act.h"
 
 #define THIS_MODULE VLM_datapath
@@ -82,24 +82,13 @@ extern char serial_num;
                                 | (1 << OFPAT_SET_TP_SRC)   \
                                 | (1 << OFPAT_SET_TP_DST) )
 
-struct sw_port {
-    uint32_t config;            /* Some subset of OFPPC_* flags. */
-    uint32_t state;             /* Some subset of OFPPS_* flags. */
-    struct datapath *dp;
-    struct netdev *netdev;
-    struct list node; /* Element in datapath.ports. */
-    unsigned long long int rx_packets, tx_packets;
-    unsigned long long int rx_bytes, tx_bytes;
-    unsigned long long int tx_dropped;
-};
-
 /* The origin of a received OpenFlow message, to enable sending a reply. */
 struct sender {
     struct remote *remote;      /* The device that sent the message. */
     uint32_t xid;               /* The OpenFlow transaction ID. */
 };
 
-/* A connection to a controller or a management device. */
+/* A connection to a secure channel. */
 struct remote {
     struct list node;
     struct rconn *rconn;
@@ -116,31 +105,6 @@ struct remote {
     void *cb_aux;
 };
 
-#define DP_MAX_PORTS 255
-BUILD_ASSERT_DECL(DP_MAX_PORTS <= OFPP_MAX);
-
-struct datapath {
-    /* Remote connections. */
-    struct remote *controller;  /* Connection to controller. */
-    struct list remotes;        /* All connections (including controller). */
-    struct pvconn *listen_pvconn;
-
-    time_t last_timeout;
-
-    /* Unique identifier for this datapath */
-    uint64_t  id;
-
-    struct sw_chain *chain;  /* Forwarding rules. */
-
-    /* Configuration set from controller. */
-    uint16_t flags;
-    uint16_t miss_send_len;
-
-    /* Switch ports. */
-    struct sw_port ports[DP_MAX_PORTS];
-    struct list port_list; /* List of ports, for flooding. */
-};
-
 static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(60, 60);
 
 static struct remote *remote_create(struct datapath *, struct rconn *);
@@ -148,14 +112,12 @@ static void remote_run(struct datapath *, struct remote *);
 static void remote_wait(struct remote *);
 static void remote_destroy(struct remote *);
 
-void dp_update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm);
-static void send_flow_expired(struct datapath *, struct sw_flow *,
-                              enum ofp_flow_expired_reason);
+static void update_port_flags(struct datapath *, const struct ofp_port_mod *);
 static int update_port_status(struct sw_port *p);
 static void send_port_status(struct sw_port *p, uint8_t status);
 static void del_switch_port(struct sw_port *p);
 
-/* Buffers are identified to userspace by a 31-bit opaque ID.  We divide the ID
+/* Buffers are identified by a 31-bit opaque ID.  We divide the ID
  * into a buffer number (low bits) and a cookie (high bits).  The buffer number
  * is an index into an array of buffers.  The cookie distinguishes between
  * different packets that have occupied a single buffer.  Thus, the more
@@ -176,10 +138,12 @@ uint32_t save_buffer(struct ofpbuf *);
 static struct ofpbuf *retrieve_buffer(uint32_t id);
 static void discard_buffer(uint32_t id);
 
-static int port_no(struct datapath *dp, struct sw_port *p) 
+static struct sw_port *
+lookup_port(struct datapath *dp, uint16_t port_no) 
 {
-    assert(p >= dp->ports && p < &dp->ports[ARRAY_SIZE(dp->ports)]);
-    return p - dp->ports;
+    return (port_no < DP_MAX_PORTS ? &dp->ports[port_no]
+            : port_no == OFPP_LOCAL ? dp->local_port
+            : NULL);
 }
 
 /* Generates and returns a random datapath id. */
@@ -188,11 +152,14 @@ gen_datapath_id(void)
 {
     uint8_t ea[ETH_ADDR_LEN];
     eth_addr_random(ea);
+    ea[0] = 0x00;               /* Set Nicira OUI. */
+    ea[1] = 0x23;
+    ea[2] = 0x20;
     return eth_addr_to_uint64(ea);
 }
 
 int
-dp_new(struct datapath **dp_, uint64_t dpid, struct rconn *rconn)
+dp_new(struct datapath **dp_, uint64_t dpid)
 {
     struct datapath *dp;
 
@@ -203,10 +170,10 @@ dp_new(struct datapath **dp_, uint64_t dpid, struct rconn *rconn)
 
     dp->last_timeout = time_now();
     list_init(&dp->remotes);
-    dp->controller = remote_create(dp, rconn);
-    dp->listen_pvconn = NULL;
+    dp->listeners = NULL;
+    dp->n_listeners = 0;
     dp->id = dpid <= UINT64_C(0xffffffffffff) ? dpid : gen_datapath_id();
-    dp->chain = chain_create();
+    dp->chain = chain_create(dp);
     if (!dp->chain) {
         VLOG_ERR("could not create chain");
         free(dp);
@@ -220,59 +187,102 @@ dp_new(struct datapath **dp_, uint64_t dpid, struct rconn *rconn)
     return 0;
 }
 
-int
-dp_add_port(struct datapath *dp, const char *name)
+static int
+new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
+         const char *netdev_name, const uint8_t *new_mac)
 {
     struct netdev *netdev;
     struct in6_addr in6;
     struct in_addr in4;
-    struct sw_port *p;
     int error;
 
-    error = netdev_open(name, NETDEV_ETH_TYPE_ANY, &netdev);
+    error = netdev_open(netdev_name, NETDEV_ETH_TYPE_ANY, &netdev);
     if (error) {
         return error;
     }
+    if (new_mac && !eth_addr_equals(netdev_get_etheraddr(netdev), new_mac)) {
+        /* Generally the device has to be down before we change its hardware
+         * address.  Don't bother to check for an error because it's really
+         * the netdev_set_etheraddr() call below that we care about. */
+        netdev_set_flags(netdev, 0, false);
+        error = netdev_set_etheraddr(netdev, new_mac);
+        if (error) {
+            VLOG_WARN("failed to change %s Ethernet address "
+                      "to "ETH_ADDR_FMT": %s",
+                      netdev_name, ETH_ADDR_ARGS(new_mac), strerror(error));
+        }
+    }
     error = netdev_set_flags(netdev, NETDEV_UP | NETDEV_PROMISC, false);
     if (error) {
-        VLOG_ERR("couldn't set promiscuous mode on %s device", name);
+        VLOG_ERR("failed to set promiscuous mode on %s device", netdev_name);
         netdev_close(netdev);
         return error;
     }
     if (netdev_get_in4(netdev, &in4)) {
-        VLOG_ERR("%s device has assigned IP address %s", name, inet_ntoa(in4));
+        VLOG_ERR("%s device has assigned IP address %s",
+                 netdev_name, inet_ntoa(in4));
     }
     if (netdev_get_in6(netdev, &in6)) {
         char in6_name[INET6_ADDRSTRLEN + 1];
         inet_ntop(AF_INET6, &in6, in6_name, sizeof in6_name);
-        VLOG_ERR("%s device has assigned IPv6 address %s", name, in6_name);
+        VLOG_ERR("%s device has assigned IPv6 address %s",
+                 netdev_name, in6_name);
     }
 
-    for (p = dp->ports; ; p++) {
-        if (p >= &dp->ports[ARRAY_SIZE(dp->ports)]) {
-            return EXFULL;
-        } else if (!p->netdev) {
-            break;
-        }
-    }
+    memset(port, '\0', sizeof *port);
 
-    memset(p, '\0', sizeof *p);
-
-    p->dp = dp;
-    p->netdev = netdev;
-    list_push_back(&dp->port_list, &p->node);
+    port->dp = dp;
+    port->netdev = netdev;
+    port->port_no = port_no;
+    list_push_back(&dp->port_list, &port->node);
 
     /* Notify the ctlpath that this port has been added */
-    send_port_status(p, OFPPR_ADD);
+    send_port_status(port, OFPPR_ADD);
 
     return 0;
 }
 
-void
-dp_add_listen_pvconn(struct datapath *dp, struct pvconn *listen_pvconn)
+int
+dp_add_port(struct datapath *dp, const char *netdev)
 {
-    assert(!dp->listen_pvconn);
-    dp->listen_pvconn = listen_pvconn;
+    int port_no;
+    for (port_no = 0; port_no < DP_MAX_PORTS; port_no++) {
+        struct sw_port *port = &dp->ports[port_no];
+        if (!port->netdev) {
+            return new_port(dp, port, port_no, netdev, NULL);
+        }
+    }
+    return EXFULL;
+}
+
+int
+dp_add_local_port(struct datapath *dp, const char *netdev) 
+{
+    if (!dp->local_port) {
+        uint8_t ea[ETH_ADDR_LEN];
+        struct sw_port *port;
+        int error;
+
+        port = xcalloc(1, sizeof *port);
+        eth_addr_from_uint64(dp->id, ea);
+        error = new_port(dp, port, OFPP_LOCAL, netdev, ea);
+        if (!error) {
+            dp->local_port = port;
+        } else {
+            free(port);
+        }
+        return error;
+    } else {
+        return EXFULL;
+    }
+}
+
+void
+dp_add_pvconn(struct datapath *dp, struct pvconn *pvconn)
+{
+    dp->listeners = xrealloc(dp->listeners,
+                             sizeof *dp->listeners * (dp->n_listeners + 1));
+    dp->listeners[dp->n_listeners++] = pvconn;
 }
 
 void
@@ -282,6 +292,7 @@ dp_run(struct datapath *dp)
     struct sw_port *p, *pn;
     struct remote *r, *rn;
     struct ofpbuf *buffer = NULL;
+    size_t i;
 
     if (now != dp->last_timeout) {
         struct list deleted = LIST_INITIALIZER(&deleted);
@@ -295,7 +306,7 @@ dp_run(struct datapath *dp)
 
         chain_timeout(dp->chain, &deleted);
         LIST_FOR_EACH_SAFE (f, n, struct sw_flow, node, &deleted) {
-            send_flow_expired(dp, f, f->reason);
+            dp_send_flow_end(dp, f, f->reason);
             list_remove(&f->node);
             flow_free(f);
         }
@@ -333,20 +344,19 @@ dp_run(struct datapath *dp)
     LIST_FOR_EACH_SAFE (r, rn, struct remote, node, &dp->remotes) {
         remote_run(dp, r);
     }
-    if (dp->listen_pvconn) {
-        for (;;) {
-            struct vconn *new_vconn;
-            int retval;
 
-            retval = pvconn_accept(dp->listen_pvconn, OFP_VERSION, &new_vconn);
-            if (retval) {
-                if (retval != EAGAIN) {
-                    VLOG_WARN_RL(&rl, "accept failed (%s)", strerror(retval));
-                }
-                break;
-            }
+    for (i = 0; i < dp->n_listeners; ) {
+        struct pvconn *pvconn = dp->listeners[i];
+        struct vconn *new_vconn;
+        int retval = pvconn_accept(pvconn, OFP_VERSION, &new_vconn);
+        if (!retval) {
             remote_create(dp, rconn_new_from_vconn("passive", new_vconn));
+        } else if (retval != EAGAIN) {
+            VLOG_WARN_RL(&rl, "accept failed (%s)", strerror(retval));
+            dp->listeners[i] = dp->listeners[--dp->n_listeners];
+            continue;
         }
+        i++;
     }
 }
 
@@ -464,6 +474,7 @@ dp_wait(struct datapath *dp)
 {
     struct sw_port *p;
     struct remote *r;
+    size_t i;
 
     LIST_FOR_EACH (p, struct sw_port, node, &dp->port_list) {
         netdev_recv_wait(p->netdev);
@@ -471,8 +482,8 @@ dp_wait(struct datapath *dp)
     LIST_FOR_EACH (r, struct remote, node, &dp->remotes) {
         remote_wait(r);
     }
-    if (dp->listen_pvconn) {
-        pvconn_wait(dp->listen_pvconn);
+    for (i = 0; i < dp->n_listeners; i++) {
+        pvconn_wait(dp->listeners[i]);
     }
 }
 
@@ -513,7 +524,7 @@ output_all(struct datapath *dp, struct ofpbuf *buffer, int in_port, int flood)
 
     prev_port = -1;
     LIST_FOR_EACH (p, struct sw_port, node, &dp->port_list) {
-        if (port_no(dp, p) == in_port) {
+        if (p->port_no == in_port) {
             continue;
         }
         if (flood && p->config & OFPPC_NO_FLOOD) {
@@ -523,7 +534,7 @@ output_all(struct datapath *dp, struct ofpbuf *buffer, int in_port, int flood)
             dp_output_port(dp, ofpbuf_clone(buffer), in_port, prev_port,
                            false);
         }
-        prev_port = port_no(dp, p);
+        prev_port = p->port_no;
     }
     if (prev_port != -1)
         dp_output_port(dp, buffer, in_port, prev_port, false);
@@ -534,19 +545,20 @@ output_all(struct datapath *dp, struct ofpbuf *buffer, int in_port, int flood)
 }
 
 void
-output_packet(struct datapath *dp, struct ofpbuf *buffer, int out_port) 
+output_packet(struct datapath *dp, struct ofpbuf *buffer, uint16_t out_port) 
 {
-    if (out_port >= 0 && out_port < DP_MAX_PORTS) { 
-        struct sw_port *p = &dp->ports[out_port];
-        if (p->netdev != NULL && !(p->config & OFPPC_PORT_DOWN)) {
+    struct sw_port *p = lookup_port(dp, out_port);
+    if (p && p->netdev != NULL) {
+        if (!(p->config & OFPPC_PORT_DOWN)) {
             if (!netdev_send(p->netdev, buffer)) {
                 p->tx_packets++;
                 p->tx_bytes += buffer->size;
             } else {
                 p->tx_dropped++;
             }
-            return;
         }
+        ofpbuf_delete(buffer);
+        return;
     }
 
     ofpbuf_delete(buffer);
@@ -561,25 +573,39 @@ dp_output_port(struct datapath *dp, struct ofpbuf *buffer,
 {
 
     assert(buffer);
-    if (out_port == OFPP_FLOOD) {
-        output_all(dp, buffer, in_port, 1); 
-    } else if (out_port == OFPP_ALL) {
-        output_all(dp, buffer, in_port, 0); 
-    } else if (out_port == OFPP_CONTROLLER) {
-        dp_output_control(dp, buffer, in_port, 0, OFPR_ACTION); 
-    } else if (out_port == OFPP_IN_PORT) {
+    switch (out_port) {
+    case OFPP_IN_PORT:
         output_packet(dp, buffer, in_port);
-    } else if (out_port == OFPP_TABLE) {
-        struct sw_port *p = in_port < DP_MAX_PORTS ? &dp->ports[in_port] : 0;
+        break;
+
+    case OFPP_TABLE: {
+        struct sw_port *p = lookup_port(dp, in_port);
 		if (run_flow_through_tables(dp, buffer, p)) {
 			ofpbuf_delete(buffer);
         }
-    } else {
+        break;
+    }
+
+    case OFPP_FLOOD:
+        output_all(dp, buffer, in_port, 1);
+        break;
+
+    case OFPP_ALL:
+        output_all(dp, buffer, in_port, 0);
+        break;
+
+    case OFPP_CONTROLLER:
+        dp_output_control(dp, buffer, in_port, 0, OFPR_ACTION);
+        break;
+
+    case OFPP_LOCAL:
+    default:
         if (in_port == out_port) {
             VLOG_DBG_RL(&rl, "can't directly forward to input port");
             return;
         }
         output_packet(dp, buffer, out_port);
+        break;
     }
 }
 
@@ -592,20 +618,41 @@ make_openflow_reply(size_t openflow_len, uint8_t type,
 }
 
 static int
+send_openflow_buffer_to_remote(struct ofpbuf *buffer, struct remote *remote)
+{
+    int retval = rconn_send_with_limit(remote->rconn, buffer, &remote->n_txq,
+                                       TXQ_LIMIT);
+    if (retval) {
+        VLOG_WARN_RL(&rl, "send to %s failed: %s",
+                     rconn_get_name(remote->rconn), strerror(retval));
+    }
+    return retval;
+}
+
+static int
 send_openflow_buffer(struct datapath *dp, struct ofpbuf *buffer,
                      const struct sender *sender)
 {
-    struct remote *remote = sender ? sender->remote : dp->controller;
-    struct rconn *rconn = remote->rconn;
-    int retval;
-
     update_openflow_length(buffer);
-    retval = rconn_send_with_limit(rconn, buffer, &remote->n_txq, TXQ_LIMIT);
-    if (retval) {
-        VLOG_WARN_RL(&rl, "send to %s failed: %s",
-                     rconn_get_name(rconn), strerror(retval));
+    if (sender) {
+        /* Send back to the sender. */
+        return send_openflow_buffer_to_remote(buffer, sender->remote);
+    } else {
+        /* Broadcast to all remotes. */
+        struct remote *r, *prev = NULL;
+        LIST_FOR_EACH (r, struct remote, node, &dp->remotes) {
+            if (prev) {
+                send_openflow_buffer_to_remote(ofpbuf_clone(buffer), prev);
+            }
+            prev = r;
+        }
+        if (prev) {
+            send_openflow_buffer_to_remote(buffer, prev);
+        } else {
+            ofpbuf_delete(buffer);
+        }
+        return 0;
     }
-    return retval;
 }
 
 /* Takes ownership of 'buffer' and transmits it to 'dp''s controller.  If the
@@ -644,7 +691,7 @@ dp_output_control(struct datapath *dp, struct ofpbuf *buffer, int in_port,
 static void fill_port_desc(struct datapath *dp, struct sw_port *p,
                            struct ofp_phy_port *desc)
 {
-    desc->port_no = htons(port_no(dp, p));
+    desc->port_no = htons(p->port_no);
     strncpy((char *) desc->name, netdev_get_name(p->netdev),
             sizeof desc->name);
     desc->name[sizeof desc->name - 1] = '\0';
@@ -674,42 +721,40 @@ dp_send_features_reply(struct datapath *dp, const struct sender *sender)
     ofr->capabilities = htonl(OFP_SUPPORTED_CAPABILITIES);
     ofr->actions      = htonl(OFP_SUPPORTED_ACTIONS);
     LIST_FOR_EACH (p, struct sw_port, node, &dp->port_list) {
-        struct ofp_phy_port *opp = ofpbuf_put_zeros(buffer, sizeof *opp);
+        struct ofp_phy_port *opp = ofpbuf_put_uninit(buffer, sizeof *opp);
+        memset(opp, 0, sizeof *opp);
         fill_port_desc(dp, p, opp);
     }
     send_openflow_buffer(dp, buffer, sender);
 }
 
 void
-dp_update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm)
+update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm)
 {
-    int port_no = ntohs(opm->port_no);
-    if (port_no < DP_MAX_PORTS) {
-        struct sw_port *p = &dp->ports[port_no];
+    struct sw_port *p = lookup_port(dp, ntohs(opm->port_no));
 
-        /* Make sure the port id hasn't changed since this was sent */
-        if (memcmp(opm->hw_addr, netdev_get_etheraddr(p->netdev),
-                         ETH_ADDR_LEN) != 0) {
-            return;
-        }
+    /* Make sure the port id hasn't changed since this was sent */
+    if (!p || memcmp(opm->hw_addr, netdev_get_etheraddr(p->netdev),
+                     ETH_ADDR_LEN) != 0) {
+        return;
+    }
 
 
-        if (opm->mask) {
-            uint32_t config_mask = ntohl(opm->mask);
-            p->config &= ~config_mask;
-            p->config |= ntohl(opm->config) & config_mask;
-        }
+    if (opm->mask) {
+        uint32_t config_mask = ntohl(opm->mask);
+        p->config &= ~config_mask;
+        p->config |= ntohl(opm->config) & config_mask;
+    }
 
-        if (opm->mask & htonl(OFPPC_PORT_DOWN)) {
-            if ((opm->config & htonl(OFPPC_PORT_DOWN))
-                && (p->config & OFPPC_PORT_DOWN) == 0) {
-                p->config |= OFPPC_PORT_DOWN;
-                netdev_turn_flags_off(p->netdev, NETDEV_UP, true);
-            } else if ((opm->config & htonl(OFPPC_PORT_DOWN)) == 0
-                       && (p->config & OFPPC_PORT_DOWN)) {
-                p->config &= ~OFPPC_PORT_DOWN;
-                netdev_turn_flags_on(p->netdev, NETDEV_UP, true);
-            }
+    if (opm->mask & htonl(OFPPC_PORT_DOWN)) {
+        if ((opm->config & htonl(OFPPC_PORT_DOWN))
+            && (p->config & OFPPC_PORT_DOWN) == 0) {
+            p->config |= OFPPC_PORT_DOWN;
+            netdev_turn_flags_off(p->netdev, NETDEV_UP, true);
+        } else if ((opm->config & htonl(OFPPC_PORT_DOWN)) == 0
+                   && (p->config & OFPPC_PORT_DOWN)) {
+            p->config &= ~OFPPC_PORT_DOWN;
+            netdev_turn_flags_on(p->netdev, NETDEV_UP, true);
         }
     }
 }
@@ -766,22 +811,40 @@ send_port_status(struct sw_port *p, uint8_t status)
 }
 
 void
-send_flow_expired(struct datapath *dp, struct sw_flow *flow,
-                  enum ofp_flow_expired_reason reason)
+dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
+              enum nx_flow_end_reason reason)
 {
     struct ofpbuf *buffer;
-    struct ofp_flow_expired *ofe;
-    ofe = make_openflow_xid(sizeof *ofe, OFPT_FLOW_EXPIRED, 0, &buffer);
-    flow_fill_match(&ofe->match, &flow->key);
+    struct nx_flow_end *nfe;
 
-    ofe->priority = htons(flow->priority);
-    ofe->reason = reason;
-    memset(ofe->pad, 0, sizeof ofe->pad);
+    if (!dp->send_flow_end) {
+        return;
+    }
 
-    ofe->duration     = htonl(time_now() - flow->created);
-    memset(ofe->pad2, 0, sizeof ofe->pad2);
-    ofe->packet_count = htonll(flow->packet_count);
-    ofe->byte_count   = htonll(flow->byte_count);
+    nfe = make_openflow_xid(sizeof *nfe, OFPT_VENDOR, 0, &buffer);
+    if (!nfe) {
+        return;
+    }
+    nfe->header.vendor = htonl(NX_VENDOR_ID);
+    nfe->header.subtype = htonl(NXT_FLOW_END);
+
+    flow_fill_match(&nfe->match, &flow->key);
+
+    nfe->priority = htons(flow->priority);
+    nfe->reason = reason;
+
+    nfe->tcp_flags = flow->tcp_flags;
+    nfe->ip_tos = flow->ip_tos;
+
+    memset(nfe->pad, 0, sizeof nfe->pad);
+
+    nfe->init_time = htonll(flow->created);
+    nfe->used_time = htonll(flow->used);
+    nfe->end_time = htonll(time_msec());
+
+    nfe->packet_count = htonll(flow->packet_count);
+    nfe->byte_count   = htonll(flow->byte_count);
+
     send_openflow_buffer(dp, buffer, NULL);
 }
 
@@ -800,13 +863,14 @@ dp_send_error_msg(struct datapath *dp, const struct sender *sender,
 
 static void
 fill_flow_stats(struct ofpbuf *buffer, struct sw_flow *flow,
-                int table_idx, time_t now)
+                int table_idx, uint64_t now)
 {
     struct ofp_flow_stats *ofs;
     int length = sizeof *ofs + flow->sf_acts->actions_len;
-    ofs = ofpbuf_put_zeros(buffer, length);
+    ofs = ofpbuf_put_uninit(buffer, length);
     ofs->length          = htons(length);
     ofs->table_id        = table_idx;
+    ofs->pad             = 0;
     ofs->match.wildcards = htonl(flow->key.wildcards);
     ofs->match.in_port   = flow->key.flow.in_port;
     memcpy(ofs->match.dl_src, flow->key.flow.dl_src, ETH_ADDR_LEN);
@@ -816,12 +880,14 @@ fill_flow_stats(struct ofpbuf *buffer, struct sw_flow *flow,
     ofs->match.nw_src    = flow->key.flow.nw_src;
     ofs->match.nw_dst    = flow->key.flow.nw_dst;
     ofs->match.nw_proto  = flow->key.flow.nw_proto;
+    ofs->match.pad       = 0;
     ofs->match.tp_src    = flow->key.flow.tp_src;
     ofs->match.tp_dst    = flow->key.flow.tp_dst;
-    ofs->duration        = htonl(now - flow->created);
+    ofs->duration        = htonl((now - flow->created) / 1000);
     ofs->priority        = htons(flow->priority);
     ofs->idle_timeout    = htons(flow->idle_timeout);
     ofs->hard_timeout    = htons(flow->hard_timeout);
+    memset(ofs->pad2, 0, sizeof ofs->pad2);
     ofs->packet_count    = htonll(flow->packet_count);
     ofs->byte_count      = htonll(flow->byte_count);
     memcpy(ofs->actions, flow->sf_acts->actions, flow->sf_acts->actions_len);
@@ -839,7 +905,7 @@ int run_flow_through_tables(struct datapath *dp, struct ofpbuf *buffer,
     struct sw_flow *flow;
 
     key.wildcards = 0;
-    if (flow_extract(buffer, p ? port_no(dp, p) : OFPP_NONE, &key.flow)
+    if (flow_extract(buffer, p ? p->port_no : OFPP_NONE, &key.flow)
         && (dp->flags & OFPC_FRAG_MASK) == OFPC_FRAG_DROP) {
         /* Drop fragment. */
         ofpbuf_delete(buffer);
@@ -870,7 +936,7 @@ void fwd_port_input(struct datapath *dp, struct ofpbuf *buffer,
                     struct sw_port *p)
 {
     if (run_flow_through_tables(dp, buffer, p)) {
-        dp_output_control(dp, buffer, port_no(dp, p),
+        dp_output_control(dp, buffer, p->port_no,
                           dp->miss_send_len, OFPR_NO_MATCH);
     }
 }
@@ -967,7 +1033,7 @@ recv_port_mod(struct datapath *dp, const struct sender *sender UNUSED,
 {
     const struct ofp_port_mod *opm = msg;
 
-    dp_update_port_flags(dp, opm);
+    update_port_flags(dp, opm);
 
     return 0;
 }
@@ -999,10 +1065,12 @@ add_flow(struct datapath *dp, const struct sender *sender,
     flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
     flow->idle_timeout = ntohs(ofm->idle_timeout);
     flow->hard_timeout = ntohs(ofm->hard_timeout);
-    flow->used = flow->created = time_now();
+    flow->used = flow->created = time_msec();
     flow->sf_acts->actions_len = actions_len;
     flow->byte_count = 0;
     flow->packet_count = 0;
+    flow->tcp_flags = 0;
+    flow->ip_tos = 0;
     memcpy(flow->sf_acts->actions, ofm->actions, actions_len);
 
     /* Act. */
@@ -1010,7 +1078,7 @@ add_flow(struct datapath *dp, const struct sender *sender,
     if (error == -ENOBUFS) {
         dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED, 
                 OFPFMFC_ALL_TABLES_FULL, ofm, ntohs(ofm->header.length));
-        goto error_free_flow; 
+        goto error_free_flow;
     } else if (error) {
         goto error_free_flow; 
     }
@@ -1020,8 +1088,8 @@ add_flow(struct datapath *dp, const struct sender *sender,
         if (buffer) {
             struct sw_flow_key key;
             uint16_t in_port = ntohs(ofm->match.in_port);
-            flow_used(flow, buffer);
             flow_extract(buffer, in_port, &key.flow);
+            flow_used(flow, buffer);
             execute_actions(dp, buffer, &key, 
                     ofm->actions, actions_len, false);
         } else {
@@ -1114,7 +1182,7 @@ recv_flow(struct datapath *dp, const struct sender *sender,
 static int desc_stats_dump(struct datapath *dp, void *state,
                               struct ofpbuf *buffer)
 {
-    struct ofp_desc_stats *ods = ofpbuf_put_zeros(buffer, sizeof *ods);
+    struct ofp_desc_stats *ods = ofpbuf_put_uninit(buffer, sizeof *ods);
 
     strncpy(ods->mfr_desc, &mfr_desc, sizeof ods->mfr_desc);
     strncpy(ods->hw_desc, &hw_desc, sizeof ods->hw_desc);
@@ -1128,7 +1196,7 @@ struct flow_stats_state {
     int table_idx;
     struct sw_table_position position;
     struct ofp_flow_stats_request rq;
-    time_t now;
+    uint64_t now;                  /* Current time in milliseconds */
 
     struct ofpbuf *buffer;
 };
@@ -1162,13 +1230,13 @@ static int flow_stats_dump(struct datapath *dp, void *state,
 
     flow_extract_match(&match_key, &s->rq.match);
     s->buffer = buffer;
-    s->now = time_now();
+    s->now = time_msec();
     while (s->table_idx < dp->chain->n_tables
            && (s->rq.table_id == 0xff || s->rq.table_id == s->table_idx))
     {
         struct sw_table *table = dp->chain->tables[s->table_idx];
 
-        if (table->iterate(table, &match_key, s->rq.out_port,
+        if (table->iterate(table, &match_key, s->rq.out_port, 
                     &s->position, flow_stats_dump_callback, s))
             break;
 
@@ -1217,7 +1285,8 @@ static int aggregate_stats_dump(struct datapath *dp, void *state,
     struct sw_flow_key match_key;
     int table_idx;
 
-    rpy = ofpbuf_put_zeros(buffer, sizeof *rpy);
+    rpy = ofpbuf_put_uninit(buffer, sizeof *rpy);
+    memset(rpy, 0, sizeof *rpy);
 
     flow_extract_match(&match_key, &rq->match);
     table_idx = rq->table_id == 0xff ? 0 : rq->table_id;
@@ -1228,7 +1297,7 @@ static int aggregate_stats_dump(struct datapath *dp, void *state,
         struct sw_table *table = dp->chain->tables[table_idx];
         int error;
 
-        error = table->iterate(table, &match_key, rq->out_port, &position,
+        error = table->iterate(table, &match_key, rq->out_port, &position, 
                                aggregate_stats_dump_callback, rpy);
         if (error)
             return error;
@@ -1253,12 +1322,13 @@ static int table_stats_dump(struct datapath *dp, void *state,
 {
     int i;
     for (i = 0; i < dp->chain->n_tables; i++) {
-        struct ofp_table_stats *ots = ofpbuf_put_zeros(buffer, sizeof *ots);
+        struct ofp_table_stats *ots = ofpbuf_put_uninit(buffer, sizeof *ots);
         struct sw_table_stats stats;
         dp->chain->tables[i]->stats(dp->chain->tables[i], &stats);
         strncpy(ots->name, stats.name, sizeof ots->name);
         ots->table_id = i;
         ots->wildcards = htonl(stats.wildcards);
+        memset(ots->pad, 0, sizeof ots->pad);
         ots->max_entries = htonl(stats.max_flows);
         ots->active_count = htonl(stats.n_flows);
         ots->lookup_count = htonll(stats.n_lookup);
@@ -1280,6 +1350,26 @@ static int port_stats_init(struct datapath *dp, const void *body, int body_len,
     return 0;
 }
 
+static void
+dump_port_stats(struct sw_port *port, struct ofpbuf *buffer)
+{
+    struct ofp_port_stats *ops = ofpbuf_put_uninit(buffer, sizeof *ops);
+    ops->port_no = htons(port->port_no);
+    memset(ops->pad, 0, sizeof ops->pad);
+    ops->rx_packets   = htonll(port->rx_packets);
+    ops->tx_packets   = htonll(port->tx_packets);
+    ops->rx_bytes     = htonll(port->rx_bytes);
+    ops->tx_bytes     = htonll(port->tx_bytes);
+    ops->rx_dropped   = htonll(-1);
+    ops->tx_dropped   = htonll(port->tx_dropped);
+    ops->rx_errors    = htonll(-1);
+    ops->tx_errors    = htonll(-1);
+    ops->rx_frame_err = htonll(-1);
+    ops->rx_over_err  = htonll(-1);
+    ops->rx_crc_err   = htonll(-1);
+    ops->collisions   = htonll(-1);
+}
+
 static int port_stats_dump(struct datapath *dp, void *state,
                            struct ofpbuf *buffer)
 {
@@ -1288,27 +1378,16 @@ static int port_stats_dump(struct datapath *dp, void *state,
 
     for (i = s->port; i < DP_MAX_PORTS; i++) {
         struct sw_port *p = &dp->ports[i];
-        struct ofp_port_stats *ops;
-        if (!p->netdev) {
-            continue;
+        if (p->netdev) {
+            dump_port_stats(p, buffer);
         }
-        ops = ofpbuf_put_zeros(buffer, sizeof *ops);
-        ops->port_no = htons(port_no(dp, p));
-        ops->rx_packets   = htonll(p->rx_packets);
-        ops->tx_packets   = htonll(p->tx_packets);
-        ops->rx_bytes     = htonll(p->rx_bytes);
-        ops->tx_bytes     = htonll(p->tx_bytes);
-        ops->rx_dropped   = htonll(-1);
-        ops->tx_dropped   = htonll(p->tx_dropped);
-        ops->rx_errors    = htonll(-1);
-        ops->tx_errors    = htonll(-1);
-        ops->rx_frame_err = htonll(-1);
-        ops->rx_over_err  = htonll(-1);
-        ops->rx_crc_err   = htonll(-1);
-        ops->collisions   = htonll(-1);
-        ops++;
     }
     s->port = i;
+
+    if (dp->local_port) {
+        dump_port_stats(dp->local_port, buffer);
+        s->port = OFPP_LOCAL + 1;
+    }
     return 0;
 }
 
@@ -1513,6 +1592,25 @@ recv_echo_reply(struct datapath *dp UNUSED, const struct sender *sender UNUSED,
     return 0;
 }
 
+static int
+recv_vendor(struct datapath *dp, const struct sender *sender,
+                  const void *oh)
+{
+    const struct ofp_vendor_header *ovh = oh;
+
+    switch (ntohl(ovh->vendor)) 
+    {
+    case NX_VENDOR_ID:
+        return nx_recv_msg(dp, sender, oh);
+
+    default:
+        VLOG_WARN_RL(&rl, "unknown vendor: 0x%x\n", ntohl(ovh->vendor));
+        dp_send_error_msg(dp, sender, OFPET_BAD_REQUEST,
+                OFPBRC_BAD_VENDOR, oh, ntohs(ovh->header.length));
+        return -EINVAL;
+    }
+}
+
 /* 'msg', which is 'length' bytes long, was received from the control path.
  * Apply it to 'chain'. */
 int
@@ -1567,6 +1665,10 @@ fwd_control_input(struct datapath *dp, const struct sender *sender,
     case OFPT_ECHO_REPLY:
         min_size = sizeof(struct ofp_header);
         handler = recv_echo_reply;
+        break;
+    case OFPT_VENDOR:
+        min_size = sizeof(struct ofp_vendor_header);
+        handler = recv_vendor;
         break;
     default:
         dp_send_error_msg(dp, sender, OFPET_BAD_REQUEST, OFPBRC_BAD_TYPE,

@@ -210,6 +210,7 @@ lswitch_run(struct lswitch *sw, struct rconn *rconn)
             ofsr = (struct ofp_flow_stats_request *) osr->body;
             ofsr->match.wildcards = htonl(OFPFW_ALL);
             ofsr->table_id = 0xff;
+            ofsr->out_port = htons(OFPP_NONE);
 
             error = rconn_send(rconn, b, NULL);
             if (error) {
@@ -416,6 +417,10 @@ process_packet_in(struct lswitch *sw, struct rconn *rconn, void *opi_)
         }
     }
 
+    if (eth_addr_is_reserved(flow.dl_src)) {
+        goto drop_it;
+    }
+
     if (!may_recv(sw, in_port, false)) {
         /* STP prevents receiving anything on this port. */
         goto drop_it;
@@ -457,11 +462,14 @@ process_packet_in(struct lswitch *sw, struct rconn *rconn, void *opi_)
     return;
 
 drop_it:
-    /* Set up a flow to drop packets, or just drop the packet if we don't set
-     * up flows at all. */
     if (sw->max_idle >= 0) {
+        /* Set up a flow to drop packets. */
         queue_tx(sw, rconn, make_add_flow(&flow, ntohl(opi->buffer_id),
                                           sw->max_idle, 0));
+    } else {
+        /* Just drop the packet, since we don't set up flows at all.
+         * XXX we should send a packet_out with no actions if buffer_id !=
+         * UINT32_MAX, to avoid clogging the kernel buffers. */
     }
     return;
 }

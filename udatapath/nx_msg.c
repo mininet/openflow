@@ -31,27 +31,28 @@
  * derivatives without specific, written prior permission.
  */
 
-/* Interface exported by OpenFlow module. */
+#include <errno.h>
+#include <arpa/inet.h>
+#include "openflow/nicira-ext.h"
+#include "nx_msg.h"
 
-#ifndef DATAPATH_H
-#define DATAPATH_H 1
+int nx_recv_msg(struct datapath *dp, const struct sender *sender,
+        const void *oh)
+{
+    const struct nicira_header *nh = oh;
 
-#include <stdbool.h>
-#include <stdint.h>
-#include "ofpbuf.h"
+    switch (ntohl(nh->subtype)) {
+    case NXT_FLOW_END_CONFIG: {
+        const struct nx_flow_end_config *nfec = oh;
+        dp->send_flow_end = nfec->enable;
+        return 0;
+    }
 
-struct datapath;
-struct rconn;
-struct pvconn;
+    default:
+        dp_send_error_msg(dp, sender, OFPET_BAD_REQUEST,
+                OFPBRC_BAD_SUBTYPE, oh, ntohs(nh->header.length));
+        return -EINVAL;
+    }
 
-int dp_new(struct datapath **, uint64_t dpid, struct rconn *);
-int dp_add_port(struct datapath *, const char *netdev);
-void dp_add_listen_pvconn(struct datapath *, struct pvconn *);
-void dp_run(struct datapath *);
-void dp_wait(struct datapath *);
-void dp_output_port(struct datapath *, struct ofpbuf *, int in_port, 
-        int out_port, bool ignore_no_fwd);
-void dp_output_control(struct datapath *, struct ofpbuf *, int in_port,
-        size_t max_len, int reason);
-
-#endif /* datapath.h */
+    return -EINVAL;
+}

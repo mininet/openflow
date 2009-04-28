@@ -39,6 +39,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "datapath.h"
 
 struct sw_flow;
 struct sw_flow_key;
@@ -97,9 +98,10 @@ struct sw_table {
     /* Deletes from 'table' any and all flows that match 'key' from
      * 'table'.  If 'out_port' is not OFPP_NONE, then matching entries
      * must have that port as an argument for an output action.  If 
-     * 'strict' is set, wildcards and priority must match.  Returns the 
+     * 'strict' is set, wildcards and priority must match.  Returns the
      * number of flows that were deleted. */
-    int (*delete)(struct sw_table *table, const struct sw_flow_key *key, 
+    int (*delete)(struct datapath *dp, struct sw_table *table, 
+                  const struct sw_flow_key *key, 
                   uint16_t out_port, uint16_t priority, int strict);
 
     /* Performs timeout processing on all the flow entries in 'table'.

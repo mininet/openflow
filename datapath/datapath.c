@@ -15,6 +15,7 @@
 #include <net/genetlink.h>
 #include <linux/ip.h>
 #include <linux/delay.h>
+#include <linux/time.h>
 #include <linux/etherdevice.h>
 #include <linux/kernel.h>
 #include <linux/kthread.h>
@@ -25,6 +26,7 @@
 #include <linux/ethtool.h>
 #include <linux/random.h>
 #include <asm/system.h>
+#include <asm/div64.h>
 #include <linux/netfilter_bridge.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/inetdevice.h>
@@ -259,12 +261,13 @@ static int new_dp(int dp_idx)
 	if (dp == NULL)
 		goto err_unlock;
 
+	dp->dp_idx = dp_idx;
+
 	/* Setup our "of" device */
 	err = dp_dev_setup(dp);
 	if (err)
 		goto err_free_dp;
 
-	dp->dp_idx = dp_idx;
 	dp->chain = chain_create(dp);
 	if (dp->chain == NULL)
 		goto err_destroy_dp_dev;
@@ -464,9 +467,8 @@ do_port_input(struct net_bridge_port *p, struct sk_buff *skb)
 
 #ifdef SUPPORT_SNAT
 	/* Check if this packet needs early SNAT processing. */
-	if (snat_pre_route(skb)) {
+	if (snat_pre_route(skb)) 
 		return;
-	}
 #endif
 
 	/* Push the Ethernet header back on. */
@@ -564,11 +566,58 @@ void dp_set_origin(struct datapath *dp, uint16_t in_port,
 		skb->dev = NULL;
 }
 
+#ifdef SUPPORT_SNAT
+static int 
+dp_xmit_skb_finish(struct sk_buff *skb)
+{
+	/* The ip_fragment function does not copy the Ethernet header into
+	 * the newly generated frames, so put back the values stowed
+	 * earlier. */
+	if (snat_copy_header(skb)) {
+		kfree_skb(skb);
+		return -EINVAL;
+	}
+	skb_reset_mac_header(skb);
+
+	if (packet_length(skb) > skb->dev->mtu && !skb_is_gso(skb)) {
+		printk("dropped over-mtu packet: %d > %d\n",
+			   packet_length(skb), skb->dev->mtu);
+		kfree_skb(skb);
+		return -E2BIG;
+	}
+
+	skb_push(skb, ETH_HLEN);
+	dev_queue_xmit(skb);
+
+	return 0;
+}
+
+int
+dp_xmit_skb(struct sk_buff *skb)
+{
+	int len = skb->len;
+	int err;
+
+	skb_pull(skb, ETH_HLEN);
+
+	if (skb->protocol == htons(ETH_P_IP) &&
+			skb->len > skb->dev->mtu &&
+			!skb_is_gso(skb)) {
+		err = ip_fragment(skb, dp_xmit_skb_finish);
+	} else {
+		err = dp_xmit_skb_finish(skb);
+	}
+	if (err)
+		return err;
+
+	return len;
+}
+#else
 int 
 dp_xmit_skb(struct sk_buff *skb)
 {
 	int len = skb->len;
-	if (packet_length(skb) > skb->dev->mtu) {
+	if (packet_length(skb) > skb->dev->mtu && !skb_is_gso(skb)) {
 		printk("dropped over-mtu packet: %d > %d\n",
 			   packet_length(skb), skb->dev->mtu);
 		kfree_skb(skb);
@@ -579,6 +628,7 @@ dp_xmit_skb(struct sk_buff *skb)
 
 	return len;
 }
+#endif
 
 /* Takes ownership of 'skb' and transmits it to 'out_port' on 'dp'.
  */
@@ -996,34 +1046,55 @@ dp_send_port_status(struct net_bridge_port *p, uint8_t status)
 	return send_openflow_skb(skb, NULL);
 }
 
+/* Convert jiffies_64 to milliseconds. */
+static u64 inline jiffies_64_to_msecs(const u64 j)
+{
+#if HZ <= MSEC_PER_SEC && !(MSEC_PER_SEC % HZ)
+		return (MSEC_PER_SEC / HZ) * j;
+#elif HZ > MSEC_PER_SEC && !(HZ % MSEC_PER_SEC)
+		return (j + (HZ / MSEC_PER_SEC) - 1)/(HZ / MSEC_PER_SEC);
+#else
+		return (j * MSEC_PER_SEC) / HZ;
+#endif
+}
+
 int 
-dp_send_flow_expired(struct datapath *dp, struct sw_flow *flow,
-		     enum ofp_flow_expired_reason reason)
+dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
+		     enum nx_flow_end_reason reason)
 {
 	struct sk_buff *skb;
-	struct ofp_flow_expired *ofe;
+	struct nx_flow_end *nfe;
 
-	if (!(dp->flags & OFPC_SEND_FLOW_EXP))
+	if (!dp->send_flow_end)
 		return 0;
 
-	ofe = alloc_openflow_skb(dp, sizeof *ofe, OFPT_FLOW_EXPIRED, 0, &skb);
-	if (!ofe)
+	nfe = alloc_openflow_skb(dp, sizeof *nfe, OFPT_VENDOR, 0, &skb);
+	if (!nfe)
 		return -ENOMEM;
 
-	flow_fill_match(&ofe->match, &flow->key);
+	nfe->header.vendor = htonl(NX_VENDOR_ID);
+	nfe->header.subtype = htonl(NXT_FLOW_END);
 
-	ofe->priority = htons(flow->priority);
-	ofe->reason = reason;
-	memset(ofe->pad, 0, sizeof ofe->pad);
+	flow_fill_match(&nfe->match, &flow->key);
 
-	ofe->duration     = htonl((jiffies - flow->init_time) / HZ);
-	memset(ofe->pad2, 0, sizeof ofe->pad2);
-	ofe->packet_count = cpu_to_be64(flow->packet_count);
-	ofe->byte_count   = cpu_to_be64(flow->byte_count);
+	nfe->priority = htons(flow->priority);
+	nfe->reason = reason;
+
+	nfe->tcp_flags = flow->tcp_flags;
+	nfe->ip_tos = flow->ip_tos;
+
+	memset(nfe->pad, 0, sizeof nfe->pad);
+
+	nfe->init_time = cpu_to_be64(jiffies_64_to_msecs(flow->created));
+	nfe->used_time = cpu_to_be64(jiffies_64_to_msecs(flow->used));
+	nfe->end_time = cpu_to_be64(jiffies_64_to_msecs(get_jiffies_64()));
+
+	nfe->packet_count = cpu_to_be64(flow->packet_count);
+	nfe->byte_count   = cpu_to_be64(flow->byte_count);
 
 	return send_openflow_skb(skb, NULL);
 }
-EXPORT_SYMBOL(dp_send_flow_expired);
+EXPORT_SYMBOL(dp_send_flow_end);
 
 int
 dp_send_error_msg(struct datapath *dp, const struct sender *sender, 
@@ -1101,7 +1172,7 @@ static struct genl_ops dp_genl_ops_add_dp = {
 
 struct datapath *dp_get(int dp_idx)
 {
-	if (dp_idx < 0 || dp_idx > DP_MAX)
+	if (dp_idx < 0 || dp_idx >= DP_MAX)
 		return NULL;
 	return rcu_dereference(dps[dp_idx]);
 }
@@ -1114,7 +1185,7 @@ static int dp_genl_del(struct sk_buff *skb, struct genl_info *info)
 	if (!info->attrs[DP_GENL_A_DP_IDX])
 		return -EINVAL;
 
-	dp = dp_get(nla_get_u32((info->attrs[DP_GENL_A_DP_IDX])));
+	dp = dp_get(nla_get_u32(info->attrs[DP_GENL_A_DP_IDX]));
 	if (!dp)
 		err = -ENOENT;
 	else {
@@ -1331,6 +1402,7 @@ static int flow_stats_dump_callback(struct sw_flow *flow, void *private)
 	struct flow_stats_state *s = private;
 	struct ofp_flow_stats *ofs;
 	int length;
+	uint64_t duration;
 
 	length = sizeof *ofs + sf_acts->actions_len;
 	if (length + s->bytes_used > s->bytes_allocated)
@@ -1352,7 +1424,14 @@ static int flow_stats_dump_callback(struct sw_flow *flow, void *private)
 	ofs->match.pad       = 0;
 	ofs->match.tp_src    = flow->key.tp_src;
 	ofs->match.tp_dst    = flow->key.tp_dst;
-	ofs->duration        = htonl((jiffies - flow->init_time) / HZ);
+
+	/* The kernel doesn't support 64-bit division, so use the 'do_div' 
+	 * macro instead.  The first argument is replaced with the quotient,
+	 * while the remainder is the return value. */
+	duration = get_jiffies_64() - flow->created;
+	do_div(duration, HZ);
+	ofs->duration        = htonl(duration);
+
 	ofs->priority        = htons(flow->priority);
 	ofs->idle_timeout    = htons(flow->idle_timeout);
 	ofs->hard_timeout    = htons(flow->hard_timeout);
@@ -1793,34 +1872,34 @@ static void dp_uninit_netlink(void)
  * the DMI. */
 static void set_desc(void)
 {
-        const char *uuid = dmi_get_system_info(DMI_PRODUCT_UUID);
-        const char *vendor = dmi_get_system_info(DMI_SYS_VENDOR);
-        const char *name = dmi_get_system_info(DMI_PRODUCT_NAME);
-        const char *version = dmi_get_system_info(DMI_PRODUCT_VERSION);
-        const char *serial = dmi_get_system_info(DMI_PRODUCT_SERIAL);
-        const char *uptr;
+	const char *uuid = dmi_get_system_info(DMI_PRODUCT_UUID);
+	const char *vendor = dmi_get_system_info(DMI_SYS_VENDOR);
+	const char *name = dmi_get_system_info(DMI_PRODUCT_NAME);
+	const char *version = dmi_get_system_info(DMI_PRODUCT_VERSION);
+	const char *serial = dmi_get_system_info(DMI_PRODUCT_SERIAL);
+	const char *uptr;
 
-        if (!uuid || *uuid == '\0' || strlen(uuid) != 36)
-                return;
+	if (!uuid || *uuid == '\0' || strlen(uuid) != 36) 
+		return;
 
-        /* We are only interested version 1 UUIDs, since the last six bytes
-         * are an IEEE 802 MAC address. */
-        if (uuid[14] != '1')
-                return;
+	/* We are only interested version 1 UUIDs, since the last six bytes
+	 * are an IEEE 802 MAC address. */
+	if (uuid[14] != '1') 
+		return;
 
-        /* Only set if the UUID is from Nicira. */
-        uptr = uuid + 24;
-        if (strncmp(uptr, NICIRA_OUI_STR, strlen(NICIRA_OUI_STR)))
-                return;
+	/* Only set if the UUID is from Nicira. */
+	uptr = uuid + 24;
+	if (strncmp(uptr, NICIRA_OUI_STR, strlen(NICIRA_OUI_STR)))
+		return;
 
-        if (vendor)
-                strlcpy(mfr_desc, vendor, sizeof(mfr_desc));
-        if (name || version)
-                snprintf(hw_desc, sizeof(hw_desc), "%s %s",
-                         name ? name : "",
-                         version ? version : "");
-        if (serial)
-                strlcpy(serial_num, serial, sizeof(serial_num));
+	if (vendor)
+		strlcpy(mfr_desc, vendor, sizeof(mfr_desc));
+	if (name || version)
+		snprintf(hw_desc, sizeof(hw_desc), "%s %s",
+			 name ? name : "",
+			 version ? version : "");
+	if (serial)
+		strlcpy(serial_num, serial, sizeof(serial_num));
 }
 
 static int __init dp_init(void)

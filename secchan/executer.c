@@ -318,11 +318,14 @@ child_terminated(struct child *child, int status)
     if (WIFEXITED(status)) {
         ds_put_format(&ds, "normally with status %d", WEXITSTATUS(status));
     } else if (WIFSIGNALED(status)) {
+        const char *name = NULL;
 #ifdef HAVE_STRSIGNAL
-        ds_put_format(&ds, "by signal %s", strsignal(WTERMSIG(status)));
-#else
-        ds_put_format(&ds, "by signal %d", WTERMSIG(status));
+        name = strsignal(WTERMSIG(status));
 #endif
+        ds_put_format(&ds, "by signal %d", WTERMSIG(status));
+        if (name) {
+            ds_put_format(&ds, " (%s)", name);
+        }
     }
     if (WCOREDUMP(status)) {
         ds_put_cstr(&ds, " (core dumped)");
@@ -504,7 +507,7 @@ executer_start(struct secchan *secchan, const struct settings *settings)
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_NOCLDSTOP | SA_RESTART;
     if (sigaction(SIGCHLD, &sa, NULL)) {
-        ofp_fatal(errno, "sigaction(SIGCHLD) faile");
+        ofp_fatal(errno, "sigaction(SIGCHLD) failed");
     }
 
     /* Add hook. */

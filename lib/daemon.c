@@ -213,7 +213,9 @@ daemonize(void)
             /* Parent process: wait for child to create pidfile, then exit. */
             close(fds[1]);
             fatal_signal_fork();
-            read(fds[0], &c, 1);
+            if (read(fds[0], &c, 1) != 1) {
+                ofp_fatal(errno, "daemon child failed to signal startup");
+            }
             exit(0);
 
         case 0:
@@ -273,10 +275,20 @@ read_pidfile(const char *pidfile)
         VLOG_WARN("%s: fcntl: %s", pidfile, strerror(error));
         goto error;
     }
+    if (lck.l_type == F_UNLCK) {
+        error = ESRCH;
+        VLOG_WARN("%s: pid file is not locked", pidfile);
+        goto error;
+    }
 
     if (!fgets(line, sizeof line, file)) {
-        error = errno;
-        VLOG_WARN("%s: read: %s", pidfile, strerror(error));
+        if (ferror(file)) {
+            error = errno;
+            VLOG_WARN("%s: read: %s", pidfile, strerror(error));
+        } else {
+            error = ESRCH;
+            VLOG_WARN("%s: read: unexpected end of file", pidfile);
+        }
         goto error;
     }
 
@@ -291,6 +303,8 @@ read_pidfile(const char *pidfile)
     return lck.l_pid;
 
 error:
-    fclose(file);
+    if (file) {
+        fclose(file);
+    }
     return -error;
 }

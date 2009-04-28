@@ -51,39 +51,36 @@
 #include "rconn.h"
 #include "timeval.h"
 #include "vconn.h"
+#include "dirs.h"
 #include "vconn-ssl.h"
 #include "vlog-socket.h"
 
-#define THIS_MODULE VLM_switch
+#define THIS_MODULE VLM_udatapath
 #include "vlog.h"
-
 
 /* Strings to describe the manufacturer, hardware, and software.  This data 
  * is queriable through the switch description stats message. */
 char mfr_desc[DESC_STR_LEN] = "Nicira Networks";
 char hw_desc[DESC_STR_LEN] = "Reference User-Space Switch";
-char sw_desc[DESC_STR_LEN] = VERSION;
+char sw_desc[DESC_STR_LEN] = VERSION BUILDNR;
 char serial_num[SERIAL_NUM_LEN] = "None";
 
 static void parse_options(int argc, char *argv[]);
 static void usage(void) NO_RETURN;
 
-static const char *listen_pvconn_name;
 static struct datapath *dp;
 static uint64_t dpid = UINT64_MAX;
 static char *port_list;
-
-/* --max-backoff: Maximum interval between controller connection attempts, in
- * seconds. */
-static int max_backoff = 15;
+static char *local_port = "tap:";
 
 static void add_ports(struct datapath *dp, char *port_list);
 
 int
 main(int argc, char *argv[])
 {
-    struct rconn *rconn;
+    int n_listeners;
     int error;
+    int i;
 
     set_program_name(argv[0]);
     register_fault_handlers();
@@ -92,40 +89,48 @@ main(int argc, char *argv[])
     parse_options(argc, argv);
     signal(SIGPIPE, SIG_IGN);
 
-    if (argc - optind != 1) {
-        ofp_fatal(0, "missing controller argument; use --help for usage");
+    if (argc - optind < 1) {
+        ofp_fatal(0, "at least one listener argument is required; "
+		  "use --help for usage");
     }
 
-    rconn = rconn_create(60, max_backoff);
-    error = rconn_connect(rconn, argv[optind]);
-    if (error == EAFNOSUPPORT) {
-        ofp_fatal(0, "no support for %s vconn", argv[optind]);
-    }
-    error = dp_new(&dp, dpid, rconn);
-    if (listen_pvconn_name) {
-        struct pvconn *listen_pvconn;
+    error = dp_new(&dp, dpid);
+
+    n_listeners = 0;
+    for (i = optind; i < argc; i++) {
+        const char *pvconn_name = argv[i];
+        struct pvconn *pvconn;
         int retval;
 
-        retval = pvconn_open(listen_pvconn_name, &listen_pvconn);
-        if (retval && retval != EAGAIN) {
-            ofp_fatal(retval, "opening %s", listen_pvconn_name);
+        retval = pvconn_open(pvconn_name, &pvconn);
+        if (!retval || retval == EAGAIN) {
+            dp_add_pvconn(dp, pvconn);
+            n_listeners++;
+        } else {
+            ofp_error(retval, "opening %s", pvconn_name);
         }
-        dp_add_listen_pvconn(dp, listen_pvconn);
     }
-    if (error) {
-        ofp_fatal(error, "could not create datapath");
-    }
-    if (port_list) {
-        add_ports(dp, port_list); 
+    if (!n_listeners) {
+        ofp_fatal(0, "could not listen for any connections");
     }
 
-    die_if_already_running();
-    daemonize();
+    if (port_list) {
+        add_ports(dp, port_list);
+    }
+    if (local_port) {
+        error = dp_add_local_port(dp, local_port);
+        if (error) {
+            ofp_fatal(error, "failed to add local port %s", local_port);
+        }
+    }
 
     error = vlog_server_listen(NULL, NULL);
     if (error) {
         ofp_fatal(error, "could not listen for vlog connections");
     }
+
+    die_if_already_running();
+    daemonize();
 
     for (;;) {
         dp_run(dp);
@@ -158,19 +163,19 @@ static void
 parse_options(int argc, char *argv[])
 {
     enum {
-        OPT_MAX_BACKOFF = UCHAR_MAX + 1,
-        OPT_MFR_DESC,
+        OPT_MFR_DESC = UCHAR_MAX + 1,
         OPT_HW_DESC,
         OPT_SW_DESC,
         OPT_SERIAL_NUM,
-        OPT_BOOTSTRAP_CA_CERT
+        OPT_BOOTSTRAP_CA_CERT,
+        OPT_NO_LOCAL_PORT
     };
 
     static struct option long_options[] = {
         {"interfaces",  required_argument, 0, 'i'},
+        {"local-port",  required_argument, 0, 'L'},
+        {"no-local-port", no_argument, 0, OPT_NO_LOCAL_PORT},
         {"datapath-id", required_argument, 0, 'd'},
-        {"max-backoff", required_argument, 0, OPT_MAX_BACKOFF},
-        {"listen",      required_argument, 0, 'l'},
         {"verbose",     optional_argument, 0, 'v'},
         {"help",        no_argument, 0, 'h'},
         {"version",     no_argument, 0, 'V'},
@@ -230,13 +235,12 @@ parse_options(int argc, char *argv[])
             }
             break;
 
-        case OPT_MAX_BACKOFF:
-            max_backoff = atoi(optarg);
-            if (max_backoff < 1) {
-                ofp_fatal(0, "--max-backoff argument must be at least 1");
-            } else if (max_backoff > 3600) {
-                max_backoff = 3600;
-            }
+        case 'L':
+            local_port = optarg;
+            break;
+
+        case OPT_NO_LOCAL_PORT:
+            local_port = NULL;
             break;
 
         case OPT_MFR_DESC:
@@ -253,13 +257,6 @@ parse_options(int argc, char *argv[])
 
         case OPT_SERIAL_NUM:
             strncpy(serial_num, optarg, sizeof serial_num);
-            break;
-
-        case 'l':
-            if (listen_pvconn_name) {
-                ofp_fatal(0, "-l or --listen may be only specified once");
-            }
-            listen_pvconn_name = optarg;
             break;
 
         DAEMON_OPTION_HANDLERS
@@ -285,24 +282,27 @@ parse_options(int argc, char *argv[])
 static void
 usage(void)
 {
-    printf("%s: userspace OpenFlow switch\n"
-           "usage: %s [OPTIONS] CONTROLLER\n"
-           "where CONTROLLER is an active OpenFlow connection method.\n",
+    printf("%s: userspace OpenFlow datapath\n"
+           "usage: %s [OPTIONS] LISTEN...\n"
+           "where LISTEN is a passive OpenFlow connection method on which\n"
+	   "to listen for incoming connections from the secure channel.\n",
            program_name, program_name);
-    vconn_usage(true, true, true);
+    vconn_usage(false, true, false);
     printf("\nConfiguration options:\n"
            "  -i, --interfaces=NETDEV[,NETDEV]...\n"
            "                          add specified initial switch ports\n"
+           "  -L, --local-port=NETDEV set network device for local port\n"
+           "  --no-local-port         disable local port\n"
            "  -d, --datapath-id=ID    Use ID as the OpenFlow switch ID\n"
            "                          (ID must consist of 12 hex digits)\n"
-           "  --max-backoff=SECS      max time between controller connection\n"
-           "                          attempts (default: 15 seconds)\n"
-           "  -l, --listen=METHOD     allow management connections on METHOD\n"
-           "                          (a passive OpenFlow connection method)\n");
-    daemon_usage();
-    vlog_usage();
-    printf("\nOther options:\n"
+           "\nOther options:\n"
+           "  -D, --detach            run in background as daemon\n"
+           "  -P, --pidfile[=FILE]    create pidfile (default: %s/udatapath.pid)\n"
+           "  -f, --force             with -P, start even if already running\n"
+           "  -v, --verbose=MODULE[:FACILITY[:LEVEL]]  set logging levels\n"
+           "  -v, --verbose           set maximum verbosity level\n"
            "  -h, --help              display this help message\n"
-           "  -V, --version           display version information\n");
+           "  -V, --version           display version information\n",
+        ofp_rundir);
     exit(EXIT_SUCCESS);
 }

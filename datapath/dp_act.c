@@ -28,7 +28,7 @@ validate_output(struct datapath *dp, const struct sw_flow_key *key,
 	struct ofp_action_output *oa = (struct ofp_action_output *)ah;
 
 	if (oa->port == htons(OFPP_NONE) || 
-	    (!(key->wildcards & OFPFW_IN_PORT) && oa->port == key->in_port)) 
+			(!(key->wildcards & OFPFW_IN_PORT) && oa->port == key->in_port)) 
 		return OFPBAC_BAD_OUT_PORT;
 
 	return ACT_VALIDATION_OK;

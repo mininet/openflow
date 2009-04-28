@@ -14,7 +14,6 @@
 
 #define NF2_DEV_NAME	"nf2"
 
-/* Include for socket IOCTLs */
 #include <linux/sockios.h>
 
 /* Maximum number of interfaces */
@@ -63,11 +62,8 @@
 #define CPCI_REG_P_CLK_CTR              0x510
 #define CPCI_REG_RESET_CTR              0x520
 
-
-
 /* Base address for CNET registers */
 #define CNET_REG_BASE			0x400000
-
 
 /* Added by nweaver for building memory manipulation
    utilities */
@@ -82,12 +78,10 @@
 #define SRAM_2_MAX                      0xDFFFFF
 /* end nweaver addition */
 
-
 /* Device ID registers */
 #define NF2_DEVICE_ID   0x0400000
 #define NF2_REVISION    0x0400004
 #define NF2_DEVICE_STR  0x0400008
-
 
 /* CNET registers */
 #define CNET_REG_ID			(CNET_REG_BASE + 0x000)
@@ -130,28 +124,27 @@
 
 #define CNET_REG_MF_RX_PKTS_LOST_BAD_FCS_0 (CNET_REG_BASE + 0x114)
 #define CNET_REG_MF_RX_PKTS_LOST_FULL_FIFO_0 (CNET_REG_BASE+0x118)
-#define CNET_REG_MF_RX_GOOD_PKTS_RCVD_0     (CNET_REG_BASE+0x11C) 
+#define CNET_REG_MF_RX_GOOD_PKTS_RCVD_0     (CNET_REG_BASE+0x11C)
 #define CNET_REG_MF_RX_GOOD_BYTES_RCVD_0   (CNET_REG_BASE+0x120)
 #define CNET_REG_MF_TX_BYTES_SENT_0 (CNET_REG_BASE+0x124)
 #define CNET_REG_MF_RX_PKTS_LOST_BAD_FCS_1 (CNET_REG_BASE+0x154)
 #define CNET_REG_MF_RX_PKTS_LOST_FULL_FIFO_1 (CNET_REG_BASE+0x158)
-#define CNET_REG_MF_RX_GOOD_PKTS_RCVD_1     (CNET_REG_BASE+0x15C) 
+#define CNET_REG_MF_RX_GOOD_PKTS_RCVD_1     (CNET_REG_BASE+0x15C)
 #define CNET_REG_MF_RX_GOOD_BYTES_RCVD_1   (CNET_REG_BASE+0x160)
 #define CNET_REG_MF_TX_BYTES_SENT_1 (CNET_REG_BASE+0x164)
 #define CNET_REG_MF_RX_PKTS_LOST_BAD_FCS_2 (CNET_REG_BASE+0x194)
 #define CNET_REG_MF_RX_PKTS_LOST_FULL_FIFO_2 (CNET_REG_BASE+0x198)
-#define CNET_REG_MF_RX_GOOD_PKTS_RCVD_2     (CNET_REG_BASE+0x19C) 
+#define CNET_REG_MF_RX_GOOD_PKTS_RCVD_2     (CNET_REG_BASE+0x19C)
 #define CNET_REG_MF_RX_GOOD_BYTES_RCVD_2   (CNET_REG_BASE+0x1A0)
 #define CNET_REG_MF_TX_BYTES_SENT_2 (CNET_REG_BASE+0x1A4)
 #define CNET_REG_MF_RX_PKTS_LOST_BAD_FCS_3 (CNET_REG_BASE+0x1D4)
 #define CNET_REG_MF_RX_PKTS_LOST_FULL_FIFO_3 (CNET_REG_BASE+0x1D8)
-#define CNET_REG_MF_RX_GOOD_PKTS_RCVD_3     (CNET_REG_BASE+0x1DC) 
+#define CNET_REG_MF_RX_GOOD_PKTS_RCVD_3     (CNET_REG_BASE+0x1DC)
 #define CNET_REG_MF_RX_GOOD_BYTES_RCVD_3   (CNET_REG_BASE+0x1E0)
 #define CNET_REG_MF_TX_BYTES_SENT_3 (CNET_REG_BASE+0x1E4)
 
 #define CNET_MAC_CLK_CHK_CTRL           (CNET_REG_BASE + 0xF00)
 #define CNET_MAC_CLK_CHK_CNT_VALUE      (CNET_REG_BASE + 0xF04)
-
 
 /* Base address for CNET PHY registers */
 #define PHY_REG_BASE			0x600000
@@ -200,7 +193,6 @@
                                ERR_DMA_RD_ADDR_ERROR | \
                                ERR_DMA_WR_SIZE_ERROR | \
                                ERR_DMA_RD_SIZE_ERROR )
-
 
 /* Interrupt masks */
 #define INT_DMA_RX_COMPLETE		0x80000000
@@ -298,7 +290,6 @@
 #define CNET_RXQ_WR_PTR			0x00FF0000
 #define CNET_RXQ_RD_PTR			0x000000FF
 
-
 /* Phy register masks */
 #define PHY_RD_WR			0x80000000
 #define PHY_PHY				0x03000000
@@ -360,7 +351,6 @@
 
 #define NF2_SET_DMA_CTRL_MAC(x)		(x << 8)
 
-
 /* CNET Funcs */
 #define NF2_GET_CNET_VERSION(x)		((x & 0xFFFF0000) >> 16)
 #define NF2_GET_CNET_DEVICE_ID(x)	(x & 0xFFFF)
@@ -407,7 +397,6 @@
 #define NF2_GET_CNET_RXQ_WR_PTR(x)	((x & CNET_RXQ_WR_PTR) >> 16)
 #define NF2_GET_CNET_RXQ_RD_PTR(x)	(x & CNET_RXQ_RD_PTR)
 
-
 /* PHY functions */
 #define NF2_SET_PHY_IS_READ(x)		(x << 31)
 #define NF2_SET_PHY_SELECT(x)		(x << 24)
@@ -418,19 +407,18 @@
 #define NF2_GET_PHY_DONE(x)		((x & PHY_DONE) >> 31)
 #define NF2_GET_PHY_DONE_CNT(x)		((x & PHY_DONE_CNT) >> 16)
 
-
-/* 
+/*
  * IOCTLs 
  */
 #define SIOCREGREAD		SIOCDEVPRIVATE
 #define SIOCREGWRITE		(SIOCDEVPRIVATE + 1)
 
-/* 
+/*
  * Structure for transferring register data via an IOCTL
  */
 struct nf2reg {
-	unsigned int	reg;
-	unsigned int	val;
+	unsigned int reg;
+	unsigned int val;
 };
 
 #endif

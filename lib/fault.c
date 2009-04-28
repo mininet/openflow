@@ -64,9 +64,12 @@ log_backtrace(void)
        frame[0] points to the next frame.
        frame[1] points to the return address. */
     void **frame;
+#define STACK_DEPTH_LIMIT	128
+    int stack_depth = 0;
     for (frame = __builtin_frame_address(0);
-         frame != NULL && frame[0] != NULL;
-         frame = frame[0]) {
+         frame != NULL && frame[0] != NULL
+         && stack_depth < STACK_DEPTH_LIMIT;
+         frame = frame[0], ++stack_depth) {
         Dl_info addrinfo;
         if (!dladdr(frame[1], &addrinfo) || !addrinfo.dli_sname) {
             fprintf(stderr, "  0x%08"PRIxPTR"\n", (uintptr_t) frame[1]);

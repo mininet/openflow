@@ -50,9 +50,10 @@ validate_output(struct datapath *dp, const struct sw_flow_key *key,
     /* To prevent loops, make sure there's no action to send to the
      * OFP_TABLE virtual port.
      */
-    if (oa->port == htons(OFPP_NONE) || oa->port == key->flow.in_port) {
+    if (oa->port == htons(OFPP_NONE)
+       || (!(key->wildcards & OFPFW_IN_PORT) && oa->port == key->flow.in_port))
         return OFPBAC_BAD_OUT_PORT;
-    }
+
     return ACT_VALIDATION_OK;
 }
 
@@ -175,7 +176,7 @@ set_nw_addr(struct ofpbuf *buffer, struct sw_flow_key *key,
         uint32_t new, *field;
 
         new = na->nw_addr;
-        field = na->type == OFPAT_SET_NW_SRC ? &nh->ip_src : &nh->ip_dst;
+        field = na->type == htons(OFPAT_SET_NW_SRC) ? &nh->ip_src : &nh->ip_dst;
         if (nw_proto == IP_TYPE_TCP) {
             struct tcp_header *th = buffer->l4;
             th->tcp_csum = recalc_csum32(th->tcp_csum, *field, new);
@@ -207,12 +208,12 @@ set_tp_port(struct ofpbuf *buffer, struct sw_flow_key *key,
         new = ta->tp_port;
         if (nw_proto == IP_TYPE_TCP) {
             struct tcp_header *th = buffer->l4;
-            field = ta->type == OFPAT_SET_TP_SRC ? &th->tcp_src : &th->tcp_dst;
+            field = ta->type == htons(OFPAT_SET_TP_SRC) ? &th->tcp_src : &th->tcp_dst;
             th->tcp_csum = recalc_csum16(th->tcp_csum, *field, new);
             *field = new;
         } else if (nw_proto == IP_TYPE_UDP) {
             struct udp_header *th = buffer->l4;
-            field = ta->type == OFPAT_SET_TP_SRC ? &th->udp_src : &th->udp_dst;
+            field = ta->type == htons(OFPAT_SET_TP_SRC) ? &th->udp_src : &th->udp_dst;
             th->udp_csum = recalc_csum16(th->udp_csum, *field, new);
             *field = new;
         }

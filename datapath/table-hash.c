@@ -102,8 +102,10 @@ static int table_hash_modify(struct sw_table *swt,
 }
 
 /* Caller must update n_flows. */
-static int do_delete(struct sw_flow **bucket, struct sw_flow *flow)
+static int do_delete(struct datapath *dp, struct sw_flow **bucket, 
+			struct sw_flow *flow, enum nx_flow_end_reason reason)
 {
+	dp_send_flow_end(dp, flow, reason);
 	rcu_assign_pointer(*bucket, NULL);
 	flow_deferred_free(flow);
 	return 1;
@@ -112,7 +114,7 @@ static int do_delete(struct sw_flow **bucket, struct sw_flow *flow)
 /* Returns number of deleted flows.  We can ignore the priority
  * argument, since all exact-match entries are the same (highest)
  * priority. */
-static int table_hash_delete(struct sw_table *swt,
+static int table_hash_delete(struct datapath *dp, struct sw_table *swt,
 					const struct sw_flow_key *key,  uint16_t out_port, 
 					uint16_t priority, int strict)
 {
@@ -123,8 +125,8 @@ static int table_hash_delete(struct sw_table *swt,
 		struct sw_flow **bucket = find_bucket(swt, key);
 		struct sw_flow *flow = *bucket;
 		if (flow && flow_keys_equal(&flow->key, key)
-				&& flow_has_out_port(flow, out_port))
-			count = do_delete(bucket, flow);
+				&& flow_has_out_port(flow, out_port)) 
+			count = do_delete(dp, bucket, flow, NXFER_DELETE);
 	} else {
 		unsigned int i;
 
@@ -133,7 +135,7 @@ static int table_hash_delete(struct sw_table *swt,
 			struct sw_flow *flow = *bucket;
 			if (flow && flow_matches_desc(&flow->key, key, strict)
 					&& flow_has_out_port(flow, out_port))
-				count += do_delete(bucket, flow);
+				count += do_delete(dp, bucket, flow, NXFER_DELETE);
 		}
 	}
 	th->n_flows -= count;
@@ -153,8 +155,7 @@ static int table_hash_timeout(struct datapath *dp, struct sw_table *swt)
 		if (flow) {
 			int reason = flow_timeout(flow);
 			if (reason >= 0) {
-				count += do_delete(bucket, flow); 
-				dp_send_flow_expired(dp, flow, reason);
+				count += do_delete(dp, bucket, flow, reason); 
 			}
 		}
 	}
@@ -302,14 +303,15 @@ static int table_hash2_modify(struct sw_table *swt,
 					actions, actions_len));
 }
 
-static int table_hash2_delete(struct sw_table *swt,
+static int table_hash2_delete(struct datapath *dp, struct sw_table *swt,
 							  const struct sw_flow_key *key, 
 							  uint16_t out_port,
 							  uint16_t priority, int strict)
 {
 	struct sw_table_hash2 *t2 = (struct sw_table_hash2 *) swt;
-	return (table_hash_delete(t2->subtable[0], key, out_port, priority, strict)
-			+ table_hash_delete(t2->subtable[1], key, out_port, 
+	return (table_hash_delete(dp, t2->subtable[0], key, out_port, 
+				priority, strict)
+			+ table_hash_delete(dp, t2->subtable[1], key, out_port, 
 				priority, strict));
 }
 

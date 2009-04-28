@@ -95,6 +95,12 @@ ds_put_char_multiple(struct ds *ds, char c, size_t n)
 }
 
 void
+ds_put_buffer(struct ds *ds, const char *s, size_t n)
+{
+    memcpy(ds_put_uninit(ds, n), s, n);
+}
+
+void
 ds_put_cstr(struct ds *ds, const char *s)
 {
     size_t s_len = strlen(s);
@@ -172,13 +178,29 @@ ds_put_strftime(struct ds *ds, const char *template, const struct tm *tm)
     }
 }
 
+int
+ds_get_line(struct ds *ds, FILE *file)
+{
+    ds_clear(ds);
+    for (;;) {
+        int c = getc(file);
+        if (c == EOF) {
+            return ds->length ? 0 : EOF;
+        } else if (c == '\n') {
+            return 0;
+        } else {
+            ds_put_char(ds, c);
+        }
+    }
+}
+
 char *
 ds_cstr(struct ds *ds)
 {
     if (!ds->string) {
         ds_reserve(ds, 0);
-        ds->string[0] = '\0';
     }
+    ds->string[ds->length] = '\0';
     return ds->string;
 }
 

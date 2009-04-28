@@ -214,6 +214,7 @@ sub setup_NF2 {
 	
     # load the openflow bitfile on the NetFPGA
 	system("nf2_download ${openflow_dir}/datapath/hwtable_nf2/openflow_switch.bit");
+	sleep(2);
 
     # turn on phy(0-3) interrupt mask
     # in order to avoid asynchronous port_mod_change message
@@ -251,8 +252,11 @@ sub setup_user {
 		$if_string .= nftest_get_iface("eth$i") . ',';
 	}
 	$if_string .= nftest_get_iface("eth8");
-	print "about to create switch tcp:127.0.0.1 -i $if_string \& \n";
-	system("${openflow_dir}/switch/switch tcp:127.0.0.1 -i $if_string \&");
+	print "about to create udatapath punix:/var/run/test -i $if_string \& \
+n";
+	system("${openflow_dir}/udatapath/udatapath punix:/var/run/test -i $if_string \&");
+	print "about to create secchan \& \n";
+	system("${openflow_dir}/secchan/secchan --inactivity-probe=999999 unix:/var/run/test tcp:127.0.0.1 &");
 }
 
 sub teardown_kmod {
@@ -337,7 +341,8 @@ sub teardown_user {
 	my $who = `whoami`;
 	if ( trim($who) ne 'root' ) { die "must be root\n"; }
 
-	`killall switch`;
+	`killall udatapath`;
+	`killall secchan`;
 
 	exit 0;
 }
@@ -680,115 +685,202 @@ sub run_black_box_test {
 
 sub create_flow_mod_from_udp {
 
-	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards ) = @_;
+	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $chg_field, $chg_val ) = @_;
 
 	my $flow_mod_pkt;
 
 	$flow_mod_pkt =
 	  create_flow_mod_from_udp_action( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards,
-		'OFPFC_ADD' );
+		'OFPFC_ADD', $chg_field, $chg_val );
 
 	return $flow_mod_pkt;
 }
 
 sub create_flow_mod_from_udp_action {
 
-	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $mod_type ) = @_;
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $mod_type, $chg_field, $chg_val ) = @_;
 
-	if (   $mod_type ne 'drop' 
-		&& $mod_type ne 'OFPFC_ADD'
-		&& $mod_type ne 'OFPFC_DELETE'
-		&& $mod_type ne 'OFPFC_DELETE_STRICT' )
-	{
-		die "Undefined flow mod type: $mod_type\n";
-	}
+        if (   $mod_type ne 'drop' 
+                && $mod_type ne 'OFPFC_ADD'
+                && $mod_type ne 'OFPFC_DELETE'
+                && $mod_type ne 'OFPFC_DELETE_STRICT' )
+        {
+                die "Undefined flow mod type: $mod_type\n";
+        }
 
-	my $length;
-	if ($mod_type eq 'drop') {
-		$length = $ofp->sizeof('ofp_flow_mod') + 0; # Careful, no actions for drop - Jean II
-	} else {
-		$length = $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output');		
-	}
+        my $action_dl_src_mod = (defined($chg_field) && ($chg_field eq 'dl_src')) ? 1 : 0;
+        my $action_dl_dst_mod = (defined($chg_field) && ($chg_field eq 'dl_dst')) ? 1 : 0;
+        my $action_nw_src_mod = (defined($chg_field) && ($chg_field eq 'nw_src')) ? 1 : 0;
+        my $action_nw_dst_mod = (defined($chg_field) && ($chg_field eq 'nw_dst')) ? 1 : 0;
+        my $action_tp_src_mod = (defined($chg_field) && ($chg_field eq 'tp_src')) ? 1 : 0;
+        my $action_tp_dst_mod = (defined($chg_field) && ($chg_field eq 'tp_dst')) ? 1 : 0;
 
-	my $hdr_args = {
-		version => $of_ver,
-		type    => $enums{'OFPT_FLOW_MOD'},
-		length  => $length,
-		xid     => 0x0000000
-	};
+        my $length;
+        if ($mod_type eq 'drop') {
+                $length = $ofp->sizeof('ofp_flow_mod') + 0; # Careful, no actions for drop - Jean II
+        } elsif ($action_dl_src_mod || $action_dl_dst_mod) {
+                $length = $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_dl_addr') + $ofp->sizeof('ofp_action_output');
+        } elsif ($action_nw_src_mod || $action_nw_dst_mod) {
+                $length = $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_nw_addr') + $ofp->sizeof('ofp_action_output');
+        } elsif ($action_tp_src_mod || $action_tp_dst_mod) {
+                $length = $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_tp_port') + $ofp->sizeof('ofp_action_output');
+        } else {
+                $length = $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output');             
+        }
 
-	# might be cleaner to convert the exported colon-hex MAC addrs
-	#print ${$udp_pkt->{Ethernet_hdr}}->SA . "\n";
-	#print ${$test_pkt->{Ethernet_hdr}}->SA . "\n";
-	my $ref_to_eth_hdr = ( $udp_pkt->{'Ethernet_hdr'} );
-	my $ref_to_ip_hdr  = ( $udp_pkt->{'IP_hdr'} );
+        my $hdr_args = {
+                version => $of_ver,
+                type    => $enums{'OFPT_FLOW_MOD'},
+                length  => $length,
+                xid     => 0x0000000
+        };
 
-	# pointer to array
-	my $eth_hdr_bytes    = $$ref_to_eth_hdr->{'bytes'};
-	my $ip_hdr_bytes     = $$ref_to_ip_hdr->{'bytes'};
-	my @dst_mac_subarray = @{$eth_hdr_bytes}[ 0 .. 5 ];
-	my @src_mac_subarray = @{$eth_hdr_bytes}[ 6 .. 11 ];
+        # might be cleaner to convert the exported colon-hex MAC addrs
+        #print ${$udp_pkt->{Ethernet_hdr}}->SA . "\n";
+        #print ${$test_pkt->{Ethernet_hdr}}->SA . "\n";
+        my $ref_to_eth_hdr = ( $udp_pkt->{'Ethernet_hdr'} );
+        my $ref_to_ip_hdr  = ( $udp_pkt->{'IP_hdr'} );
 
-	my @src_ip_subarray = @{$ip_hdr_bytes}[ 12 .. 15 ];
-	my @dst_ip_subarray = @{$ip_hdr_bytes}[ 16 .. 19 ];
+        # pointer to array
+        my $eth_hdr_bytes    = $$ref_to_eth_hdr->{'bytes'};
+        my $ip_hdr_bytes     = $$ref_to_ip_hdr->{'bytes'};
+        my @dst_mac_subarray = @{$eth_hdr_bytes}[ 0 .. 5 ];
+        my @src_mac_subarray = @{$eth_hdr_bytes}[ 6 .. 11 ];
 
-	my $src_ip =
-	  ( ( 2**24 ) * $src_ip_subarray[0] +
-		  ( 2**16 ) * $src_ip_subarray[1] +
-		  ( 2**8 ) * $src_ip_subarray[2] +
-		  $src_ip_subarray[3] );
+        my @src_ip_subarray = @{$ip_hdr_bytes}[ 12 .. 15 ];
+        my @dst_ip_subarray = @{$ip_hdr_bytes}[ 16 .. 19 ];
 
-	my $dst_ip =
-	  ( ( 2**24 ) * $dst_ip_subarray[0] +
-		  ( 2**16 ) * $dst_ip_subarray[1] +
-		  ( 2**8 ) * $dst_ip_subarray[2] +
-		  $dst_ip_subarray[3] );
+        my $src_ip =
+          ( ( 2**24 ) * $src_ip_subarray[0] +
+                  ( 2**16 ) * $src_ip_subarray[1] +
+                  ( 2**8 ) * $src_ip_subarray[2] +
+                  $src_ip_subarray[3] );
 
-	my $match_args = {
-		wildcards => $wildcards,
-		in_port   => $in_port,
-		dl_src    => \@src_mac_subarray,
-		dl_dst    => \@dst_mac_subarray,
-		dl_vlan   => 0xffff,
-		dl_type   => 0x0800,
-		nw_src    => $src_ip,
-		nw_dst    => $dst_ip,
-		nw_proto  => 17,                                  #udp
-		tp_src    => ${ $udp_pkt->{UDP_pdu} }->SrcPort,
-		tp_dst    => ${ $udp_pkt->{UDP_pdu} }->DstPort
-	};
+        my $dst_ip =
+          ( ( 2**24 ) * $dst_ip_subarray[0] +
+                  ( 2**16 ) * $dst_ip_subarray[1] +
+                  ( 2**8 ) * $dst_ip_subarray[2] +
+                  $dst_ip_subarray[3] );
 
-	my $action_output_args;
-	my $action_output;
-	
-	# no action for drops
-	if ($mod_type ne 'drop') {
-		$action_output_args = {
-			type => $enums{'OFPAT_OUTPUT'},
-			len => $ofp->sizeof('ofp_action_output'),
-			port => $out_port,
-			max_len => 0,                                     # send entire packet	
-		};
-		$action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
-	}
-	
-	my $flow_mod_args = {
-		header => $hdr_args,
-		match  => $match_args,
+        my $match_args = {
+                wildcards => $wildcards,
+                in_port   => $in_port,
+                dl_src    => \@src_mac_subarray,
+                dl_dst    => \@dst_mac_subarray,
+                dl_vlan   => 0xffff,
+                dl_type   => 0x0800,
+                nw_src    => $src_ip,
+                nw_dst    => $dst_ip,
+                nw_proto  => 17,                                  #udp
+                tp_src    => ${ $udp_pkt->{UDP_pdu} }->SrcPort,
+                tp_dst    => ${ $udp_pkt->{UDP_pdu} }->DstPort
+        };
 
-		#		command   => $enums{$mod_type},
-		command   => $enums{"$mod_type"},
-		idle_timeout  => $max_idle,
-		hard_timeout  => $max_idle,
-		priority => 0,
-		buffer_id => -1,
-		out_port => $enums{'OFPP_NONE'}
-	};
-	my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
+        my $chg_dl_val = ($action_dl_src_mod || $action_dl_dst_mod) ? $chg_val : "00:00:00:00:00:00";
+        my $chg_nw_val = ($action_nw_src_mod || $action_nw_dst_mod) ? $chg_val : "0.0.0.0";
+        my $chg_tp_val = ($action_tp_src_mod || $action_tp_dst_mod) ? $chg_val : 0;
+        my @dl_addr_org = NF2::PDU::get_MAC_address($chg_dl_val);
+        my @pad_6 = (0,0,0,0,0,0);
+        my @pad_2 = (0,0);
 
-	my $flow_mod_pkt = $flow_mod . $action_output;
+	#OUTPUT
+	#and No action for drops
+        my $action_output_args;
+        my $action_output;
+        if ($mod_type ne 'drop') {
+                $action_output_args = {
+                        type => $enums{'OFPAT_OUTPUT'},
+                        len => $ofp->sizeof('ofp_action_output'),
+                        port => $out_port,
+                        max_len => 0,                                     # send entire packet  
+                };
+                $action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
+        }
 
-	return $flow_mod_pkt;
+        #SET_DL_SRC
+        my $action_set_dl_src_args = {
+                type => $enums{'OFPAT_SET_DL_SRC'},
+                len  => $ofp->sizeof('ofp_action_dl_addr'),
+                dl_addr => \@dl_addr_org,
+                pad  => \@pad_6,
+        };
+        my $action_set_dl_src = $ofp->pack('ofp_action_dl_addr', $action_set_dl_src_args);
+
+        #SET_DL_DST 
+        my $action_set_dl_dst_args = {
+                type => $enums{'OFPAT_SET_DL_DST'},
+                len  => $ofp->sizeof('ofp_action_dl_addr'),
+                dl_addr => \@dl_addr_org,
+                pad  => \@pad_6,
+        };
+        my $action_set_dl_dst = $ofp->pack('ofp_action_dl_addr', $action_set_dl_dst_args);
+
+	#SET_NW_SRC
+        my ($nw_addr_org, $ok_org) = NF2::IP_hdr::getIP($chg_nw_val);
+        my $action_set_nw_src_args = {
+                type => $enums{'OFPAT_SET_NW_SRC'},
+                len  => $ofp->sizeof('ofp_action_nw_addr'),
+                nw_addr => $nw_addr_org,
+        };
+        my $action_set_nw_src = $ofp->pack('ofp_action_nw_addr', $action_set_nw_src_args);
+
+        #SET_NW_DST
+        my $action_set_nw_dst_args = {
+                type => $enums{'OFPAT_SET_NW_DST'},
+                len  => $ofp->sizeof('ofp_action_nw_addr'),
+                nw_addr => $nw_addr_org,
+        };
+        my $action_set_nw_dst = $ofp->pack('ofp_action_nw_addr', $action_set_nw_dst_args);
+
+        #SET_TP_SRC   
+        my $action_set_tp_src_args = {
+                type => $enums{'OFPAT_SET_TP_SRC'},
+                len  => $ofp->sizeof('ofp_action_tp_port'),
+                tp_port => $chg_tp_val,
+                pad  => \@pad_2,
+        };
+        my $action_set_tp_src = $ofp->pack('ofp_action_tp_port', $action_set_tp_src_args);
+
+        #SET_TP_DST
+        my $action_set_tp_dst_args = {
+                type => $enums{'OFPAT_SET_TP_DST'},
+                len  => $ofp->sizeof('ofp_action_tp_port'),
+                tp_port => $chg_tp_val,
+                pad  => \@pad_2,
+        };
+        my $action_set_tp_dst = $ofp->pack('ofp_action_tp_port', $action_set_tp_dst_args);
+
+        # ...then, organize flow_mod packet
+        
+        my $flow_mod_args = {
+                header => $hdr_args,
+                match  => $match_args,
+                command   => $enums{"$mod_type"},
+                idle_timeout  => $max_idle,
+                hard_timeout  => $max_idle,
+                priority => 0,
+                buffer_id => -1,
+                out_port => $enums{'OFPP_NONE'}
+        };
+        my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
+        my $flow_mod_pkt;
+        if ($action_dl_src_mod) {
+                $flow_mod_pkt = $flow_mod . $action_set_dl_src . $action_output;
+        } elsif ($action_dl_dst_mod) {
+                $flow_mod_pkt = $flow_mod . $action_set_dl_dst . $action_output;
+        } elsif ($action_nw_src_mod) {
+                $flow_mod_pkt = $flow_mod . $action_set_nw_src . $action_output;
+        } elsif ($action_nw_dst_mod) {
+                $flow_mod_pkt = $flow_mod . $action_set_nw_dst . $action_output;
+        } elsif ($action_tp_src_mod) {
+                $flow_mod_pkt = $flow_mod . $action_set_tp_src . $action_output;
+        } elsif ($action_tp_dst_mod) {
+                $flow_mod_pkt = $flow_mod . $action_set_tp_dst . $action_output;
+        } else {
+                $flow_mod_pkt = $flow_mod . $action_output;
+        }
+
+        return $flow_mod_pkt;
 }
 
 sub wait_for_flow_expired {
@@ -1032,10 +1124,17 @@ sub for_all_wildcards {
 
 sub forward_simple {
 
-	my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $wildcards, $type, $nowait ) = @_;
+	my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $wildcards, $type, $nowait, $chg_field ) = @_;
 
 	my $in_port = $in_port_offset + $$options_ref{'port_base'};
 	my $out_port;
+
+        my $action_dl_src_mod = (defined($chg_field) && ($chg_field eq 'dl_src')) ? 1 : 0;
+        my $action_dl_dst_mod = (defined($chg_field) && ($chg_field eq 'dl_dst')) ? 1 : 0;
+        my $action_nw_src_mod = (defined($chg_field) && ($chg_field eq 'nw_src')) ? 1 : 0;
+        my $action_nw_dst_mod = (defined($chg_field) && ($chg_field eq 'nw_dst')) ? 1 : 0;
+        my $action_tp_src_mod = (defined($chg_field) && ($chg_field eq 'tp_src')) ? 1 : 0;
+        my $action_tp_dst_mod = (defined($chg_field) && ($chg_field eq 'tp_dst')) ? 1 : 0;
 	
 	if ($type eq 'all') {
 		$out_port = $enums{'OFPP_ALL'};    # all physical ports except the input
@@ -1051,15 +1150,47 @@ sub forward_simple {
 
 	#print HexDump ( $test_pkt->packed );
 
+	my $ip_checksum_org = ${$test_pkt->{IP_hdr}}->checksum;
+        my $udp_checksum_org = ${$test_pkt->{UDP_pdu}}->Checksum;
+
+	my $chg_val;
+        my $dummy_chg_val;
+	if ($action_dl_src_mod) {
+		$chg_val = ${$test_pkt->{Ethernet_hdr}}->SA;
+		${$test_pkt->{Ethernet_hdr}}->SA("12:34:56:78:9a:bc");
+	} elsif ($action_dl_dst_mod) {
+                $chg_val = ${$test_pkt->{Ethernet_hdr}}->DA;
+                ${$test_pkt->{Ethernet_hdr}}->DA("12:34:56:78:9a:bc");
+        } elsif ($action_nw_src_mod) {
+                $chg_val = ${$test_pkt->{IP_hdr}}->src_ip;
+                ${$test_pkt->{IP_hdr}}->src_ip("111.122.133.144");
+		#Dummy rewrite in order to get re-calculated UDP checksum
+                $dummy_chg_val = ${$test_pkt->{UDP_pdu}}->SrcPort;
+                ${$test_pkt->{UDP_pdu}}->SrcPort($dummy_chg_val);
+        } elsif ($action_nw_dst_mod) {
+                $chg_val = ${$test_pkt->{IP_hdr}}->dst_ip;
+                ${$test_pkt->{IP_hdr}}->dst_ip("111.122.133.144");
+                #Dummy rewrite in order to get re-calculated UDP checksum
+                $dummy_chg_val = ${$test_pkt->{UDP_pdu}}->SrcPort;
+                ${$test_pkt->{UDP_pdu}}->SrcPort($dummy_chg_val);
+        } elsif ($action_tp_src_mod) {
+                $chg_val = ${$test_pkt->{UDP_pdu}}->SrcPort;
+                ${$test_pkt->{UDP_pdu}}->SrcPort(55);
+        } elsif ($action_tp_dst_mod) {
+                $chg_val = ${$test_pkt->{UDP_pdu}}->DstPort;
+                ${$test_pkt->{UDP_pdu}}->DstPort(55);
+        }
+	print HexDump ( $test_pkt->packed );
+
 	my $flow_mod_pkt;
-	
 	if ($type eq 'drop') {
 		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $wildcards, 'drop' );
 	} else {
-		$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $wildcards );
+		$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, 
+		                $wildcards, $chg_field, $chg_val );
 	}
 
-	#print HexDump($flow_mod_pkt);
+	print HexDump($flow_mod_pkt);
 	#print Dumper($flow_mod_pkt);
 
 	# Send 'flow_mod' message
@@ -1070,7 +1201,32 @@ sub forward_simple {
 	usleep($$options_ref{'send_delay'});
 
 	nftest_send( "eth" . ($in_port_offset + 1), $test_pkt->packed );
-	
+
+        # Need to expect modified header value when modify action has been issued.
+        # Replace the value accordingly.
+        if ($action_dl_src_mod) {
+                ${$test_pkt->{Ethernet_hdr}}->SA("$chg_val");
+        }
+        if ($action_dl_dst_mod) {
+                ${$test_pkt->{Ethernet_hdr}}->DA("$chg_val");
+        }
+        if ($action_nw_src_mod) {
+                ${$test_pkt->{IP_hdr}}->src_ip("$chg_val");
+                ${$test_pkt->{IP_hdr}}->checksum($ip_checksum_org);
+                ${$test_pkt->{UDP_pdu}}->Checksum($udp_checksum_org);
+        }
+        if ($action_nw_dst_mod) {
+                ${$test_pkt->{IP_hdr}}->dst_ip("$chg_val");
+                ${$test_pkt->{IP_hdr}}->checksum($ip_checksum_org);
+                ${$test_pkt->{UDP_pdu}}->Checksum($udp_checksum_org);
+        }
+        if ($action_tp_src_mod) {
+                ${$test_pkt->{UDP_pdu}}->SrcPort("$chg_val");
+        }
+        if ($action_tp_dst_mod) {
+                ${$test_pkt->{UDP_pdu}}->DstPort("$chg_val");
+        }
+
 	if ($type eq 'any' || $type eq 'port') {
 		# expect single packet
 		print "expect single packet\n";

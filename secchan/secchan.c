@@ -61,6 +61,7 @@
 #ifdef SUPPORT_SNAT
 #include "snat.h"
 #endif
+#include "flow-end.h"
 #include "stp-secchan.h"
 #include "status.h"
 #include "timeval.h"
@@ -92,7 +93,8 @@ static struct pvconn *open_passive_vconn(const char *name);
 static struct vconn *accept_vconn(struct pvconn *pvconn);
 
 static struct relay *relay_create(struct rconn *async,
-                                  struct rconn *local, struct rconn *remote);
+                                  struct rconn *local, struct rconn *remote,
+                                  bool is_mgmt_conn);
 static struct relay *relay_accept(const struct settings *, struct pvconn *);
 static void relay_run(struct relay *, struct secchan *);
 static void relay_wait(struct relay *);
@@ -161,11 +163,25 @@ main(int argc, char *argv[])
                   "unix:.  (Did you forget to specify the datapath?)");
     }
 
-    /* Connect to datapath with a subscription for asynchronous events. */
-    async_rconn = rconn_create(0, s.max_backoff);
-    rconn_connect(async_rconn, s.dp_name);
-    switch_status_register_category(switch_status, "async",
-                                    rconn_status_cb, async_rconn);
+    if (!strncmp(s.dp_name, "nl:", 3)) {
+        /* Connect to datapath with a subscription for asynchronous events.  By
+         * separating the connection for asynchronous events from that for
+         * request and replies we prevent the socket receive buffer from being
+         * filled up by received packet data, which in turn would prevent
+         * getting replies to any Netlink messages we send to the kernel. */
+        async_rconn = rconn_create(0, s.max_backoff);
+        rconn_connect(async_rconn, s.dp_name);
+        switch_status_register_category(switch_status, "async",
+                                        rconn_status_cb, async_rconn);
+    } else {
+        /* No need for a separate asynchronous connection: we must be connected
+         * to the user datapath, which is smart enough to discard packet events
+         * instead of message replies.  In fact, having a second connection
+         * would work against us since we'd get double copies of asynchronous
+         * event messages (the user datapath provides no way to turn off
+         * asynchronous events). */
+        async_rconn = NULL;
+    }
 
     /* Connect to datapath without a subscription, for requests and replies. */
     local_rconn_name = vconn_name_without_subscription(s.dp_name);
@@ -187,7 +203,8 @@ main(int argc, char *argv[])
                                     rconn_status_cb, remote_rconn);
 
     /* Start relaying. */
-    controller_relay = relay_create(async_rconn, local_rconn, remote_rconn);
+    controller_relay = relay_create(async_rconn, local_rconn, remote_rconn,
+                                    false);
     list_push_back(&relays, &controller_relay->node);
 
     /* Set up hooks. */
@@ -196,6 +213,7 @@ main(int argc, char *argv[])
 #ifdef SUPPORT_SNAT
     snat_start(&secchan, pw);
 #endif
+    flow_end_start(&secchan, s.netflow_dst, local_rconn, remote_rconn);
     if (s.enable_stp) {
         stp_start(&secchan, &s, pw, local_rconn, remote_rconn);
     }
@@ -409,16 +427,17 @@ relay_accept(const struct settings *s, struct pvconn *pvconn)
     r2 = rconn_create(0, 0);
     rconn_connect_unreliably(r2, "passive", new_remote);
 
-    return relay_create(NULL, r1, r2);
+    return relay_create(NULL, r1, r2, true);
 }
 
 static struct relay *
-relay_create(struct rconn *async, struct rconn *local, struct rconn *remote)
+relay_create(struct rconn *async, struct rconn *local, struct rconn *remote,
+             bool is_mgmt_conn)
 {
     struct relay *r = xcalloc(1, sizeof *r);
     r->halves[HALF_LOCAL].rconn = local;
     r->halves[HALF_REMOTE].rconn = remote;
-    r->is_mgmt_conn = async == NULL;
+    r->is_mgmt_conn = is_mgmt_conn;
     r->async_rconn = async;
     return r;
 }
@@ -572,6 +591,7 @@ parse_options(int argc, char *argv[], struct settings *s)
         OPT_IN_BAND,
         OPT_COMMAND_ACL,
         OPT_COMMAND_DIR,
+        OPT_NETFLOW,
         VLOG_OPTION_ENUMS
     };
     static struct option long_options[] = {
@@ -591,6 +611,7 @@ parse_options(int argc, char *argv[], struct settings *s)
         {"in-band",     no_argument, 0, OPT_IN_BAND},
         {"command-acl", required_argument, 0, OPT_COMMAND_ACL},
         {"command-dir", required_argument, 0, OPT_COMMAND_DIR},
+        {"netflow",     required_argument, 0, OPT_NETFLOW},
         {"verbose",     optional_argument, 0, 'v'},
         {"help",        no_argument, 0, 'h'},
         {"version",     no_argument, 0, 'V'},
@@ -620,6 +641,7 @@ parse_options(int argc, char *argv[], struct settings *s)
     s->in_band = true;
     s->command_acl = "";
     s->command_dir = xasprintf("%s/commands", ofp_pkgdatadir);
+    s->netflow_dst = NULL;
     for (;;) {
         int c;
 
@@ -720,6 +742,13 @@ parse_options(int argc, char *argv[], struct settings *s)
             s->command_dir = optarg;
             break;
 
+        case OPT_NETFLOW:
+            if (s->netflow_dst) {
+                ofp_fatal(0, "--netflow may only be specified once");
+            }
+            s->netflow_dst = optarg;
+            break;
+
         case 'l':
             if (s->n_listeners >= MAX_MGMT) {
                 ofp_fatal(0,
@@ -814,8 +843,8 @@ static void
 usage(void)
 {
     printf("%s: secure channel, a relay for OpenFlow messages.\n"
-           "usage: %s [OPTIONS] nl:DP_IDX [CONTROLLER]\n"
-           "where nl:DP_IDX is a datapath that has been added with dpctl.\n"
+           "usage: %s [OPTIONS] DATAPATH [CONTROLLER]\n"
+           "DATAPATH is an active connection method to a local datapath.\n"
            "CONTROLLER is an active OpenFlow connection method; if it is\n"
            "omitted, then secchan performs controller discovery.\n",
            program_name, program_name);
@@ -838,6 +867,7 @@ usage(void)
            "  --out-of-band           controller connection is out-of-band\n"
            "  --stp                   enable 802.1D Spanning Tree Protocol\n"
            "  --no-stp                disable 802.1D Spanning Tree Protocol\n"
+           "  --netflow=HOST:PORT     send NetFlow v5 messages when flows end\n"
            "\nRate-limiting of \"packet-in\" messages to the controller:\n"
            "  --rate-limit[=PACKETS]  max rate, in packets/s (default: 1000)\n"
            "  --burst-limit=BURST     limit on packet credit for idle time\n"

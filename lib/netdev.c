@@ -81,6 +81,7 @@
 #include "packets.h"
 #include "poll-loop.h"
 #include "socket-util.h"
+#include "svec.h"
 
 /* This doesn't seem to be defined in the linux/ethtool.h for linux 2.4 */
 #ifndef SPEED_2500 
@@ -167,6 +168,7 @@ get_ipv6_address(const char *name, struct in6_addr *in6)
                    ifname) == 17
             && !strcmp(name, ifname))
         {
+            fclose(file);
             return;
         }
     }
@@ -968,6 +970,27 @@ netdev_arp_lookup(const struct netdev *netdev,
                      netdev->name, IP_ARGS(&ip), strerror(retval));
     }
     return retval;
+}
+
+/* Initializes 'svec' with a list of the names of all known network devices. */
+void
+netdev_enumerate(struct svec *svec)
+{
+    struct if_nameindex *names;
+
+    svec_init(svec);
+    names = if_nameindex();
+    if (names) {
+        size_t i;
+
+        for (i = 0; names[i].if_name != NULL; i++) {
+            svec_add(svec, names[i].if_name);
+        }
+        if_freenameindex(names);
+    } else {
+        VLOG_WARN("could not obtain list of network device names: %s",
+                  strerror(errno));
+    }
 }
 
 static void restore_all_flags(void *aux);

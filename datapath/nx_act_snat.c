@@ -4,8 +4,10 @@
  * Copyright (c) 2008 Nicira Networks
  */
 
+#include <linux/etherdevice.h>
 #include <linux/netdevice.h>
 #include <linux/netfilter.h>
+#include <linux/netfilter_bridge.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/in.h>
 #include <net/ip.h>
@@ -58,6 +60,42 @@ struct ip_arphdr {
 } __attribute__((packed));
 OFP_ASSERT(sizeof(struct ip_arphdr) == 28);
 
+static inline struct nf_bridge_info *nf_bridge_alloc(struct sk_buff *skb)
+{
+	skb->nf_bridge = kzalloc(sizeof(struct nf_bridge_info), GFP_ATOMIC);
+	if (likely(skb->nf_bridge))
+		atomic_set(&(skb->nf_bridge->use), 1);
+
+	return skb->nf_bridge;
+}
+
+/* Save a copy of the original Ethernet header. */
+static inline void snat_save_header(struct sk_buff *skb)
+{
+	int header_size = ETH_HLEN + nf_bridge_encap_header_len(skb);
+
+	skb_copy_from_linear_data_offset(skb, -header_size, 
+			skb->nf_bridge->data, header_size);
+}
+
+/* Restore a saved Ethernet header. */
+int snat_copy_header(struct sk_buff *skb)
+{
+	int err;
+	int header_size = ETH_HLEN + nf_bridge_encap_header_len(skb);
+
+	if (!skb->nf_bridge)
+		return 0;
+
+	err = skb_cow_head(skb, header_size);
+	if (err)
+		return err;
+
+	skb_copy_to_linear_data_offset(skb, -header_size, 
+			skb->nf_bridge->data, header_size);
+	__skb_push(skb, nf_bridge_encap_header_len(skb));
+	return 0;
+}
 
 /* Push the Ethernet header back on and tranmit the packet. */
 static int
@@ -165,6 +203,19 @@ snat_this_address(struct net_bridge_port *p, u32 ip_addr)
 	return retval;
 }
 
+/* Must hold RCU lock. */
+static struct net_bridge_port *
+get_nbp_by_ip_addr(struct datapath *dp, u32 ip_addr)
+{
+	struct net_bridge_port *p;
+
+	list_for_each_entry_rcu (p, &dp->port_list, node)
+		if (snat_this_address(p, ip_addr))
+			return p;
+
+	return NULL;
+}
+
 static int
 snat_pre_route_finish(struct sk_buff *skb)
 {
@@ -191,6 +242,7 @@ snat_pre_route_finish(struct sk_buff *skb)
 
 	/* Pass the translated packet as input to the OpenFlow stack, which
 	 * consumes it. */
+	snat_save_header(skb);
 	skb_push(skb, ETH_HLEN);
 	skb_reset_mac_header(skb);
 	fwd_port_input(p->dp->chain, skb, p);
@@ -206,8 +258,10 @@ snat_pre_route_finish(struct sk_buff *skb)
 static int 
 handle_arp_snat(struct sk_buff *skb)
 {
-	struct net_bridge_port *p = skb->dev->br_port;
+	struct net_bridge_port *s_nbp = skb->dev->br_port;
+	struct net_bridge_port *nat_nbp;
 	struct ip_arphdr *ah;
+	uint8_t mac_addr[ETH_ALEN];
 
 	if (!pskb_may_pull(skb, sizeof *ah))
 		return 0;
@@ -219,13 +273,24 @@ handle_arp_snat(struct sk_buff *skb)
 			|| ah->ar_pln != 4)
 		return 0;
 
-	/* We're only interested in addresses we rewrite. */
-	if (!snat_this_address(p, ah->ar_tip)) {
+	rcu_read_lock();
+	nat_nbp = get_nbp_by_ip_addr(s_nbp->dp, ah->ar_tip);
+	if (!nat_nbp) {
+		rcu_read_unlock();
 		return 0;
 	}
+	if (s_nbp == nat_nbp) 
+		memcpy(mac_addr, s_nbp->dp->netdev->dev_addr, sizeof(mac_addr));
+	else if (!is_zero_ether_addr(nat_nbp->snat->mac_addr)) 
+		memcpy(mac_addr, nat_nbp->snat->mac_addr, sizeof(mac_addr));
+	else {
+		rcu_read_unlock();
+		return 0;
+	}
+	rcu_read_unlock();
 
 	arp_send(ARPOP_REPLY, ETH_P_ARP, ah->ar_sip, skb->dev, ah->ar_tip, 
-			 ah->ar_sha, p->dp->netdev->dev_addr, ah->ar_sha);
+			 ah->ar_sha, mac_addr, ah->ar_sha);
 
 	return -1;
 }
@@ -354,6 +419,10 @@ snat_pre_route(struct sk_buff *skb)
 	if (pskb_trim_rcsum(skb, len))
 		goto consume;
 
+	nf_bridge_put(skb->nf_bridge);
+	if (!nf_bridge_alloc(skb))
+		return 0;
+
 	NF_HOOK(PF_INET, NF_INET_PRE_ROUTING, skb, skb->dev, NULL,
 		snat_pre_route_finish);
 	return -1;
@@ -477,9 +546,10 @@ snat_free_conf(struct net_bridge_port *p)
 
 /* Remove SNAT configuration from an interface. */
 static int 
-snat_del_port(struct datapath *dp, uint16_t port)
+snat_del_port(struct datapath *dp, const struct nx_snat_config *nsc)
 {
 	unsigned long flags;
+	uint16_t port = ntohs(nsc->port);
 	struct net_bridge_port *p = dp->ports[port];
 
 	if (!p) {
@@ -504,15 +574,14 @@ snat_del_port(struct datapath *dp, uint16_t port)
 
 /* Add SNAT configuration to an interface.  */
 static int 
-snat_add_port(struct datapath *dp, uint16_t port, 
-		uint32_t ip_addr_start, uint32_t ip_addr_end,
-		uint16_t mac_timeout)
+snat_add_port(struct datapath *dp, const struct nx_snat_config *nsc)
 {
 	unsigned long flags;
+	uint16_t port = ntohs(nsc->port);
 	struct net_bridge_port *p = dp->ports[port];
+	uint16_t mac_timeout = ntohs(nsc->mac_timeout);
 	struct snat_conf *sc;
 	
-
 	if (mac_timeout == 0)
 		mac_timeout = MAC_TIMEOUT_DEFAULT;
 
@@ -528,8 +597,8 @@ snat_add_port(struct datapath *dp, uint16_t port,
 	 * reconfigure it. */
 	spin_lock_irqsave(&p->lock, flags);
 	if (p->snat) {
-		if ((p->snat->ip_addr_start == ip_addr_start) 
-				&& (p->snat->ip_addr_end == ip_addr_end)) {
+		if ((p->snat->ip_addr_start == ntohl(nsc->ip_addr_start)) 
+				&& (p->snat->ip_addr_end == ntohl(nsc->ip_addr_end))) {
 			p->snat->mac_timeout = mac_timeout;
 			spin_unlock_irqrestore(&p->lock, flags);
 			return 0;
@@ -545,9 +614,10 @@ snat_add_port(struct datapath *dp, uint16_t port,
 		return -ENOMEM;
 	}
 
-	sc->ip_addr_start = ip_addr_start;
-	sc->ip_addr_end = ip_addr_end;
+	sc->ip_addr_start = ntohl(nsc->ip_addr_start);
+	sc->ip_addr_end = ntohl(nsc->ip_addr_end);
 	sc->mac_timeout = mac_timeout;
+	memcpy(sc->mac_addr, nsc->mac_addr, sizeof(sc->mac_addr));
 	INIT_LIST_HEAD(&sc->mappings);
 
 	p->snat = sc;
@@ -568,16 +638,13 @@ snat_mod_config(struct datapath *dp, const struct nx_act_config *nac)
 	int i;
 
 	for (i=0; i<n_entries; i++) {
-		const struct nx_snat_config *sc = &nac->snat[i];
-		uint16_t port = ntohs(sc->port);
+		const struct nx_snat_config *nsc = &nac->snat[i];
 		int r = 0;
 
-		if (sc->command == NXSC_ADD)
-			r = snat_add_port(dp, port, 
-					ntohl(sc->ip_addr_start), ntohl(sc->ip_addr_end), 
-					ntohs(sc->mac_timeout));
+		if (nsc->command == NXSC_ADD)
+			r = snat_add_port(dp, nsc);
 		else 
-			r = snat_del_port(dp, port);
+			r = snat_del_port(dp, nsc);
 
 		if (r)
 			ret = r;
