@@ -642,11 +642,11 @@ str_to_action(char *str, struct ofpbuf *b)
             struct ofp_action_vlan_pcp *va;
             va = put_action(b, sizeof *va, OFPAT_SET_VLAN_PCP);
             va->vlan_pcp = str_to_u32(arg);
-        } else if (!strcasecmp(act, "mod_dst_mac")) {
+        } else if (!strcasecmp(act, "mod_dl_dst")) {
             struct ofp_action_dl_addr *va;
             va = put_action(b, sizeof *va, OFPAT_SET_DL_DST);
             str_to_mac(arg, va->dl_addr);
-        } else if (!strcasecmp(act, "mod_src_mac")) {
+        } else if (!strcasecmp(act, "mod_dl_src")) {
             struct ofp_action_dl_addr *va;
             va = put_action(b, sizeof *va, OFPAT_SET_DL_SRC);
             str_to_mac(arg, va->dl_addr);
