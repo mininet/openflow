@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -38,6 +38,8 @@
 #include <poll.h>
 #include <stdlib.h>
 #include <string.h>
+#include "backtrace.h"
+#include "dynamic-string.h"
 #include "list.h"
 #include "timeval.h"
 
@@ -52,6 +54,7 @@ struct poll_waiter {
     short int events;           /* Events to wait for (POLLIN, POLLOUT). */
     poll_fd_func *function;     /* Callback function, if any, or null. */
     void *aux;                  /* Argument to callback function. */
+    struct backtrace *backtrace; /* Optionally, event that created waiter. */
 
     /* Set only when poll_block() is called. */
     struct pollfd *pollfd;      /* Pointer to element of the pollfds array
@@ -67,6 +70,9 @@ static size_t n_waiters;
 /* Max time to wait in next call to poll_block(), in milliseconds, or -1 to
  * wait forever. */
 static int timeout = -1;
+
+/* Backtrace of 'timeout''s registration, if debugging is enabled. */
+static struct backtrace timeout_backtrace;
 
 /* Callback currently running, to allow verifying that poll_cancel() is not
  * being called on a running callback. */
@@ -101,6 +107,9 @@ poll_timer_wait(int msec)
 {
     if (timeout < 0 || msec < timeout) {
         timeout = MAX(0, msec);
+        if (VLOG_IS_DBG_ENABLED()) {
+            backtrace_capture(&timeout_backtrace);
+        }
     }
 }
 
@@ -109,7 +118,30 @@ poll_timer_wait(int msec)
 void
 poll_immediate_wake(void)
 {
-    timeout = 0;
+    poll_timer_wait(0);
+}
+
+static void PRINTF_FORMAT(2, 3)
+log_wakeup(const struct backtrace *backtrace, const char *format, ...)
+{
+    struct ds ds;
+    va_list args;
+
+    ds_init(&ds);
+    va_start(args, format);
+    ds_put_format_valist(&ds, format, args);
+    va_end(args);
+
+    if (backtrace) {
+        int i;
+
+        ds_put_char(&ds, ':');
+        for (i = 0; i < backtrace->n_frames; i++) {
+            ds_put_format(&ds, " 0x%x", backtrace->frames[i]);
+        }
+    }
+    VLOG_DBG("%s", ds_cstr(&ds));
+    ds_destroy(&ds);
 }
 
 /* Blocks until one or more of the events registered with poll_fd_wait()
@@ -148,6 +180,8 @@ poll_block(void)
     if (retval < 0) {
         static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
         VLOG_ERR_RL(&rl, "poll: %s", strerror(-retval));
+    } else if (!retval && VLOG_IS_DBG_ENABLED()) {
+        log_wakeup(&timeout_backtrace, "%d-ms timeout", timeout);
     }
 
     for (node = waiters.next; node != &waiters; ) {
@@ -157,20 +191,33 @@ poll_block(void)
                 node = node->next;
                 continue;
             }
-        } else if (pw->function) {
+        } else {
+            if (VLOG_IS_DBG_ENABLED()) {
+                log_wakeup(pw->backtrace, "%s%s%s%s%s on fd %d",
+                           pw->pollfd->revents & POLLIN ? "[POLLIN]" : "",
+                           pw->pollfd->revents & POLLOUT ? "[POLLOUT]" : "",
+                           pw->pollfd->revents & POLLERR ? "[POLLERR]" : "",
+                           pw->pollfd->revents & POLLHUP ? "[POLLHUP]" : "",
+                           pw->pollfd->revents & POLLNVAL ? "[POLLNVAL]" : "",
+                           pw->fd);
+            }
+
+            if (pw->function) {
 #ifndef NDEBUG
-            running_cb = pw;
+                running_cb = pw;
 #endif
-            pw->function(pw->fd, pw->pollfd->revents, pw->aux);
+                pw->function(pw->fd, pw->pollfd->revents, pw->aux);
 #ifndef NDEBUG
-            running_cb = NULL;
+                running_cb = NULL;
 #endif
+            }
         }
         node = node->next;
         poll_cancel(pw);
     }
 
     timeout = -1;
+    timeout_backtrace.n_frames = 0;
 }
 
 /* Registers 'function' to be called with argument 'aux' by poll_block() when
@@ -208,6 +255,7 @@ poll_cancel(struct poll_waiter *pw)
     if (pw) {
         assert(pw != running_cb);
         list_remove(&pw->node);
+        free(pw->backtrace);
         free(pw);
         n_waiters--;
     }
@@ -221,6 +269,10 @@ new_waiter(int fd, short int events)
     assert(fd >= 0);
     waiter->fd = fd;
     waiter->events = events;
+    if (VLOG_IS_DBG_ENABLED()) {
+        waiter->backtrace = xmalloc(sizeof *waiter->backtrace);
+        backtrace_capture(waiter->backtrace);
+    }
     list_push_back(&waiters, &waiter->node);
     n_waiters++;
     return waiter;

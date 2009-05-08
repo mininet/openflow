@@ -12,8 +12,8 @@ include $(srcdir)/../Modules.mk
 include $(srcdir)/Modules.mk
 include @HW_TABLES@
 
-default: $(all_links)
-$(foreach m,$(all_modules), \
+default: $(build_links)
+$(foreach m,$(build_modules), \
   $(foreach s,$($(m)_sources), \
     $(eval $(notdir $(s)): ; ln -s $(srcdir)/../$(s) .)))
 
@@ -24,7 +24,7 @@ all: default
 check: all
 clean:
 	rm -f *.o *_mod.o .*.o.flags
-	for d in $(all_links); do if test -h $$d; then rm $$d; fi; done
+	for d in $(build_links); do if test -h $$d; then rm $$d; fi; done
 
 ifneq (,$(KSRC))
 

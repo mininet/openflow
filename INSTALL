@@ -12,17 +12,17 @@ The OpenFlow reference implementation includes two OpenFlow switch
 implementations:
 
         - The "kernel-based switch": This divides the switch into a
-          "datapath" Linux kernel module (openflow_mod.o for Linux 2.4
-          or openflow_mod.ko for Linux 2.6) and a userspace program
-          (secchan).  The kernel-based switch is faster than either of
+          "datapath" Linux kernel module (ofdatapath.o for Linux 2.4
+          or ofdatapath.ko for Linux 2.6) and a userspace program
+          (ofprotocol).  The kernel-based switch is faster than either of
           the other two implementations but requires building and
           installing a kernel module, which can sometimes be
           challenging.
 
         - The "userspace datapath-based switch": This divides the
           switch into a userspace "datapath" (built as
-          udatapath/udatapath) and the same userspace program used by
-          the kernel-based switch (secchan).  The userspace
+          udatapath/ofdatapath) and the same userspace program used by
+          the kernel-based switch (ofprotocol).  The userspace
           datapath-based switch does not require building a kernel
           module, but it is not as fast as the kernel-based switch.
 
@@ -160,9 +160,9 @@ distribution in the ordinary way using "configure" and "make".
 
    The following binaries will be built:
 
-      - Userspace datapath: udatapath/udatapath.
+      - Userspace datapath: udatapath/ofdatapath.
 
-      - Secure channel executable: secchan/secchan.
+      - Secure channel executable: secchan/ofprotocol.
 
       - Controller executable: controller/controller.
 
@@ -187,17 +187,17 @@ distribution in the ordinary way using "configure" and "make".
    If you passed --with-l26 to configure, "make" will also build the
    following kernel modules:
 
-      - datapath/linux-2.6/openflow_mod.ko
+      - datapath/linux-2.6/ofdatapath.ko
 
-      - datapath/linux-2.6/hwtable_<table>_mod.ko for each <table>
+      - datapath/linux-2.6/ofdatapath_<table>.ko for each <table>
         specified on --enable-hw-tables (if any).
 
    If you passed --with-l24 to configure, "make" will also build the
    following kernel modules:
 
-      - datapath/linux-2.4/openflow_mod.o      
+      - datapath/linux-2.4/ofdatapath.o      
 
-      - datapath/linux-2.6/hwtable_<table>_mod.o for each <table>
+      - datapath/linux-2.6/ofdatapath_<table>.o for each <table>
         specified on --enable-hw-tables (if any).
 
 3. Run "make install" to install the executables and manpages into the
@@ -206,11 +206,11 @@ distribution in the ordinary way using "configure" and "make".
 4. If you built kernel modules, you may load them with "insmod", e.g.:
 
       (Linux 2.6)
-      % insmod datapath/linux-2.6/openflow_mod.ko
+      % insmod datapath/linux-2.6/ofdatapath.ko
 
       (Linux 2.4)
       % insmod datapath/linux-2.4/compat24_mod.o
-      % insmod datapath/linux-2.4/openflow_mod.o
+      % insmod datapath/linux-2.4/ofdatapath.o
 
    After you load the openflow module, you may load one hardware switch
    table module (if any were built) to enable support for that hardware
@@ -218,7 +218,7 @@ distribution in the ordinary way using "configure" and "make".
 
    The insmod program must be run as root.  You may need to specify a
    full path to insmod, e.g. /sbin/insmod.  To verify that the modules
-   have been loaded, run "/sbin/lsmod" and check that openflow_mod is
+   have been loaded, run "/sbin/lsmod" and check that ofdatapath is
    listed.
 
 4. Test the userspace programs, as described under Testing Userspace
@@ -359,7 +359,7 @@ installation instructions, refer to the Installation section below.
 Userspace Datapath
 ------------------
 
-These instructions use the OpenFlow userspace datapath ("udatapath").
+These instructions use the OpenFlow userspace datapath ("ofdatapath").
 
 1. Start the OpenFlow controller running in the background, by running
    the "controller" program with a command like the following:
@@ -377,16 +377,16 @@ These instructions use the OpenFlow userspace datapath ("udatapath").
    program such as "su" to become root temporarily.
 
 3. Create a datapath instance running in the background.  The command
-   below creates a datapath that listens for connections from secchan
+   below creates a datapath that listens for connections from ofprotocol
    on a Unix domain socket located in /var/run and services physical
    ports eth1 and eth2:
 
-      # udatapath punix:/var/run/dp0.sock -i eth1,eth2 &
+      # ofdatapath punix:/var/run/dp0.sock -i eth1,eth2 &
 
-4. Run secchan to start the secure channel connecting the datapath and
+4. Run ofprotocol to start the secure channel connecting the datapath and
    the controller:
 
-      # secchan unix:/var/run/controller.sock unix:/var/run/dp0.sock &
+      # ofprotocol unix:/var/run/controller.sock unix:/var/run/dp0.sock &
    
 5. Devices plugged into the network ports specified in step 2 should
    now be able to send packets to each other, as if they were plugged
@@ -409,7 +409,7 @@ each switch to reach the controller over the network:
         control").  When in-band control is used, the location of the
         controller may be configured manually or discovered
         automatically.  We will assume manual configuration here;
-        please refer to secchan(8) for instructions on setting up
+        please refer to ofprotocol(8) for instructions on setting up
         controller discovery.  
 
 Controller Setup
@@ -436,14 +436,14 @@ switch, follow the procedure below.
    program such as "su" to become root temporarily.
 
 1. Create a datapath instance running in the background.  The command
-   below creates a datapath that listens for connections from secchan
+   below creates a datapath that listens for connections from ofprotocol
    on a Unix domain socket located in /var/run, services physical
    ports eth1 and eth2, and creates a TAP network device named "tap0"
    for use in in-band control:
 
-      # udatapath punix:/var/run/dp0.sock -i eth1,eth2 --local-port=tap:tap0 &
+      # ofdatapath punix:/var/run/dp0.sock -i eth1,eth2 --local-port=tap:tap0 &
 
-   (See udatapath(8) for details.)
+   (See ofdatapath(8) for details.)
 
    If the switch will connect to the controller out-of-band, then the
    --local-port option may be omitted, or --no-local-port may be
@@ -476,15 +476,15 @@ switch, follow the procedure below.
         configuration is required at this point.  You may proceed to
         step 4.
 
-4. Run secchan to start the secure channel connecting the datapath to
+4. Run ofprotocol to start the secure channel connecting the datapath to
    a remote controller.  If the controller is running on host
-   192.168.1.2 port 6633 (the default port), the secchan invocation
+   192.168.1.2 port 6633 (the default port), the ofprotocol invocation
    would look like this:
 
-      # secchan unix:/var/run/dp0.sock tcp:192.168.1.2
+      # ofprotocol unix:/var/run/dp0.sock tcp:192.168.1.2
 
    - If you are using in-band control with controller discovery, omit
-     the second argument to the secchan command.
+     the second argument to the ofprotocol command.
 
    - If you are using out-of-band control, add --out-of-band to the
      command line.
@@ -515,13 +515,13 @@ The OpenFlow kernel module must be loaded, as described under
 
       # dpctl adddp nl:0
    
-   (nl:0 is the first datapath within a host.  openflow_mod supports
+   (nl:0 is the first datapath within a host.  ofdatapath supports
    multiple datapaths within the same host, which would be identified
    as nl:1, nl:2, etc.)
 
    Creating datapath nl:0 also creates a new network device named of0.
    This network device, called the datapath's "local port", will be
-   bridged to the physical switch ports by the secchan, for use in
+   bridged to the physical switch ports by the ofprotocol, for use in
    in-band control.
 
    If you built a support module for hardware accelerated OpenFlow
@@ -551,7 +551,7 @@ The OpenFlow kernel module must be loaded, as described under
       - If you are using in-band control, then at this point you must
         configure the of0 network device created in step 1.  This
         device is not yet bridged to any physical network (because
-        secchan does that, and it is not yet running), so the next
+        ofprotocol does that, and it is not yet running), so the next
         step depends on whether connectivity is required to configure
         the device's IP address:
 
@@ -569,15 +569,15 @@ The OpenFlow kernel module must be loaded, as described under
         configuration is required at this point.  You may proceed to
         step 4.
 
-4. Run secchan to start the secure channel connecting the datapath to
+4. Run ofprotocol to start the secure channel connecting the datapath to
    a remote controller.  If the controller is running on host
-   192.168.1.2 port 6633 (the default port), the secchan invocation
+   192.168.1.2 port 6633 (the default port), the ofprotocol invocation
    would look like this:
 
-      # secchan nl:0 tcp:192.168.1.2
+      # ofprotocol nl:0 tcp:192.168.1.2
 
    - If you are using in-band control with controller discovery, omit
-     the second argument to the secchan command.
+     the second argument to the ofprotocol command.
 
    - If you are using out-of-band control, add --out-of-band to the
      command line.
@@ -627,9 +627,9 @@ with the instructions below, then the invocation would look like:
             --certificate=ctl-cert.pem --ca-cert=pki/switchca/cacert.pem
 
 To configure a switch to connect to a controller running on port 6633
-(the default) on host 192.168.1.2 over SSL, invoke secchan as follows:
+(the default) on host 192.168.1.2 over SSL, invoke ofprotocol as follows:
 
-      # secchan -v DATAPATH ssl:192.168.1.2 --private-key=PRIVKEY \
+      # ofprotocol -v DATAPATH ssl:192.168.1.2 --private-key=PRIVKEY \
             --certificate=CERT --ca-cert=CACERT
 
 where DATAPATH is the datapath to connect to (e.g. nl:0 or
@@ -640,7 +640,7 @@ certificate for the controller CA.  If, for example, your PKI was
 created with the instructions below, then the invocation would look
 like:
 
-      # secchan -v DATAPATH ssl:192.168.1.2 --private-key=sc-privkey.pem \
+      # ofprotocol -v DATAPATH ssl:192.168.1.2 --private-key=sc-privkey.pem \
             --certificate=sc-cert.pem --ca-cert=pki/controllerca/cacert.pem
 
 [*] To be specific, OpenFlow uses TLS version 1.0 or later (TLSv1), as
@@ -664,7 +664,7 @@ controllerca subdirectory contains controller certificate authority
 related files, including the following:
 
     - cacert.pem: Root certificate for the controller certificate
-      authority.  This file must be provided to secchan with the
+      authority.  This file must be provided to ofprotocol with the
       --ca-cert option to enable it to authenticate valid controllers.
 
     - private/cakey.pem: Private signing key for the controller
@@ -699,7 +699,7 @@ named sc-privkey.pem and sc-cert.pem, for example, you could run:
 sc-privkey.pem and sc-cert.pem would need to be copied to the switch
 for its use at runtime (they could then be deleted from their original
 locations).  The --private-key and --certificate options,
-respectively, of secchan would point to these files.
+respectively, of ofprotocol would point to these files.
 
 Bug Reporting
 -------------

@@ -38,6 +38,7 @@
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include "ofpbuf.h"
 #include "packets.h"
 
 struct bpdu {
@@ -97,28 +98,31 @@ new_test_case(void)
 }
 
 static void
-send_bpdu(const void *data, size_t size, int port_no, void *b_)
+send_bpdu(struct ofpbuf *pkt, int port_no, void *b_)
 {
     struct bridge *b = b_;
     struct lan *lan;
-    int i;
 
     assert(port_no < b->n_ports);
     lan = b->ports[port_no];
-    if (!lan) {
-        return;
-    }
-    for (i = 0; i < lan->n_conns; i++) {
-        struct lan_conn *conn = &lan->conns[i];
-        if (conn->bridge != b || conn->port_no != port_no) {
-            struct bridge *dst = conn->bridge;
-            struct bpdu *bpdu = &dst->rxq[dst->rxq_head++ % RXQ_SIZE];
-            assert(dst->rxq_head - dst->rxq_tail <= RXQ_SIZE);
-            bpdu->data = xmemdup(data, size);
-            bpdu->size = size;
-            bpdu->port_no = conn->port_no;
+    if (lan) {
+        const void *data = pkt->l3;
+        size_t size = (char *) ofpbuf_tail(pkt) - (char *) data;
+        int i;
+
+        for (i = 0; i < lan->n_conns; i++) {
+            struct lan_conn *conn = &lan->conns[i];
+            if (conn->bridge != b || conn->port_no != port_no) {
+                struct bridge *dst = conn->bridge;
+                struct bpdu *bpdu = &dst->rxq[dst->rxq_head++ % RXQ_SIZE];
+                assert(dst->rxq_head - dst->rxq_tail <= RXQ_SIZE);
+                bpdu->data = xmemdup(data, size);
+                bpdu->size = size;
+                bpdu->port_no = conn->port_no;
+            }
         }
     }
+    ofpbuf_delete(pkt);
 }
 
 static struct bridge *
@@ -299,7 +303,7 @@ simulate(struct test_case *tc, int granularity)
 {
     int time;
 
-    for (time = 0; time < 256 * 180; time += granularity) {
+    for (time = 0; time < 1000 * 180; time += granularity) {
         int round_trips;
         int i;
 

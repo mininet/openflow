@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -97,6 +97,11 @@ static long long int boot_time;
 /* VLF_FILE configuration. */
 static char *log_file_name;
 static FILE *log_file;
+
+static void format_log_message(enum vlog_module, enum vlog_level,
+                               enum vlog_facility, unsigned int msg_num,
+                               const char *message, va_list, struct ds *)
+    PRINTF_FORMAT(5, 0);
 
 /* Searches the 'n_names' in 'names'.  Returns the index of a match for
  * 'target', or 'n_names' if no name matches. */
@@ -272,7 +277,7 @@ vlog_set_log_file(const char *file_name)
 
     /* Close old log file. */
     if (log_file) {
-        VLOG_WARN("closing log file");
+        VLOG_INFO("closing log file");
         fclose(log_file);
         log_file = NULL;
     }
@@ -299,7 +304,7 @@ vlog_set_log_file(const char *file_name)
                   log_file_name, strerror(errno));
         error = errno;
     } else {
-        VLOG_WARN("opened log file %s", log_file_name);
+        VLOG_INFO("opened log file %s", log_file_name);
         error = 0;
     }
 
@@ -402,7 +407,7 @@ vlog_init(void)
     time_t now;
 
     openlog(program_name, LOG_NDELAY, LOG_DAEMON);
-    vlog_set_levels(VLM_ANY_MODULE, VLF_ANY_FACILITY, VLL_WARN);
+    vlog_set_levels(VLM_ANY_MODULE, VLF_ANY_FACILITY, VLL_INFO);
 
     boot_time = time_msec();
     now = time_now();

@@ -92,11 +92,16 @@ ofpbuf_new(size_t size)
 }
 
 struct ofpbuf *
-ofpbuf_clone(const struct ofpbuf *buffer) 
+ofpbuf_clone(const struct ofpbuf *buffer)
 {
-    /* FIXME: reference counting. */
-    struct ofpbuf *b = ofpbuf_new(buffer->size);
-    ofpbuf_put(b, buffer->data, buffer->size);
+    return ofpbuf_clone_data(buffer->data, buffer->size);
+}
+
+struct ofpbuf *
+ofpbuf_clone_data(const void *data, size_t size)
+{
+    struct ofpbuf *b = ofpbuf_new(size);
+    ofpbuf_put(b, data, size);
     return b;
 }
 

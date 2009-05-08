@@ -1,7 +1,7 @@
 #ifdef SUPPORT_SNAT
 /*
  * Distributed under the terms of the GNU GPL version 2.
- * Copyright (c) 2008 Nicira Networks
+ * Copyright (c) 2008, 2009 Nicira Networks
  */
 
 #include <linux/etherdevice.h>
@@ -70,9 +70,12 @@ static inline struct nf_bridge_info *nf_bridge_alloc(struct sk_buff *skb)
 }
 
 /* Save a copy of the original Ethernet header. */
-static inline void snat_save_header(struct sk_buff *skb)
+void snat_save_header(struct sk_buff *skb)
 {
 	int header_size = ETH_HLEN + nf_bridge_encap_header_len(skb);
+
+	if (!skb->nf_bridge)
+		return;
 
 	skb_copy_from_linear_data_offset(skb, -header_size, 
 			skb->nf_bridge->data, header_size);
@@ -165,11 +168,8 @@ dnat_mac(struct net_bridge_port *p, struct sk_buff *skb)
 	list_for_each_entry (m, &sc->mappings, node) {
 		if (m->ip_addr == iph->daddr){
 			/* Found it! */
-			if (!make_writable(&skb)) {
-				if (net_ratelimit())
-					printk("make_writable failed\n");
+			if (!make_writable(&skb))
 				return -EINVAL;
-			}
 			m->used = jiffies;
 			memcpy(eh->h_dest, m->hw_addr, ETH_ALEN);
 			break;
@@ -242,7 +242,6 @@ snat_pre_route_finish(struct sk_buff *skb)
 
 	/* Pass the translated packet as input to the OpenFlow stack, which
 	 * consumes it. */
-	snat_save_header(skb);
 	skb_push(skb, ETH_HLEN);
 	skb_reset_mac_header(skb);
 	fwd_port_input(p->dp->chain, skb, p);
@@ -332,11 +331,8 @@ handle_icmp_snat(struct sk_buff *skb)
 
 	/* Send an echo reply in response */
 	nskb = skb_copy(skb, GFP_ATOMIC);
-	if (!nskb) {
-		if (net_ratelimit())
-			printk("skb copy failed for icmp reply\n");
+	if (!nskb)
 		return -1;
-	}
 
 	/* Update Ethernet header. */
 	eh = eth_hdr(nskb);
@@ -355,14 +351,14 @@ handle_icmp_snat(struct sk_buff *skb)
 	tmp_ip = iph->daddr;
 	iph->daddr = iph->saddr;
 	iph->saddr = tmp_ip;
-	iph->check = ip_fast_csum(iph, iph->ihl);
+	iph->check = ip_fast_csum((void *)iph, iph->ihl);
 
 	/* Update ICMP header. */
 	icmph = icmp_hdr(nskb);
 	icmph->type = ICMP_ECHOREPLY;
 	icmph->checksum = 0;
-	icmph->checksum = ip_compute_csum(icmph,
-					  nskb->tail - nskb->transport_header);
+	icmph->checksum = ip_compute_csum((void *)icmph,
+					  nskb->tail - skb_transport_header(nskb));
 
 	dp_xmit_skb_push(nskb);
 
@@ -409,7 +405,7 @@ snat_pre_route(struct sk_buff *skb)
 		goto consume;
 
 	iph = ip_hdr(skb);
-	if (unlikely(ip_fast_csum(iph, iph->ihl)))
+	if (unlikely(ip_fast_csum((void *)iph, iph->ihl)))
 		goto consume;
 
 	len = ntohs(iph->tot_len);
@@ -554,7 +550,9 @@ snat_del_port(struct datapath *dp, const struct nx_snat_config *nsc)
 
 	if (!p) {
 		if (net_ratelimit()) 
-			printk("Attempt to remove snat on non-existent port: %d\n", port);
+			printk(KERN_NOTICE "%s: attempt to remove snat on "
+			       "non-existent port: %d\n",
+			       dp->netdev->name, port);
 		return -EINVAL;
 	}
 
@@ -563,7 +561,8 @@ snat_del_port(struct datapath *dp, const struct nx_snat_config *nsc)
 		/* SNAT not configured on this port */
 		spin_unlock_irqrestore(&p->lock, flags);
 		if (net_ratelimit()) 
-			printk("Attempt to remove snat on non-snat port: %d\n", port);
+			printk(KERN_NOTICE "%s: attempt to remove snat on "
+			       "non-snat port: %d\n", dp->netdev->name, port);
 		return -EINVAL;
 	}
 
@@ -587,7 +586,9 @@ snat_add_port(struct datapath *dp, const struct nx_snat_config *nsc)
 
 	if (!p) {
 		if (net_ratelimit()) 
-			printk("Attempt to add snat on non-existent port: %d\n", port);
+			printk(KERN_NOTICE "%s: attempt to add snat on "
+			       "non-existent port: %d\n",
+			       dp->netdev->name, port);
 		return -EINVAL;
 	}
 	

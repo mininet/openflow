@@ -1,6 +1,6 @@
 /*
  * Distributed under the terms of the GNU GPL version 2.
- * Copyright (c) 2007, 2008 The Board of Trustees of The Leland 
+ * Copyright (c) 2007, 2008, 2009 The Board of Trustees of The Leland 
  * Stanford Junior University
  */
 
@@ -124,7 +124,8 @@ static int table_linear_timeout(struct datapath *dp, struct sw_table *swt)
 	struct sw_flow *flow;
 	int count = 0;
 
-	mutex_lock(&dp_mutex);
+	if (mutex_lock_interruptible(&dp_mutex))
+		return 0;
 	list_for_each_entry (flow, &tl->flows, node) {
 		int reason = flow_timeout(flow);
 		if (reason >= 0) {

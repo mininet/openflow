@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -47,7 +47,7 @@
 #include "util.h"
 #include "vlog-socket.h"
 
-void
+static void
 usage(char *prog_name, int exit_code)
 {
     printf("Usage: %s [TARGET] [ACTION...]\n"
@@ -62,7 +62,7 @@ usage(char *prog_name, int exit_code)
            "        Set MODULE and FACILITY log level to LEVEL\n"
            "        MODULE may be any valid module name or 'ANY'\n"
            "        FACILITY may be 'syslog', 'console', 'file', or 'ANY' (default)\n"
-           "        LEVEL may be 'emer', 'err', 'warn', or 'dbg' (default)\n"
+           "        LEVEL may be 'emer', 'err', 'warn', 'info', or 'dbg' (default)\n"
            "  -r, --reopen       Make the program reopen its log file\n"
            "  -h, --help         Print this helpful information\n",
            prog_name);
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
         case 'r':
             for (i = 0; i < n_clients; i++) {
                 struct vlog_client *client = clients[i];
-                char *request = xasprintf("reopen");
+                char *request = xstrdup("reopen");
                 transact_ack(client, request, &ok);
                 free(request);
             }

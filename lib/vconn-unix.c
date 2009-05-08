@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -77,7 +77,7 @@ unix_open(const char *name, char *suffix, struct vconn **vconnp)
     }
 
     return new_stream_vconn(name, fd, check_connection_completion(fd),
-                            0, vconnp);
+                            0, true, vconnp);
 }
 
 struct vconn_class unix_vconn_class = {
@@ -96,7 +96,7 @@ static int punix_accept(int fd, const struct sockaddr *sa, size_t sa_len,
                         struct vconn **vconnp);
 
 static int
-punix_open(const char *name, char *suffix, struct pvconn **pvconnp)
+punix_open(const char *name UNUSED, char *suffix, struct pvconn **pvconnp)
 {
     int fd;
 
@@ -122,11 +122,14 @@ punix_accept(int fd, const struct sockaddr *sa, size_t sa_len,
     } else {
         strcpy(name, "unix");
     }
-    return new_stream_vconn(name, fd, 0, 0, vconnp);
+    return new_stream_vconn(name, fd, 0, 0, true, vconnp);
 }
 
 struct pvconn_class punix_pvconn_class = {
     "punix",
     punix_open,
+    NULL,
+    NULL,
+    NULL
 };
 

@@ -1,10 +1,11 @@
 /*
  * Distributed under the terms of the GNU GPL version 2.
- * Copyright (c) 2007, 2008 The Board of Trustees of The Leland 
+ * Copyright (c) 2007, 2008, 2009 The Board of Trustees of The Leland 
  * Stanford Junior University
  */
 
 #include "chain.h"
+#include "datapath.h"
 #include "flow.h"
 #include "table.h"
 #include <linux/module.h>
@@ -24,7 +25,8 @@ static int add_table(struct sw_chain *chain, struct sw_table *table)
 	if (table == NULL)
 		return -ENOMEM;
 	if (chain->n_tables >= CHAIN_MAX_TABLES) {
-		printk("too many tables in chain\n");
+		printk(KERN_EMERG "%s: too many tables in chain\n",
+		       chain->dp->netdev->name);
 		table->destroy(table);
 		return -ENOBUFS;
 	}

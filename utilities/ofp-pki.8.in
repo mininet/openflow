@@ -321,5 +321,5 @@ Prints a help usage message and exits.
 .BR controller (8),
 .BR dpctl (8),
 .BR ofp\-pki\-cgi (8),
-.BR secchan (8),
-.BR udatapath (8)
+.BR ofprotocol (8),
+.BR ofdatapath (8)

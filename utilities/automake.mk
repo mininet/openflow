@@ -4,12 +4,13 @@ bin_PROGRAMS += \
 	utilities/ofp-discover \
 	utilities/ofp-kill
 bin_SCRIPTS += utilities/ofp-pki
-noinst_SCRIPTS += utilities/ofp-pki-cgi
+noinst_SCRIPTS += utilities/ofp-pki-cgi utilities/ofp-parse-leaks
 
 EXTRA_DIST += \
 	utilities/dpctl.8.in \
 	utilities/ofp-discover.8.in \
 	utilities/ofp-kill.8.in \
+	utilities/ofp-parse-leaks.in \
 	utilities/ofp-pki-cgi.in \
 	utilities/ofp-pki.8.in \
 	utilities/ofp-pki.in \
@@ -18,6 +19,7 @@ DISTCLEANFILES += \
 	utilities/dpctl.8 \
 	utilities/ofp-discover.8 \
 	utilities/ofp-kill.8 \
+	utilities/ofp-parse-leaks \
 	utilities/ofp-pki \
 	utilities/ofp-pki.8 \
 	utilities/ofp-pki-cgi \

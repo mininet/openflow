@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -50,6 +50,7 @@
 #include "openflow/openflow.h"
 #include "openflow/nicira-ext.h"
 #include "packets.h"
+#include "pcap.h"
 #include "util.h"
 
 static void ofp_print_port_name(struct ds *string, uint16_t port);
@@ -65,29 +66,10 @@ static void ofp_print_match(struct ds *, const struct ofp_match *,
  *
  * This starts and kills a tcpdump subprocess so it's quite expensive. */
 char *
-ofp_packet_to_string(const void *data, size_t len, size_t total_len)
+ofp_packet_to_string(const void *data, size_t len, size_t total_len UNUSED)
 {
-    struct pcap_hdr {
-        uint32_t magic_number;   /* magic number */
-        uint16_t version_major;  /* major version number */
-        uint16_t version_minor;  /* minor version number */
-        int32_t thiszone;        /* GMT to local correction */
-        uint32_t sigfigs;        /* accuracy of timestamps */
-        uint32_t snaplen;        /* max length of captured packets */
-        uint32_t network;        /* data link type */
-    } PACKED;
-
-    struct pcaprec_hdr {
-        uint32_t ts_sec;         /* timestamp seconds */
-        uint32_t ts_usec;        /* timestamp microseconds */
-        uint32_t incl_len;       /* number of octets of packet saved in file */
-        uint32_t orig_len;       /* actual length of packet */
-    } PACKED;
-
-    struct pcap_hdr ph;
-    struct pcaprec_hdr prh;
-
     struct ds ds = DS_EMPTY_INITIALIZER;
+    struct ofpbuf buf;
 
     char command[128];
     FILE *pcap;
@@ -95,31 +77,16 @@ ofp_packet_to_string(const void *data, size_t len, size_t total_len)
     int status;
     int c;
 
+    buf.data = (void *) data;
+    buf.size = len;
+
     pcap = tmpfile();
     if (!pcap) {
         ofp_error(errno, "tmpfile");
         return xstrdup("<error>");
     }
-
-    /* The pcap reader is responsible for figuring out endianness based on the
-     * magic number, so the lack of htonX calls here is intentional. */
-    ph.magic_number = 0xa1b2c3d4;
-    ph.version_major = 2;
-    ph.version_minor = 4;
-    ph.thiszone = 0;
-    ph.sigfigs = 0;
-    ph.snaplen = 1518;
-    ph.network = 1;             /* Ethernet */
-
-    prh.ts_sec = 0;
-    prh.ts_usec = 0;
-    prh.incl_len = len;
-    prh.orig_len = total_len;
-
-    fwrite(&ph, 1, sizeof ph, pcap);
-    fwrite(&prh, 1, sizeof prh, pcap);
-    fwrite(data, 1, len, pcap);
-
+    pcap_write_header(pcap);
+    pcap_write(pcap, &buf);
     fflush(pcap);
     if (ferror(pcap)) {
         ofp_error(errno, "error writing temporary file");
@@ -597,7 +564,7 @@ ofp_print_phy_port(struct ds *string, const struct ofp_phy_port *port)
  * 'string' at the given 'verbosity' level. */
 static void
 ofp_print_switch_features(struct ds *string, const void *oh, size_t len,
-                          int verbosity)
+                          int verbosity UNUSED)
 {
     const struct ofp_switch_features *osf = oh;
     struct ofp_phy_port *port_list;
@@ -627,8 +594,8 @@ ofp_print_switch_features(struct ds *string, const void *oh, size_t len,
 /* Pretty-print the struct ofp_switch_config of 'len' bytes at 'oh' to 'string'
  * at the given 'verbosity' level. */
 static void
-ofp_print_switch_config(struct ds *string, const void *oh, size_t len,
-                        int verbosity)
+ofp_print_switch_config(struct ds *string, const void *oh, size_t len UNUSED,
+                        int verbosity UNUSED)
 {
     const struct ofp_switch_config *osc = oh;
     uint16_t flags;
@@ -687,10 +654,18 @@ print_ip_netmask(struct ds *string, const char *leader, uint32_t ip,
     ds_put_char(string, ',');
 }
 
-/* Pretty-print the ofp_match structure */
-static void ofp_print_match(struct ds *f, const struct ofp_match *om, 
-        int verbosity)
+static void
+ofp_print_match(struct ds *f, const struct ofp_match *om, int verbosity)
 {
+    char *s = ofp_match_to_string(om, verbosity);
+    ds_put_cstr(f, s);
+    free(s);
+}
+
+char *
+ofp_match_to_string(const struct ofp_match *om, int verbosity)
+{
+    struct ds f = DS_EMPTY_INITIALIZER;
     uint32_t w = ntohl(om->wildcards);
     bool skip_type = false;
     bool skip_proto = false;
@@ -701,55 +676,56 @@ static void ofp_print_match(struct ds *f, const struct ofp_match *om,
             if (!(w & OFPFW_NW_PROTO)) {
                 skip_proto = true;
                 if (om->nw_proto == IP_TYPE_ICMP) {
-                    ds_put_cstr(f, "icmp,");
+                    ds_put_cstr(&f, "icmp,");
                 } else if (om->nw_proto == IP_TYPE_TCP) {
-                    ds_put_cstr(f, "tcp,");
+                    ds_put_cstr(&f, "tcp,");
                 } else if (om->nw_proto == IP_TYPE_UDP) {
-                    ds_put_cstr(f, "udp,");
+                    ds_put_cstr(&f, "udp,");
                 } else {
-                    ds_put_cstr(f, "ip,");
+                    ds_put_cstr(&f, "ip,");
                     skip_proto = false;
                 }
             } else {
-                ds_put_cstr(f, "ip,");
+                ds_put_cstr(&f, "ip,");
             }
         } else if (om->dl_type == htons(ETH_TYPE_ARP)) {
-            ds_put_cstr(f, "arp,");
+            ds_put_cstr(&f, "arp,");
         } else {
             skip_type = false;
         }
     }
-    print_wild(f, "in_port=", w & OFPFW_IN_PORT, verbosity,
+    print_wild(&f, "in_port=", w & OFPFW_IN_PORT, verbosity,
                "%d", ntohs(om->in_port));
-    print_wild(f, "dl_vlan=", w & OFPFW_DL_VLAN, verbosity,
+    print_wild(&f, "dl_vlan=", w & OFPFW_DL_VLAN, verbosity,
                "0x%04x", ntohs(om->dl_vlan));
-    print_wild(f, "dl_src=", w & OFPFW_DL_SRC, verbosity,
+    print_wild(&f, "dl_src=", w & OFPFW_DL_SRC, verbosity,
                ETH_ADDR_FMT, ETH_ADDR_ARGS(om->dl_src));
-    print_wild(f, "dl_dst=", w & OFPFW_DL_DST, verbosity,
+    print_wild(&f, "dl_dst=", w & OFPFW_DL_DST, verbosity,
                ETH_ADDR_FMT, ETH_ADDR_ARGS(om->dl_dst));
     if (!skip_type) {
-        print_wild(f, "dl_type=", w & OFPFW_DL_TYPE, verbosity,
+        print_wild(&f, "dl_type=", w & OFPFW_DL_TYPE, verbosity,
                    "0x%04x", ntohs(om->dl_type));
     }
-    print_ip_netmask(f, "nw_src=", om->nw_src,
+    print_ip_netmask(&f, "nw_src=", om->nw_src,
                      (w & OFPFW_NW_SRC_MASK) >> OFPFW_NW_SRC_SHIFT, verbosity);
-    print_ip_netmask(f, "nw_dst=", om->nw_dst,
+    print_ip_netmask(&f, "nw_dst=", om->nw_dst,
                      (w & OFPFW_NW_DST_MASK) >> OFPFW_NW_DST_SHIFT, verbosity);
     if (!skip_proto) {
-        print_wild(f, "nw_proto=", w & OFPFW_NW_PROTO, verbosity,
+        print_wild(&f, "nw_proto=", w & OFPFW_NW_PROTO, verbosity,
                    "%u", om->nw_proto);
     }
     if (om->nw_proto == IP_TYPE_ICMP) {
-        print_wild(f, "icmp_type=", w & OFPFW_ICMP_TYPE, verbosity,
+        print_wild(&f, "icmp_type=", w & OFPFW_ICMP_TYPE, verbosity,
                    "%d", ntohs(om->icmp_type));
-        print_wild(f, "icmp_code=", w & OFPFW_ICMP_CODE, verbosity,
+        print_wild(&f, "icmp_code=", w & OFPFW_ICMP_CODE, verbosity,
                    "%d", ntohs(om->icmp_code));
     } else {
-        print_wild(f, "tp_src=", w & OFPFW_TP_SRC, verbosity,
+        print_wild(&f, "tp_src=", w & OFPFW_TP_SRC, verbosity,
                    "%d", ntohs(om->tp_src));
-        print_wild(f, "tp_dst=", w & OFPFW_TP_DST, verbosity,
+        print_wild(&f, "tp_dst=", w & OFPFW_TP_DST, verbosity,
                    "%d", ntohs(om->tp_dst));
     }
+    return ds_cstr(&f);
 }
 
 /* Pretty-print the OFPT_FLOW_MOD packet of 'len' bytes at 'oh' to 'string'
@@ -792,7 +768,7 @@ ofp_print_flow_mod(struct ds *string, const void *oh, size_t len,
 /* Pretty-print the OFPT_FLOW_EXPIRED packet of 'len' bytes at 'oh' to 'string'
  * at the given 'verbosity' level. */
 static void
-ofp_print_flow_expired(struct ds *string, const void *oh, size_t len, 
+ofp_print_flow_expired(struct ds *string, const void *oh, size_t len UNUSED, 
                        int verbosity)
 {
     const struct ofp_flow_expired *ofe = oh;
@@ -875,10 +851,9 @@ nx_print_msg(struct ds *string, const void *oh, size_t len, int verbosity)
     }
 }
 
-
 static void
-ofp_print_port_mod(struct ds *string, const void *oh, size_t len,
-                   int verbosity)
+ofp_print_port_mod(struct ds *string, const void *oh, size_t len UNUSED,
+                   int verbosity UNUSED)
 {
     const struct ofp_port_mod *opm = oh;
 
@@ -953,7 +928,7 @@ lookup_error_code(int type, int code)
  * at the given 'verbosity' level. */
 static void
 ofp_print_error_msg(struct ds *string, const void *oh, size_t len, 
-                       int verbosity)
+                       int verbosity UNUSED)
 {
     const struct ofp_error_msg *oem = oh;
     int type = ntohs(oem->type);
@@ -984,8 +959,8 @@ ofp_print_error_msg(struct ds *string, const void *oh, size_t len,
 /* Pretty-print the OFPT_PORT_STATUS packet of 'len' bytes at 'oh' to 'string'
  * at the given 'verbosity' level. */
 static void
-ofp_print_port_status(struct ds *string, const void *oh, size_t len, 
-                      int verbosity)
+ofp_print_port_status(struct ds *string, const void *oh, size_t len UNUSED,
+                      int verbosity UNUSED)
 {
     const struct ofp_port_status *ops = oh;
 
@@ -1001,8 +976,8 @@ ofp_print_port_status(struct ds *string, const void *oh, size_t len,
 }
 
 static void
-ofp_desc_stats_reply(struct ds *string, const void *body, size_t len,
-                     int verbosity)
+ofp_desc_stats_reply(struct ds *string, const void *body, size_t len UNUSED,
+                     int verbosity UNUSED)
 {
     const struct ofp_desc_stats *ods = body;
 
@@ -1013,7 +988,7 @@ ofp_desc_stats_reply(struct ds *string, const void *body, size_t len,
 }
 
 static void
-ofp_flow_stats_request(struct ds *string, const void *oh, size_t len,
+ofp_flow_stats_request(struct ds *string, const void *oh, size_t len UNUSED,
                       int verbosity) 
 {
     const struct ofp_flow_stats_request *fsr = oh;
@@ -1086,8 +1061,8 @@ ofp_flow_stats_reply(struct ds *string, const void *body_, size_t len,
 }
 
 static void
-ofp_aggregate_stats_request(struct ds *string, const void *oh, size_t len,
-                            int verbosity) 
+ofp_aggregate_stats_request(struct ds *string, const void *oh,
+                            size_t len UNUSED, int verbosity)
 {
     const struct ofp_aggregate_stats_request *asr = oh;
 
@@ -1101,8 +1076,8 @@ ofp_aggregate_stats_request(struct ds *string, const void *oh, size_t len,
 }
 
 static void
-ofp_aggregate_stats_reply(struct ds *string, const void *body_, size_t len,
-                          int verbosity)
+ofp_aggregate_stats_reply(struct ds *string, const void *body_,
+                          size_t len UNUSED, int verbosity UNUSED)
 {
     const struct ofp_aggregate_stats_reply *asr = body_;
 
@@ -1535,6 +1510,33 @@ ofp_to_string(const void *oh_, size_t len, int verbosity)
         ds_put_char(&string, '\n');
     }
     return ds_cstr(&string);
+}
+
+/* Returns the name for the specified OpenFlow message type as a string,
+ * e.g. "OFPT_FEATURES_REPLY".  If no name is known, the string returned is a
+ * hex number, e.g. "0x55".
+ *
+ * The caller must free the returned string when it is no longer needed. */
+char *
+ofp_message_type_to_string(uint8_t type)
+{
+    struct ds s = DS_EMPTY_INITIALIZER;
+    const struct openflow_packet *pkt;
+    for (pkt = packets; ; pkt++) {
+        if (pkt >= &packets[ARRAY_SIZE(packets)]) {
+            ds_put_format(&s, "0x%02"PRIx8, type);
+            break;
+        } else if (type == pkt->type) {
+            const char *p;
+
+            ds_put_cstr(&s, "OFPT_");
+            for (p = pkt->name; *p; p++) {
+                ds_put_char(&s, toupper((unsigned char) *p));
+            }
+            break;
+        }
+    }
+    return ds_cstr(&s);
 }
 
 static void

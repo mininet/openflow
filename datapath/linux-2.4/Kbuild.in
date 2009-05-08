@@ -30,7 +30,7 @@ endif
 override CFLAGS := $(OF_CFLAGS)
 
 # Multipart objects
-list-multi := $(patsubst %,%_mod.o,$(all_modules))
+list-multi := $(patsubst %,%_mod.o,$(build_modules))
 
 # Module objects that we can build
 obj-m += $(list-multi)
@@ -39,10 +39,10 @@ obj-m += $(list-multi)
 define parts_template
 $(1)_mod-objs = $$(patsubst %.c,%.o,$(notdir $($(1)_sources)))
 endef
-$(foreach module,$(all_modules),$(eval $(call parts_template,$(module))))
+$(foreach module,$(build_modules),$(eval $(call parts_template,$(module))))
 
 # Objects that export symbols
-export-objs = $(all_objects)
+export-objs = $(build_objects)
 
 # Include the kernel's global Rules.make
 include $(TOPDIR)/Rules.make
@@ -52,7 +52,7 @@ define link_template
 $(1)_mod.o: $($(1)_mod-objs)
 	$(LD) -r -o $$@ $($(1)_mod-objs)
 endef
-$(foreach module,$(all_modules),$(eval $(call link_template,$(module))))
+$(foreach module,$(build_modules),$(eval $(call link_template,$(module))))
 
 # Build system rewrite May 2008: Bobby Holley <bh10@stanford.edu>
 #

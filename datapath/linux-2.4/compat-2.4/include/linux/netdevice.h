@@ -8,8 +8,6 @@
 /*----------------------------------------------------------------------------
  * In 2.6.24, a namespace argument became required for dev_get_by_name. 
  */ 
-#define net_init NULL
-
 #ifdef dev_get_by_name
 #undef dev_get_by_name
 #define dev_get_by_name(net, name) \
@@ -22,6 +20,19 @@ static inline struct net_device *compat_dev_get_by_name(const char *name)
 #define dev_get_by_name(net, name) \
 	dev_get_by_name((name))
 #endif /* dev_get_by_name */
+
+#ifdef dev_get_by_index
+#undef dev_get_by_index
+#define dev_get_by_index(net, ifindex) \
+	compat_dev_get_by_index((ifindex))
+static inline struct net_device *compat_dev_get_by_index(int ifindex)
+{
+	return (_set_ver(dev_get_by_index))(ifindex);
+}
+#else
+#define dev_get_by_index(net, ifindex) \
+	dev_get_by_index((ifindex))
+#endif /* dev_get_by_index */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,27)
 static inline void *netdev_priv(struct net_device *dev)

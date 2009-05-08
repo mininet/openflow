@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -91,6 +91,7 @@ struct rconn {
     time_t last_received;
     time_t last_connected;
     unsigned int packets_sent;
+    unsigned int seqno;
 
     /* In S_ACTIVE and S_IDLE, probably_admitted reports whether we believe
      * that the peer has made a (positive) admission control decision on our
@@ -194,6 +195,7 @@ rconn_create(int probe_interval, int max_backoff)
     rc->backoff_deadline = TIME_MIN;
     rc->last_received = time_now();
     rc->last_connected = time_now();
+    rc->seqno = 0;
 
     rc->packets_sent = 0;
 
@@ -278,13 +280,13 @@ rconn_destroy(struct rconn *rc)
 }
 
 static unsigned int
-timeout_VOID(const struct rconn *rc)
+timeout_VOID(const struct rconn *rc UNUSED)
 {
     return UINT_MAX;
 }
 
 static void
-run_VOID(struct rconn *rc)
+run_VOID(struct rconn *rc UNUSED)
 {
     /* Nothing to do. */
 }
@@ -294,10 +296,13 @@ reconnect(struct rconn *rc)
 {
     int retval;
 
-    VLOG_WARN("%s: connecting...", rc->name);
+    VLOG_INFO("%s: connecting...", rc->name);
     rc->n_attempted_connections++;
     retval = vconn_open(rc->name, OFP_VERSION, &rc->vconn);
     if (!retval) {
+        if (!vconn_is_reconnectable(rc->vconn)) {
+            rc->reliable = false;
+        }
         rc->backoff_deadline = time_now() + rc->backoff;
         state_transition(rc, S_CONNECTING);
     } else {
@@ -333,15 +338,15 @@ run_CONNECTING(struct rconn *rc)
 {
     int retval = vconn_connect(rc->vconn);
     if (!retval) {
-        VLOG_WARN("%s: connected", rc->name);
+        VLOG_INFO("%s: connected", rc->name);
         rc->n_successful_connections++;
         state_transition(rc, S_ACTIVE);
         rc->last_connected = rc->state_entered;
     } else if (retval != EAGAIN) {
-        VLOG_WARN("%s: connection failed (%s)", rc->name, strerror(retval));
+        VLOG_INFO("%s: connection failed (%s)", rc->name, strerror(retval));
         disconnect(rc, retval);
     } else if (timed_out(rc)) {
-        VLOG_WARN("%s: connection timed out", rc->name);
+        VLOG_INFO("%s: connection timed out", rc->name);
         rc->backoff_deadline = TIME_MAX; /* Prevent resetting backoff. */
         disconnect(rc, 0);
     }
@@ -512,6 +517,11 @@ rconn_send(struct rconn *rc, struct ofpbuf *b, int *n_queued)
             ++*n_queued;
         }
         queue_push_tail(&rc->txq, b);
+
+        /* If the queue was empty before we added 'b', try to send some
+         * packets.  (But if the queue had packets in it, it's because the
+         * vconn is backlogged and there's no point in stuffing more into it
+         * now.  We'll get back to that in rconn_run().) */
         if (rc->txq.n == 1) {
             try_send(rc);
         }
@@ -560,7 +570,7 @@ void
 rconn_add_monitor(struct rconn *rc, struct vconn *vconn)
 {
     if (rc->n_monitors < ARRAY_SIZE(rc->monitors)) {
-        VLOG_WARN("new monitor connection from %s", vconn_get_name(vconn));
+        VLOG_INFO("new monitor connection from %s", vconn_get_name(vconn));
         rc->monitors[rc->n_monitors++] = vconn;
     } else {
         VLOG_DBG("too many monitor connections, discarding %s",
@@ -694,6 +704,14 @@ rconn_get_state_elapsed(const struct rconn *rc)
 {
     return elapsed_in_this_state(rc);
 }
+
+/* Returns 'rc''s current connection sequence number, a number that changes
+ * every time that 'rconn' connects or disconnects. */
+unsigned int
+rconn_get_connection_seqno(const struct rconn *rc)
+{
+    return rc->seqno;
+}
 
 /* Tries to send a packet from 'rc''s send buffer.  Returns 0 if successful,
  * otherwise a positive errno value. */
@@ -733,10 +751,10 @@ disconnect(struct rconn *rc, int error)
                           rc->name, strerror(error));
             } else if (error == EOF) {
                 if (rc->reliable) {
-                    VLOG_WARN("%s: connection closed by peer", rc->name);
+                    VLOG_INFO("%s: connection closed by peer", rc->name);
                 }
             } else {
-                VLOG_WARN("%s: connection dropped", rc->name);
+                VLOG_INFO("%s: connection dropped", rc->name);
             }
             vconn_close(rc->vconn);
             rc->vconn = NULL;
@@ -747,7 +765,7 @@ disconnect(struct rconn *rc, int error)
             rc->backoff = 1;
         } else {
             rc->backoff = MIN(rc->max_backoff, MAX(1, 2 * rc->backoff));
-            VLOG_WARN("%s: waiting %d seconds before reconnect\n",
+            VLOG_INFO("%s: waiting %d seconds before reconnect\n",
                       rc->name, rc->backoff);
         }
         rc->backoff_deadline = now + rc->backoff;
@@ -806,6 +824,7 @@ timed_out(const struct rconn *rc)
 static void
 state_transition(struct rconn *rc, enum state state)
 {
+    rc->seqno += (rc->state == S_ACTIVE) != (state == S_ACTIVE);
     if (is_connected_state(state) && !is_connected_state(rc->state)) {
         rc->probably_admitted = false;
     }

@@ -1,3 +1,5 @@
+.ds PN ofp\-discover
+
 .TH ofp\-discover 8 "May 2008" "OpenFlow" "OpenFlow Manual"
 
 .SH NAME
@@ -16,7 +18,7 @@ receives an acceptable DHCP response.  It will accept any valid DHCP
 reply that has the same vendor class identifier and includes a
 vendor-specific option with code 1 whose contents are a string
 specifying the location of the controller in the same format used on
-the \fBsecchan\fR command line (e.g. \fBssl:192.168.0.1\fR).
+the \fBofprotocol\fR command line (e.g. \fBssl:192.168.0.1\fR).
 
 When \fBofp\-discover\fR receives an acceptable response, it prints
 the details of the response on \fBstdout\fR.  Then, by default, it
@@ -93,15 +95,8 @@ to cause it to instead overwrite the pidfile.
 When \fB-P\fR or \fB--pidfile\fR is not specified, this option has no
 effect.
 
-.TP
-.BR \-h ", " \-\^\-help
-Prints a brief help message to the console.
-
-@VLOG_OPTIONS@
-
-.TP
-.BR \-V ", " \-\^\-version
-Prints version information to the console.
+.so lib/vlog.man
+.so lib/common.man
 
 .SH BUGS
 
@@ -120,5 +115,5 @@ arriving IP packets, will not.
 
 .SH "SEE ALSO"
 
-.BR secchan (8),
+.BR ofprotocol (8),
 .BR ofp-pki (8)

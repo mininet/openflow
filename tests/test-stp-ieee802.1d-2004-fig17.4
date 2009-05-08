@@ -7,7 +7,7 @@ bridge 4 0x555 = g i 0 0
 bridge 5 0x666 = h k 0 0
 bridge 6 0x777 = j m 0 0
 bridge 7 0x888 = l n 0 0
-run 256
+run 1000
 check 0 = root
 check 1 = F:10 B F F
 check 2 = F:10 B F F F F
@@ -20,7 +20,7 @@ check 7 = F:20 B F F
 # Now connect two ports of bridge 7 to the same LAN.
 bridge 7 = l n o o
 # Same results except for bridge 7:
-run 256
+run 1000
 check 0 = root
 check 1 = F:10 B F F
 check 2 = F:10 B F F F F

@@ -1,6 +1,10 @@
 noinst_LIBRARIES += lib/libopenflow.a
 
 lib_libopenflow_a_SOURCES = \
+	lib/backtrace.c \
+	lib/backtrace.h \
+	lib/bitmap.c \
+	lib/bitmap.h \
 	lib/command-line.c \
 	lib/command-line.h \
 	lib/compiler.h \
@@ -25,6 +29,10 @@ lib_libopenflow_a_SOURCES = \
 	lib/flow.h \
 	lib/hash.c \
 	lib/hash.h \
+	lib/hmap.c \
+	lib/hmap.h \
+	lib/leak-checker.c \
+	lib/leak-checker.h \
 	lib/learning-switch.c \
 	lib/learning-switch.h \
 	lib/list.c \
@@ -38,6 +46,8 @@ lib_libopenflow_a_SOURCES = \
 	lib/ofpbuf.c \
 	lib/ofpbuf.h \
 	lib/packets.h \
+	lib/pcap.c \
+	lib/pcap.h \
 	lib/poll-loop.c \
 	lib/poll-loop.h \
 	lib/port-array.c \
@@ -51,17 +61,24 @@ lib_libopenflow_a_SOURCES = \
 	lib/rconn.c \
 	lib/rconn.h \
 	lib/sat-math.h \
+	lib/shash.c \
+	lib/shash.h \
+	lib/signals.c \
+	lib/signals.h \
 	lib/socket-util.c \
 	lib/socket-util.h \
 	lib/stp.c \
 	lib/stp.h \
 	lib/svec.c \
 	lib/svec.h \
+	lib/tag.c \
+	lib/tag.h \
 	lib/timeval.c \
 	lib/timeval.h \
 	lib/type-props.h \
 	lib/util.c \
 	lib/util.h \
+	lib/vconn-fd.c \
 	lib/vconn-provider.h \
 	lib/vconn-ssl.h \
 	lib/vconn-stream.c \

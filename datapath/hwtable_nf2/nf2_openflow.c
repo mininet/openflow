@@ -50,6 +50,7 @@ static void log_mask(nf2_of_mask_wrap *);
 static void log_mask_raw(nf2_of_mask_wrap *);
 static void log_action(nf2_of_action_wrap *);
 static void log_action_raw(nf2_of_action_wrap *);
+static struct nf2_all_ports_info_addr *nf2_get_all_ports_info_addr(void);
 
 static void
 log_entry(nf2_of_entry_wrap *entry)
@@ -599,4 +600,209 @@ nf2_get_missed_count(struct net_device *dev)
 #endif
 
 	return ((unsigned long int)(val_wild + val_exact));
+}
+
+struct nf2_device_info *
+nf2_get_device_info(struct net_device *dev)
+{
+	struct nf2_device_info *nf2devinfo;
+	int i;
+
+	nf2devinfo = kzalloc(sizeof(struct nf2_device_info), GFP_KERNEL);
+	if (nf2devinfo == NULL)
+		return NULL;
+
+	// Read the version and revision
+	nf2k_reg_read(dev, DEVICE_ID_REG, &(nf2devinfo->nf2_device_id));
+	nf2k_reg_read(dev, DEVICE_REVISION_REG, &(nf2devinfo->nf2_device_rev));
+
+	// Read the design name string
+	for (i = 0; i < (DEVICE_STR_LEN / 4) - 2; i++) {
+		nf2k_reg_read(dev, DEVICE_STR_REG + i * 4,
+			      (uint32_t *)(nf2devinfo->nf2_device_str + i * 4));
+		*(uint32_t *)(nf2devinfo->nf2_device_str + i * 4)
+			= ntohl(*(uint32_t *)
+				(nf2devinfo->nf2_device_str + i * 4));
+	}
+	nf2devinfo->nf2_device_str[DEVICE_STR_LEN - 1] = '\0';
+
+	return nf2devinfo;
+}
+
+struct nf2_match_info *
+nf2_get_match_info(struct net_device *dev)
+{
+	struct nf2_match_info *nf2matchinfo;
+
+	nf2matchinfo = kzalloc(sizeof(struct nf2_match_info), GFP_KERNEL);
+	if (nf2matchinfo == NULL)
+		return NULL;
+
+	nf2k_reg_read(dev, OPENFLOW_LOOKUP_WILDCARD_MISSES_REG,
+		      &(nf2matchinfo->wildcard_misses));
+	nf2k_reg_read(dev, OPENFLOW_LOOKUP_WILDCARD_HITS_REG,
+		      &(nf2matchinfo->wildcard_hits));
+	nf2k_reg_read(dev, OPENFLOW_LOOKUP_EXACT_MISSES_REG,
+		      &(nf2matchinfo->exact_misses));
+	nf2k_reg_read(dev, OPENFLOW_LOOKUP_EXACT_HITS_REG,
+		      &(nf2matchinfo->exact_hits));
+
+	return nf2matchinfo;
+}
+
+static struct nf2_all_ports_info_addr *
+nf2_get_all_ports_info_addr(void)
+{
+	struct nf2_all_ports_info_addr *nf2addr;
+
+	nf2addr = kzalloc(sizeof(struct nf2_all_ports_info_addr), GFP_KERNEL);
+	if (nf2addr == NULL)
+		return NULL;
+
+	nf2addr->rx_q_num_pkts_stored_reg[0]
+		= RX_QUEUE_0_NUM_PKTS_STORED_REG;
+	nf2addr->rx_q_num_pkts_dropped_full_reg[0]
+		= RX_QUEUE_0_NUM_PKTS_DROPPED_FULL_REG;
+	nf2addr->rx_q_num_pkts_dropped_bad_reg[0]
+		= RX_QUEUE_0_NUM_PKTS_DROPPED_BAD_REG;
+	nf2addr->rx_q_num_words_pushed_reg[0]
+		= RX_QUEUE_0_NUM_WORDS_PUSHED_REG;
+	nf2addr->rx_q_num_bytes_pushed_reg[0]
+		= RX_QUEUE_0_NUM_BYTES_PUSHED_REG;
+	nf2addr->rx_q_num_pkts_dequeued_reg[0]
+		= RX_QUEUE_0_NUM_PKTS_DEQUEUED_REG;
+	nf2addr->rx_q_num_pkts_in_queue_reg[0]
+		= RX_QUEUE_0_NUM_PKTS_IN_QUEUE_REG;
+	nf2addr->tx_q_num_pkts_in_queue_reg[0]
+		= TX_QUEUE_0_NUM_PKTS_IN_QUEUE_REG;
+	nf2addr->tx_q_num_pkts_sent_reg[0]
+		= TX_QUEUE_0_NUM_PKTS_SENT_REG;
+	nf2addr->tx_q_num_words_pushed_reg[0]
+		= TX_QUEUE_0_NUM_WORDS_PUSHED_REG;
+	nf2addr->tx_q_num_bytes_pushed_reg[0]
+		= TX_QUEUE_0_NUM_BYTES_PUSHED_REG;
+	nf2addr->tx_q_num_pkts_enqueued_reg[0]
+		= TX_QUEUE_0_NUM_PKTS_ENQUEUED_REG;
+
+	nf2addr->rx_q_num_pkts_stored_reg[1]
+		= RX_QUEUE_1_NUM_PKTS_STORED_REG;
+	nf2addr->rx_q_num_pkts_dropped_full_reg[1]
+		= RX_QUEUE_1_NUM_PKTS_DROPPED_FULL_REG;
+	nf2addr->rx_q_num_pkts_dropped_bad_reg[1]
+		= RX_QUEUE_1_NUM_PKTS_DROPPED_BAD_REG;
+	nf2addr->rx_q_num_words_pushed_reg[1]
+		= RX_QUEUE_1_NUM_WORDS_PUSHED_REG;
+	nf2addr->rx_q_num_bytes_pushed_reg[1]
+		= RX_QUEUE_1_NUM_BYTES_PUSHED_REG;
+	nf2addr->rx_q_num_pkts_dequeued_reg[1]
+		= RX_QUEUE_1_NUM_PKTS_DEQUEUED_REG;
+	nf2addr->rx_q_num_pkts_in_queue_reg[1]
+		= RX_QUEUE_1_NUM_PKTS_IN_QUEUE_REG;
+	nf2addr->tx_q_num_pkts_in_queue_reg[1]
+		= TX_QUEUE_1_NUM_PKTS_IN_QUEUE_REG;
+	nf2addr->tx_q_num_pkts_sent_reg[1]
+		= TX_QUEUE_1_NUM_PKTS_SENT_REG;
+	nf2addr->tx_q_num_words_pushed_reg[1]
+		= TX_QUEUE_1_NUM_WORDS_PUSHED_REG;
+	nf2addr->tx_q_num_bytes_pushed_reg[1]
+		= TX_QUEUE_1_NUM_BYTES_PUSHED_REG;
+	nf2addr->tx_q_num_pkts_enqueued_reg[1]
+		= TX_QUEUE_1_NUM_PKTS_ENQUEUED_REG;
+
+	nf2addr->rx_q_num_pkts_stored_reg[2]
+		= RX_QUEUE_2_NUM_PKTS_STORED_REG;
+	nf2addr->rx_q_num_pkts_dropped_full_reg[2]
+		= RX_QUEUE_2_NUM_PKTS_DROPPED_FULL_REG;
+	nf2addr->rx_q_num_pkts_dropped_bad_reg[2]
+		= RX_QUEUE_2_NUM_PKTS_DROPPED_BAD_REG;
+	nf2addr->rx_q_num_words_pushed_reg[2]
+		= RX_QUEUE_2_NUM_WORDS_PUSHED_REG;
+	nf2addr->rx_q_num_bytes_pushed_reg[2]
+		= RX_QUEUE_2_NUM_BYTES_PUSHED_REG;
+	nf2addr->rx_q_num_pkts_dequeued_reg[2]
+		= RX_QUEUE_2_NUM_PKTS_DEQUEUED_REG;
+	nf2addr->rx_q_num_pkts_in_queue_reg[2]
+		= RX_QUEUE_2_NUM_PKTS_IN_QUEUE_REG;
+	nf2addr->tx_q_num_pkts_in_queue_reg[2]
+		= TX_QUEUE_2_NUM_PKTS_IN_QUEUE_REG;
+	nf2addr->tx_q_num_pkts_sent_reg[2]
+		= TX_QUEUE_2_NUM_PKTS_SENT_REG;
+	nf2addr->tx_q_num_words_pushed_reg[2]
+		= TX_QUEUE_2_NUM_WORDS_PUSHED_REG;
+	nf2addr->tx_q_num_bytes_pushed_reg[2]
+		= TX_QUEUE_2_NUM_BYTES_PUSHED_REG;
+	nf2addr->tx_q_num_pkts_enqueued_reg[2]
+		= TX_QUEUE_2_NUM_PKTS_ENQUEUED_REG;
+
+	nf2addr->rx_q_num_pkts_stored_reg[3]
+		= RX_QUEUE_3_NUM_PKTS_STORED_REG;
+	nf2addr->rx_q_num_pkts_dropped_full_reg[3]
+		= RX_QUEUE_3_NUM_PKTS_DROPPED_FULL_REG;
+	nf2addr->rx_q_num_pkts_dropped_bad_reg[3]
+		= RX_QUEUE_3_NUM_PKTS_DROPPED_BAD_REG;
+	nf2addr->rx_q_num_words_pushed_reg[3]
+		= RX_QUEUE_3_NUM_WORDS_PUSHED_REG;
+	nf2addr->rx_q_num_bytes_pushed_reg[3]
+		= RX_QUEUE_3_NUM_BYTES_PUSHED_REG;
+	nf2addr->rx_q_num_pkts_dequeued_reg[3]
+		= RX_QUEUE_3_NUM_PKTS_DEQUEUED_REG;
+	nf2addr->rx_q_num_pkts_in_queue_reg[3]
+		= RX_QUEUE_3_NUM_PKTS_IN_QUEUE_REG;
+	nf2addr->tx_q_num_pkts_in_queue_reg[3]
+		= TX_QUEUE_3_NUM_PKTS_IN_QUEUE_REG;
+	nf2addr->tx_q_num_pkts_sent_reg[3]
+		= TX_QUEUE_3_NUM_PKTS_SENT_REG;
+	nf2addr->tx_q_num_words_pushed_reg[3]
+		= TX_QUEUE_3_NUM_WORDS_PUSHED_REG;
+	nf2addr->tx_q_num_bytes_pushed_reg[3]
+		= TX_QUEUE_3_NUM_BYTES_PUSHED_REG;
+	nf2addr->tx_q_num_pkts_enqueued_reg[3]
+		= TX_QUEUE_3_NUM_PKTS_ENQUEUED_REG;
+
+	return nf2addr;
+}
+
+struct nf2_all_ports_info *
+nf2_get_all_ports_info(struct net_device *dev)
+{
+	struct nf2_all_ports_info *nf2portinfo;
+	struct nf2_all_ports_info_addr *nf2addr;
+	int i;
+
+	nf2portinfo = kzalloc(sizeof(struct nf2_all_ports_info), GFP_KERNEL);
+	if (nf2portinfo == NULL)
+		return NULL;
+	nf2addr = nf2_get_all_ports_info_addr();
+	if (nf2addr == NULL)
+		return NULL;
+
+	for (i = 0; i < NF2_PORT_NUM; i++) {
+		nf2k_reg_read(dev, nf2addr->rx_q_num_pkts_stored_reg[i],
+			      &(nf2portinfo->port[i].rx_q_num_pkts_stored));
+		nf2k_reg_read(dev, nf2addr->rx_q_num_pkts_dropped_full_reg[i],
+			      &(nf2portinfo->port[i].
+				rx_q_num_pkts_dropped_full));
+		nf2k_reg_read(dev, nf2addr->rx_q_num_pkts_dropped_bad_reg[i],
+			      &(nf2portinfo->port[i].
+				rx_q_num_pkts_dropped_bad));
+		nf2k_reg_read(dev, nf2addr->rx_q_num_words_pushed_reg[i],
+			      &(nf2portinfo->port[i].rx_q_num_words_pushed));
+		nf2k_reg_read(dev, nf2addr->rx_q_num_bytes_pushed_reg[i],
+			      &(nf2portinfo->port[i].rx_q_num_bytes_pushed));
+		nf2k_reg_read(dev, nf2addr->rx_q_num_pkts_dequeued_reg[i],
+			      &(nf2portinfo->port[i].rx_q_num_pkts_dequeued));
+		nf2k_reg_read(dev, nf2addr->rx_q_num_pkts_in_queue_reg[i],
+			      &(nf2portinfo->port[i].rx_q_num_pkts_in_queue));
+		nf2k_reg_read(dev, nf2addr->tx_q_num_pkts_in_queue_reg[i],
+			      &(nf2portinfo->port[i].tx_q_num_pkts_in_queue));
+		nf2k_reg_read(dev, nf2addr->tx_q_num_pkts_sent_reg[i],
+			      &(nf2portinfo->port[i].tx_q_num_pkts_sent));
+		nf2k_reg_read(dev, nf2addr->tx_q_num_words_pushed_reg[i],
+			      &(nf2portinfo->port[i].tx_q_num_words_pushed));
+		nf2k_reg_read(dev, nf2addr->tx_q_num_bytes_pushed_reg[i],
+			      &(nf2portinfo->port[i].tx_q_num_bytes_pushed));
+		nf2k_reg_read(dev, nf2addr->tx_q_num_pkts_enqueued_reg[i],
+			      &(nf2portinfo->port[i].tx_q_num_pkts_enqueued));
+	}
+	return nf2portinfo;
 }

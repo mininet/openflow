@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -35,8 +35,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
+#include "hash.h"
 #include "util.h"
 
+struct ofp_match;
 struct ofpbuf;
 
 /* Identification data for a flow.
@@ -56,11 +59,34 @@ struct flow {
     uint8_t nw_proto;           /* IP protocol. */
     uint8_t reserved;           /* Pad to 32-bit alignment. */
 };
-BUILD_ASSERT_DECL(sizeof (struct flow) == 32);
+BUILD_ASSERT_DECL(sizeof(struct flow) == 32);
 
 int flow_extract(struct ofpbuf *, uint16_t in_port, struct flow *);
+void flow_fill_match(struct ofp_match *, const struct flow *,
+                     uint32_t wildcards);
 void flow_print(FILE *, const struct flow *);
-int flow_compare(const struct flow *, const struct flow *);
-unsigned long int flow_hash(const struct flow *, uint32_t basis);
+static inline int flow_compare(const struct flow *, const struct flow *);
+static inline bool flow_equal(const struct flow *, const struct flow *);
+static inline size_t flow_hash(const struct flow *, uint32_t basis);
+
+static inline int
+flow_compare(const struct flow *a, const struct flow *b)
+{
+    return memcmp(a, b, sizeof *a);
+}
+
+static inline bool
+flow_equal(const struct flow *a, const struct flow *b)
+{
+    return !flow_compare(a, b);
+}
+
+static inline size_t
+flow_hash(const struct flow *flow, uint32_t basis)
+{
+    BUILD_ASSERT_DECL(!(sizeof *flow % sizeof(uint32_t)));
+    return hash_words((const uint32_t *) flow,
+                      sizeof *flow / sizeof(uint32_t), basis);
+}
 
 #endif /* flow.h */

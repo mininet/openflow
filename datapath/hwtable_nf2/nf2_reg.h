@@ -18,9 +18,9 @@
 #define MAC_DIS_CRC_CHECK                                   7
 #define MAC_DIS_CRC_GEN                                     8
 
-#define DEVICE_ID_REG                                        0x0400000
-#define DEVICE_REVISION_REG                                  0x0400004
-#define DEVICE_STR_REG                                       0x0400008
+#define DEVICE_ID_REG                                        0x0400010
+#define DEVICE_REVISION_REG                                  0x0400014
+#define DEVICE_STR_REG                                       0x040001c
 
 #define SRAM_BASE_ADDR_REG                                   0x1000000
 

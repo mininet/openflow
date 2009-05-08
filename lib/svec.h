@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -53,15 +53,21 @@ void svec_add_nocopy(struct svec *, char *);
 void svec_append(struct svec *, const struct svec *);
 void svec_terminate(struct svec *);
 void svec_sort(struct svec *);
+void svec_sort_unique(struct svec *);
 void svec_unique(struct svec *);
 void svec_diff(const struct svec *a, const struct svec *b,
                struct svec *a_only, struct svec *both, struct svec *b_only);
 bool svec_contains(const struct svec *, const char *);
+size_t svec_find(const struct svec *, const char *);
 bool svec_is_sorted(const struct svec *);
+bool svec_is_unique(const struct svec *);
+const char *svec_get_duplicate(const struct svec *);
 void svec_swap(struct svec *a, struct svec *b);
 void svec_print(const struct svec *svec, const char *title);
 void svec_parse_words(struct svec *svec, const char *words);
 bool svec_equal(const struct svec *, const struct svec *);
 char *svec_join(const struct svec *, const char *delimiter);
+const char *svec_back(const struct svec *);
+void svec_pop_back(struct svec *);
 
 #endif /* svec.h */

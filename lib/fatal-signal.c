@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -94,7 +94,7 @@ fatal_signal_add_hook(void (*func)(void *aux), void *aux, bool run_at_exit)
  * fatal signal hook, so that the hook is not invoked while the data structure
  * is in an inconsistent state. */
 void
-fatal_signal_block()
+fatal_signal_block(void)
 {
     static bool inited = false;
     if (!inited) {
@@ -128,7 +128,7 @@ fatal_signal_block()
  * fatal_signal_unblock() must be called the same number of times to unblock
  * signals. */
 void
-fatal_signal_unblock()
+fatal_signal_unblock(void)
 {
     assert(block_level > 0);
     if (--block_level == 0) {
@@ -201,8 +201,7 @@ fatal_signal_add_file_to_unlink(const char *file)
 
     fatal_signal_block();
     if (n_files >= max_files) {
-        max_files = max_files * 2 + 1;
-        files = xrealloc(files, sizeof *files * max_files);
+        files = x2nrealloc(files, &max_files, sizeof *files);
     }
     files[n_files++] = xstrdup(file);
     fatal_signal_unblock();

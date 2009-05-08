@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -150,23 +150,6 @@ flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from)
 	/* We set these late because code above adjusts to->wildcards. */
 	to->nw_src_mask = make_nw_mask(to->wildcards >> OFPFW_NW_SRC_SHIFT);
 	to->nw_dst_mask = make_nw_mask(to->wildcards >> OFPFW_NW_DST_SHIFT);
-}
-
-void
-flow_fill_match(struct ofp_match* to, const struct sw_flow_key* from)
-{
-    to->wildcards = htonl(from->wildcards);
-    to->in_port   = from->flow.in_port;
-    to->dl_vlan   = from->flow.dl_vlan;
-    memcpy(to->dl_src, from->flow.dl_src, ETH_ADDR_LEN);
-    memcpy(to->dl_dst, from->flow.dl_dst, ETH_ADDR_LEN);
-    to->dl_type   = from->flow.dl_type;
-    to->nw_src        = from->flow.nw_src;
-    to->nw_dst        = from->flow.nw_dst;
-    to->nw_proto  = from->flow.nw_proto;
-    to->tp_src        = from->flow.tp_src;
-    to->tp_dst        = from->flow.tp_dst;
-    to->pad           = 0;
 }
 
 /* Allocates and returns a new flow with room for 'actions_len' actions. 

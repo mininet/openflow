@@ -35,12 +35,20 @@
 #define MAC_LEARNING_H 1
 
 #include "packets.h"
+#include "tag.h"
 
 struct mac_learning *mac_learning_create(void);
 void mac_learning_destroy(struct mac_learning *);
-bool mac_learning_learn(struct mac_learning *,
-                        const uint8_t src[ETH_ADDR_LEN], uint16_t src_port);
+tag_type mac_learning_learn(struct mac_learning *,
+                            const uint8_t src[ETH_ADDR_LEN], uint16_t vlan,
+                            uint16_t src_port);
 uint16_t mac_learning_lookup(const struct mac_learning *,
-                             const uint8_t dst[ETH_ADDR_LEN]);
+                             const uint8_t dst[ETH_ADDR_LEN], uint16_t vlan);
+uint16_t mac_learning_lookup_tag(const struct mac_learning *,
+                                 const uint8_t dst[ETH_ADDR_LEN],
+                                 uint16_t vlan, tag_type *tag);
+void mac_learning_flush(struct mac_learning *);
+void mac_learning_run(struct mac_learning *, struct tag_set *);
+void mac_learning_wait(struct mac_learning *);
 
 #endif /* mac-learning.h */

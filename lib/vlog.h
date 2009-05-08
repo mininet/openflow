@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -45,6 +45,7 @@
     VLOG_LEVEL(EMER, LOG_ALERT)                 \
     VLOG_LEVEL(ERR, LOG_ERR)                    \
     VLOG_LEVEL(WARN, LOG_WARNING)               \
+    VLOG_LEVEL(INFO, LOG_NOTICE)                \
     VLOG_LEVEL(DBG, LOG_DEBUG)
 enum vlog_level {
 #define VLOG_LEVEL(NAME, SYSLOG_LEVEL) VLL_##NAME,
@@ -110,6 +111,7 @@ struct vlog_rate_limit {
              * VLOG_MSG_TOKENS),            /* burst */     \
             0,                              /* tokens */    \
             0,                              /* last_fill */ \
+            0,                              /* first_dropped */ \
             0,                              /* n_dropped */ \
         }
 
@@ -147,6 +149,7 @@ void vlog_rate_limit(enum vlog_module, enum vlog_level,
 #define VLOG_EMER(...) VLOG(VLL_EMER, __VA_ARGS__)
 #define VLOG_ERR(...) VLOG(VLL_ERR, __VA_ARGS__)
 #define VLOG_WARN(...) VLOG(VLL_WARN, __VA_ARGS__)
+#define VLOG_INFO(...) VLOG(VLL_INFO, __VA_ARGS__)
 #define VLOG_DBG(...) VLOG(VLL_DBG, __VA_ARGS__)
 
 /* More convenience macros, for testing whether a given level is enabled in
@@ -155,6 +158,7 @@ void vlog_rate_limit(enum vlog_module, enum vlog_level,
 #define VLOG_IS_EMER_ENABLED() true
 #define VLOG_IS_ERR_ENABLED() vlog_is_enabled(THIS_MODULE, VLL_EMER)
 #define VLOG_IS_WARN_ENABLED() vlog_is_enabled(THIS_MODULE, VLL_WARN)
+#define VLOG_IS_INFO_ENABLED() vlog_is_enabled(THIS_MODULE, VLL_INFO)
 #define VLOG_IS_DBG_ENABLED() vlog_is_enabled(THIS_MODULE, VLL_DBG)
 
 /* Convenience macros.  To use these, define THIS_MODULE as a macro that
@@ -165,6 +169,7 @@ void vlog_rate_limit(enum vlog_module, enum vlog_level,
  */
 #define VLOG_ERR_RL(RL, ...) VLOG_RL(RL, VLL_ERR, __VA_ARGS__)
 #define VLOG_WARN_RL(RL, ...) VLOG_RL(RL, VLL_WARN, __VA_ARGS__)
+#define VLOG_INFO_RL(RL, ...) VLOG_RL(RL, VLL_INFO, __VA_ARGS__)
 #define VLOG_DBG_RL(RL, ...) VLOG_RL(RL, VLL_DBG, __VA_ARGS__)
 
 /* Command line processing. */

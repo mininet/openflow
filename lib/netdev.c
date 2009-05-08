@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -56,8 +56,9 @@
 #define s32 __s32
 #define s64 __s64
 #endif
-#include <linux/ethtool.h>
 
+#include <linux/ethtool.h>
+#include <linux/rtnetlink.h>
 #include <linux/sockios.h>
 #include <linux/version.h>
 #include <sys/types.h>
@@ -76,6 +77,7 @@
 
 #include "fatal-signal.h"
 #include "list.h"
+#include "netlink.h"
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
 #include "packets.h"
@@ -83,11 +85,12 @@
 #include "socket-util.h"
 #include "svec.h"
 
-/* This doesn't seem to be defined in the linux/ethtool.h for linux 2.4 */
-#ifndef SPEED_2500 
-#define SPEED_2500 2500
+/* linux/if.h defines IFF_LOWER_UP, net/if.h doesn't.
+ * net/if.h defines if_nameindex(), linux/if.h doesn't.
+ * We can't include both headers, so define IFF_LOWER_UP ourselves. */
+#ifndef IFF_LOWER_UP
+#define IFF_LOWER_UP 0x10000
 #endif
-
 
 #define THIS_MODULE VLM_netdev
 #include "vlog.h"
@@ -136,8 +139,8 @@ static void init_netdev(void);
 static int do_open_netdev(const char *name, int ethertype, int tap_fd,
                           struct netdev **netdev_);
 static int restore_flags(struct netdev *netdev);
-static int get_flags(const struct netdev *, int fd, int *flagsp);
-static int set_flags(struct netdev *, int fd, int flags);
+static int get_flags(const char *netdev_name, int *flagsp);
+static int set_flags(const char *netdev_name, int flags);
 
 /* Obtains the IPv6 address for 'name' into 'in6'. */
 static void
@@ -478,7 +481,7 @@ do_open_netdev(const char *name, int ethertype, int tap_fd,
     do_ethtool(netdev);
 
     /* Save flags to restore at close or exit. */
-    error = get_flags(netdev, netdev_fd, &netdev->save_flags);
+    error = get_flags(netdev->name, &netdev->save_flags);
     if (error) {
         goto error_already_set;
     }
@@ -702,31 +705,6 @@ netdev_get_mtu(const struct netdev *netdev)
     return netdev->mtu;
 }
 
-/* Checks the link status.  Returns 1 or 0 to indicate the link is active 
- * or not, respectively.  Any other return value indicates an error. */
-int
-netdev_get_link_status(const struct netdev *netdev) 
-{
-    struct ifreq ifr;
-    struct ethtool_value edata;
-
-    memset(&ifr, 0, sizeof ifr);
-    strncpy(ifr.ifr_name, netdev->name, sizeof ifr.ifr_name);
-    ifr.ifr_data = (caddr_t) &edata;
-
-    memset(&edata, 0, sizeof edata);
-    edata.cmd = ETHTOOL_GLINK;
-    if (ioctl(netdev->netdev_fd, SIOCETHTOOL, &ifr) == 0) {
-        if (edata.data) {
-            return 1;
-        } else {
-            return 0;
-        }
-    }
-
-    return -1;
-}
-
 /* Returns the features supported by 'netdev' of type 'type', as a bitmap 
  * of bits from enum ofp_phy_features, in host byte order. */
 uint32_t
@@ -817,9 +795,9 @@ netdev_set_in4(struct netdev *netdev, struct in_addr addr, struct in_addr mask)
     return error;
 }
 
-/* Adds 'router' as a default gateway for 'netdev''s IP address. */
+/* Adds 'router' as a default IP gateway. */
 int
-netdev_add_router(struct netdev *netdev, struct in_addr router)
+netdev_add_router(struct in_addr router)
 {
     struct in_addr any = { INADDR_ANY };
     struct rtentry rt;
@@ -853,21 +831,7 @@ netdev_get_in6(const struct netdev *netdev, struct in6_addr *in6)
 int
 netdev_get_flags(const struct netdev *netdev, enum netdev_flags *flagsp)
 {
-    int error, flags;
-
-    error = get_flags(netdev, netdev->netdev_fd, &flags);
-    if (error) {
-        return error;
-    }
-
-    *flagsp = 0;
-    if (flags & IFF_UP) {
-        *flagsp |= NETDEV_UP;
-    }
-    if (flags & IFF_PROMISC) {
-        *flagsp |= NETDEV_PROMISC;
-    }
-    return 0;
+    return netdev_nodev_get_flags(netdev->name, flagsp);
 }
 
 static int
@@ -888,13 +852,13 @@ nd_to_iff_flags(enum netdev_flags nd)
  * will be reverted when 'netdev' is closed or the program exits.  Returns 0 if
  * successful, otherwise a positive errno value. */
 static int
-do_update_flags(struct netdev *netdev, int fd, enum netdev_flags off,
+do_update_flags(struct netdev *netdev, enum netdev_flags off,
                 enum netdev_flags on, bool permanent)
 {
     int old_flags, new_flags;
     int error;
 
-    error = get_flags(netdev, fd, &old_flags);
+    error = get_flags(netdev->name, &old_flags);
     if (error) {
         return error;
     }
@@ -904,7 +868,7 @@ do_update_flags(struct netdev *netdev, int fd, enum netdev_flags off,
         netdev->changed_flags |= new_flags ^ old_flags; 
     }
     if (new_flags != old_flags) {
-        error = set_flags(netdev, fd, new_flags);
+        error = set_flags(netdev->name, new_flags);
     }
     return error;
 }
@@ -917,7 +881,7 @@ int
 netdev_set_flags(struct netdev *netdev, enum netdev_flags flags,
                  bool permanent)
 {
-    return do_update_flags(netdev, netdev->netdev_fd, -1, flags, permanent);
+    return do_update_flags(netdev, -1, flags, permanent);
 }
 
 /* Turns on the specified 'flags' on 'netdev'.
@@ -928,7 +892,7 @@ int
 netdev_turn_flags_on(struct netdev *netdev, enum netdev_flags flags,
                      bool permanent)
 {
-    return do_update_flags(netdev, netdev->netdev_fd, 0, flags, permanent);
+    return do_update_flags(netdev, 0, flags, permanent);
 }
 
 /* Turns off the specified 'flags' on 'netdev'.
@@ -939,7 +903,7 @@ int
 netdev_turn_flags_off(struct netdev *netdev, enum netdev_flags flags,
                       bool permanent)
 {
-    return do_update_flags(netdev, netdev->netdev_fd, flags, 0, permanent);
+    return do_update_flags(netdev, flags, 0, permanent);
 }
 
 /* Looks up the ARP table entry for 'ip' on 'netdev'.  If one exists and can be
@@ -991,6 +955,202 @@ netdev_enumerate(struct svec *svec)
         VLOG_WARN("could not obtain list of network device names: %s",
                   strerror(errno));
     }
+}
+
+/* Obtains the current flags for the network device named 'netdev_name' and
+ * stores them into '*flagsp'.  Returns 0 if successful, otherwise a positive
+ * errno value.
+ *
+ * If only device flags are needed, this is more efficient than calling
+ * netdev_open(), netdev_get_flags(), netdev_close(). */
+int
+netdev_nodev_get_flags(const char *netdev_name, enum netdev_flags *flagsp)
+{
+    int error, flags;
+
+    init_netdev();
+
+    error = get_flags(netdev_name, &flags);
+    if (error) {
+        return error;
+    }
+
+    *flagsp = 0;
+    if (flags & IFF_UP) {
+        *flagsp |= NETDEV_UP;
+    }
+    if (flags & IFF_PROMISC) {
+        *flagsp |= NETDEV_PROMISC;
+    }
+    if (flags & IFF_LOWER_UP) {
+        *flagsp |= NETDEV_CARRIER;
+    }
+    return 0;
+}
+
+struct netdev_monitor {
+    struct nl_sock *sock;
+    struct svec netdevs;
+    struct svec changed;
+};
+
+/* Policy for RTNLGRP_LINK messages.
+ *
+ * There are *many* more fields in these messages, but currently we only care
+ * about interface names. */
+static const struct nl_policy rtnlgrp_link_policy[] = {
+    [IFLA_IFNAME] = { .type = NL_A_STRING, .optional = false },
+};
+
+static const char *lookup_netdev(const struct netdev_monitor *, const char *);
+static const char *pop_changed(struct netdev_monitor *);
+static const char *all_netdevs_changed(struct netdev_monitor *);
+
+/* Creates a new network device monitor that initially monitors no
+ * devices.  On success, sets '*monp' to the new network monitor and returns
+ * 0; on failure, sets '*monp' to a null pointer and returns a positive errno
+ * value. */
+int
+netdev_monitor_create(struct netdev_monitor **monp)
+{
+    struct netdev_monitor *mon;
+    struct nl_sock *sock;
+    int error;
+
+    *monp = NULL;
+    error = nl_sock_create(NETLINK_ROUTE, RTNLGRP_LINK, 0, 0, &sock);
+    if (error) {
+        /* XXX Fall back to polling?  Non-root is not allowed to subscribe to
+         * multicast groups but can still poll network device state. */
+        VLOG_WARN("could not create rtnetlink socket: %s", strerror(error));
+        return error;
+    }
+
+    mon = *monp = xmalloc(sizeof *mon);
+    mon->sock = sock;
+    svec_init(&mon->netdevs);
+    svec_init(&mon->changed);
+    return 0;
+}
+
+void
+netdev_monitor_destroy(struct netdev_monitor *mon)
+{
+    if (mon) {
+        nl_sock_destroy(mon->sock);
+        svec_destroy(&mon->netdevs);
+        svec_destroy(&mon->changed);
+        free(mon);
+    }
+}
+
+/* Sets the set of network devices monitored by 'mon' to the 'n_netdevs'
+ * network devices named in 'netdevs'.  The caller retains ownership of
+ * 'netdevs'. */
+void
+netdev_monitor_set_devices(struct netdev_monitor *mon,
+                           char **netdevs, size_t n_netdevs)
+{
+    size_t i;
+
+    svec_clear(&mon->netdevs);
+    for (i = 0; i < n_netdevs; i++) {
+        svec_add(&mon->netdevs, netdevs[i]);
+    }
+    svec_sort(&mon->netdevs);
+}
+
+/* If the state of any network device has changed, returns its name.  The
+ * caller must not modify or free the name.
+ *
+ * This function can return "false positives".  The caller is responsible for
+ * verifying that the network device's state actually changed, if necessary.
+ *
+ * If no network device's state has changed, returns a null pointer. */
+const char *
+netdev_monitor_poll(struct netdev_monitor *mon)
+{
+    static struct vlog_rate_limit slow_rl = VLOG_RATE_LIMIT_INIT(1, 5);
+    const char *changed_name;
+
+    changed_name = pop_changed(mon);
+    if (changed_name) {
+        return changed_name;
+    }
+
+    for (;;) {
+        struct ofpbuf *buf;
+        int retval;
+
+        retval = nl_sock_recv(mon->sock, &buf, false);
+        if (retval == EAGAIN) {
+            return NULL;
+        } else if (retval == ENOBUFS) {
+            VLOG_WARN_RL(&slow_rl, "network monitor socket overflowed");
+            return all_netdevs_changed(mon);
+        } else if (retval) {
+            VLOG_WARN_RL(&slow_rl, "error on network monitor socket: %s",
+                         strerror(retval));
+            return NULL;
+        } else {
+            struct nlattr *attrs[ARRAY_SIZE(rtnlgrp_link_policy)];
+            const char *name;
+
+            if (!nl_policy_parse(buf, NLMSG_HDRLEN + sizeof(struct ifinfomsg),
+                                 rtnlgrp_link_policy,
+                                 attrs, ARRAY_SIZE(rtnlgrp_link_policy))) {
+                VLOG_WARN_RL(&slow_rl, "received bad rtnl message");
+                return all_netdevs_changed(mon);
+            }
+            name = lookup_netdev(mon, nl_attr_get_string(attrs[IFLA_IFNAME]));
+            ofpbuf_delete(buf);
+            if (name) {
+                /* Return the looked-up string instead of the attribute string,
+                 * because we freed the buffer that contains the attribute. */
+                return name;
+            }
+        }
+    }
+}
+
+void
+netdev_monitor_run(struct netdev_monitor *mon UNUSED)
+{
+    /* Nothing to do in this implementation. */
+}
+
+void
+netdev_monitor_wait(struct netdev_monitor *mon)
+{
+    nl_sock_wait(mon->sock, POLLIN);
+}
+
+static const char *
+lookup_netdev(const struct netdev_monitor *mon, const char *name)
+{
+    size_t idx = svec_find(&mon->netdevs, name);
+    return idx != SIZE_MAX ? mon->netdevs.names[idx] : NULL;
+}
+
+static const char *
+pop_changed(struct netdev_monitor *mon)
+{
+    while (mon->changed.n) {
+        const char *name = lookup_netdev(mon, svec_back(&mon->changed));
+        svec_pop_back(&mon->changed);
+        if (name) {
+            return name;
+        }
+    }
+    return NULL;
+}
+
+static const char *
+all_netdevs_changed(struct netdev_monitor *mon)
+{
+    svec_clear(&mon->changed);
+    svec_append(&mon->changed, &mon->netdevs);
+    return pop_changed(mon);
 }
 
 static void restore_all_flags(void *aux);
@@ -1053,13 +1213,13 @@ restore_all_flags(void *aux UNUSED)
 }
 
 static int
-get_flags(const struct netdev *netdev, int fd, int *flags)
+get_flags(const char *netdev_name, int *flags)
 {
     struct ifreq ifr;
-    strncpy(ifr.ifr_name, netdev->name, sizeof ifr.ifr_name);
-    if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
+    strncpy(ifr.ifr_name, netdev_name, sizeof ifr.ifr_name);
+    if (ioctl(af_inet_sock, SIOCGIFFLAGS, &ifr) < 0) {
         VLOG_ERR("ioctl(SIOCGIFFLAGS) on %s device failed: %s",
-                 netdev->name, strerror(errno));
+                 netdev_name, strerror(errno));
         return errno;
     }
     *flags = ifr.ifr_flags;
@@ -1067,14 +1227,14 @@ get_flags(const struct netdev *netdev, int fd, int *flags)
 }
 
 static int
-set_flags(struct netdev *netdev, int fd, int flags)
+set_flags(const char *netdev_name, int flags)
 {
     struct ifreq ifr;
-    strncpy(ifr.ifr_name, netdev->name, sizeof ifr.ifr_name);
+    strncpy(ifr.ifr_name, netdev_name, sizeof ifr.ifr_name);
     ifr.ifr_flags = flags;
-    if (ioctl(netdev->netdev_fd, SIOCSIFFLAGS, &ifr) < 0) {
+    if (ioctl(af_inet_sock, SIOCSIFFLAGS, &ifr) < 0) {
         VLOG_ERR("ioctl(SIOCSIFFLAGS) on %s device failed: %s",
-                 netdev->name, strerror(errno));
+                 netdev_name, strerror(errno));
         return errno;
     }
     return 0;

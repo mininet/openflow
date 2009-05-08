@@ -39,10 +39,11 @@
 /* Attributes that can be attached to the datapath's netlink messages. */
 enum {
 	DP_GENL_A_UNSPEC,
-	DP_GENL_A_DP_IDX,	 /* Datapath Ethernet device name. */
+	DP_GENL_A_DP_IDX,	 /* Datapath device index. */
 	DP_GENL_A_PORTNAME,	 /* Device name for datapath port. */
 	DP_GENL_A_MC_GROUP,	 /* Generic netlink multicast group. */
 	DP_GENL_A_OPENFLOW,  /* OpenFlow packet. */
+	DP_GENL_A_DP_NAME,	 /* Datapath device name. */
 
 	__DP_GENL_A_MAX,
 	DP_GENL_A_MAX = __DP_GENL_A_MAX - 1
@@ -61,5 +62,8 @@ enum dp_genl_command {
 	__DP_GENL_C_MAX,
 	DP_GENL_C_MAX = __DP_GENL_C_MAX - 1
 };
+
+/* Maximum number of datapaths. */
+#define DP_MAX 256
 
 #endif /* openflow/openflow-netlink.h */

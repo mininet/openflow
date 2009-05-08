@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -122,6 +122,13 @@ svec_sort(struct svec *svec)
 }
 
 void
+svec_sort_unique(struct svec *svec)
+{
+    svec_sort(svec);
+    svec_unique(svec);
+}
+
+void
 svec_unique(struct svec *svec)
 {
     assert(svec_is_sorted(svec));
@@ -195,9 +202,18 @@ svec_diff(const struct svec *a, const struct svec *b,
 bool
 svec_contains(const struct svec *svec, const char *name)
 {
+    return svec_find(svec, name) != SIZE_MAX;
+}
+
+size_t
+svec_find(const struct svec *svec, const char *name)
+{
+    char **p;
+
     assert(svec_is_sorted(svec));
-    return bsearch(&name, svec->names, svec->n, sizeof *svec->names,
-                   compare_strings) != NULL;
+    p = bsearch(&name, svec->names, svec->n, sizeof *svec->names,
+                compare_strings);
+    return p ? p - svec->names : SIZE_MAX;
 }
 
 bool
@@ -211,6 +227,27 @@ svec_is_sorted(const struct svec *svec)
         }
     }
     return true;
+}
+
+bool
+svec_is_unique(const struct svec *svec)
+{
+    return svec_get_duplicate(svec) == NULL;
+}
+
+const char *
+svec_get_duplicate(const struct svec *svec)
+{
+    assert(svec_is_sorted(svec));
+    if (svec->n > 1) {
+        size_t i;
+        for (i = 1; i < svec->n; i++) {
+            if (!strcmp(svec->names[i - 1], svec->names[i])) {
+                return svec->names[i];
+            }
+        }
+    }
+    return NULL;
 }
 
 void
@@ -308,4 +345,18 @@ svec_join(const struct svec *svec, const char *delimiter)
         ds_put_cstr(&ds, svec->names[i]);
     }
     return ds_cstr(&ds);
+}
+
+const char *
+svec_back(const struct svec *svec)
+{
+    assert(svec->n);
+    return svec->names[svec->n - 1];
+}
+
+void
+svec_pop_back(struct svec *svec)
+{
+    assert(svec->n);
+    free(svec->names[--svec->n]);
 }

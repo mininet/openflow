@@ -25,6 +25,8 @@ DESC=secchan
 
 test -x $DAEMON || exit 0
 
+NICIRA_OUI="002320"
+
 LOGDIR=/var/log/openflow
 PIDFILE=/var/run/$NAME.pid
 DHCLIENT_PIDFILE=/var/run/dhclient.of0.pid
@@ -271,6 +273,20 @@ case "$1" in
         xx='[0-9abcdefABCDEF][0-9abcdefABCDEF]'
         case $DATAPATH_ID in
             '')
+                # Check if the DMI System UUID contains a Nicira mac address
+                # that should be used for this datapath.  The UUID is assumed 
+                # to be RFC 4122 compliant.
+                DMIDECODE=`which dmidecode`
+                if [ -n $DMIDECODE ]; then
+                    UUID_MAC=`$DMIDECODE -s system-uuid | cut -d'-' -f 5`
+                    case $UUID_MAC in
+                        $NICIRA_OUI*)
+                            ifconfig of0 down
+                            must_succeed "Setting of0 MAC address to $UUID_MAC" ifconfig of0 hw ether $UUID_MAC
+                            ifconfig of0 up
+                            ;;
+                    esac
+                fi  
                 ;;
             $xx:$xx:$xx:$xx:$xx:$xx)
                 ifconfig of0 down

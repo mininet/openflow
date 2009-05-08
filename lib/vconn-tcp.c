@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -68,7 +68,7 @@ new_tcp_vconn(const char *name, int fd, int connect_status,
     }
 
     return new_stream_vconn(name, fd, connect_status, sin->sin_addr.s_addr,
-                            vconnp);
+                            true, vconnp);
 }
 
 static int
@@ -196,5 +196,8 @@ ptcp_accept(int fd, const struct sockaddr *sa, size_t sa_len,
 struct pvconn_class ptcp_pvconn_class = {
     "ptcp",
     ptcp_open,
+    NULL,
+    NULL,
+    NULL
 };
 

@@ -1,3 +1,5 @@
+.ds PN ofp\-kill
+
 .TH ofp\-kill 8 "May 2008" "OpenFlow" "OpenFlow Manual"
 
 .SH NAME
@@ -34,13 +36,7 @@ By default, \fBSIGTERM\fR is sent.
 Causes \fBofp\-kill\fR to ignore all errors without printing a message
 to \fBstderr\fR, and to exit with return code 0.
 
-.TP
-.BR \-h ", " \-\^\-help
-Prints a brief help message to the console.
-
-.TP
-.BR \-V ", " \-\^\-version
-Prints version information to the console.
+.so lib/common.man
 
 .SH "EXIT CODE"
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -48,17 +48,21 @@ struct ofp_match;
 /* A datapath interface.  Opaque. */
 struct dpif
 {
-    int dp_idx;
     struct nl_sock *sock;
 };
 
-int dpif_open(int dp_idx, bool subscribe, struct dpif *);
+int dpif_open(int subscribe_dp_idx, struct dpif *);
 void dpif_close(struct dpif *);
-int dpif_recv_openflow(struct dpif *, struct ofpbuf **, bool wait);
-int dpif_send_openflow(struct dpif *, struct ofpbuf *, bool wait);
-int dpif_add_dp(struct dpif *);
-int dpif_del_dp(struct dpif *);
-int dpif_add_port(struct dpif *, const char *netdev);
-int dpif_del_port(struct dpif *, const char *netdev);
+
+/* OpenFlow. */
+int dpif_recv_openflow(struct dpif *, int dp_idx, struct ofpbuf **, bool wait);
+int dpif_send_openflow(struct dpif *, int dp_idx, struct ofpbuf *);
+
+/* Management functions. */
+int dpif_add_dp(struct dpif *, int dp_idx, const char *dp_name);
+int dpif_del_dp(struct dpif *, int dp_idx, const char *dp_name);
+int dpif_add_port(struct dpif *, int dp_idx, const char *netdev);
+int dpif_del_port(struct dpif *, int dp_idx, const char *netdev);
+int dpif_get_idx(const char *dp_name);
 
 #endif /* dpif.h */

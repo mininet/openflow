@@ -1,3 +1,5 @@
+.ds PN controller
+
 .TH controller 8 "May 2008" "OpenFlow" "OpenFlow Manual"
 
 .SH NAME
@@ -10,7 +12,7 @@ controller \- simple OpenFlow controller reference implementation
 .SH DESCRIPTION
 A sample OpenFlow controller which functions as an L2 MAC-learning
 switch or hub.  \fBcontroller\fR can manage a remote datapath through
-a secure channel (see \fBsecchan(8)\fR).  It can also connect directly
+a secure channel (see \fBofprotocol(8)\fR).  It can also connect directly
 to a local datapath via Netlink.
 
 \fBcontroller\fR controls one or more OpenFlow switches, specified as
@@ -84,7 +86,7 @@ already have the controller CA certificate for it to have any
 confidence in the controller's identity.  However, this option allows
 a newly installed switch to obtain the controller CA certificate on
 first boot using, e.g., the \fB--bootstrap-ca-cert\fR option to
-\fBsecchan\fR(8).
+\fBofprotocol\fR(8).
 
 .TP
 .BR \-n ", " \-\^\-noflow
@@ -106,7 +108,7 @@ recommended, flows will never expire.  The default is 60 seconds.
 This option affects only flows set up by the OpenFlow controller.  In
 some configurations, the OpenFlow secure channel can set up some flows
 on its own.  To set the idle time for those flows, pass
-\fB--max-idle\fR to \fBsecchan\fR(8).
+\fB--max-idle\fR to \fBofprotocol\fR(8).
 
 This option has no effect when \fB-n\fR (or \fB--noflow\fR) is in use
 (because the controller does not set up flows in that case).
@@ -124,37 +126,9 @@ through the controller and every packet is flooded.
 This option is most useful for debugging.  It reduces switching
 performance, so it should not be used in production.
 
-.TP
-\fB-P\fR[\fIpidfile\fR], \fB--pidfile\fR[\fB=\fIpidfile\fR]
-Causes a file (by default, \fBcontroller.pid\fR) to be created indicating
-the PID of the running process.  If \fIpidfile\fR is not specified, or
-if it does not begin with \fB/\fR, then it is created in
-\fB@RUNDIR@\fR.
-
-.TP
-\fB-f\fR, \fB--force\fR
-By default, when \fB-P\fR or \fB--pidfile\fR is specified and the
-specified pidfile already exists and is locked by a running process,
-\fBcontroller\fR refuses to start.  Specify \fB-f\fR or \fB--force\fR
-to cause it to instead overwrite the pidfile.
-
-When \fB-P\fR or \fB--pidfile\fR is not specified, this option has no
-effect.
-
-.TP
-\fB-D\fR, \fB--detach\fR
-Causes \fBcontroller\fR to detach itself from the foreground session and
-run as a background process.
-
-.TP
-.BR \-h ", " \-\^\-help
-Prints a brief help message to the console.
-
-@VLOG_OPTIONS@
-
-.TP
-.BR \-V ", " \-\^\-version
-Prints version information to the console.
+.so lib/daemon.man
+.so lib/vlog.man
+.so lib/common.man
 
 .SH EXAMPLES
 
@@ -171,6 +145,6 @@ To bind locally to port 6633 (the default) and wait for incoming connections fro
 .SH "SEE ALSO"
 
 .BR dpctl (8),
-.BR secchan (8),
-.BR udatapath (8),
+.BR ofprotocol (8),
+.BR ofdatapath (8),
 .BR vlogconf (8)

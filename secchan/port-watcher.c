@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -38,11 +38,14 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include "dynamic-string.h"
+#include "netdev.h"
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
 #include "poll-loop.h"
 #include "port-array.h"
 #include "rconn.h"
+#include "shash.h"
+#include "svec.h"
 #include "timeval.h"
 #include "vconn.h"
 #include "xtoxll.h"
@@ -73,6 +76,8 @@ struct port_watcher {
     struct port_watcher_local_cb local_cbs[4];
     int n_local_cbs;
     char local_port_name[OFP_MAX_PORT_NAME_LEN + 1];
+    struct netdev_monitor *mon;
+    struct shash port_by_name;
 };
 
 /* Returns the number of fields that differ from 'a' to 'b'. */
@@ -156,7 +161,7 @@ call_local_port_changed_callbacks(struct port_watcher *pw)
     }
     if (strcmp(pw->local_port_name, name)) {
         if (name[0]) {
-            VLOG_WARN("Identified data path local port as \"%s\".", name);
+            VLOG_INFO("Identified data path local port as \"%s\".", name);
         } else {
             VLOG_WARN("Data path has no local port.");
         }
@@ -202,6 +207,25 @@ update_phy_port(struct port_watcher *pw, struct ofp_phy_port *opp,
     }
 }
 
+static void
+update_netdev_monitor_devices(struct port_watcher *pw)
+{
+    struct ofp_phy_port *p;
+    struct svec netdevs;
+    unsigned int port_no;
+
+    svec_init(&netdevs);
+    shash_clear(&pw->port_by_name);
+    for (p = port_array_first(&pw->ports, &port_no); p;
+         p = port_array_next(&pw->ports, &port_no)) {
+        const char *name = (const char *) p->name;
+        svec_add(&netdevs, name);
+        shash_add(&pw->port_by_name, name, p);
+    }
+    netdev_monitor_set_devices(pw->mon, netdevs.names, netdevs.n);
+    svec_destroy(&netdevs);
+}
+
 static bool
 port_watcher_local_packet_cb(struct relay *r, void *pw_)
 {
@@ -221,7 +245,7 @@ port_watcher_local_packet_cb(struct relay *r, void *pw_)
         pw->got_feature_reply = true;
         if (pw->datapath_id != osf->datapath_id) {
             pw->datapath_id = osf->datapath_id;
-            VLOG_WARN("Datapath id is %012"PRIx64, ntohll(pw->datapath_id));
+            VLOG_INFO("Datapath id is %012"PRIx64, ntohll(pw->datapath_id));
         }
 
         /* Update each port included in the message. */
@@ -242,6 +266,8 @@ port_watcher_local_packet_cb(struct relay *r, void *pw_)
             }
         }
 
+        update_netdev_monitor_devices(pw);
+
         call_local_port_changed_callbacks(pw);
     } else if (oh->type == OFPT_PORT_STATUS
                && msg->size >= sizeof(struct ofp_port_status)) {
@@ -250,8 +276,36 @@ port_watcher_local_packet_cb(struct relay *r, void *pw_)
         if (ops->desc.port_no == htons(OFPP_LOCAL)) {
             call_local_port_changed_callbacks(pw);
         }
+        if (ops->reason == OFPPR_ADD || OFPPR_DELETE) {
+            update_netdev_monitor_devices(pw);
+        }
     }
     return false;
+}
+
+static void
+bring_netdev_up_or_down(const char *name, bool down)
+{
+    static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
+    struct netdev *netdev;
+    int retval;
+
+    retval = netdev_open(name, NETDEV_ETH_TYPE_NONE, &netdev);
+    if (!retval) {
+        if (down) {
+            retval = netdev_turn_flags_off(netdev, NETDEV_UP, true);
+        } else {
+            retval = netdev_turn_flags_on(netdev, NETDEV_UP, true);
+        }
+        if (retval) {
+            VLOG_WARN_RL(&rl, "failed to bring network device %s %s: %s",
+                         name, down ? "down" : "up", strerror(retval));
+        }
+        netdev_close(netdev);
+    } else {
+        VLOG_WARN_RL(&rl, "failed to open network device %s: %s",
+                     name, strerror(retval));
+    }
 }
 
 static bool
@@ -274,15 +328,32 @@ port_watcher_remote_packet_cb(struct relay *r, void *pw_)
             if (pw_opp->port_no == htons(OFPP_LOCAL)) {
                 call_local_port_changed_callbacks(pw);
             }
+
+            if (opm->mask & htonl(OFPPC_PORT_DOWN)) {
+                bring_netdev_up_or_down((const char *) pw_opp->name,
+                                        opm->config & htonl(OFPPC_PORT_DOWN));
+            }
         }
     }
     return false;
+}
+
+/* Sets 'bit' in '*word' to 0 or 1 according to 'value'. */
+static void
+set_bit(uint32_t bit, bool value, uint32_t *word)
+{
+    if (value) {
+        *word |= bit;
+    } else {
+        *word &= ~bit;
+    }
 }
 
 static void
 port_watcher_periodic_cb(void *pw_)
 {
     struct port_watcher *pw = pw_;
+    const char *name;
 
     if (!pw->got_feature_reply
         && time_now() >= pw->last_feature_request + 5
@@ -291,6 +362,47 @@ port_watcher_periodic_cb(void *pw_)
         make_openflow(sizeof(struct ofp_header), OFPT_FEATURES_REQUEST, &b);
         rconn_send_with_limit(pw->local_rconn, b, &pw->n_txq, 1);
         pw->last_feature_request = time_now();
+    }
+
+    netdev_monitor_run(pw->mon);
+    while ((name = netdev_monitor_poll(pw->mon)) != NULL) {
+        struct ofp_phy_port *opp;
+        struct ofp_phy_port new_opp;
+        enum netdev_flags flags;
+        int retval;
+
+        opp = shash_find_data(&pw->port_by_name, name);
+        if (!opp) {
+            continue;
+        }
+
+        retval = netdev_nodev_get_flags(name, &flags);
+        if (retval) {
+            static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
+            VLOG_WARN_RL(&rl, "could not get flags for %s", name);
+            continue;
+        }
+
+        new_opp = *opp;
+        set_bit(htonl(OFPPC_PORT_DOWN), flags & NETDEV_UP, &new_opp.config);
+        set_bit(htonl(OFPPS_LINK_DOWN), flags & NETDEV_CARRIER,
+                &new_opp.state);
+        if (opp->config != new_opp.config || opp->state != new_opp.state) {
+            struct ofp_port_status *ops;
+            struct ofpbuf *b;
+
+            /* Notify other secchan modules. */
+            update_phy_port(pw, &new_opp, OFPPR_MODIFY);
+            if (new_opp.port_no == htons(OFPP_LOCAL)) {
+                call_local_port_changed_callbacks(pw);
+            }
+
+            /* Notify the controller that the flags changed. */
+            ops = make_openflow(sizeof *ops, OFPT_PORT_STATUS, &b);
+            ops->reason = OFPPR_MODIFY;
+            ops->desc = new_opp;
+            rconn_send(pw->remote_rconn, b, NULL);
+        }
     }
 }
 
@@ -305,6 +417,7 @@ port_watcher_wait_cb(void *pw_)
             poll_immediate_wake();
         }
     }
+    netdev_monitor_wait(pw->mon);
 }
 
 static void
@@ -352,7 +465,7 @@ static void
 log_port_status(uint16_t port_no,
                 const struct ofp_phy_port *old,
                 const struct ofp_phy_port *new,
-                void *aux)
+                void *aux UNUSED)
 {
     if (VLOG_IS_DBG_ENABLED()) {
         if (old && new && (opp_differs(old, new)
@@ -489,6 +602,7 @@ port_watcher_start(struct secchan *secchan,
                    struct port_watcher **pwp)
 {
     struct port_watcher *pw;
+    int retval;
 
     pw = *pwp = xcalloc(1, sizeof *pw);
     pw->local_rconn = local_rconn;
@@ -496,6 +610,11 @@ port_watcher_start(struct secchan *secchan,
     pw->last_feature_request = TIME_MIN;
     port_array_init(&pw->ports);
     pw->local_port_name[0] = '\0';
+    retval = netdev_monitor_create(&pw->mon);
+    if (retval) {
+        ofp_fatal(retval, "failed to start network device monitoring");
+    }
+    shash_init(&pw->port_by_name);
     port_watcher_register_callback(pw, log_port_status, NULL);
     add_hook(secchan, &port_watcher_hook_class, pw);
 }

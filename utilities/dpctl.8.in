@@ -1,3 +1,5 @@
+.ds PN dpctl
+
 .TH dpctl 8 "May 2008" "OpenFlow" "OpenFlow Manual"
 
 .SH NAME
@@ -83,6 +85,10 @@ traffic and the network device appears silent to the rest of the system.
 Removes each \fInetdev\fR from the list of network devices datapath
 \fIdp_idx\fR monitors.
 
+.TP
+\fBget-idx \fIof_dev\fR
+Prints the datapath index for OpenFlow device \fIof_dev\fR.  
+
 .PP
 The following commands can be apply to OpenFlow switches regardless of
 the connection method.
@@ -100,10 +106,10 @@ pairs whose key names begin with \fIkey\fR are printed.  If \fIkey\fR is
 omitted, all key-value pairs are printed.
 
 (In the OpenFlow reference implementation, the \fBstatus\fR command is
-implemented in \fBsecchan\fR(8), not in the kernel module, so the
+implemented in \fBofprotocol\fR(8), not in the kernel module, so the
 \fBnl:\fIdp_idx\fR connection method should not be used with this
 command.  Instead, specify \fB-l\fR or \fB--listen\fR on the
-\fBsecchan\fR command line and tell \fBdpctl\fR to use the connection
+\fBofprotocol\fR command line and tell \fBdpctl\fR to use the connection
 method specified there.)
 
 .TP
@@ -189,13 +195,13 @@ syntax of \fIflows\fR.
 \fBmonitor \fIswitch\fR
 Connects to \fIswitch\fR and prints to the console all OpenFlow
 messages received.  Usually, \fIswitch\fR should specify a connection
-named on \fBsecchan\fR(8)'s \fB-m\fR or \fB--monitor\fR command line
+named on \fBofprotocol\fR(8)'s \fB-m\fR or \fB--monitor\fR command line
 option, in which the messages printed will be all those sent or
-received by \fBsecchan\fR to or from the kernel datapath module.  A
+received by \fBofprotocol\fR to or from the kernel datapath module.  A
 \fIswitch\fR of the form \fBnl:\fIdp_idx\fR will print all
 asynchronously generated OpenFlow messages (such as packet-in
 messages), but it will not print any messages sent to the kernel by
-\fBsecchan\fR and other processes, nor will it print replies sent by
+\fBofprotocol\fR and other processes, nor will it print replies sent by
 the kernel in response to those messages.
 
 .TP
@@ -357,7 +363,7 @@ omitted, then the entire packet is sent.
 .IP \fBlocal\fR
 Outputs the packet on the ``local port,'' which corresponds to the
 \fBof\fIn\fR network device (see \fBCONTACTING THE CONTROLLER\fR in
-\fBsecchan\fR(8) for information on the \fBof\fIn\fR network device).
+\fBofprotocol\fR(8) for information on the \fBof\fIn\fR network device).
 
 .IP \fBmod_vlan_vid\fR:\fIvlan_vid\fR
 Modifies the VLAN id on a packet.  The VLAN tag is added or modified 
@@ -370,6 +376,12 @@ Modifies the VLAN priority on a packet.  The VLAN tag is added or modified
 as necessary to match the value specified.  Valid values are between 0
 (lowest) and 7 (highest).  If the VLAN tag is added, a vid of zero is used 
 (see the \fBmod_vlan_vid\fR action to set this).
+
+.IP \fBmod_dl_dst\fR:\fIdst_mac\fR
+Modifies the destination mac address on a packet, e.g., actions=mod_dl_dst:12:34:56:78:9a:bc
+
+.IP \fBmod_dl_src\fR:\fIsrc_mac\fR
+Modifies the source mac address on a packet, e.g., actions=mod_dl_src:12:34:56:78:9a:bc
 
 .IP \fBstrip_vlan\fR
 Strips the VLAN tag from a packet if it is present.
@@ -450,15 +462,8 @@ private key to identify a trustworthy controller.
 Specifies a PEM file containing the CA certificate used to verify that
 a switch is trustworthy.
 
-.TP
-.BR \-h ", " \-\^\-help
-Prints a brief help message to the console.
-
-@VLOG_OPTIONS@
-
-.TP
-.BR \-V ", " \-\^\-version
-Prints version information to the console.
+.so lib/vlog.man
+.so lib/common.man
 
 .SH EXAMPLES
 
@@ -504,7 +509,7 @@ Delete the datapath:
 .fi
 .SH "SEE ALSO"
 
-.BR secchan (8),
+.BR ofprotocol (8),
 .BR controller (8),
-.BR udatapath (8),
+.BR ofdatapath (8),
 .BR vlogconf (8)

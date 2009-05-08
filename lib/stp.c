@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -39,6 +39,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include "ofpbuf.h"
 #include "packets.h"
 #include "util.h"
 #include "xtoxll.h"
@@ -121,6 +122,10 @@ struct stp {
     int bridge_max_age;             /* 8.5.3.8: max_age when we're root. */
     int bridge_hello_time;          /* 8.5.3.9: hello_time as root. */
     int bridge_forward_delay;       /* 8.5.3.10: forward_delay as root. */
+    int rq_max_age;                 /* User-requested max age, in ms. */
+    int rq_hello_time;              /* User-requested hello time, in ms. */
+    int rq_forward_delay;           /* User-requested forward delay, in ms. */
+    int elapsed_remainder;          /* Left-over msecs from last stp_tick(). */
 
     /* Dynamic bridge data. */
     stp_identifier designated_root; /* 8.5.3.1: Bridge believed to be root. */
@@ -139,8 +144,7 @@ struct stp {
 
     /* Interface to client. */
     struct stp_port *first_changed_port;
-    void (*send_bpdu)(const void *bpdu, size_t bpdu_size,
-                      int port_no, void *aux);
+    void (*send_bpdu)(struct ofpbuf *bpdu, int port_no, void *aux);
     void *aux;
 };
 
@@ -158,8 +162,6 @@ stp_next_enabled_port(const struct stp *stp, const struct stp_port *port)
     }
     return NULL;
 }
-
-#define SECONDS_TO_TIMER(SECS) ((SECS) * 0x100)
 
 #define MESSAGE_AGE_INCREMENT 1
 
@@ -188,8 +190,7 @@ static void stp_topology_change_acknowledged(struct stp *);
 static void stp_acknowledge_topology_change(struct stp_port *);
 static void stp_received_config_bpdu(struct stp *, struct stp_port *,
                                      const struct stp_config_bpdu *);
-static void stp_received_tcn_bpdu(struct stp *, struct stp_port *,
-                                  const struct stp_tcn_bpdu *);
+static void stp_received_tcn_bpdu(struct stp *, struct stp_port *);
 static void stp_hello_timer_expiry(struct stp *);
 static void stp_message_age_timer_expiry(struct stp_port *);
 static bool stp_is_designated_for_some_port(const struct stp *);
@@ -198,27 +199,33 @@ static void stp_tcn_timer_expiry(struct stp *);
 static void stp_topology_change_timer_expiry(struct stp *);
 static void stp_hold_timer_expiry(struct stp_port *);
 static void stp_initialize_port(struct stp_port *, enum stp_state);
-static void stp_become_root_bridge(struct stp *stp);
+static void stp_become_root_bridge(struct stp *);
+static void stp_update_bridge_timers(struct stp *);
 
+static int clamp(int x, int min, int max);
+static int ms_to_timer(int ms);
+static int ms_to_timer_remainder(int ms);
+static int timer_to_ms(int timer);
 static void stp_start_timer(struct stp_timer *, int value);
 static void stp_stop_timer(struct stp_timer *);
 static bool stp_timer_expired(struct stp_timer *, int elapsed, int timeout);
 
-/* Creates and returns a new STP instance that initially has no port enabled.
+static void stp_send_bpdu(struct stp_port *, const void *, size_t);
+
+/* Creates and returns a new STP instance that initially has no ports enabled.
  *
  * 'bridge_id' should be a 48-bit MAC address as returned by
  * eth_addr_to_uint64().  'bridge_id' may also have a priority value in its top
- * 16 bits; if those bits are set to 0, the default bridge priority of 32768 is
- * used.  (This priority may be changed with stp_set_bridge_priority().)
+ * 16 bits; if those bits are set to 0, STP_DEFAULT_BRIDGE_PRIORITY is used.
+ * (This priority may be changed with stp_set_bridge_priority().)
  *
- * When the bridge needs to send out a BPDU, it calls 'send_bpdu', passing
- * 'aux' as auxiliary data.  This callback may be called from stp_tick() or
- * stp_received_bpdu().
+ * When the bridge needs to send out a BPDU, it calls 'send_bpdu'.  This
+ * callback may be called from stp_tick() or stp_received_bpdu().  The
+ * arguments to 'send_bpdu' are an STP BPDU encapsulated in 
  */
 struct stp *
 stp_create(const char *name, stp_identifier bridge_id,
-           void (*send_bpdu)(const void *bpdu, size_t bpdu_size,
-                             int port_no, void *aux),
+           void (*send_bpdu)(struct ofpbuf *bpdu, int port_no, void *aux),
            void *aux)
 {
     struct stp *stp;
@@ -228,18 +235,16 @@ stp_create(const char *name, stp_identifier bridge_id,
     stp->name = xstrdup(name);
     stp->bridge_id = bridge_id;
     if (!(stp->bridge_id >> 48)) {
-        stp->bridge_id |= UINT64_C(32768) << 48;
+        stp->bridge_id |= (uint64_t) STP_DEFAULT_BRIDGE_PRIORITY << 48;
     }
-    stp->max_age = SECONDS_TO_TIMER(6);
-    stp->hello_time = SECONDS_TO_TIMER(2);
-    stp->forward_delay = SECONDS_TO_TIMER(4);
-    stp->bridge_max_age = stp->max_age;
-    stp->bridge_hello_time = stp->hello_time;
-    stp->bridge_forward_delay = stp->forward_delay;
 
-    /* Verify constraints stated by 802.1D. */
-    assert(2 * (stp->forward_delay - SECONDS_TO_TIMER(1)) >= stp->max_age);
-    assert(stp->max_age >= 2 * (stp->hello_time + SECONDS_TO_TIMER(1)));
+    stp->rq_max_age = 6000;
+    stp->rq_hello_time = 2000;
+    stp->rq_forward_delay = 4000;
+    stp_update_bridge_timers(stp);
+    stp->max_age = stp->bridge_max_age;
+    stp->hello_time = stp->bridge_hello_time;
+    stp->forward_delay = stp->bridge_forward_delay;
 
     stp->designated_root = stp->bridge_id;
     stp->root_path_cost = 0;
@@ -257,7 +262,7 @@ stp_create(const char *name, stp_identifier bridge_id,
     stp->first_changed_port = &stp->ports[ARRAY_SIZE(stp->ports)];
     for (p = stp->ports; p < &stp->ports[ARRAY_SIZE(stp->ports)]; p++) {
         p->stp = stp;
-        p->port_id = (stp_port_no(p) + 1) | (128 << 8);
+        p->port_id = (stp_port_no(p) + 1) | (STP_DEFAULT_PORT_PRIORITY << 8);
         p->path_cost = 19;      /* Recommended default for 100 Mb/s link. */
         stp_initialize_port(p, STP_DISABLED);
     }
@@ -271,10 +276,22 @@ stp_destroy(struct stp *stp)
     free(stp);
 }
 
+/* Runs 'stp' given that 'ms' milliseconds have passed. */
 void
-stp_tick(struct stp *stp, int elapsed)
+stp_tick(struct stp *stp, int ms)
 {
     struct stp_port *p;
+    int elapsed;
+
+    /* Convert 'ms' to STP timer ticks.  Preserve any leftover milliseconds
+     * from previous stp_tick() calls so that we don't lose STP ticks when we
+     * are called too frequently. */
+    ms = clamp(ms, 0, INT_MAX - 1000) + stp->elapsed_remainder;
+    elapsed = ms_to_timer(ms);
+    stp->elapsed_remainder = ms_to_timer_remainder(ms);
+    if (!elapsed) {
+        return;
+    }
 
     if (stp_timer_expired(&stp->hello_timer, elapsed, stp->hello_time)) {
         stp_hello_timer_expiry(stp);
@@ -296,7 +313,7 @@ stp_tick(struct stp *stp, int elapsed)
                               stp->forward_delay)) {
             stp_forward_delay_timer_expiry(p);
         }
-        if (stp_timer_expired(&p->hold_timer, elapsed, SECONDS_TO_TIMER(1))) {
+        if (stp_timer_expired(&p->hold_timer, elapsed, ms_to_timer(1000))) {
             stp_hold_timer_expiry(p);
         }
     }
@@ -340,6 +357,40 @@ stp_set_bridge_priority(struct stp *stp, uint16_t new_priority)
                         | ((uint64_t) new_priority << 48)));
 }
 
+/* Sets the desired hello time for 'stp' to 'ms', in milliseconds.  The actual
+ * hello time is clamped to the range of 1 to 10 seconds and subject to the
+ * relationship (bridge_max_age >= 2 * (bridge_hello_time + 1 s)).  The bridge
+ * hello time is only used when 'stp' is the root bridge. */
+void
+stp_set_hello_time(struct stp *stp, int ms)
+{
+    stp->rq_hello_time = ms;
+    stp_update_bridge_timers(stp);
+}
+
+/* Sets the desired max age for 'stp' to 'ms', in milliseconds.  The actual max
+ * age is clamped to the range of 6 to 40 seconds and subject to the
+ * relationships (2 * (bridge_forward_delay - 1 s) >= bridge_max_age) and
+ * (bridge_max_age >= 2 * (bridge_hello_time + 1 s)).  The bridge max age is
+ * only used when 'stp' is the root bridge. */
+void
+stp_set_max_age(struct stp *stp, int ms)
+{
+    stp->rq_max_age = ms;
+    stp_update_bridge_timers(stp);
+}
+
+/* Sets the desired forward delay for 'stp' to 'ms', in milliseconds.  The
+ * actual forward delay is clamped to the range of 4 to 30 seconds and subject
+ * to the relationship (2 * (bridge_forward_delay - 1 s) >= bridge_max_age).
+ * The bridge forward delay is only used when 'stp' is the root bridge. */
+void
+stp_set_forward_delay(struct stp *stp, int ms)
+{
+    stp->rq_forward_delay = ms;
+    stp_update_bridge_timers(stp);
+}
+
 /* Returns the name given to 'stp' in the call to stp_create(). */
 const char *
 stp_get_name(const struct stp *stp)
@@ -374,6 +425,35 @@ int
 stp_get_root_path_cost(const struct stp *stp)
 {
     return stp->root_path_cost;
+}
+
+/* Returns the bridge hello time, in ms.  The returned value is not necessarily
+ * the value passed to stp_set_hello_time(): it is clamped to the valid range
+ * and quantized to the STP timer resolution.  */
+int
+stp_get_hello_time(const struct stp *stp)
+{
+    return timer_to_ms(stp->bridge_hello_time);
+}
+
+/* Returns the bridge max age, in ms.  The returned value is not necessarily
+ * the value passed to stp_set_max_age(): it is clamped to the valid range,
+ * quantized to the STP timer resolution, and adjusted to match the constraints
+ * due to the hello time.  */
+int
+stp_get_max_age(const struct stp *stp)
+{
+    return timer_to_ms(stp->bridge_max_age);
+}
+
+/* Returns the bridge forward delay, in ms.  The returned value is not
+ * necessarily the value passed to stp_set_forward_delay(): it is clamped to
+ * the valid range, quantized to the STP timer resolution, and adjusted to
+ * match the constraints due to the forward delay.  */
+int
+stp_get_forward_delay(const struct stp *stp)
+{
+    return timer_to_ms(stp->bridge_forward_delay);
 }
 
 /* Returns the port in 'stp' with index 'port_no', which must be between 0 and
@@ -437,19 +517,25 @@ stp_state_name(enum stp_state state)
 }
 
 /* Returns true if 'state' is one in which packets received on a port should
- * be forwarded, false otherwise. */
+ * be forwarded, false otherwise.
+ *
+ * Returns true if 'state' is STP_DISABLED, since presumably in that case the
+ * port should still work, just not have STP applied to it. */
 bool
 stp_forward_in_state(enum stp_state state)
 {
-    return state == STP_FORWARDING;
+    return (state & (STP_DISABLED | STP_FORWARDING)) != 0;
 }
 
 /* Returns true if 'state' is one in which MAC learning should be done on
- * packets received on a port, false otherwise. */
+ * packets received on a port, false otherwise.
+ *
+ * Returns true if 'state' is STP_DISABLED, since presumably in that case the
+ * port should still work, just not have STP applied to it. */
 bool
 stp_learn_in_state(enum stp_state state)
 {
-    return state & (STP_LEARNING | STP_FORWARDING);
+    return (state & (STP_DISABLED | STP_LEARNING | STP_FORWARDING)) != 0;
 }
 
 /* Notifies the STP entity that bridge protocol data unit 'bpdu', which is
@@ -498,7 +584,7 @@ stp_received_bpdu(struct stp_port *p, const void *bpdu, size_t bpdu_size)
                       stp->name, bpdu_size);
             return;
         }
-        stp_received_tcn_bpdu(stp, p, bpdu);
+        stp_received_tcn_bpdu(stp, p);
         break;
 
     default:
@@ -586,7 +672,7 @@ stp_port_set_priority(struct stp_port *p, uint8_t new_priority)
  * used to indicate faster links.  Use stp_port_set_speed() to automatically
  * generate a default path cost from a link speed. */
 void
-stp_port_set_path_cost(struct stp_port *p, unsigned int path_cost)
+stp_port_set_path_cost(struct stp_port *p, uint16_t path_cost)
 {
     if (p->path_cost != path_cost) {
         struct stp *stp = p->stp;
@@ -662,7 +748,7 @@ stp_transmit_config(struct stp_port *p)
         if (ntohs(config.message_age) < stp->max_age) {
             p->topology_change_ack = false;
             p->config_pending = false;
-            stp->send_bpdu(&config, sizeof config, stp_port_no(p), stp->aux);
+            stp_send_bpdu(p, &config, sizeof config);
             stp_start_timer(&p->hold_timer, 0);
         }
     }
@@ -735,7 +821,7 @@ stp_transmit_tcn(struct stp *stp)
     tcn_bpdu.header.protocol_id = htons(STP_PROTOCOL_ID);
     tcn_bpdu.header.protocol_version = STP_PROTOCOL_VERSION;
     tcn_bpdu.header.bpdu_type = STP_TYPE_TCN;
-    stp->send_bpdu(&tcn_bpdu, sizeof tcn_bpdu, stp_port_no(p), stp->aux);
+    stp_send_bpdu(p, &tcn_bpdu, sizeof tcn_bpdu);
 }
 
 static void
@@ -941,8 +1027,7 @@ stp_received_config_bpdu(struct stp *stp, struct stp_port *p,
 }
 
 void
-stp_received_tcn_bpdu(struct stp *stp, struct stp_port *p,
-                      const struct stp_tcn_bpdu *tcn)
+stp_received_tcn_bpdu(struct stp *stp, struct stp_port *p)
 {
     if (p->state != STP_DISABLED) {
         if (stp_is_designated_port(p)) {
@@ -1081,3 +1166,78 @@ stp_timer_expired(struct stp_timer *timer, int elapsed, int timeout)
     return false;
 }
 
+/* Returns the number of whole STP timer ticks in 'ms' milliseconds.  There
+ * are 256 STP timer ticks per second. */
+static int
+ms_to_timer(int ms)
+{
+    return ms * 0x100 / 1000;
+}
+
+/* Returns the number of leftover milliseconds when 'ms' is converted to STP
+ * timer ticks. */
+static int
+ms_to_timer_remainder(int ms)
+{
+    return ms * 0x100 % 1000;
+}
+
+/* Returns the number of whole milliseconds in 'timer' STP timer ticks.  There
+ * are 256 STP timer ticks per second. */
+static int
+timer_to_ms(int timer)
+{
+    return timer * 1000 / 0x100;
+}
+
+static int
+clamp(int x, int min, int max)
+{
+    return x < min ? min : x > max ? max : x;
+}
+
+static void
+stp_update_bridge_timers(struct stp *stp)
+{
+    int ht, ma, fd;
+
+    ht = clamp(stp->rq_hello_time, 1000, 10000);
+    ma = clamp(stp->rq_max_age, MAX(2 * (ht + 1000), 6000), 40000);
+    fd = clamp(stp->rq_forward_delay, ma / 2 + 1000, 30000);
+
+    stp->bridge_hello_time = ms_to_timer(ht);
+    stp->bridge_max_age = ms_to_timer(ma);
+    stp->bridge_forward_delay = ms_to_timer(fd);
+
+    if (stp_is_root_bridge(stp)) {
+        stp->max_age = stp->bridge_max_age;
+        stp->hello_time = stp->bridge_hello_time;
+        stp->forward_delay = stp->bridge_forward_delay;
+    }
+}
+
+static void
+stp_send_bpdu(struct stp_port *p, const void *bpdu, size_t bpdu_size)
+{
+    struct eth_header *eth;
+    struct llc_header *llc;
+    struct ofpbuf *pkt;
+
+    /* Skeleton. */
+    pkt = ofpbuf_new(ETH_HEADER_LEN + LLC_HEADER_LEN + bpdu_size);
+    pkt->l2 = eth = ofpbuf_put_zeros(pkt, sizeof *eth);
+    llc = ofpbuf_put_zeros(pkt, sizeof *llc);
+    pkt->l3 = ofpbuf_put(pkt, bpdu, bpdu_size);
+
+    /* 802.2 header. */
+    memcpy(eth->eth_dst, stp_eth_addr, ETH_ADDR_LEN);
+    /* p->stp->send_bpdu() must fill in source address. */
+    eth->eth_type = htons(pkt->size - ETH_HEADER_LEN);
+
+    /* LLC header. */
+    llc->llc_dsap = STP_LLC_DSAP;
+    llc->llc_ssap = STP_LLC_SSAP;
+    llc->llc_cntl = STP_LLC_CNTL;
+
+    p->stp->send_bpdu(pkt, stp_port_no(p), p->stp->aux);
+}

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -48,6 +48,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "dynamic-string.h"
+#include "leak-checker.h"
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
 #include "packets.h"
@@ -177,7 +178,7 @@ static void ssl_tx_poll_callback(int fd, short int revents, void *vconn_);
 static DH *tmp_dh_callback(SSL *ssl, int is_export UNUSED, int keylength);
 static void log_ca_cert(const char *file_name, X509 *cert);
 
-short int
+static short int
 want_to_poll_events(int want)
 {
     switch (want) {
@@ -250,7 +251,7 @@ new_ssl_vconn(const char *name, int fd, enum session_type type,
     /* Create and return the ssl_vconn. */
     sslv = xmalloc(sizeof *sslv);
     vconn_init(&sslv->vconn, &ssl_vconn_class, EAGAIN, sin->sin_addr.s_addr,
-               name);
+               name, true);
     sslv->state = state;
     sslv->type = type;
     sslv->fd = fd;
@@ -403,7 +404,7 @@ do_ca_cert_bootstrap(struct vconn *vconn)
         return error;
     }
 
-    VLOG_WARN("successfully bootstrapped CA cert to %s", ca_cert_file);
+    VLOG_INFO("successfully bootstrapped CA cert to %s", ca_cert_file);
     log_ca_cert(ca_cert_file, ca_cert);
     bootstrap_ca_cert = false;
     has_ca_cert = true;
@@ -422,7 +423,7 @@ do_ca_cert_bootstrap(struct vconn *vconn)
                  ERR_error_string(ERR_get_error(), NULL));
         return EPROTO;
     }
-    VLOG_WARN("killing successful connection to retry using CA cert");
+    VLOG_INFO("killing successful connection to retry using CA cert");
     return EPROTO;
 }
 
@@ -718,6 +719,7 @@ ssl_send(struct vconn *vconn, struct ofpbuf *buffer)
             ssl_clear_txbuf(sslv);
             return 0;
         case EAGAIN:
+            leak_checker_claim(buffer);
             ssl_register_tx_waiter(vconn);
             return 0;
         default:
@@ -974,7 +976,7 @@ do_ssl_init(void)
 }
 
 static DH *
-tmp_dh_callback(SSL *ssl, int is_export UNUSED, int keylength)
+tmp_dh_callback(SSL *ssl UNUSED, int is_export UNUSED, int keylength)
 {
     struct dh {
         int keylength;
@@ -1049,7 +1051,7 @@ vconn_ssl_set_certificate_file(const char *file_name)
  * in '*n_certs', and returns a positive errno value.
  *
  * The caller is responsible for freeing '*certs'. */
-int
+static int
 read_cert_file(const char *file_name, X509 ***certs, size_t *n_certs)
 {
     FILE *file;
@@ -1087,8 +1089,7 @@ read_cert_file(const char *file_name, X509 ***certs, size_t *n_certs)
 
         /* Add certificate to array. */
         if (*n_certs >= allocated_certs) {
-            allocated_certs = 1 + 2 * allocated_certs;
-            *certs = xrealloc(*certs, sizeof *certs * allocated_certs);
+            *certs = x2nrealloc(*certs, &allocated_certs, sizeof **certs);
         }
         (*certs)[(*n_certs)++] = certificate;
 
@@ -1154,7 +1155,7 @@ log_ca_cert(const char *file_name, X509 *cert)
         }
     }
     subject = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-    VLOG_WARN("Trusting CA cert from %s (%s) (fingerprint %s)", file_name,
+    VLOG_INFO("Trusting CA cert from %s (%s) (fingerprint %s)", file_name,
               subject ? subject : "<out of memory>", ds_cstr(&fp));
     free(subject);
     ds_destroy(&fp);

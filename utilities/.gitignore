@@ -1,6 +1,7 @@
 /Makefile
 /Makefile.in
 /dpctl
+/dpctl.8
 /ofp-discover
 /ofp-discover.8
 /ofp-kill
@@ -9,3 +10,4 @@
 /ofp-pki-cgi
 /ofp-pki.8
 /vlogconf
+/vlogconf.8

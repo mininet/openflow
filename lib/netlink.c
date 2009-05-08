@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -44,6 +44,7 @@
 #include "dynamic-string.h"
 #include "netlink-protocol.h"
 #include "ofpbuf.h"
+#include "poll-loop.h"
 #include "timeval.h"
 #include "util.h"
 
@@ -413,6 +414,7 @@ recv:
         goto recv;
     }
     if (nl_msg_nlmsgerr(reply, &retval)) {
+        ofpbuf_delete(reply);
         if (retval) {
             VLOG_DBG_RL(&rl, "received NAK error=%d (%s)",
                         retval, strerror(retval));
@@ -424,11 +426,12 @@ recv:
     return 0;
 }
 
-/* Returns 'sock''s underlying file descriptor. */
-int
-nl_sock_fd(const struct nl_sock *sock) 
+/* Causes poll_block() to wake up when any of the specified 'events' (which is
+ * a OR'd combination of POLLIN, POLLOUT, etc.) occur on 'sock'. */
+void
+nl_sock_wait(const struct nl_sock *sock, short int events)
 {
-    return sock->fd;
+    poll_fd_wait(sock->fd, events);
 }
 
 /* Netlink messages. */
@@ -758,12 +761,16 @@ static const size_t attr_len_range[][2] = {
     [NL_A_NESTED] = { NLMSG_HDRLEN, SIZE_MAX },
 };
 
-/* Parses the Generic Netlink payload of 'msg' as a sequence of Netlink
+/* Parses the 'msg' starting at the given 'nla_offset' as a sequence of Netlink
  * attributes.  'policy[i]', for 0 <= i < n_attrs, specifies how the attribute
  * with nla_type == i is parsed; a pointer to attribute i is stored in
- * attrs[i].  Returns true if successful, false on failure. */
+ * attrs[i].  Returns true if successful, false on failure.
+ *
+ * If the Netlink attributes in 'msg' follow a Netlink header and a Generic
+ * Netlink header, then 'nla_offset' should be NLMSG_HDRLEN + GENL_HDRLEN. */
 bool
-nl_policy_parse(const struct ofpbuf *msg, const struct nl_policy policy[],
+nl_policy_parse(const struct ofpbuf *msg, size_t nla_offset,
+                const struct nl_policy policy[],
                 struct nlattr *attrs[], size_t n_attrs)
 {
     void *p, *tail;
@@ -782,7 +789,7 @@ nl_policy_parse(const struct ofpbuf *msg, const struct nl_policy policy[],
         }
     }
 
-    p = ofpbuf_at(msg, NLMSG_HDRLEN + GENL_HDRLEN, 0);
+    p = ofpbuf_at(msg, nla_offset, 0);
     if (p == NULL) {
         VLOG_DBG_RL(&rl, "missing headers in nl_policy_parse");
         return false;
@@ -883,8 +890,8 @@ static int do_lookup_genl_family(const char *name)
         return -retval;
     }
 
-    if (!nl_policy_parse(reply, family_policy, attrs,
-                         ARRAY_SIZE(family_policy))) {
+    if (!nl_policy_parse(reply, NLMSG_HDRLEN + GENL_HDRLEN,
+                         family_policy, attrs, ARRAY_SIZE(family_policy))) {
         nl_sock_destroy(sock);
         ofpbuf_delete(reply);
         return -EPROTO;

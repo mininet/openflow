@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -37,7 +37,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+void random_init(void);
 void random_bytes(void *, size_t);
+uint8_t random_uint8(void);
+uint16_t random_uint16(void);
 uint32_t random_uint32(void);
 int random_range(int max);
 

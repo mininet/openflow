@@ -1,4 +1,4 @@
-dist_modules += compat24
+both_modules += compat24
 
 compat24_sources = \
 	linux-2.4/compat-2.4/attr.c \
@@ -21,12 +21,15 @@ compat24_headers = \
 	linux-2.4/compat-2.4/include-mips/asm/break.h \
 	linux-2.4/compat-2.4/include-mips/asm/page.h \
 	linux-2.4/compat-2.4/include-mips/asm/system.h \
+	linux-2.4/compat-2.4/include/asm/bug.h \
 	linux-2.4/compat-2.4/include/asm/system.h \
 	linux-2.4/compat-2.4/include/linux/compiler.h \
 	linux-2.4/compat-2.4/include/linux/delay.h \
+	linux-2.4/compat-2.4/include/linux/dmi.h \
 	linux-2.4/compat-2.4/include/linux/etherdevice.h \
 	linux-2.4/compat-2.4/include/linux/genetlink.h \
 	linux-2.4/compat-2.4/include/linux/gfp.h \
+	linux-2.4/compat-2.4/include/linux/icmp.h \
 	linux-2.4/compat-2.4/include/linux/if_ether.h \
 	linux-2.4/compat-2.4/include/linux/if_vlan.h \
 	linux-2.4/compat-2.4/include/linux/ip.h \
@@ -54,6 +57,7 @@ compat24_headers = \
 	linux-2.4/compat-2.4/include/linux/timer.h \
 	linux-2.4/compat-2.4/include/linux/types.h \
 	linux-2.4/compat-2.4/include/linux/udp.h \
+	linux-2.4/compat-2.4/include/linux/workqueue.h \
 	linux-2.4/compat-2.4/include/net/checksum.h \
 	linux-2.4/compat-2.4/include/net/genetlink.h \
 	linux-2.4/compat-2.4/include/net/llc_pdu.h \

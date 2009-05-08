@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -42,7 +42,7 @@
 
 
 static uint16_t
-validate_output(struct datapath *dp, const struct sw_flow_key *key, 
+validate_output(struct datapath *dp UNUSED, const struct sw_flow_key *key, 
         const struct ofp_action_header *ah) 
 {
     struct ofp_action_output *oa = (struct ofp_action_output *)ah;
@@ -50,10 +50,11 @@ validate_output(struct datapath *dp, const struct sw_flow_key *key,
     /* To prevent loops, make sure there's no action to send to the
      * OFP_TABLE virtual port.
      */
-    if (oa->port == htons(OFPP_NONE)
-       || (!(key->wildcards & OFPFW_IN_PORT) && oa->port == key->flow.in_port))
+    if (oa->port == htons(OFPP_NONE) || 
+            (!(key->wildcards & OFPFW_IN_PORT) 
+                    && oa->port == key->flow.in_port)) {
         return OFPBAC_BAD_OUT_PORT;
-
+    }
     return ACT_VALIDATION_OK;
 }
 
@@ -143,14 +144,14 @@ set_vlan_pcp(struct ofpbuf *buffer, struct sw_flow_key *key,
 
 static void
 strip_vlan(struct ofpbuf *buffer, struct sw_flow_key *key, 
-        const struct ofp_action_header *ah)
+        const struct ofp_action_header *ah UNUSED)
 {
     vlan_pull_tag(buffer);
     key->flow.dl_vlan = htons(OFP_VLAN_NONE);
 }
 
 static void
-set_dl_addr(struct ofpbuf *buffer, struct sw_flow_key *key, 
+set_dl_addr(struct ofpbuf *buffer, struct sw_flow_key *key UNUSED, 
         const struct ofp_action_header *ah)
 {
     struct ofp_action_dl_addr *da = (struct ofp_action_dl_addr *)ah;
@@ -301,7 +302,7 @@ static uint16_t
 validate_ofpat(struct datapath *dp, const struct sw_flow_key *key, 
         const struct ofp_action_header *ah, uint16_t type, uint16_t len)
 {
-    int ret = ACT_VALIDATION_OK;
+    uint16_t ret = ACT_VALIDATION_OK;
     const struct openflow_action *act = &of_actions[type];
 
     if ((len < act->min_size) || (len > act->max_size)) {

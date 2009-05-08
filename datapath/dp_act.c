@@ -1,12 +1,11 @@
 /*
  * Distributed under the terms of the GNU GPL version 2.
- * Copyright (c) 2007, 2008 The Board of Trustees of The Leland 
+ * Copyright (c) 2007, 2008, 2009 The Board of Trustees of The Leland 
  * Stanford Junior University
  */
 
 /* Functions for executing OpenFlow actions. */
 
-#include "compat.h"
 #include <linux/skbuff.h>
 #include <linux/in.h>
 #include <linux/ip.h>
@@ -42,8 +41,7 @@ do_output(struct datapath *dp, struct sk_buff *skb, size_t max_len,
 		return -ENOMEM;
 	return (likely(out_port != OFPP_CONTROLLER)
 		? dp_output_port(dp, skb, out_port, ignore_no_fwd)
-		: dp_output_control(dp, skb, fwd_save_skb(skb),
-					 max_len, OFPR_ACTION));
+		: dp_output_control(dp, skb, max_len, OFPR_ACTION));
 }
 
 
@@ -313,7 +311,7 @@ static uint16_t
 validate_ofpat(struct datapath *dp, const struct sw_flow_key *key, 
 		const struct ofp_action_header *ah, uint16_t type, uint16_t len)
 {
-	int ret = ACT_VALIDATION_OK;
+	uint16_t ret = ACT_VALIDATION_OK;
 	const struct openflow_action *act = &of_actions[type];
 
 	if ((len < act->min_size) || (len > act->max_size)) 
@@ -400,16 +398,8 @@ execute_ofpat(struct sk_buff *skb, struct sw_flow_key *key,
 		const struct ofp_action_header *ah, uint16_t type)
 {
 	const struct openflow_action *act = &of_actions[type];
-
-	if (act->execute)  {
-		if (!make_writable(&skb)) {
-			if (net_ratelimit())
-				printk("make_writable failed\n");
-			return skb;
-		}
+	if (act->execute && make_writable(&skb))
 		skb = act->execute(skb, key, ah);
-	}
-
 	return skb;
 }
 
@@ -420,6 +410,7 @@ execute_vendor(struct sk_buff *skb, const struct sw_flow_key *key,
 {
 	struct ofp_action_vendor_header *avh 
 			= (struct ofp_action_vendor_header *)ah;
+	struct datapath *dp = skb->dev->br_port->dp;
 
 	/* NB: If changes need to be made to the packet, a call should be
 	 * made to make_writable or its equivalent first. */
@@ -432,8 +423,9 @@ execute_vendor(struct sk_buff *skb, const struct sw_flow_key *key,
 	default:
 		/* This should not be possible due to prior validation. */
 		if (net_ratelimit())
-			printk("attempt to execute action with unknown vendor: %#x\n", 
-					ntohl(avh->vendor));
+			printk(KERN_WARNING "%s: attempt to execute action "
+			       "with unknown vendor: %#x\n",
+			       dp->netdev->name, ntohl(avh->vendor));
 		break;
 	}
 
@@ -483,7 +475,9 @@ void execute_actions(struct datapath *dp, struct sk_buff *skb,
 
 			if (!skb) {
 				if (net_ratelimit())
-					printk("execute_actions lost skb\n");
+					printk(KERN_WARNING "%s: "
+					       "execute_actions lost skb\n",
+					       dp->netdev->name);
 				return;
 			}
 		}

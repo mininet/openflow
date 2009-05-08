@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -50,6 +50,7 @@
 #include "fail-open.h"
 #include "fault.h"
 #include "in-band.h"
+#include "leak-checker.h"
 #include "list.h"
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
@@ -153,8 +154,8 @@ main(int argc, char *argv[])
         ofp_fatal(retval, "Could not listen for vlog connections");
     }
 
-    VLOG_WARN("OpenFlow reference implementation version %s", VERSION BUILDNR);
-    VLOG_WARN("OpenFlow protocol version 0x%02x", OFP_VERSION);
+    VLOG_INFO("OpenFlow reference implementation version %s", VERSION BUILDNR);
+    VLOG_INFO("OpenFlow protocol version 0x%02x", OFP_VERSION);
 
     /* Check datapath name, to try to catch command-line invocation errors. */
     if (strncmp(s.dp_name, "nl:", 3) && strncmp(s.dp_name, "unix:", 5)
@@ -215,7 +216,7 @@ main(int argc, char *argv[])
 #endif
     flow_end_start(&secchan, s.netflow_dst, local_rconn, remote_rconn);
     if (s.enable_stp) {
-        stp_start(&secchan, &s, pw, local_rconn, remote_rconn);
+        stp_start(&secchan, pw, local_rconn, remote_rconn);
     }
     if (s.in_band) {
         in_band_start(&secchan, &s, switch_status, pw, remote_rconn);
@@ -231,7 +232,7 @@ main(int argc, char *argv[])
         executer_start(&secchan, &s);
     }
 
-    for (;;) {
+    while (s.discovery || rconn_is_alive(remote_rconn)) {
         struct relay *r, *n;
         size_t i;
 
@@ -331,10 +332,8 @@ add_hook(struct secchan *secchan, const struct hook_class *class, void *aux)
     struct hook *hook;
 
     if (secchan->n_hooks >= secchan->allocated_hooks) {
-        secchan->allocated_hooks = secchan->allocated_hooks * 2 + 1;
-        secchan->hooks = xrealloc(secchan->hooks,
-                                  (sizeof *secchan->hooks
-                                   * secchan->allocated_hooks));
+        secchan->hooks = x2nrealloc(secchan->hooks, &secchan->allocated_hooks,
+                                    sizeof *secchan->hooks);
     }
     hook = &secchan->hooks[secchan->n_hooks++];
     hook->class = class;
@@ -592,7 +591,8 @@ parse_options(int argc, char *argv[], struct settings *s)
         OPT_COMMAND_ACL,
         OPT_COMMAND_DIR,
         OPT_NETFLOW,
-        VLOG_OPTION_ENUMS
+        VLOG_OPTION_ENUMS,
+        LEAK_CHECKER_OPTION_ENUMS
     };
     static struct option long_options[] = {
         {"accept-vconn", required_argument, 0, OPT_ACCEPT_VCONN},
@@ -617,6 +617,7 @@ parse_options(int argc, char *argv[], struct settings *s)
         {"version",     no_argument, 0, 'V'},
         DAEMON_LONG_OPTIONS,
         VLOG_LONG_OPTIONS,
+        LEAK_CHECKER_LONG_OPTIONS,
 #ifdef HAVE_OPENSSL
         VCONN_SSL_LONG_OPTIONS
         {"bootstrap-ca-cert", required_argument, 0, OPT_BOOTSTRAP_CA_CERT},
@@ -777,6 +778,8 @@ parse_options(int argc, char *argv[], struct settings *s)
 
         VLOG_OPTION_HANDLERS
 
+        LEAK_CHECKER_OPTION_HANDLERS
+
 #ifdef HAVE_OPENSSL
         VCONN_SSL_OPTION_HANDLERS
 
@@ -880,5 +883,6 @@ usage(void)
     printf("\nOther options:\n"
            "  -h, --help              display this help message\n"
            "  -V, --version           display version information\n");
+    leak_checker_usage();
     exit(EXIT_SUCCESS);
 }

@@ -1,24 +1,55 @@
 #ifndef __LINUX_SKBUFF_WRAPPER_H
 #define __LINUX_SKBUFF_WRAPPER_H 1
 
-#include <linux/version.h>
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
-#undef kmem_cache_create
-#endif /* linux kernel <= 2.6.22 */
-
 #include_next <linux/skbuff.h>
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22)
-/*----------------------------------------------------------------------------
- * In 2.6.23, the last argument was dropped from kmem_cache_create. */
-#define kmem_cache_create(n, s, a, f, c) \
-		kmem_cache_create((n), (s), (a), (f), (c), NULL)
+#include <linux/version.h>
 
-#endif /* linux kernel <= 2.6.22 */
+#ifndef HAVE_SKB_COPY_FROM_LINEAR_DATA_OFFSET
+static inline void skb_copy_from_linear_data_offset(const struct sk_buff *skb,
+                                                    const int offset, void *to,
+                                                    const unsigned int len)
+{
+	memcpy(to, skb->data + offset, len);
+}
+
+static inline void skb_copy_to_linear_data_offset(struct sk_buff *skb,
+                                                  const int offset,
+                                                  const void *from,
+                                                  const unsigned int len)
+{
+	memcpy(skb->data + offset, from, len);
+}
+
+#endif	/* !HAVE_SKB_COPY_FROM_LINEAR_DATA_OFFSET */
+
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)
+static inline int __skb_cow(struct sk_buff *skb, unsigned int headroom,
+                            int cloned)
+{
+	int delta = 0;
+
+	if (headroom < NET_SKB_PAD)
+		headroom = NET_SKB_PAD;
+	if (headroom > skb_headroom(skb))
+		delta = headroom - skb_headroom(skb);
+
+	if (delta || cloned)
+		return pskb_expand_head(skb, ALIGN(delta, NET_SKB_PAD), 0,
+					GFP_ATOMIC);
+	return 0;
+}
+
+static inline int skb_cow_head(struct sk_buff *skb, unsigned int headroom)
+{
+	return __skb_cow(skb, headroom, skb_header_cloned(skb));
+}
+#endif  /* linux < 2.6.23 */
+
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
-/* Emulate Linux 2.6.17 and later behavior, in which kfree_skb silently ignores
+/* Emulate Linux 2.6.17 and later behavior, in which kfree_skb silently ignores 
  * null pointer arguments. */
 #define kfree_skb(skb) kfree_skb_maybe_null(skb)
 static inline void kfree_skb_maybe_null(struct sk_buff *skb)
@@ -29,22 +60,21 @@ static inline void kfree_skb_maybe_null(struct sk_buff *skb)
 #endif
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#ifndef CHECKSUM_PARTIAL
 /* Note that CHECKSUM_PARTIAL is not implemented, but this allows us to at
  * least test against it: see update_csum() in forward.c. */
-#undef CHECKSUM_PARTIAL
 #define CHECKSUM_PARTIAL 3
+#endif
+#ifndef CHECKSUM_COMPLETE
 #define CHECKSUM_COMPLETE CHECKSUM_HW
-#endif /* linux kernel < 2.6.19 */
+#endif
 
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
-
+#ifdef HAVE_MAC_RAW
 #define mac_header mac.raw
 #define network_header nh.raw
+#endif
 
-#if RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,2)
-
+#ifndef HAVE_SKBUFF_HEADER_HELPERS
 static inline unsigned char *skb_transport_header(const struct sk_buff *skb)
 {
 	return skb->h.raw;
@@ -102,9 +132,6 @@ static inline void skb_copy_to_linear_data(struct sk_buff *skb,
 {
 	memcpy(skb->data, from, len);
 }
-
-#endif /* rhel version < 5.2 */
-
-#endif /* linux kernel < 2.6.22 */
+#endif	/* !HAVE_SKBUFF_HEADER_HELPERS */
 
 #endif

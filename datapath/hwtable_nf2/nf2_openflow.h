@@ -93,6 +93,55 @@ typedef union nf2_of_exact_counters_wrap {
 	uint32_t raw[NF2_OF_EXACT_COUNTERS_WORD_LEN];
 } nf2_of_exact_counters_wrap;
 
+#define DEVICE_STR_LEN 100
+struct nf2_device_info {
+	uint32_t nf2_device_id;
+	uint32_t nf2_device_rev;
+	char nf2_device_str[DEVICE_STR_LEN];
+};
+
+#define NF2_PORT_NUM 4
+struct nf2_all_ports_info_addr {
+	unsigned int rx_q_num_pkts_stored_reg[NF2_PORT_NUM];
+	unsigned int rx_q_num_pkts_dropped_full_reg[NF2_PORT_NUM];
+	unsigned int rx_q_num_pkts_dropped_bad_reg[NF2_PORT_NUM];
+	unsigned int rx_q_num_words_pushed_reg[NF2_PORT_NUM];
+	unsigned int rx_q_num_bytes_pushed_reg[NF2_PORT_NUM];
+	unsigned int rx_q_num_pkts_dequeued_reg[NF2_PORT_NUM];
+	unsigned int rx_q_num_pkts_in_queue_reg[NF2_PORT_NUM];
+	unsigned int tx_q_num_pkts_in_queue_reg[NF2_PORT_NUM];
+	unsigned int tx_q_num_pkts_sent_reg[NF2_PORT_NUM];
+	unsigned int tx_q_num_words_pushed_reg[NF2_PORT_NUM];
+	unsigned int tx_q_num_bytes_pushed_reg[NF2_PORT_NUM];
+	unsigned int tx_q_num_pkts_enqueued_reg[NF2_PORT_NUM];
+};
+
+struct nf2_port_info {
+	uint32_t rx_q_num_pkts_stored;
+	uint32_t rx_q_num_pkts_dropped_full;
+	uint32_t rx_q_num_pkts_dropped_bad;
+	uint32_t rx_q_num_words_pushed;
+	uint32_t rx_q_num_bytes_pushed;
+	uint32_t rx_q_num_pkts_dequeued;
+	uint32_t rx_q_num_pkts_in_queue;
+	uint32_t tx_q_num_pkts_in_queue;
+	uint32_t tx_q_num_pkts_sent;
+	uint32_t tx_q_num_words_pushed;
+	uint32_t tx_q_num_bytes_pushed;
+	uint32_t tx_q_num_pkts_enqueued;
+};
+
+struct nf2_all_ports_info {
+	struct nf2_port_info port[NF2_PORT_NUM];
+};
+
+struct nf2_match_info {
+	uint32_t wildcard_misses;
+	uint32_t wildcard_hits;
+	uint32_t exact_misses;
+	uint32_t exact_hits;
+};
+
 #pragma pack(pop)		/* XXX: Restore original alignment from stack */
 
 void nf2_reset_card(struct net_device *);
@@ -109,5 +158,8 @@ unsigned int nf2_get_wildcard_packet_count(struct net_device *, int);
 unsigned int nf2_get_wildcard_byte_count(struct net_device *, int);
 unsigned long int nf2_get_matched_count(struct net_device *);
 unsigned long int nf2_get_missed_count(struct net_device *);
+struct nf2_device_info *nf2_get_device_info(struct net_device *);
+struct nf2_all_ports_info *nf2_get_all_ports_info(struct net_device *);
+struct nf2_match_info *nf2_get_match_info(struct net_device *);
 
 #endif

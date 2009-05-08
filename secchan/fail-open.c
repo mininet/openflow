@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -84,7 +84,7 @@ fail_open_periodic_cb(void *fail_open_)
             fail_open->last_disconn_secs = disconn_secs;
         }
     } else if (open && disconn_secs > fail_open->last_disconn_secs + 60) {
-        VLOG_WARN("Still in fail-open mode after %d seconds disconnected "
+        VLOG_INFO("Still in fail-open mode after %d seconds disconnected "
                   "from controller", disconn_secs);
         fail_open->last_disconn_secs = disconn_secs;
     }

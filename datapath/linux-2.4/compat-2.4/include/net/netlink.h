@@ -1011,4 +1011,9 @@ static inline int nla_validate_nested(struct nlattr *start, int maxtype,
 #define nla_for_each_nested(pos, nla, rem) \
 	nla_for_each_attr(pos, nla_data(nla), nla_len(nla), rem)
 
+static inline int VERIFY_NUL_STRING(struct nlattr *attr)
+{
+	return 0;
+}
+
 #endif

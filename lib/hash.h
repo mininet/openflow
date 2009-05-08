@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -36,9 +36,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define HASH_FNV_BASIS UINT32_C(2166136261)
-#define HASH_FNV_PRIME UINT32_C(16777619)
-
-uint32_t hash_fnv(const void *, size_t, uint32_t basis);
+uint32_t hash_words(const uint32_t *, size_t n_word, uint32_t basis);
+uint32_t hash_bytes(const void *, size_t n_bytes, uint32_t basis);
 
 #endif /* hash.h */

@@ -35,6 +35,7 @@
 #include "crc32.h"
 #include "flow.h"
 #include "table.h"
+#include "compat26.h"
 
 #include "hwtable_nf2/nf2.h"
 #include "hwtable_nf2/nf2_reg.h"

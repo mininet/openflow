@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -34,6 +34,8 @@
 #include <config.h>
 #include "queue.h"
 #include <assert.h>
+#include "compiler.h"
+#include "leak-checker.h"
 #include "ofpbuf.h"
 
 static void check_queue(struct ofp_queue *q);
@@ -89,6 +91,7 @@ void
 queue_push_tail(struct ofp_queue *q, struct ofpbuf *b)
 {
     check_queue(q);
+    leak_checker_claim(b);
 
     b->next = NULL;
     if (q->n++) {
@@ -114,7 +117,7 @@ queue_pop_head(struct ofp_queue *q)
 
 /* Checks the internal integrity of 'q'.  For use in debugging. */
 static void
-check_queue(struct ofp_queue *q)
+check_queue(struct ofp_queue *q UNUSED)
 {
 #if 0
     struct ofpbuf *iter;

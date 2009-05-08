@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -132,13 +132,13 @@ do_delete(struct sw_flow **bucket)
     *bucket = NULL;
 }
 
-/* Returns number of deleted flows.  We can igonre the priority
+/* Returns number of deleted flows.  We ignore the priority
  * argument, since all exact-match entries are the same (highest)
  * priority. */
 static int table_hash_delete(struct datapath *dp, struct sw_table *swt,
                              const struct sw_flow_key *key, 
                              uint16_t out_port,
-                             uint16_t priority, int strict)
+                             uint16_t priority UNUSED, int strict)
 {
     struct sw_table_hash *th = (struct sw_table_hash *) swt;
     unsigned int count = 0;

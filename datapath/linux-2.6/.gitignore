@@ -1,6 +1,9 @@
 /Kbuild
 /Makefile
 /Makefile.main
+/brcompat.c
+/brc_sysfs_dp.c
+/brc_sysfs_if.c
 /chain.c
 /crc32.c
 /crc_t.c
@@ -11,7 +14,8 @@
 /flow.c
 /forward.c
 /forward_t.c
-/genetlink.c
+/genetlink-brcompat.c
+/genetlink-openflow.c
 /hwtable_dummy.c
 /nx_act.c
 /nx_act_snat.c

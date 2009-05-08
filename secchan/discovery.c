@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -203,12 +203,12 @@ discovery_run(struct discovery *d, char **controller_name)
     if (dhclient_is_bound(d->dhcp)) {
         *controller_name = dhcp_msg_get_string(dhclient_get_config(d->dhcp),
                                                DHCP_CODE_OFP_CONTROLLER_VCONN);
-        VLOG_WARN("%s: discovered controller", *controller_name);
+        VLOG_INFO("%s: discovered controller", *controller_name);
         d->n_changes++;
     } else {
         *controller_name = NULL;
         if (d->n_changes) {
-            VLOG_WARN("discovered controller no longer available");
+            VLOG_INFO("discovered controller no longer available");
             d->n_changes++;
         }
     }
@@ -224,7 +224,7 @@ discovery_wait(struct discovery *d)
 }
 
 static void
-modify_dhcp_request(struct dhcp_msg *msg, void *aux)
+modify_dhcp_request(struct dhcp_msg *msg, void *aux UNUSED)
 {
     dhcp_msg_put_string(msg, DHCP_CODE_VENDOR_CLASS, "OpenFlow");
 }

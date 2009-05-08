@@ -34,6 +34,7 @@
 #ifndef VCONN_STREAM_H
 #define VCONN_STREAM_H 1
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -42,7 +43,7 @@ struct pvconn;
 struct sockaddr;
 
 int new_stream_vconn(const char *name, int fd, int connect_status,
-                     uint32_t ip, struct vconn **vconnp);
+                     uint32_t ip, bool reconnectable, struct vconn **vconnp);
 int new_pstream_pvconn(const char *name, int fd,
                       int (*accept_cb)(int fd, const struct sockaddr *,
                                        size_t sa_len, struct vconn **),

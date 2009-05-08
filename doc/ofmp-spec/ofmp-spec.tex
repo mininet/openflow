@@ -1,0 +1,640 @@
+% Created 2009-02-02 Mon 17:09
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{hyperref}
+
+
+\title{OpenFlow Management Protocol}
+\author{Version 0.0.1 (Wire Protocol 0x80)}
+\date{04 February 2009}
+
+\begin{document}
+
+\maketitle
+
+\setcounter{tocdepth}{3}
+\tableofcontents
+\vspace*{1cm}
+
+\section{Goals}
+\label{sec-1}
+
+
+The high-level design goals for the protocol are described in this
+section.
+
+\begin{itemize}
+\item Rapid implementation
+
+   Most importantly, Nicira must implement the protocol quickly to
+   meet current business objectives. However, the ability to implement
+   the protocol rapidly should be a benefit to anyone implementing the
+   protocol.
+\item Support ``all'' switch features
+
+   The controller should be able to learn about all available switch
+   features and retrieve and modify their values through the protocol.
+\item ``Multi-master''
+
+   It must be possible to make changes at both the controller and the
+   switch.  When changes are made and connectivity exists between the
+   switch and the controller, both sides should be resynchronized
+   within a short period of time (< 1 sec??).
+\item Extensible
+
+   To support future enhancements, the protocol must be capable of
+   accommodating additional configuration settings and
+   upgrading/downgrading configuration appropriately.
+\item Scalable
+
+   The protocol should be able to handle any size switch, from a few
+   ports to hundreds of ports.
+\item Minimal cost of implementation on the switch
+
+   One of the selling points of OpenFlow is the ability to take cost
+   out of switches by implementing complex network-wide functionality
+   in the controller.  It is thus preferable to minimize the cost of
+   implementation on the switch.
+\end{itemize}
+\section{Specification}
+\label{sec-2}
+
+
+  The OpenFlow Management Protocol is based on the OpenFlow
+  protocol, with which it is often expected to be used.  It augments
+  the flow table management provided by the OpenFlow protocol with
+  more general switch management functions required in a full-featured
+  switch.
+
+\subsection{Connection Maintenance}
+\label{sec-2.1}
+
+
+   As with OpenFlow, the switch is responsible for initiating the
+   connection to the controller at a user configurable IP address and
+   TCP port.  The default destination port for the connection is 6632,
+   one less than the default OpenFlow destination port 6633.  The IP
+   address of the controller may be discovered through the same
+   discovery protocol defined for OpenFlow.
+
+   The switch must attempt to maintain an open connection to the
+   controller at all times while in an operational state, although the
+   exact details for detecting connection failure and opening a new
+   connection are left to individual implementations.
+
+   After connection establishment, both sides must send \hyperref[sec-2.6.1]{hello messages}
+   to each other before any other messages are sent.
+
+   While the default ports for OpenFlow and the OpenFlow Management
+   Protocol are different, the latter is deliberately designed to be
+   able to coexist on the same port, in which case the appropriate
+   connection type can be determined by examining the initial hello
+   message sent after connection establishment.
+
+\subsection{Encryption}
+\label{sec-2.2}
+
+
+   The OpenFlow Management Protocol uses the same encryption
+   mechanism defined in the analogous section of the OpenFlow
+   specification.  It is expected, but not required, that the 
+   Management Protocol will use the same keys as the OpenFlow
+   protocol for authentication of either end of the connection.
+
+\subsection{Framing}
+\label{sec-2.3}
+
+
+   The Management Protocol uses the same basic header as
+   the OpenFlow protocol, defined as \verb|ofp_header| in the OpenFlow
+   specification.  The fields of this header are used in the same way
+   as they are in the OpenFlow protocol except that the type IDs
+   generally have different meanings.  However, a few message types
+   are shared among the two protocols, in which case they have the
+   same message type code in both protocols.
+
+   Each message type is further described in subsequent sections of
+   this document. The message types IDs are defined by:
+
+{ \footnotesize
+
+\begin{verbatim}
+    enum ofmp_type {
+        OFMP_HELLO,             /* Message Types Shared with OpenFlow. */
+        OFMP_ERROR,             /* Message Types Shared with OpenFlow. */
+        OFMP_ECHO_REQUEST,      /* Message Types Shared with OpenFlow. */
+        OFMP_ECHO_REPLY,        /* Message Types Shared with OpenFlow. */
+        OFMP_VENDOR,            /* Message Types Shared with OpenFlow. */
+        OFMP_RESERVED_0,        /* Reserved Message Types. */
+        OFMP_RESERVED_1,        /* Reserved Message Types. */
+        OFMP_EXTENDED_DATA,     /* Extended Data Message */
+        OFMP_CAPABILITY_REQUEST,/* Management Protocol-specific. */
+        OFMP_CAPABILITY_REPLY,  /* Management Protocol-specific. */
+        OFMP_SWITCH_RESOURCES,  /* Management Protocol-specific. */
+        OFMP_CONFIG_UPDATE,     /* Management Protocol-specific. */
+        OFMP_CONFIG_UPDATE_ACK, /* Management Protocol-specific. */
+        OFMP_HOST_INFO          /* Management Protocol-specific. */
+    };
+
+\end{verbatim}
+
+
+}
+
+\subsection{Type/Length/Value Encoding in Messages}
+\label{sec-2.4}
+
+
+   Some messages use a type/length/value (TLV) encoding scheme for
+   data transferred in the message body.  This is done for primarily
+   for flexibility and extensibility.
+
+   When present, TLVs occur in sequence until a TLV is encountered
+   with type \verb|OFMPTLV_END|.  This TLV must have a length of zero.  A
+   single TLV of type \verb|OFMPTLV_END| would represent an empty list of
+   TLVs.
+
+   The TLV message format is defined by:
+
+{ \footnotesize
+
+\begin{verbatim}
+   enum ofmp_tlv_type {
+       OFMPTLV_END = 0,
+   },
+
+   struct ofmp_tlv {
+       uint16_t type;        /* Type of value. */
+       uint16_t len;         /* Length of value (excluding type & len). */
+       data[0];              /* Value data as defined by type & len.  */
+   };
+
+\end{verbatim}
+
+
+}
+
+   The meaning of the \verb|type| field is unique to each message type
+   that uses the TLV encoding except that type code 0 must always
+   indicate the end of the TLV encoded data.  Implementations must
+   skip unknown type values and continue processing to enhance
+   forward compatibility.
+
+\subsection{Reserved Message Types}
+\label{sec-2.5}
+
+
+   Because of the use the same basic message framing, distinguishing
+   the OpenFlow Management Protocol from OpenFlow could be
+   difficult.  The definition and required use of the Management
+   Protocol \hyperref[sec-2.6.1]{hello message} is intended to be compatible with
+   OpenFlow while facilitating this differentiation.
+
+   To further assist in differentiation, the message type IDs for the
+   feature request and feature reply messages defined in the OpenFlow
+   specification are reserved in the Management Protocol.
+   If either the switch or the controller receives one of these
+   message type IDs on a connection expected to be a Management
+   Protocol connection, it must reply with an \hyperref[sec-2.6.5]{error message}
+   specifying reserved message type code and then terminate the
+   connection.
+
+\subsection{Messages Types Shared with OpenFlow}
+\label{sec-2.6}
+
+
+   There are a few message types used by the Management
+   Protocol that are used for essentially the same purposes in it and
+   the OpenFlow protocol and have identical or compatible message
+   formats.  These message types use the same message type ID in both
+   protocols.
+
+\subsubsection{Hello}
+\label{sec-2.6.1}
+
+
+    This message is the same as the OpenFlow message except that
+    after the OpenFlow header the data of the message includes the
+    UTF-8 encoded string ``OPENFLOW MANAGEMENT PROTOCOL''.  This
+    simplifies debugging and allows automatic detection of the
+    protocol.
+
+\subsubsection{Echo Request}
+\label{sec-2.6.2}
+
+
+    This message works exactly as the corresponding message in
+    OpenFlow.
+
+\subsubsection{Echo Reply}
+\label{sec-2.6.3}
+
+
+    This message works exactly as the corresponding message in
+    OpenFlow.
+
+\subsubsection{Vendor}
+\label{sec-2.6.4}
+
+
+    This message works exactly as the corresponding message in
+    OpenFlow.
+
+\subsubsection{Error}
+\label{sec-2.6.5}
+
+
+    This message works the same as the corresponding message in
+    OpenFlow with the exception that all the meaning of the type and
+    code fields are unique to each protocol.
+
+    For the Management Protocol, the type values are defined by:
+
+{ \footnotesize
+
+\begin{verbatim}
+    enum ofmp_error_type {
+        OFMPET_HELLO_FAILED,     /* Hello failed. */
+        OFMPET_BAD_REQUEST,      /* Request was not understood. */
+        OFMPET_UNKNOWN_FORMAT,   /* Format of typed data not understood. */
+        OFMPET_CONFIG_ERROR      /* Error processing configuration update. */
+    };
+
+\end{verbatim}
+
+
+}
+
+    The \verb|OFMPET_HELLO_FAILED| type is exactly analogous to the
+    \verb|OFPET_HELLO_FAILED| type in OpenFlow.  A single code is currently
+    defined:
+
+{ \footnotesize
+
+\begin{verbatim}
+    enum ofmp_hello_failed_code {
+        OFMPHFC_INCOMPATIBLE,     /* Hello failed */
+    };
+
+\end{verbatim}
+
+
+}
+
+    The \verb|OFMPET_BAD_REQUEST| type is also similar to the
+    \verb|OFPET_HELLO_FAILED| type in OpenFlow.  The subtypes are:
+
+{ \footnotesize
+
+\begin{verbatim}
+    enum ofmp_bad_request_code {
+        OFMPBRC_BAD_VERSION,      /* ofp_header.version not supported. */
+        OFMPBRC_BAD_TYPE,         /* ofp_header.type not supported. */
+        OFMPBRC_RESERVED_0,       /* For ID alignment w/compatible codes
+                                   * in OpenFlow */
+        OFMPBRC_BAD_VENDOR,       /* Vendor not supported. */
+        OFMPBRC_BAD_SUBTYPE       /* Vendor subtype not supported. */
+    };
+
+\end{verbatim}
+
+
+}
+
+    The \verb|data| field contains at least 64 bytes of the failed request.
+
+    The \verb|OFMPET_UNKNOWN_FORMAT| type is used when the format specified
+    for a message such as \hyperref[sec-2.8.2]{capabilities request} or
+    \hyperref[sec-2.8.4]{configuration update} is unknown.  The \verb|code| field is not used in
+    this error.  The \verb|data| field contains a sequence of 32-bit
+    unsigned integers representing acceptable format types in order
+    from most preferred to least.
+
+\subsection{Extended Data Message}
+\label{sec-2.7}
+
+
+   Because the OpenFlow message header only has a 16-bit length field,
+   the largest possible message size is 64kB.  This may be
+   insufficient for some message types such as the configuration
+   update message.  The extended data message removes this restriction
+   by encapsulating the message body of the original message (without
+   the base OpenFlow header) in more than one extended data messages.
+
+   The extended data message format is:
+
+{ \footnotesize
+
+\begin{verbatim}
+     enum ofmped_flags {
+         MORE_DATA = 1
+     };
+
+     struct ofmp_extended_data {
+         uint8_t type,         /* Type code of the encapsulated message */
+         uint8_t flags,
+         uint8_t pad[6],       /* Maintain same alignment as regular body */
+         uint8_t data[0];      /* Message body fragment */
+     };
+
+\end{verbatim}
+
+
+}
+
+   The MORE\_{}DATA flag must be set in every extended data message
+   sequence encapsulating a message body too long to fit in a single
+   standard message except the last message, in which the it must be
+   cleared.  All but the final messages should typically be maximum
+   length, although this is not required.
+
+   To simplify implementations, messages MUST NOT be sent encapsulated
+   in extended data messages if they will fit in a single regular
+   message.
+
+\subsection{OpenFlow Management Protocol-specific Messages}
+\label{sec-2.8}
+
+
+   The remaining message types are specific to the Management Protocol.
+
+\subsubsection{Switch Resources}
+\label{sec-2.8.1}
+
+\begin{itemize}
+\item TODO Describe reply in detail
+\end{itemize}
+    The switch resources message describes the resources available on
+    the switch.  It must be sent by the switch to the controller
+    immediately after the initial hello exchange at connection
+    establishment and any time thereafter when resources change on the
+    switch.
+
+\subsubsection{Capabilities Request}
+\label{sec-2.8.2}
+
+
+     The capabilities request message is sent from the controller to
+     the switch, which replies with a \hyperref[sec-2.8.3]{capabilities reply} message.
+     While not required, the controller will typically send a
+     capabilities request message after receiving the hello message on
+     connection establishment to determine switch capabilities.  In
+     this way, it is very similar to the feature request and reply
+     messages in the OpenFlow specification.  However, because the
+     encoding of the capabilities is different, the messages have
+     different names.
+
+     The capabilities request message format is:
+
+{ \footnotesize
+
+\begin{verbatim}
+     struct ofmp_capabilities_request {
+         uint32_t format;      /* Format in which to send capabilities */
+     };
+
+\end{verbatim}
+
+
+}
+
+     The only field in this message, \verb|format|, specifies the format
+     the controller expects for the reply.  The only capabilities
+     format current specified is the \hyperref[*==Simple==Capabilities==Format]{Simple Capabilities Format}.
+
+     On receipt of a capabilities request message, the switch must
+     send a capabilities reply in the specified format to the
+     controller or an \hyperref[*==Unknown==capabilities==format]{unknown capabilities format error message} in
+     reply.
+
+\subsubsection{Capabilities Reply}
+\label{sec-2.8.3}
+
+
+     The capabilities reply message is sent from the switch to the
+     controller in response to a \hyperref[sec-2.8.2]{capabilities request} message from the
+     controller.  The capabilities reply message format is:
+
+{ \footnotesize
+
+\begin{verbatim}
+     struct ofmp_capabilities_reply {
+         uint32_t format;      /* Format of capabilities info */
+         uint8_t data[0];      /* Capabilities data */
+     };
+
+\end{verbatim}
+
+
+}
+
+     The \verb|format| specifies the format of the capabilities data.  It
+     must be the same as the \verb|format| field in the
+     \hyperref[sec-2.8.2]{capabilities request}.
+
+\paragraph{Simple Capability Format}
+\label{sec-2.8.3.1}
+
+\begin{itemize}
+\item Basically, same as vswitchd configuration syntax
+\item Each key/value pair is contained on a single line.  The line
+       separator is a single newline character.
+\item Keys have hierarchy based on controlling entities domain
+       name.  Initially all keys will be `com.nicira'\ldots{}
+\item Values can just be true/false to indicate the presence/absence
+       of a feature (or just not present for the absences).
+\item Values can also be strings and/or numbers indicating limits on
+       specific capabilities, etc.
+\item It should be possible to use a capabilities reply to determine
+       whether additional OpenFlow Management Protocol message
+       types are supported or not to minimize the need to change the
+       protocol version in the framing header.
+\end{itemize}
+\subsubsection{Configuration Update}
+\label{sec-2.8.4}
+
+
+    The configuration update message can be sent asynchronously in
+    either direction.  It's purpose is to inform the peer that a
+    configuration value has changed.  On receipt of a configuration
+    update message, the message must be processed and a corresponding
+    configuration update reply message describing the results of that
+    processing sent back to the peer.
+
+    The format of the configuration update message is:
+
+{ \footnotesize
+
+\begin{verbatim}
+    struct ofmp_config_update {
+        uint32_t format;      /* Format of capabilities info */
+        uint8_t cookie[20];   /* Collision detect cookie */
+        uint8_t data[0];      /* Capabilities data */
+    };
+
+\end{verbatim}
+
+
+}
+
+    The \verb|format| field specifies the format in which the
+    configuration data is presented.  The only format currently
+    supported is the \hyperref[sec-2.8.4.1]{Simple Configuration Format}.
+
+    The \verb|cookie| field is used to detect simultaneous configuration
+    changes on both peers.  The use of the field is described in the
+    \hyperref[sec-2.8.4.2]{detection of simultaneous changes section}.
+
+    On receipt of a configuration update message the message must be
+    processed and either a \hyperref[*==Configuration==Update==Reply]{configuration update reply} or an
+    \hyperref[sec-2.6.5]{error message}.
+
+\paragraph{Simple Configuration Format}
+\label{sec-2.8.4.1}
+
+\begin{itemize}
+\item TODO complete this section more fully.
+\item Basically, the current vswitchd configuration file format
+\item Keys in ``fully specified form'' (no sections)
+\item Keys sorted as by implementation now
+\end{itemize}
+\paragraph{Detection of simultaneous changes}
+\label{sec-2.8.4.2}
+
+\begin{itemize}
+\item TODO Describe simultaneous change detection more completely.
+\item Collision detect cookie values are a SHA-1 hash of last
+       configuration accepted from peer, over sorted keys \& values in
+       memory.
+\item To prevent inadvertent overwriting of data, the switch is
+       treated as the master for all updates.  It should refuse
+       updates with an incorrect cookie.  Controller is responsible
+       for dealing with recovering from simultaneous changes by
+       merging configurations or whatever other means necessary.
+\end{itemize}
+\subsubsection{Configuration Update Acknowledgment}
+\label{sec-2.8.5}
+
+
+     The configuration update acknowledgment is sent in response to a
+     \hyperref[sec-2.8.4]{configuration update} message. It indicates the update has been
+     successfully accepted and processed.  The message body consists
+     of an updated collision detect cookie:
+
+{ \footnotesize
+
+\begin{verbatim}
+     struct ofmp_config_update_ack {
+         uint8_t cookie[20];   /* Collision detect cookie */
+     };
+
+\end{verbatim}
+
+
+}
+
+\subsubsection{Host Info}
+\label{sec-2.8.6}
+
+
+    In some cases, the switch may definitively know additional
+    information about one or more hosts present on a given datapath
+    and port.  In these cases the switch may send the host info
+    message to the controller to provide this information.
+
+    The format of the host info message is:
+
+{ \footnotesize
+
+\begin{verbatim}
+     struct ofmp_host_info {
+         uint64_t datapath_id;      /* Referenced datapath.  */
+         uint16_t port_id;          /* Referenced port. */
+         data[0];                   /* TLV encoded data about host. */
+     };
+
+\end{verbatim}
+
+
+}
+
+     The data in the message is encoded as described in the
+     \hyperref[sec-2.4]{Type/Length/Value Encoding in Messages} section.
+
+{ \footnotesize
+
+\begin{verbatim}
+     enum ofmp_host_info_tlv_type {
+         OFMPHITLV_END = 0,         /* End of TLV records. */
+         OFMPHITLV_HOST_DLADDR ,    /* Host MAC address. */
+         OFMPHITLV_HOST_UUID        /* Host unique identifier. */
+     };
+
+\end{verbatim}
+
+
+}
+
+     The value for \verb|OFMPHITLV_HOST_DLADDR| is a six-byte MAC address.
+     The value for \verb|OFMPHITLV_HOST_UUID| is a variable length
+     universally unique identifier for the host.
+
+\section{Design Rationale}
+\label{sec-3}
+
+
+\subsection{Why specify an additional protocol}
+\label{sec-3.1}
+
+
+   The core purpose of OpenFlow is to manage the flow table in the
+   switch.  There are many other activities required to fully manage a
+   switch, configuring ports, updating stats, etc.  Some of these
+   require significant data transfer that could interfere with the
+   primary purpose of OpenFlow.
+
+   Switches from existing vendors typically already have their own
+   methods for accomplishing these tasks.  A vendor considering
+   adopting OpenFlow may not wish to re-implement this support.  If
+   the core OpenFlow specification required such a reimplementation,
+   it could likely reduce the adoption of OpenFlow or considerably
+   slow the process of standardization of new protocol messages to
+   accomplish these tasks, extending the time before implementations
+   appeared on the market.
+
+\subsection{Use of a non-standard protocol}
+\label{sec-3.2}
+
+
+   The requirements for the protocol, including bidirectional
+   asynchronous messaging are not well supported by any widely
+   implemented protocol used for similar purposes.  It is expected
+   most implementers of the remote switch protocol will also be
+   implementers of the OpenFlow protocol and thus specifying a similar
+   protocol will increase code reuse.
+
+\subsection{Reuse of some OpenFlow messages}
+\label{sec-3.3}
+
+
+   The messaging requirements of OpenFlow and the OpenFlow Management 
+   Protocol are similar in a few areas.  Reusing the same messages in
+   those areas should further contribute to code reuse.
+
+\subsection{Connection direction from switch to controller}
+\label{sec-3.4}
+
+
+\subsection{Use of vswitchd configuration file format for config documents}
+\label{sec-3.5}
+
+
+   Simply put, it is available to Nicira already and matches the
+   initial requirements for switch configuration management.
+
+
+\end{document}
+

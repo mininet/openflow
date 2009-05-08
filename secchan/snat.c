@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -243,7 +243,7 @@ snat_remote_packet_cb(struct relay *r, void *snat_)
 }
 
 static void
-snat_port_changed_cb(uint16_t port_no,
+snat_port_changed_cb(uint16_t port_no UNUSED,
                     const struct ofp_phy_port *old,
                     const struct ofp_phy_port *new,
                     void *snat_)

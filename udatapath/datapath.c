@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -113,9 +113,7 @@ static void remote_wait(struct remote *);
 static void remote_destroy(struct remote *);
 
 static void update_port_flags(struct datapath *, const struct ofp_port_mod *);
-static int update_port_status(struct sw_port *p);
 static void send_port_status(struct sw_port *p, uint8_t status);
-static void del_switch_port(struct sw_port *p);
 
 /* Buffers are identified by a 31-bit opaque ID.  We divide the ID
  * into a buffer number (low bits) and a cookie (high bits).  The buffer number
@@ -297,12 +295,6 @@ dp_run(struct datapath *dp)
     if (now != dp->last_timeout) {
         struct list deleted = LIST_INITIALIZER(&deleted);
         struct sw_flow *f, *n;
-
-        LIST_FOR_EACH (p, struct sw_port, node, &dp->port_list) {
-            if (update_port_status(p)) {
-                send_port_status(p, OFPPR_MODIFY);
-            }
-        }
 
         chain_timeout(dp->chain, &deleted);
         LIST_FOR_EACH_SAFE (f, n, struct sw_flow, node, &deleted) {
@@ -487,32 +479,6 @@ dp_wait(struct datapath *dp)
     }
 }
 
-/* Delete 'p' from switch. */
-static void
-del_switch_port(struct sw_port *p)
-{
-    send_port_status(p, OFPPR_DELETE);
-    netdev_close(p->netdev);
-    p->netdev = NULL;
-    list_remove(&p->node);
-}
-
-void
-dp_destroy(struct datapath *dp)
-{
-    struct sw_port *p, *n;
-
-    if (!dp) {
-        return;
-    }
-
-    LIST_FOR_EACH_SAFE (p, n, struct sw_port, node, &dp->port_list) {
-        del_switch_port(p); 
-    }
-    chain_destroy(dp->chain);
-    free(dp);
-}
-
 /* Send packets out all the ports except the originating one.  If the
  * "flood" argument is set, don't send out ports with flooding disabled.
  */
@@ -544,7 +510,7 @@ output_all(struct datapath *dp, struct ofpbuf *buffer, int in_port, int flood)
     return 0;
 }
 
-void
+static void
 output_packet(struct datapath *dp, struct ofpbuf *buffer, uint16_t out_port) 
 {
     struct sw_port *p = lookup_port(dp, out_port);
@@ -688,8 +654,8 @@ dp_output_control(struct datapath *dp, struct ofpbuf *buffer, int in_port,
     send_openflow_buffer(dp, buffer, NULL);
 }
 
-static void fill_port_desc(struct datapath *dp, struct sw_port *p,
-                           struct ofp_phy_port *desc)
+static void
+fill_port_desc(struct sw_port *p, struct ofp_phy_port *desc)
 {
     desc->port_no = htons(p->port_no);
     strncpy((char *) desc->name, netdev_get_name(p->netdev),
@@ -723,7 +689,7 @@ dp_send_features_reply(struct datapath *dp, const struct sender *sender)
     LIST_FOR_EACH (p, struct sw_port, node, &dp->port_list) {
         struct ofp_phy_port *opp = ofpbuf_put_uninit(buffer, sizeof *opp);
         memset(opp, 0, sizeof *opp);
-        fill_port_desc(dp, p, opp);
+        fill_port_desc(p, opp);
     }
     send_openflow_buffer(dp, buffer, sender);
 }
@@ -745,56 +711,6 @@ update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm)
         p->config &= ~config_mask;
         p->config |= ntohl(opm->config) & config_mask;
     }
-
-    if (opm->mask & htonl(OFPPC_PORT_DOWN)) {
-        if ((opm->config & htonl(OFPPC_PORT_DOWN))
-            && (p->config & OFPPC_PORT_DOWN) == 0) {
-            p->config |= OFPPC_PORT_DOWN;
-            netdev_turn_flags_off(p->netdev, NETDEV_UP, true);
-        } else if ((opm->config & htonl(OFPPC_PORT_DOWN)) == 0
-                   && (p->config & OFPPC_PORT_DOWN)) {
-            p->config &= ~OFPPC_PORT_DOWN;
-            netdev_turn_flags_on(p->netdev, NETDEV_UP, true);
-        }
-    }
-}
-
-/* Update the port status field of the bridge port.  A non-zero return
- * value indicates some field has changed. 
- *
- * NB: Callers of this function may hold the RCU read lock, so any
- * additional checks must not sleep.
- */
-static int
-update_port_status(struct sw_port *p)
-{
-    int retval;
-    enum netdev_flags flags;
-    uint32_t orig_config = p->config;
-    uint32_t orig_state = p->state;
-
-    if (netdev_get_flags(p->netdev, &flags) < 0) {
-        VLOG_WARN_RL(&rl, "could not get netdev flags for %s", 
-                     netdev_get_name(p->netdev));
-        return 0;
-    } else {
-        if (flags & NETDEV_UP) {
-            p->config &= ~OFPPC_PORT_DOWN;
-        } else {
-            p->config |= OFPPC_PORT_DOWN;
-        } 
-    }
-
-    /* Not all cards support this getting link status, so don't warn on
-     * error. */
-    retval = netdev_get_link_status(p->netdev);
-    if (retval == 1) {
-        p->state &= ~OFPPS_LINK_DOWN;
-    } else if (retval == 0) {
-        p->state |= OFPPS_LINK_DOWN;
-    } 
-
-    return ((orig_config != p->config) || (orig_state != p->state));
 }
 
 static void
@@ -805,7 +721,7 @@ send_port_status(struct sw_port *p, uint8_t status)
     ops = make_openflow_xid(sizeof *ops, OFPT_PORT_STATUS, 0, &buffer);
     ops->reason = status;
     memset(ops->pad, 0, sizeof ops->pad);
-    fill_port_desc(p->dp, p, &ops->desc);
+    fill_port_desc(p, &ops->desc);
 
     send_openflow_buffer(p->dp, buffer, NULL);
 }
@@ -828,7 +744,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
     nfe->header.vendor = htonl(NX_VENDOR_ID);
     nfe->header.subtype = htonl(NXT_FLOW_END);
 
-    flow_fill_match(&nfe->match, &flow->key);
+    flow_fill_match(&nfe->match, &flow->key.flow, flow->key.wildcards);
 
     nfe->priority = htons(flow->priority);
     nfe->reason = reason;
@@ -943,7 +859,7 @@ void fwd_port_input(struct datapath *dp, struct ofpbuf *buffer,
 
 static int
 recv_features_request(struct datapath *dp, const struct sender *sender,
-                      const void *msg) 
+                      const void *msg UNUSED)
 {
     dp_send_features_reply(dp, sender);
     return 0;
@@ -951,7 +867,7 @@ recv_features_request(struct datapath *dp, const struct sender *sender,
 
 static int
 recv_get_config_request(struct datapath *dp, const struct sender *sender,
-                        const void *msg) 
+                        const void *msg UNUSED)
 {
     struct ofpbuf *buffer;
     struct ofp_switch_config *osc;
@@ -1179,8 +1095,9 @@ recv_flow(struct datapath *dp, const struct sender *sender,
     }
 }
 
-static int desc_stats_dump(struct datapath *dp, void *state,
-                              struct ofpbuf *buffer)
+static int
+desc_stats_dump(struct datapath *dp UNUSED, void *state UNUSED,
+                struct ofpbuf *buffer)
 {
     struct ofp_desc_stats *ods = ofpbuf_put_uninit(buffer, sizeof *ods);
 
@@ -1203,8 +1120,8 @@ struct flow_stats_state {
 
 #define MAX_FLOW_STATS_BYTES 4096
 
-static int flow_stats_init(struct datapath *dp, const void *body, int body_len,
-                           void **state)
+static int
+flow_stats_init(const void *body, int body_len UNUSED, void **state)
 {
     const struct ofp_flow_stats_request *fsr = body;
     struct flow_stats_state *s = xmalloc(sizeof *s);
@@ -1255,9 +1172,8 @@ struct aggregate_stats_state {
     struct ofp_aggregate_stats_request rq;
 };
 
-static int aggregate_stats_init(struct datapath *dp,
-                                const void *body, int body_len,
-                                void **state)
+static int
+aggregate_stats_init(const void *body, int body_len UNUSED, void **state)
 {
     const struct ofp_aggregate_stats_request *rq = body;
     struct aggregate_stats_state *s = xmalloc(sizeof *s);
@@ -1317,8 +1233,9 @@ static void aggregate_stats_done(void *state)
     free(state);
 }
 
-static int table_stats_dump(struct datapath *dp, void *state,
-                            struct ofpbuf *buffer)
+static int
+table_stats_dump(struct datapath *dp, void *state UNUSED,
+                 struct ofpbuf *buffer)
 {
     int i;
     for (i = 0; i < dp->chain->n_tables; i++) {
@@ -1341,8 +1258,8 @@ struct port_stats_state {
     int port;
 };
 
-static int port_stats_init(struct datapath *dp, const void *body, int body_len,
-               void **state)
+static int
+port_stats_init(const void *body UNUSED, int body_len UNUSED, void **state)
 {
     struct port_stats_state *s = xmalloc(sizeof *s);
     s->port = 0;
@@ -1404,13 +1321,12 @@ struct stats_type {
      * struct ofp_stats_request. */
     size_t min_body, max_body;
 
-    /* Prepares to dump some kind of statistics on 'dp'.  'body' and
+    /* Prepares to dump some kind of datapath statistics.  'body' and
      * 'body_len' are the 'body' member of the struct ofp_stats_request.
      * Returns zero if successful, otherwise a negative error code.
      * May initialize '*state' to state information.  May be null if no
      * initialization is required.*/
-    int (*init)(struct datapath *dp, const void *body, int body_len,
-            void **state);
+    int (*init)(const void *body, int body_len, void **state);
 
     /* Appends statistics for 'dp' to 'buffer', which initially contains a
      * struct ofp_stats_reply.  On success, it should return 1 if it should be
@@ -1523,7 +1439,7 @@ stats_done(void *cb_)
 }
 
 static int
-recv_stats_request(struct datapath *dp, const struct sender *sender,
+recv_stats_request(struct datapath *dp UNUSED, const struct sender *sender,
                    const void *oh)
 {
     const struct ofp_stats_request *rq = oh;
@@ -1560,7 +1476,7 @@ recv_stats_request(struct datapath *dp, const struct sender *sender,
     }
 
     if (cb->s->init) {
-        err = cb->s->init(dp, rq->body, body_len, &cb->state);
+        err = cb->s->init(rq->body, body_len, &cb->state);
         if (err) {
             VLOG_WARN_RL(&rl,
                          "failed initialization of stats request type %d: %s",

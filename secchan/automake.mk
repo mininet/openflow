@@ -1,7 +1,7 @@
-bin_PROGRAMS += secchan/secchan
-man_MANS += secchan/secchan.8
+bin_PROGRAMS += secchan/ofprotocol
+man_MANS += secchan/ofprotocol.8
 
-secchan_secchan_SOURCES = \
+secchan_ofprotocol_SOURCES = \
 	secchan/discovery.c \
 	secchan/discovery.h \
 	secchan/executer.c \
@@ -24,13 +24,13 @@ secchan_secchan_SOURCES = \
 	secchan/stp-secchan.c \
 	secchan/stp-secchan.h
 if SUPPORT_SNAT
-secchan_secchan_SOURCES += \
+secchan_ofprotocol_SOURCES += \
 	secchan/snat.c \
 	secchan/snat.h
 endif
-secchan_secchan_LDADD = lib/libopenflow.a $(FAULT_LIBS) $(SSL_LIBS)
+secchan_ofprotocol_LDADD = lib/libopenflow.a $(FAULT_LIBS) $(SSL_LIBS)
 
-EXTRA_DIST += secchan/secchan.8.in
-DISTCLEANFILES += secchan/secchan.8
+EXTRA_DIST += secchan/ofprotocol.8.in
+DISTCLEANFILES += secchan/ofprotocol.8
 
 include secchan/commands/automake.mk

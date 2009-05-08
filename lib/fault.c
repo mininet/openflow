@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -44,7 +44,7 @@
 #include "vlog.h"
 #define THIS_MODULE VLM_fault
 
-void
+static void
 fault_handler(int sig_nr)
 {
     VLOG_EMER("Caught signal %d.", sig_nr);

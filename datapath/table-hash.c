@@ -1,6 +1,6 @@
 /*
  * Distributed under the terms of the GNU GPL version 2.
- * Copyright (c) 2007, 2008 The Board of Trustees of The Leland 
+ * Copyright (c) 2007, 2008, 2009 The Board of Trustees of The Leland 
  * Stanford Junior University
  */
 
@@ -148,7 +148,8 @@ static int table_hash_timeout(struct datapath *dp, struct sw_table *swt)
 	unsigned int i;
 	int count = 0;
 
-	mutex_lock(&dp_mutex);
+	if (mutex_lock_interruptible(&dp_mutex))
+		return 0;
 	for (i = 0; i <= th->bucket_mask; i++) {
 		struct sw_flow **bucket = &th->buckets[i];
 		struct sw_flow *flow = *bucket;
@@ -241,7 +242,8 @@ struct sw_table *table_hash_create(unsigned int polynomial,
 	BUG_ON(n_buckets & (n_buckets - 1));
 	th->buckets = kmem_zalloc(n_buckets * sizeof *th->buckets);
 	if (th->buckets == NULL) {
-		printk("failed to allocate %u buckets\n", n_buckets);
+		printk(KERN_EMERG "failed to allocate %u buckets\n",
+		       n_buckets);
 		kfree(th);
 		return NULL;
 	}
@@ -421,8 +423,8 @@ kmem_alloc(size_t size)
 	if (!ptr) {
 		ptr = vmalloc(size);
 		if (ptr)
-			printk("openflow: used vmalloc for %lu bytes\n", 
-					(unsigned long)size);
+			printk(KERN_NOTICE "openflow: used vmalloc for %lu "
+			       "bytes\n", (unsigned long)size);
 	}
 	return ptr;
 }

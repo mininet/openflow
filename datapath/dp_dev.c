@@ -1,26 +1,26 @@
 #include <linux/kernel.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/ethtool.h>
 #include <linux/rcupdate.h>
 #include <linux/skbuff.h>
 #include <linux/workqueue.h>
-#include <linux/dmi.h>
 
 #include "datapath.h"
+#include "dp_dev.h"
 #include "forward.h"
-
-struct dp_dev {
-	struct net_device_stats stats;
-	struct datapath *dp;
-	struct sk_buff_head xmit_queue;
-	struct work_struct xmit_work;
-};
 
 
 static struct dp_dev *dp_dev_priv(struct net_device *netdev) 
 {
 	return netdev_priv(netdev);
 }
+
+struct datapath *dp_dev_get_dp(struct net_device *netdev)
+{
+	return dp_dev_priv(netdev)->dp;
+}
+EXPORT_SYMBOL(dp_dev_get_dp);
 
 static struct net_device_stats *dp_dev_get_stats(struct net_device *netdev)
 {
@@ -122,53 +122,32 @@ static int dp_dev_stop(struct net_device *netdev)
 	return 0;
 }
 
-/* Check if the DMI UUID contains a Nicira mac address that should be 
- * used for this interface.  The UUID is assumed to be RFC 4122
- * compliant. */
-static void
-set_uuid_mac(struct net_device *netdev)
+static void dp_getinfo(struct net_device *dev, struct ethtool_drvinfo *info)
 {
-	const char *uuid = dmi_get_system_info(DMI_PRODUCT_UUID);
-	const char *uptr;
-	uint8_t mac[ETH_ALEN];
-	int i;
-
-	if (!uuid || *uuid == '\0' || strlen(uuid) != 36)
-		return;
-
-	/* We are only interested version 1 UUIDs, since the last six bytes
-	 * are an IEEE 802 MAC address. */
-	if (uuid[14] != '1') 
-		return;
-
-	/* Pull out the embedded MAC address.  The kernel's sscanf doesn't
-	 * support field widths on hex digits, so we use this hack. */
-	uptr = uuid + 24;
-	for (i=0; i<ETH_ALEN; i++) {
-		unsigned char d[3];
-		
-		d[0] = *uptr++;
-		d[1] = *uptr++;
-		d[2] = '\0';
-		
-		mac[i] = simple_strtoul(d, NULL, 16);
-	}
-
-	/* If this is a Nicira one, then use it. */
-	if (mac[0] != 0x00 || mac[1] != 0x23 || mac[2] != 0x20) 
-		return;
-
-	memcpy(netdev->dev_addr, mac, ETH_ALEN);
+	strcpy(info->driver, "openflow");
+	sprintf(info->version, "0x%d", OFP_VERSION);
+	strcpy(info->fw_version, "N/A");
+	strcpy(info->bus_info, "N/A");
 }
+
+static struct ethtool_ops dp_ethtool_ops = {
+	.get_drvinfo = dp_getinfo,
+	.get_link = ethtool_op_get_link,
+	.get_sg = ethtool_op_get_sg,
+	.get_tx_csum = ethtool_op_get_tx_csum,
+	.get_tso = ethtool_op_get_tso,
+};
 
 static void
 do_setup(struct net_device *netdev)
 {
 	ether_setup(netdev);
 
+	netdev->do_ioctl = dp_ioctl_hook;
 	netdev->get_stats = dp_dev_get_stats;
 	netdev->hard_start_xmit = dp_dev_xmit;
 	netdev->open = dp_dev_open;
+	SET_ETHTOOL_OPS(netdev, &dp_ethtool_ops);
 	netdev->stop = dp_dev_stop;
 	netdev->tx_queue_len = 100;
 	netdev->set_mac_address = dp_dev_mac_addr;
@@ -186,29 +165,33 @@ do_setup(struct net_device *netdev)
 	netdev->dev_addr[3] |= 0xc0;
 }
 
-
-int dp_dev_setup(struct datapath *dp)
+/* Create a datapath device associated with 'dp'.  If 'dp_name' is null,
+ * the device name will be of the form 'of<dp_idx>'.
+ *
+ * Called with RTNL lock and dp_mutex.*/
+int dp_dev_setup(struct datapath *dp, const char *dp_name)
 {
 	struct dp_dev *dp_dev;
 	struct net_device *netdev;
-	char of_name[8];
+	char dev_name[IFNAMSIZ];
 	int err;
 
-	snprintf(of_name, sizeof of_name, "of%d", dp->dp_idx);
-	netdev = alloc_netdev(sizeof(struct dp_dev), of_name, do_setup);
+	if (dp_name) {
+		if (strlen(dp_name) >= IFNAMSIZ)
+			return -EINVAL;
+		strncpy(dev_name, dp_name, sizeof(dev_name));
+	} else
+		snprintf(dev_name, sizeof dev_name, "of%d", dp->dp_idx);
+
+	netdev = alloc_netdev(sizeof(struct dp_dev), dev_name, do_setup);
 	if (!netdev)
 		return -ENOMEM;
 
-	err = register_netdev(netdev);
+	err = register_netdevice(netdev);
 	if (err) {
 		free_netdev(netdev);
 		return err;
 	}
-
-	/* For "of0", we check the DMI UUID to see if a Nicira mac address
-	 * is available to use instead of the random one just generated. */
-	if (dp->dp_idx == 0) 
-		set_uuid_mac(netdev);
 
 	dp_dev = dp_dev_priv(netdev);
 	dp_dev->dp = dp;
@@ -218,6 +201,7 @@ int dp_dev_setup(struct datapath *dp)
 	return 0;
 }
 
+/* Called with RTNL lock and dp_mutex.*/
 void dp_dev_destroy(struct datapath *dp)
 {
 	struct dp_dev *dp_dev = dp_dev_priv(dp->netdev);
@@ -225,8 +209,7 @@ void dp_dev_destroy(struct datapath *dp)
 	netif_tx_disable(dp->netdev);
 	synchronize_net();
 	skb_queue_purge(&dp_dev->xmit_queue);
-	unregister_netdev(dp->netdev);
-	free_netdev(dp->netdev);
+	unregister_netdevice(dp->netdev);
 }
 
 int is_dp_dev(struct net_device *netdev) 

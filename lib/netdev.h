@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -31,17 +31,18 @@
  * derivatives without specific, written prior permission.
  */
 
+#ifndef NETDEV_H
+#define NETDEV_H 1
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 /* Generic interface to network devices.
  *
  * Currently, there is a single implementation of this interface that supports
  * Linux.  The interface should be generic enough to be implementable on other
  * operating systems as well. */
-
-#ifndef NETDEV_H
-#define NETDEV_H 1
-
-#include <stdbool.h>
-#include <stdint.h>
 
 struct ofpbuf;
 struct in_addr;
@@ -57,7 +58,8 @@ enum netdev_feature_type {
 
 enum netdev_flags {
     NETDEV_UP = 0x0001,         /* Device enabled? */
-    NETDEV_PROMISC = 0x0002     /* Promiscuous mode? */
+    NETDEV_PROMISC = 0x0002,    /* Promiscuous mode? */
+    NETDEV_CARRIER = 0x0004     /* Carrier detected? */
 };
 
 enum netdev_pseudo_ethertype {
@@ -76,15 +78,15 @@ int netdev_recv(struct netdev *, struct ofpbuf *);
 void netdev_recv_wait(struct netdev *);
 int netdev_drain(struct netdev *);
 int netdev_send(struct netdev *, const struct ofpbuf *);
+void netdev_send_wait(struct netdev *);
 int netdev_set_etheraddr(struct netdev *, const uint8_t mac[6]);
 const uint8_t *netdev_get_etheraddr(const struct netdev *);
 const char *netdev_get_name(const struct netdev *);
 int netdev_get_mtu(const struct netdev *);
-int netdev_get_link_status(const struct netdev *);
 uint32_t netdev_get_features(struct netdev *, int);
 bool netdev_get_in4(const struct netdev *, struct in_addr *);
 int netdev_set_in4(struct netdev *, struct in_addr addr, struct in_addr mask);
-int netdev_add_router(struct netdev *, struct in_addr router);
+int netdev_add_router(struct in_addr router);
 bool netdev_get_in6(const struct netdev *, struct in6_addr *);
 int netdev_get_flags(const struct netdev *, enum netdev_flags *);
 int netdev_set_flags(struct netdev *, enum netdev_flags, bool permanent);
@@ -93,5 +95,20 @@ int netdev_turn_flags_off(struct netdev *, enum netdev_flags, bool permanent);
 int netdev_arp_lookup(const struct netdev *, uint32_t ip, uint8_t mac[6]);
 
 void netdev_enumerate(struct svec *);
+int netdev_nodev_get_flags(const char *netdev_name, enum netdev_flags *);
+
+/* Generic interface for monitoring network devices.
+ *
+ * A network device monitor keeps track of the state of network devices and
+ * reports when that state changes.  At a minimum, it must report when a
+ * device's link status changes.
+ */
+struct netdev_monitor;
+int netdev_monitor_create(struct netdev_monitor **);
+void netdev_monitor_destroy(struct netdev_monitor *);
+void netdev_monitor_set_devices(struct netdev_monitor *, char **, size_t);
+const char *netdev_monitor_poll(struct netdev_monitor *);
+void netdev_monitor_run(struct netdev_monitor *);
+void netdev_monitor_wait(struct netdev_monitor *);
 
 #endif /* netdev.h */

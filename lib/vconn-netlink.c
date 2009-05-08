@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -60,6 +60,7 @@ struct netlink_vconn
 {
     struct vconn vconn;
     struct dpif dp;
+    int dp_idx;
 };
 
 static struct netlink_vconn *
@@ -73,8 +74,8 @@ static int
 netlink_open(const char *name, char *suffix, struct vconn **vconnp)
 {
     struct netlink_vconn *netlink;
-    int dp_idx;
     int subscribe;
+    int dp_idx;
     int retval;
 
     subscribe = 1;
@@ -84,8 +85,9 @@ netlink_open(const char *name, char *suffix, struct vconn **vconnp)
     }
 
     netlink = xmalloc(sizeof *netlink);
-    vconn_init(&netlink->vconn, &netlink_vconn_class, 0, 0, name);
-    retval = dpif_open(dp_idx, subscribe, &netlink->dp);
+    vconn_init(&netlink->vconn, &netlink_vconn_class, 0, 0, name, true);
+    retval = dpif_open(subscribe ? dp_idx : -1, &netlink->dp);
+    netlink->dp_idx = dp_idx;
     if (retval) {
         free(netlink);
         *vconnp = NULL;
@@ -107,14 +109,14 @@ static int
 netlink_recv(struct vconn *vconn, struct ofpbuf **bufferp)
 {
     struct netlink_vconn *netlink = netlink_vconn_cast(vconn);
-    return dpif_recv_openflow(&netlink->dp, bufferp, false);
+    return dpif_recv_openflow(&netlink->dp, netlink->dp_idx, bufferp, false);
 }
 
 static int
 netlink_send(struct vconn *vconn, struct ofpbuf *buffer) 
 {
     struct netlink_vconn *netlink = netlink_vconn_cast(vconn);
-    int retval = dpif_send_openflow(&netlink->dp, buffer, false);
+    int retval = dpif_send_openflow(&netlink->dp, netlink->dp_idx, buffer);
     if (!retval) {
         ofpbuf_delete(buffer);
     }
@@ -127,6 +129,9 @@ netlink_wait(struct vconn *vconn, enum vconn_wait_type wait)
     struct netlink_vconn *netlink = netlink_vconn_cast(vconn);
     short int events = 0;
     switch (wait) {
+    case WAIT_CONNECT:
+        NOT_REACHED();
+
     case WAIT_RECV:
         events = POLLIN;
         break;
@@ -138,7 +143,7 @@ netlink_wait(struct vconn *vconn, enum vconn_wait_type wait)
     default:
         NOT_REACHED();
     }
-    poll_fd_wait(nl_sock_fd(netlink->dp.sock), events);
+    nl_sock_wait(netlink->dp.sock, events);
 }
 
 struct vconn_class netlink_vconn_class = {

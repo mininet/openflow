@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -65,7 +65,7 @@ int nl_sock_recv(struct nl_sock *, struct ofpbuf **, bool wait);
 int nl_sock_transact(struct nl_sock *, const struct ofpbuf *request,
                      struct ofpbuf **reply);
 
-int nl_sock_fd(const struct nl_sock *);
+void nl_sock_wait(const struct nl_sock *, short int events);
 
 /* Netlink messages. */
 
@@ -112,9 +112,9 @@ enum nl_attr_type
 };
 
 /* Netlink attribute parsing. */
-const void* nl_attr_get(const struct nlattr *);
+const void *nl_attr_get(const struct nlattr *);
 size_t nl_attr_get_size(const struct nlattr *);
-const void* nl_attr_get_unspec(const struct nlattr *, size_t size);
+const void *nl_attr_get_unspec(const struct nlattr *, size_t size);
 bool nl_attr_get_flag(const struct nlattr *);
 uint8_t nl_attr_get_u8(const struct nlattr *);
 uint16_t nl_attr_get_u16(const struct nlattr *);
@@ -125,8 +125,6 @@ const char *nl_attr_get_string(const struct nlattr *);
 /* Netlink attribute policy.
  *
  * Specifies how to parse a single attribute from a Netlink message payload.
- *
- * See Nl_policy for example.
  */
 struct nl_policy
 {
@@ -135,7 +133,8 @@ struct nl_policy
     bool optional;
 };
 
-bool nl_policy_parse(const struct ofpbuf *, const struct nl_policy[],
+bool nl_policy_parse(const struct ofpbuf *, size_t offset,
+                     const struct nl_policy[],
                      struct nlattr *[], size_t n_attrs);
 
 /* Miscellaneous. */

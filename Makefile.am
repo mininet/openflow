@@ -45,20 +45,18 @@ noinst_LIBRARIES =
 noinst_PROGRAMS =
 noinst_SCRIPTS =
 
-EXTRA_DIST += README.hwtables subst
+EXTRA_DIST += README.hwtables soexpand.pl regress
 
-do_subst = ($(srcdir)/subst VLOG_OPTIONS $(srcdir)/lib/vlog.man | \
-	    sed -e 's,[@]LOGDIR[@],$(LOGDIR),g' \
-		-e 's,[@]PKIDIR[@],$(PKIDIR),g' \
-                -e 's,[@]RUNDIR[@],$(RUNDIR),g' \
-                -e 's,[@]pkgdatadir[@],$(pkgdatadir),g' \
-                -e 's,[@]PERL[@],$(PERL),g')
-ro_script = sed "`printf '1a\\' && printf '\\n\# -*- buffer-read-only: t -*-'`"
 ro_c = echo '/* -*- mode: c; buffer-read-only: t -*- */'
 
 SUFFIXES = .in
 .in:
-	$(do_subst) < $< > $@
+	$(PERL) $(srcdir)/soexpand.pl -I$(srcdir) < $< | \
+	    sed -e 's,[@]LOGDIR[@],$(LOGDIR),g' \
+		-e 's,[@]PKIDIR[@],$(PKIDIR),g' \
+                -e 's,[@]RUNDIR[@],$(RUNDIR),g' \
+                -e 's,[@]pkgdatadir[@],$(pkgdatadir),g' \
+                -e 's,[@]PERL[@],$(PERL),g' > $@
 
 include lib/automake.mk
 include secchan/automake.mk

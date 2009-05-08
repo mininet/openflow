@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -267,13 +267,13 @@ release_ifaces(void *aux UNUSED)
 }
 
 static void
-modify_dhcp_request(struct dhcp_msg *msg, void *aux)
+modify_dhcp_request(struct dhcp_msg *msg, void *aux UNUSED)
 {
     dhcp_msg_put_string(msg, DHCP_CODE_VENDOR_CLASS, "OpenFlow");
 }
 
 static bool
-validate_dhcp_offer(const struct dhcp_msg *msg, void *aux)
+validate_dhcp_offer(const struct dhcp_msg *msg, void *aux UNUSED)
 {
     static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(60, 60);
     char *vconn_name;

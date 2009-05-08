@@ -12,7 +12,7 @@ Installation
 ----------------------------------------
 
 First build OpenFlow ensuring you include the directive to build the
-hwtable_nf2 hardware table in your configure statement:
+openflow_netfpga2 hardware table in your configure statement:
 
 	% ./configure --with-l26=/lib/modules/`uname -r`/build 
 			--enable-hw-tables=nf2
@@ -45,7 +45,7 @@ Install the OpenFlow kernel module:
 
 Install the NetFPGA Hardware Table kernel module:
 
-	% insmod <openflow>/datapath/linux-2.6/hwtable_nf2_mod.ko
+	% insmod <openflow>/datapath/linux-2.6/openflow_netfpga2_mod.ko
 
 Create an OpenFlow datapath:
 

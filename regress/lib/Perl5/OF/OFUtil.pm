@@ -71,7 +71,7 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
 );
 
 my $nf2_kernel_module_path        = 'datapath/linux-2.6';
-my $nf2_kernel_module_name_no_ext = 'hwtable_nf2_mod';
+my $nf2_kernel_module_name_no_ext = 'ofdatapath_netfpga';
 my $nf2_kernel_module_name        = $nf2_kernel_module_name_no_ext . '.ko';
 my $openflow_dir                  = $ENV{OF_ROOT};
 
@@ -165,7 +165,7 @@ sub setup_kmod {
 	setup_pcap_interfaces();
 
 	# verify kernel module not loaded
-	my $of_kmod_loaded = `lsmod | grep openflow`;
+	my $of_kmod_loaded = `lsmod | grep ofdatapath`;
 	if ( $of_kmod_loaded ne "" ) {
 		print "openflow kernel module already loaded... please fix!\n";
 		exit 1;
@@ -181,7 +181,7 @@ sub setup_kmod {
 	my $openflow_dir = $ENV{'OF_ROOT'};
 
 	# create openflow switch on four ports
-	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
+	`insmod ${openflow_dir}/datapath/linux-2.6/ofdatapath.ko`;
 
 	`${openflow_dir}/utilities/dpctl adddp nl:0`;
 
@@ -190,7 +190,7 @@ sub setup_kmod {
 		`${openflow_dir}/utilities/dpctl addif nl:0 $iface`;
 	}
 
-	system("${openflow_dir}/secchan/secchan --inactivity-probe=999999 nl:0 tcp:127.0.0.1 &");
+	system("${openflow_dir}/secchan/ofprotocol --inactivity-probe=999999 nl:0 tcp:127.0.0.1 &");
 }
 
 sub setup_NF2 {
@@ -198,7 +198,7 @@ sub setup_NF2 {
 	setup_pcap_interfaces();
 
 	# verify kernel module not loaded
-	my $of_kmod_loaded = `lsmod | grep openflow`;
+	my $of_kmod_loaded = `lsmod | grep ofdatapath`;
 	if ( $of_kmod_loaded ne "" ) {
 		print "$of_kmod_loaded\n";
 		print "openflow kernel module already loaded... please fix!\n";
@@ -224,7 +224,7 @@ sub setup_NF2 {
         `regwrite 0x04c01ec 0xffff`;
 
 	# create openflow switch on four ports
-	`insmod ${openflow_dir}/datapath/linux-2.6/openflow_mod.ko`;
+	`insmod ${openflow_dir}/datapath/linux-2.6/ofdatapath.ko`;
 
 	# add the hardware kernel module
 	`insmod ${openflow_dir}/${nf2_kernel_module_path}/${nf2_kernel_module_name}`;
@@ -239,7 +239,7 @@ sub setup_NF2 {
         print "added interface\n";
 	}
 
-	system("${openflow_dir}/secchan/secchan --inactivity-probe=999999 nl:0 tcp:127.0.0.1 &");
+	system("${openflow_dir}/secchan/ofprotocol --inactivity-probe=999999 nl:0 tcp:127.0.0.1 &");
 }
 
 sub setup_user {
@@ -252,11 +252,11 @@ sub setup_user {
 		$if_string .= nftest_get_iface("eth$i") . ',';
 	}
 	$if_string .= nftest_get_iface("eth8");
-	print "about to create udatapath punix:/var/run/test -i $if_string \& \
+	print "about to create ofdatapath punix:/var/run/test -i $if_string \& \
 n";
-	system("${openflow_dir}/udatapath/udatapath punix:/var/run/test -i $if_string \&");
-	print "about to create secchan \& \n";
-	system("${openflow_dir}/secchan/secchan --inactivity-probe=999999 unix:/var/run/test tcp:127.0.0.1 &");
+	system("${openflow_dir}/udatapath/ofdatapath punix:/var/run/test -i $if_string \&");
+	print "about to create ofprotocol \& \n";
+	system("${openflow_dir}/secchan/ofprotocol --inactivity-probe=999999 unix:/var/run/test tcp:127.0.0.1 &");
 }
 
 sub teardown_kmod {
@@ -265,10 +265,10 @@ sub teardown_kmod {
 	my $who = `whoami`;
 	if ( trim($who) ne 'root' ) { die "must be root\n"; }
 
-	`killall secchan`;
+	`killall ofprotocol`;
 
 	# check if openflow kernel module loaded
-	my $of_kmod_loaded = `lsmod | grep openflow_mod`;
+	my $of_kmod_loaded = `lsmod | grep ofdatapath`;
 	if ( $of_kmod_loaded eq "" ) { exit 0; }
 
 	print "tearing down interfaces and datapaths\n";
@@ -281,12 +281,12 @@ sub teardown_kmod {
 
 	`${openflow_dir}/utilities/dpctl deldp nl:0`;
 
-	my $of_kmod_removed = `rmmod openflow_mod`;
+	my $of_kmod_removed = `rmmod ofdatapath`;
 	if ( $of_kmod_removed ne "" ) {
 		die "failed to remove kernel module... please fix!\n";
 	}
 
-	$of_kmod_loaded = `lsmod | grep openflow_mod`;
+	$of_kmod_loaded = `lsmod | grep ofdatapath`;
 	if ( $of_kmod_loaded ne "" ) {
 		die "failed to remove kernel module... please fix!\n";
 	}
@@ -300,10 +300,10 @@ sub teardown_NF2 {
 	my $who = `whoami`;
 	if ( trim($who) ne 'root' ) { die "must be root\n"; }
 
-	`killall secchan`;
+	`killall ofprotocol`;
 
 	# check if openflow kernel module loaded
-	my $of_kmod_loaded = `lsmod | grep openflow_mod`;
+	my $of_kmod_loaded = `lsmod | grep ofdatapath`;
 	if ( $of_kmod_loaded eq "" ) { exit 0; }
 
 	print "tearing down interfaces and datapaths\n";
@@ -322,12 +322,12 @@ sub teardown_NF2 {
 		die "failed to remove hardware kernel module... please fix!\n";
 	}
 
-	my $of_kmod_removed = `rmmod openflow_mod`;
+	my $of_kmod_removed = `rmmod ofdatapath`;
 	if ( $of_kmod_removed ne "" ) {
 		die "failed to remove kernel module... please fix!\n";
 	}
 
-	$of_kmod_loaded = `lsmod | grep openflow_mod`;
+	$of_kmod_loaded = `lsmod | grep ofdatapath`;
 	if ( $of_kmod_loaded ne "" ) {
 		die "failed to remove kernel module... please fix!\n";
 	}
@@ -341,8 +341,8 @@ sub teardown_user {
 	my $who = `whoami`;
 	if ( trim($who) ne 'root' ) { die "must be root\n"; }
 
-	`killall udatapath`;
-	`killall secchan`;
+	`killall ofdatapath`;
+	`killall ofprotocol`;
 
 	exit 0;
 }
@@ -638,8 +638,8 @@ sub run_black_box_test {
 	my $total_errors = 0;
 	try {
 
-		# Wait for secchan to connect
-		print "waiting for secchan to connect\n";
+		# Wait for ofprotocol to connect
+		print "waiting for ofprotocol to connect\n";
 		my $new_sock = $sock->accept();
 
 		do_hello_sequence( $ofp, $new_sock );
@@ -1258,7 +1258,7 @@ sub forward_simple {
 		#print Dumper($msg);
 	
 		# Verify fields
-		print "Verifying secchan message for packet sent in to eth" . ( $in_port + 1 ) . "\n";
+		print "Verifying ofprotocol message for packet sent in to eth" . ( $in_port + 1 ) . "\n";
 	
 		verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
 	
@@ -1506,7 +1506,7 @@ sub forward_simple_icmp {
                 #print Dumper($msg);
 
                 # Verify fields
-                print "Verifying secchan message for packet sent in to eth" . ( $in_port + 1 ) . "\n";
+                print "Verifying ofprotocol message for packet sent in to eth" . ( $in_port + 1 ) . "\n";
 
                 verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
 

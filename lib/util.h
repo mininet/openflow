@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -69,6 +69,7 @@ extern const char *program_name;
 #define ARRAY_SIZE(ARRAY) (sizeof ARRAY / sizeof *ARRAY)
 #define ROUND_UP(X, Y) (((X) + ((Y) - 1)) / (Y) * (Y))
 #define ROUND_DOWN(X, Y) ((X) / (Y) * (Y))
+#define IS_POW2(X) ((X) && !((X) & ((X) - 1)))
 
 #ifndef MIN
 #define MIN(X, Y) ((X) < (Y) ? (X) : (Y))
@@ -93,15 +94,15 @@ extern "C" {
 
 void set_program_name(const char *);
 
-void out_of_memory(void);
-void *xmalloc(size_t);
-void *xcalloc(size_t, size_t);
+void out_of_memory(void) NO_RETURN;
+void *xmalloc(size_t) MALLOC_LIKE;
+void *xcalloc(size_t, size_t) MALLOC_LIKE;
 void *xrealloc(void *, size_t);
-void *xmemdup(const void *, size_t);
-char *xmemdup0(const char *, size_t);
-char *xstrdup(const char *);
-char *xasprintf(const char *format, ...) PRINTF_FORMAT(1, 2);
-char *xvasprintf(const char *format, va_list) PRINTF_FORMAT(1, 0);
+void *xmemdup(const void *, size_t) MALLOC_LIKE;
+char *xmemdup0(const char *, size_t) MALLOC_LIKE;
+char *xstrdup(const char *) MALLOC_LIKE;
+char *xasprintf(const char *format, ...) PRINTF_FORMAT(1, 2) MALLOC_LIKE;
+char *xvasprintf(const char *format, va_list) PRINTF_FORMAT(1, 0) MALLOC_LIKE;
 void *x2nrealloc(void *p, size_t *n, size_t s);
 
 #ifndef HAVE_STRLCPY
@@ -112,6 +113,13 @@ void ofp_fatal(int err_no, const char *format, ...)
     PRINTF_FORMAT(2, 3) NO_RETURN;
 void ofp_error(int err_no, const char *format, ...) PRINTF_FORMAT(2, 3);
 void ofp_hex_dump(FILE *, const void *, size_t, uintptr_t offset, bool ascii);
+
+bool str_to_int(const char *, int base, int *);
+bool str_to_long(const char *, int base, long *);
+bool str_to_llong(const char *, int base, long long *);
+bool str_to_uint(const char *, int base, unsigned int *);
+bool str_to_ulong(const char *, int base, unsigned long *);
+bool str_to_ullong(const char *, int base, unsigned long long *);
 
 #ifdef  __cplusplus
 }

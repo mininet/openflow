@@ -118,17 +118,20 @@ flow_extract(struct ofpbuf *packet, uint16_t in_port, struct flow *flow)
             flow->dl_type = eth->eth_type;
         } else {
             /* This is an 802.2 frame */
-            struct llc_snap_header *h = ofpbuf_at(&b, 0, sizeof *h);
-            if (h == NULL) {
+            struct llc_header *llc = ofpbuf_at(&b, 0, sizeof *llc);
+            struct snap_header *snap = ofpbuf_at(&b, sizeof *llc,
+                                                 sizeof *snap);
+            if (llc == NULL) {
                 return 0;
             }
-            if (h->llc.llc_dsap == LLC_DSAP_SNAP
-                && h->llc.llc_ssap == LLC_SSAP_SNAP
-                && h->llc.llc_cntl == LLC_CNTL_SNAP
-                && !memcmp(h->snap.snap_org, SNAP_ORG_ETHERNET,
-                           sizeof h->snap.snap_org)) {
-                flow->dl_type = h->snap.snap_type;
-                ofpbuf_pull(&b, sizeof *h);
+            if (snap
+                && llc->llc_dsap == LLC_DSAP_SNAP
+                && llc->llc_ssap == LLC_SSAP_SNAP
+                && llc->llc_cntl == LLC_CNTL_SNAP
+                && !memcmp(snap->snap_org, SNAP_ORG_ETHERNET,
+                           sizeof snap->snap_org)) {
+                flow->dl_type = snap->snap_type;
+                ofpbuf_pull(&b, LLC_SNAP_HEADER_LEN);
             } else {
                 flow->dl_type = htons(OFP_DL_TYPE_NOT_ETH_TYPE);
                 ofpbuf_pull(&b, sizeof(struct llc_header));
@@ -199,6 +202,24 @@ flow_extract(struct ofpbuf *packet, uint16_t in_port, struct flow *flow)
 }
 
 void
+flow_fill_match(struct ofp_match *to, const struct flow *from,
+                uint32_t wildcards)
+{
+    to->wildcards = htonl(wildcards);
+    to->in_port = from->in_port;
+    to->dl_vlan = from->dl_vlan;
+    memcpy(to->dl_src, from->dl_src, ETH_ADDR_LEN);
+    memcpy(to->dl_dst, from->dl_dst, ETH_ADDR_LEN);
+    to->dl_type = from->dl_type;
+    to->nw_src = from->nw_src;
+    to->nw_dst = from->nw_dst;
+    to->nw_proto = from->nw_proto;
+    to->tp_src = from->tp_src;
+    to->tp_dst = from->tp_dst;
+    to->pad = 0;
+}
+
+void
 flow_print(FILE *stream, const struct flow *flow) 
 {
     fprintf(stream,
@@ -209,16 +230,4 @@ flow_print(FILE *stream, const struct flow *flow)
             ntohs(flow->dl_type),
             IP_ARGS(&flow->nw_src), IP_ARGS(&flow->nw_dst),
             ntohs(flow->tp_src), ntohs(flow->tp_dst));
-}
-
-int
-flow_compare(const struct flow *a, const struct flow *b)
-{
-    return memcmp(a, b, sizeof *a);
-}
-
-unsigned long int
-flow_hash(const struct flow *flow, uint32_t basis) 
-{
-    return hash_fnv(flow, sizeof *flow, basis);
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -41,10 +41,8 @@
 struct port_watcher;
 struct rconn;
 struct secchan;
-struct settings;
 
-void stp_start(struct secchan *, const struct settings *,
-               struct port_watcher *,
+void stp_start(struct secchan *, struct port_watcher *,
                struct rconn *local, struct rconn *remote);
 
 #endif /* stp-secchan.h */

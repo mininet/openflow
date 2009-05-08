@@ -60,8 +60,8 @@
 
 /* Strings to describe the manufacturer, hardware, and software.  This data 
  * is queriable through the switch description stats message. */
-char mfr_desc[DESC_STR_LEN] = "Nicira Networks";
-char hw_desc[DESC_STR_LEN] = "Reference User-Space Switch";
+char mfr_desc[DESC_STR_LEN] = "Stanford University (developed by Nicira Networks, Inc.)";
+char hw_desc[DESC_STR_LEN] = "Reference Userspace Data plane Process";
 char sw_desc[DESC_STR_LEN] = VERSION BUILDNR;
 char serial_num[SERIAL_NUM_LEN] = "None";
 

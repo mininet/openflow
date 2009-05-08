@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -36,9 +36,11 @@
 #ifndef OFP_PRINT_H
 #define OFP_PRINT_H 1
 
+#include <stdint.h>
 #include <stdio.h>
 
 struct ofp_flow_mod;
+struct ofp_match;
 
 #ifdef  __cplusplus
 extern "C" {
@@ -48,7 +50,9 @@ void ofp_print(FILE *, const void *, size_t, int verbosity);
 void ofp_print_packet(FILE *stream, const void *data, size_t len, size_t total_len);
 
 char *ofp_to_string(const void *, size_t, int verbosity);
+char *ofp_match_to_string(const struct ofp_match *, int verbosity);
 char *ofp_packet_to_string(const void *data, size_t len, size_t total_len);
+char *ofp_message_type_to_string(uint8_t type);
 
 #ifdef  __cplusplus
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -89,7 +89,6 @@ void flow_deferred_free_acts(struct sw_flow_actions *);
 void flow_replace_acts(struct sw_flow *, const struct ofp_action_header *, 
         size_t);
 void flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from);
-void flow_fill_match(struct ofp_match* to, const struct sw_flow_key* from);
 
 void print_flow(const struct sw_flow_key *);
 bool flow_timeout(struct sw_flow *flow);

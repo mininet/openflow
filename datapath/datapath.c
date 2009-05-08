@@ -1,6 +1,6 @@
 /*
  * Distributed under the terms of the GNU GPL version 2.
- * Copyright (c) 2007, 2008 The Board of Trustees of The Leland 
+ * Copyright (c) 2007, 2008, 2009 The Board of Trustees of The Leland 
  * Stanford Junior University
  */
 
@@ -50,8 +50,8 @@
 
 /* Strings to describe the manufacturer, hardware, and software.  This data 
  * is queriable through the switch description stats message. */
-static char mfr_desc[DESC_STR_LEN] = "Nicira Networks, Inc.";
-static char hw_desc[DESC_STR_LEN] = "Reference Linux Kernel Module";
+static char mfr_desc[DESC_STR_LEN] = "Stanford University (developed by Nicira Networks, Inc.)";
+static char hw_desc[DESC_STR_LEN] = "Reference Data plane Kernel Extension for Linux";
 static char sw_desc[DESC_STR_LEN] = VERSION BUILDNR;
 static char serial_num[SERIAL_NUM_LEN] = "None";
 
@@ -68,6 +68,21 @@ MODULE_PARM(serial_num, "s");
 #endif
 
 
+int (*dp_ioctl_hook)(struct net_device *dev, struct ifreq *rq, int cmd);
+EXPORT_SYMBOL(dp_ioctl_hook);
+
+int (*dp_add_dp_hook)(struct datapath *dp);
+EXPORT_SYMBOL(dp_add_dp_hook);
+
+int (*dp_del_dp_hook)(struct datapath *dp);
+EXPORT_SYMBOL(dp_del_dp_hook);
+
+int (*dp_add_if_hook)(struct net_bridge_port *p);
+EXPORT_SYMBOL(dp_add_if_hook);
+
+int (*dp_del_if_hook)(struct net_bridge_port *p);
+EXPORT_SYMBOL(dp_del_if_hook);
+
 /* Number of milliseconds between runs of the maintenance thread. */
 #define MAINT_SLEEP_MSECS 1000
 
@@ -76,15 +91,32 @@ MODULE_PARM(serial_num, "s");
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
 
 static struct genl_family dp_genl_family;
-static struct genl_multicast_group mc_group;
 
-/* It's hard to imagine wanting more than one datapath, but... */
-#define DP_MAX 32
+/*
+ * Datapath multicast groups.
+ *
+ * Really we want one multicast group per in-use datapath (or even more than
+ * one).  Locking issues, however, mean that we can't allocate a multicast
+ * group at the point in the code where we we actually create a datapath[*], so
+ * we have to pre-allocate them.  It's massive overkill to allocate DP_MAX of
+ * them in advance, since we will hardly ever actually create DP_MAX datapaths,
+ * so instead we allocate a few multicast groups at startup and choose one for
+ * each datapath by hashing its datapath index.
+ *
+ * [*] dp_genl_add, to add a new datapath, is called under the genl_lock
+ *	 mutex, and genl_register_mc_group, called to acquire a new multicast
+ *	 group ID, also acquires genl_lock, thus deadlock.
+ */
+#define N_MC_GROUPS 16		/* Must be power of 2. */
+static struct genl_multicast_group mc_groups[N_MC_GROUPS];
 
 /* Datapaths.  Protected on the read side by rcu_read_lock, on the write side
  * by dp_mutex.  dp_mutex is almost completely redundant with genl_mutex
  * maintained by the Generic Netlink code, but the timeout path needs mutual
  * exclusion too.
+ *
+ * dp_mutex nests inside the RTNL lock: if you need both you must take the RTNL
+ * lock first.
  *
  * It is safe to access the datapath and net_bridge_port structures with just
  * dp_mutex.
@@ -192,8 +224,9 @@ alloc_openflow_skb(struct datapath *dp, size_t openflow_len, uint8_t type,
 
 	if ((openflow_len + sizeof(struct ofp_header)) > UINT16_MAX) {
 		if (net_ratelimit())
-			printk("alloc_openflow_skb: openflow message too large: %zu\n", 
-					openflow_len);
+			printk(KERN_ERR "%s: alloc_openflow_skb: openflow "
+			       "message too large: %zu\n",
+			       dp->netdev->name, openflow_len);
 		return NULL;
 	}
 
@@ -202,8 +235,6 @@ alloc_openflow_skb(struct datapath *dp, size_t openflow_len, uint8_t type,
 	genl_len += nla_total_size(openflow_len);    /* DP_GENL_A_OPENFLOW */
 	skb = *pskb = genlmsg_new(genl_len, GFP_ATOMIC);
 	if (!skb) {
-		if (net_ratelimit())
-			printk("alloc_openflow_skb: genlmsg_new failed\n");
 		return NULL;
 	}
 
@@ -214,14 +245,22 @@ alloc_openflow_skb(struct datapath *dp, size_t openflow_len, uint8_t type,
 	return oh;
 }
 
+/* Returns the ID of the multicast group used by datapath 'dp'. */
+static u32
+dp_mc_group(const struct datapath *dp)
+{
+	return mc_groups[dp->dp_idx & (N_MC_GROUPS - 1)].id;
+}
+
 /* Sends 'skb' to 'sender' if it is nonnull, otherwise multicasts 'skb' to all
  * listeners. */
 static int
-send_openflow_skb(struct sk_buff *skb, const struct sender *sender) 
+send_openflow_skb(const struct datapath *dp,
+		  struct sk_buff *skb, const struct sender *sender)
 {
 	return (sender
 		? genlmsg_unicast(skb, sender->pid)
-		: genlmsg_multicast(skb, 0, mc_group.id, GFP_ATOMIC));
+		: genlmsg_multicast(skb, 0, dp_mc_group(dp), GFP_ATOMIC));
 }
 
 /* Retrieves the datapath id, which is the MAC address of the "of" device. */
@@ -237,34 +276,56 @@ uint64_t get_datapath_id(struct net_device *dev)
 	return id;
 }
 
-/* Creates a new datapath numbered 'dp_idx'.  Returns 0 for success or a
- * negative error code. */
-static int new_dp(int dp_idx)
+/* Find the first free datapath index.  Return the index or -1 if a free
+ * index could not be found. */
+int gen_dp_idx(void)
+{
+	int i;
+
+	for (i=0; i<DP_MAX; i++) {
+		if (!dps[i])
+			return i;
+	}
+
+	return -1;
+}
+
+/* Creates a new datapath numbered 'dp_idx'.  If 'dp_idx' is -1, it
+ * allocates the lowest numbered index available.  If 'dp_name' is not 
+ * null, it is used as the device name instead of the default one.  
+ * Returns 0 for success or a negative error code. */
+static int new_dp(int dp_idx, const char *dp_name)
 {
 	struct datapath *dp;
 	int err;
 
-	if (dp_idx < 0 || dp_idx >= DP_MAX)
-		return -EINVAL;
+	rtnl_lock();
+	mutex_lock(&dp_mutex);
+	if (dp_idx == -1) 
+		dp_idx = gen_dp_idx();
 
+	err = -EINVAL;
+	if (dp_idx < 0 || dp_idx >= DP_MAX)
+		goto err_unlock;
+
+	err = -ENODEV;
 	if (!try_module_get(THIS_MODULE))
-		return -ENODEV;
+		goto err_unlock;
 
 	/* Exit early if a datapath with that number already exists. */
-	if (dps[dp_idx]) {
-		err = -EEXIST;
-		goto err_unlock;
-	}
+	err = -EEXIST;
+	if (dps[dp_idx])
+		goto err_put;
 
 	err = -ENOMEM;
 	dp = kzalloc(sizeof *dp, GFP_KERNEL);
 	if (dp == NULL)
-		goto err_unlock;
+		goto err_put;
 
 	dp->dp_idx = dp_idx;
 
-	/* Setup our "of" device */
-	err = dp_dev_setup(dp);
+	/* Setup our datapath device */
+	err = dp_dev_setup(dp, dp_name);
 	if (err)
 		goto err_free_dp;
 
@@ -287,6 +348,11 @@ static int new_dp(int dp_idx)
 		goto err_destroy_chain;
 
 	dps[dp_idx] = dp;
+	mutex_unlock(&dp_mutex);
+	rtnl_unlock();
+
+	if (dp_add_dp_hook)
+		dp_add_dp_hook(dp);
 
 	return 0;
 
@@ -298,9 +364,12 @@ err_destroy_dp_dev:
 	dp_dev_destroy(dp);
 err_free_dp:
 	kfree(dp);
-err_unlock:
+err_put:
 	module_put(THIS_MODULE);
-		return err;
+err_unlock:
+	mutex_unlock(&dp_mutex);
+	rtnl_unlock();
+	return err;
 }
 
 /* Find and return a free port number under 'dp'. */
@@ -313,6 +382,7 @@ static int find_portno(struct datapath *dp)
 	return -EXFULL;
 }
 
+/* Called with RTNL lock and dp_mutex. */
 static struct net_bridge_port *new_nbp(struct datapath *dp,
 				       struct net_device *dev, int port_no)
 {
@@ -325,15 +395,12 @@ static struct net_bridge_port *new_nbp(struct datapath *dp,
 	if (p == NULL)
 		return ERR_PTR(-ENOMEM);
 
-	rtnl_lock();
 	dev_set_promiscuity(dev, 1);
-	rtnl_unlock();
 	dev_hold(dev);
 	p->dp = dp;
 	p->dev = dev;
 	p->port_no = port_no;
 	spin_lock_init(&p->lock);
-	INIT_WORK(&p->port_task, NULL);
 	if (port_no != OFPP_LOCAL)
 		rcu_assign_pointer(dev->br_port, p);
 	if (port_no < DP_MAX_PORTS)
@@ -343,6 +410,7 @@ static struct net_bridge_port *new_nbp(struct datapath *dp,
 	return p;
 }
 
+/* Called with RTNL lock and dp_mutex. */
 int add_switch_port(struct datapath *dp, struct net_device *dev)
 {
 	struct net_bridge_port *p;
@@ -362,24 +430,30 @@ int add_switch_port(struct datapath *dp, struct net_device *dev)
 
 	init_port_status(p);
 
+	if (dp_add_if_hook)
+		dp_add_if_hook(p);
+
 	/* Notify the ctlpath that this port has been added */
 	dp_send_port_status(p, OFPPR_ADD);
 
 	return 0;
 }
 
-/* Delete 'p' from switch. */
+/* Delete 'p' from switch.
+ * Called with RTNL lock and dp_mutex. */
 int dp_del_switch_port(struct net_bridge_port *p)
 {
 #ifdef SUPPORT_SNAT
 	unsigned long flags;
 #endif
 
+#if CONFIG_SYSFS
+	if ((p->port_no != OFPP_LOCAL) && dp_del_if_hook) 
+		sysfs_remove_link(&p->dp->ifobj, p->dev->name);
+#endif
+
 	/* First drop references to device. */
-	cancel_work_sync(&p->port_task);
-	rtnl_lock();
 	dev_set_promiscuity(p->dev, -1);
-	rtnl_unlock();
 	list_del_rcu(&p->node);
 	if (p->port_no != OFPP_LOCAL)
 		rcu_assign_pointer(p->dp->ports[p->port_no], NULL);
@@ -398,8 +472,12 @@ int dp_del_switch_port(struct net_bridge_port *p)
 	/* Notify the ctlpath that this port no longer exists */
 	dp_send_port_status(p, OFPPR_DELETE);
 
-	dev_put(p->dev);
-	kfree(p);
+	if ((p->port_no != OFPP_LOCAL) && dp_del_if_hook) {
+		dp_del_if_hook(p);
+	} else {
+		dev_put(p->dev);
+		kfree(p);
+	}
 
 	return 0;
 }
@@ -408,11 +486,16 @@ static void del_dp(struct datapath *dp)
 {
 	struct net_bridge_port *p, *n;
 
+	send_sig(SIGKILL, dp->dp_task, 0);
 	kthread_stop(dp->dp_task);
 
 	/* Drop references to DP. */
 	list_for_each_entry_safe (p, n, &dp->port_list, node)
 		dp_del_switch_port(p);
+
+	if (dp_del_dp_hook)
+		dp_del_dp_hook(dp);
+
 	rcu_assign_pointer(dps[dp->dp_idx], NULL);
 
 	/* Kill off local_port dev references from buffered packets that have
@@ -435,7 +518,8 @@ static int dp_maint_func(void *data)
 {
 	struct datapath *dp = (struct datapath *) data;
 
-	while (!kthread_should_stop()) {
+	allow_signal(SIGKILL);
+	while (!signal_pending(current)) {
 #ifdef SUPPORT_SNAT
 		struct net_bridge_port *p;
 
@@ -450,7 +534,10 @@ static int dp_maint_func(void *data)
 		chain_timeout(dp->chain);
 		msleep_interruptible(MAINT_SLEEP_MSECS);
 	}
-		
+	while (!kthread_should_stop()) {
+		set_current_state(TASK_UNINTERRUPTIBLE);
+		schedule();
+	}
 	return 0;
 }
 
@@ -514,7 +601,7 @@ static void dp_frame_hook(struct sk_buff *skb)
 
 static inline unsigned packet_length(const struct sk_buff *skb)
 {
-	int length = skb->len - ETH_HLEN;
+	unsigned length = skb->len - ETH_HLEN;
 	if (skb->protocol == htons(ETH_P_8021Q))
 		length -= VLAN_HLEN;
 	return length;
@@ -570,10 +657,8 @@ void dp_set_origin(struct datapath *dp, uint16_t in_port,
 static int 
 dp_xmit_skb_finish(struct sk_buff *skb)
 {
-	/* The ip_fragment function does not copy the Ethernet header into
-	 * the newly generated frames, so put back the values stowed
-	 * earlier. */
-	if (snat_copy_header(skb)) {
+	/* Copy back the Ethernet header that was stowed earlier. */
+	if (skb->protocol == htons(ETH_P_IP) && snat_copy_header(skb)) {
 		kfree_skb(skb);
 		return -EINVAL;
 	}
@@ -600,6 +685,11 @@ dp_xmit_skb(struct sk_buff *skb)
 
 	skb_pull(skb, ETH_HLEN);
 
+	/* The ip_fragment function does not copy the Ethernet header into
+	 * the newly generated frames, so stow the original. */
+	if (skb->protocol == htons(ETH_P_IP))
+		snat_save_header(skb);
+
 	if (skb->protocol == htons(ETH_P_IP) &&
 			skb->len > skb->dev->mtu &&
 			!skb_is_gso(skb)) {
@@ -616,10 +706,12 @@ dp_xmit_skb(struct sk_buff *skb)
 int 
 dp_xmit_skb(struct sk_buff *skb)
 {
+	struct datapath *dp = skb->dev->br_port->dp;
 	int len = skb->len;
+
 	if (packet_length(skb) > skb->dev->mtu && !skb_is_gso(skb)) {
-		printk("dropped over-mtu packet: %d > %d\n",
-			   packet_length(skb), skb->dev->mtu);
+		printk(KERN_WARNING "%s: dropped over-mtu packet: %d > %d\n",
+		       dp->netdev->name, packet_length(skb), skb->dev->mtu);
 		kfree_skb(skb);
 		return -E2BIG;
 	}
@@ -642,7 +734,9 @@ int dp_output_port(struct datapath *dp, struct sk_buff *skb, int out_port,
 		 * the skb. */
 		if (!skb->dev) {
 			if (net_ratelimit())
-				printk("skb device not set forwarding to in_port\n");
+				printk(KERN_NOTICE "%s: skb device not set "
+				       "forwarding to in_port\n",
+				       dp->netdev->name);
 			kfree_skb(skb);
 			return -ESRCH;
 		}
@@ -663,8 +757,7 @@ int dp_output_port(struct datapath *dp, struct sk_buff *skb, int out_port,
 		return output_all(dp, skb, 0);
 
 	case OFPP_CONTROLLER:
-		return dp_output_control(dp, skb, fwd_save_skb(skb), 0,
-						  OFPR_ACTION);
+		return dp_output_control(dp, skb, 0, OFPR_ACTION);
 
 	case OFPP_LOCAL: {
 		struct net_device *dev = dp->netdev;
@@ -682,7 +775,9 @@ int dp_output_port(struct datapath *dp, struct sk_buff *skb, int out_port,
 			/* To send to the input port, must use OFPP_IN_PORT */
 			kfree_skb(skb);
 			if (net_ratelimit())
-				printk("can't directly forward to input port\n");
+				printk(KERN_NOTICE "%s: can't directly "
+				       "forward to input port\n",
+				       dp->netdev->name);
 			return -EINVAL;
 		}
 		if (p->config & OFPPC_NO_FWD && !ignore_no_fwd) {
@@ -700,26 +795,93 @@ int dp_output_port(struct datapath *dp, struct sk_buff *skb, int out_port,
 bad_port:
 	kfree_skb(skb);
 	if (net_ratelimit())
-		printk("can't forward to bad port %d\n", out_port);
+		printk(KERN_NOTICE "%s: can't forward to bad port %d\n",
+		       dp->netdev->name, out_port);
 	return -ENOENT;
 }
 
-/* Takes ownership of 'skb' and transmits it to 'dp''s control path.  If
- * 'buffer_id' != -1, then only the first 64 bytes of 'skb' are sent;
- * otherwise, all of 'skb' is sent.  'reason' indicates why 'skb' is being
- * sent. 'max_len' sets the maximum number of bytes that the caller
- * wants to be sent; a value of 0 indicates the entire packet should be
- * sent. */
+#ifdef CONFIG_XEN
+/* This code is copied verbatim from net/dev/core.c in Xen's
+ * linux-2.6.18-92.1.10.el5.xs5.0.0.394.644.  We can't call those functions
+ * directly because they aren't exported. */
+static int skb_pull_up_to(struct sk_buff *skb, void *ptr)
+{
+	if (ptr < (void *)skb->tail)
+		return 1;
+	if (__pskb_pull_tail(skb,
+			     ptr - (void *)skb->data - skb_headlen(skb))) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+inline int skb_checksum_setup(struct sk_buff *skb)
+{
+	if (skb->proto_csum_blank) {
+		if (skb->protocol != htons(ETH_P_IP))
+			goto out;
+		if (!skb_pull_up_to(skb, skb->nh.iph + 1))
+			goto out;
+		skb->h.raw = (unsigned char *)skb->nh.iph + 4*skb->nh.iph->ihl;
+		switch (skb->nh.iph->protocol) {
+		case IPPROTO_TCP:
+			skb->csum = offsetof(struct tcphdr, check);
+			break;
+		case IPPROTO_UDP:
+			skb->csum = offsetof(struct udphdr, check);
+			break;
+		default:
+			if (net_ratelimit())
+				printk(KERN_ERR "Attempting to checksum a non-"
+				       "TCP/UDP packet, dropping a protocol"
+				       " %d packet", skb->nh.iph->protocol);
+			goto out;
+		}
+		if (!skb_pull_up_to(skb, skb->h.raw + skb->csum + 2))
+			goto out;
+		skb->ip_summed = CHECKSUM_HW;
+		skb->proto_csum_blank = 0;
+	}
+	return 0;
+out:
+	return -EPROTO;
+}
+#endif
+
+/* Takes ownership of 'skb' and transmits it to 'dp''s control path.  'reason'
+ * indicates why 'skb' is being sent. 'max_len' sets the maximum number of
+ * bytes that the caller wants to be sent; a value of 0 indicates the entire
+ * packet should be sent. */
 int
 dp_output_control(struct datapath *dp, struct sk_buff *skb,
-			   uint32_t buffer_id, size_t max_len, int reason)
+		  size_t max_len, int reason)
 {
 	/* FIXME?  Can we avoid creating a new skbuff in the case where we
 	 * forward the whole packet? */
 	struct sk_buff *f_skb;
 	struct ofp_packet_in *opi;
 	size_t fwd_len, opi_len;
+	uint32_t buffer_id;
 	int err;
+
+	WARN_ON_ONCE(skb_shared(skb));
+
+#ifdef CONFIG_XEN
+ 	/* If a checksum-deferred packet is forwarded to the controller,
+	 * correct the pointers and checksum.
+ 	 */
+	err = skb_checksum_setup(skb);
+ 	if (err)
+ 		goto out;
+	if (skb->ip_summed == CHECKSUM_HW) {
+		err = skb_checksum_help(skb, 0);
+		if (err)
+			goto out;
+	}
+#endif
+
+	buffer_id = fwd_save_skb(skb);
 
 	fwd_len = skb->len;
 	if ((buffer_id != (uint32_t) -1) && max_len)
@@ -739,7 +901,7 @@ dp_output_control(struct datapath *dp, struct sk_buff *skb,
 	opi->reason         = reason;
 	opi->pad            = 0;
 	skb_copy_bits(skb, 0, opi->data, fwd_len);
-	err = send_openflow_skb(f_skb, NULL);
+	err = send_openflow_skb(dp, f_skb, NULL);
 
 out:
 	kfree_skb(skb);
@@ -894,7 +1056,7 @@ dp_send_features_reply(struct datapath *dp, const struct sender *sender)
 	/* Shrink to fit. */
 	ofr_len = sizeof(*ofr) + (sizeof(struct ofp_phy_port) * port_count);
 	resize_openflow_skb(skb, &ofr->header, ofr_len);
-	return send_openflow_skb(skb, sender);
+	return send_openflow_skb(dp, skb, sender);
 }
 
 int
@@ -911,7 +1073,7 @@ dp_send_config_reply(struct datapath *dp, const struct sender *sender)
 	osc->flags = htons(dp->flags);
 	osc->miss_send_len = htons(dp->miss_send_len);
 
-	return send_openflow_skb(skb, sender);
+	return send_openflow_skb(dp, skb, sender);
 }
 
 int
@@ -933,38 +1095,8 @@ dp_send_hello(struct datapath *dp, const struct sender *sender,
 		if (!reply)
 			return -ENOMEM;
 
-		return send_openflow_skb(skb, sender);
+		return send_openflow_skb(dp, skb, sender);
 	}
-}
-
-/* Callback function for a workqueue to disable an interface */
-static void
-down_port_cb(struct work_struct *work)
-{
-	struct net_bridge_port *p = container_of(work, struct net_bridge_port, 
-			port_task);
-
-	rtnl_lock();
-	if (dev_change_flags(p->dev, p->dev->flags & ~IFF_UP) < 0)
-		if (net_ratelimit())
-			printk("problem bringing up port %s\n", p->dev->name);
-	rtnl_unlock();
-	p->config |= OFPPC_PORT_DOWN;
-}
-
-/* Callback function for a workqueue to enable an interface */
-static void
-up_port_cb(struct work_struct *work)
-{
-	struct net_bridge_port *p = container_of(work, struct net_bridge_port, 
-			port_task);
-
-	rtnl_lock();
-	if (dev_change_flags(p->dev, p->dev->flags | IFF_UP) < 0)
-		if (net_ratelimit())
-			printk("problem bringing down port %s\n", p->dev->name);
-	rtnl_unlock();
-	p->config &= ~OFPPC_PORT_DOWN;
 }
 
 int
@@ -986,22 +1118,6 @@ dp_update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm)
 		uint32_t config_mask = ntohl(opm->mask);
 		p->config &= ~config_mask;
 		p->config |= ntohl(opm->config) & config_mask;
-	}
-
-	/* Modifying the status of an interface requires taking a lock
-	 * that cannot be done from here.  For this reason, we use a shared 
-	 * workqueue, which will cause it to be executed from a safer 
-	 * context. */
-	if (opm->mask & htonl(OFPPC_PORT_DOWN)) {
-		if ((opm->config & htonl(OFPPC_PORT_DOWN))
-		    && (p->config & OFPPC_PORT_DOWN) == 0) {
-			PREPARE_WORK(&p->port_task, down_port_cb);
-			schedule_work(&p->port_task);
-		} else if ((opm->config & htonl(OFPPC_PORT_DOWN)) == 0
-			   && (p->config & OFPPC_PORT_DOWN)) {
-			PREPARE_WORK(&p->port_task, up_port_cb);
-			schedule_work(&p->port_task);
-		}
 	}
 	spin_unlock_irqrestore(&p->lock, flags);
 
@@ -1043,7 +1159,7 @@ dp_send_port_status(struct net_bridge_port *p, uint8_t status)
 	memset(ops->pad, 0, sizeof ops->pad);
 	fill_port_desc(p, &ops->desc);
 
-	return send_openflow_skb(skb, NULL);
+	return send_openflow_skb(p->dp, skb, NULL);
 }
 
 /* Convert jiffies_64 to milliseconds. */
@@ -1092,7 +1208,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 	nfe->packet_count = cpu_to_be64(flow->packet_count);
 	nfe->byte_count   = cpu_to_be64(flow->byte_count);
 
-	return send_openflow_skb(skb, NULL);
+	return send_openflow_skb(dp, skb, NULL);
 }
 EXPORT_SYMBOL(dp_send_flow_end);
 
@@ -1113,7 +1229,7 @@ dp_send_error_msg(struct datapath *dp, const struct sender *sender,
 	oem->code = htons(code);
 	memcpy(oem->data, data, len);
 
-	return send_openflow_skb(skb, sender);
+	return send_openflow_skb(dp, skb, sender);
 }
 
 int
@@ -1129,7 +1245,7 @@ dp_send_echo_reply(struct datapath *dp, const struct sender *sender,
 		return -ENOMEM;
 
 	memcpy(reply + 1, rq + 1, ntohs(rq->length) - sizeof *rq);
-	return send_openflow_skb(skb, sender);
+	return send_openflow_skb(dp, skb, sender);
 }
 
 /* Generic Netlink interface.
@@ -1150,16 +1266,25 @@ static struct genl_family dp_genl_family = {
 /* Attribute policy: what each attribute may contain.  */
 static struct nla_policy dp_genl_policy[DP_GENL_A_MAX + 1] = {
 	[DP_GENL_A_DP_IDX] = { .type = NLA_U32 },
+	[DP_GENL_A_DP_NAME] = { .type = NLA_NUL_STRING },
 	[DP_GENL_A_MC_GROUP] = { .type = NLA_U32 },
-	[DP_GENL_A_PORTNAME] = { .type = NLA_STRING }
+	[DP_GENL_A_PORTNAME] = { .type = NLA_NUL_STRING }
 };
 
 static int dp_genl_add(struct sk_buff *skb, struct genl_info *info)
 {
-	if (!info->attrs[DP_GENL_A_DP_IDX])
+	int dp_idx = info->attrs[DP_GENL_A_DP_IDX] ?
+			nla_get_u32(info->attrs[DP_GENL_A_DP_IDX]) : -1;
+	const char *dp_name = info->attrs[DP_GENL_A_DP_NAME] ?
+			nla_data(info->attrs[DP_GENL_A_DP_NAME]) : NULL;
+
+	if (VERIFY_NUL_STRING(info->attrs[DP_GENL_A_DP_NAME]))
 		return -EINVAL;
 
-	return new_dp(nla_get_u32(info->attrs[DP_GENL_A_DP_IDX]));
+	if ((dp_idx == -1) && (!dp_name))
+		return -EINVAL;
+
+	return new_dp(dp_idx, dp_name);
 }
 
 static struct genl_ops dp_genl_ops_add_dp = {
@@ -1170,28 +1295,75 @@ static struct genl_ops dp_genl_ops_add_dp = {
 	.dumpit = NULL,
 };
 
-struct datapath *dp_get(int dp_idx)
+/* Must be called with rcu_read_lock or dp_mutex. */
+struct datapath *dp_get_by_idx(int dp_idx)
 {
 	if (dp_idx < 0 || dp_idx >= DP_MAX)
 		return NULL;
 	return rcu_dereference(dps[dp_idx]);
 }
+EXPORT_SYMBOL(dp_get_by_idx);
+
+/* Must be called with rcu_read_lock or dp_mutex. */
+struct datapath *dp_get_by_name(const char *dp_name)
+{
+	int i;
+	for (i=0; i<DP_MAX; i++) {
+		struct datapath *dp = rcu_dereference(dps[i]);
+		if (dp && !strcmp(dp->netdev->name, dp_name))
+			return dp;
+	}
+	return NULL;
+}
+
+/* Must be called with rcu_read_lock or dp_mutex. */
+static struct datapath *
+lookup_dp(struct genl_info *info)
+{
+	int dp_idx = info->attrs[DP_GENL_A_DP_IDX] ?
+			nla_get_u32(info->attrs[DP_GENL_A_DP_IDX]) : -1;
+	const char *dp_name = info->attrs[DP_GENL_A_DP_NAME] ?
+			nla_data(info->attrs[DP_GENL_A_DP_NAME]) : NULL;
+
+	if (VERIFY_NUL_STRING(info->attrs[DP_GENL_A_DP_NAME]))
+		return ERR_PTR(-EINVAL);
+
+	if (dp_idx != -1) {
+		struct datapath *dp = dp_get_by_idx(dp_idx);
+		if (!dp)
+			return ERR_PTR(-ENOENT);
+		else if (dp_name && strcmp(dp->netdev->name, dp_name))
+			return ERR_PTR(-EINVAL);
+		else
+			return dp;
+	} else if (dp_name) {
+		struct datapath *dp = dp_get_by_name(dp_name);
+		return dp ? dp : ERR_PTR(-ENOENT);
+	} else {
+		return ERR_PTR(-EINVAL);
+	}
+}
 
 static int dp_genl_del(struct sk_buff *skb, struct genl_info *info)
 {
+	struct net_device *dev = NULL;
 	struct datapath *dp;
 	int err;
 
-	if (!info->attrs[DP_GENL_A_DP_IDX])
-		return -EINVAL;
-
-	dp = dp_get(nla_get_u32(info->attrs[DP_GENL_A_DP_IDX]));
-	if (!dp)
-		err = -ENOENT;
+	rtnl_lock();
+	mutex_lock(&dp_mutex);
+	dp = lookup_dp(info);
+	if (IS_ERR(dp))
+		err = PTR_ERR(dp);
 	else {
+		dev = dp->netdev;
 		del_dp(dp);
 		err = 0;
 	}
+	mutex_unlock(&dp_mutex);
+	rtnl_unlock();
+	if (dev)
+		free_netdev(dev);
 	return err;
 }
 
@@ -1204,30 +1376,18 @@ static struct genl_ops dp_genl_ops_del_dp = {
 };
 
 /* Queries a datapath for related information.  Currently the only relevant
- * information is the datapath's multicast group ID.  Really we want one
- * multicast group per datapath, but because of locking issues[*] we can't
- * easily get one.  Thus, every datapath will currently return the same
- * global multicast group ID, but in the future it would be nice to fix that.
- *
- * [*] dp_genl_add, to add a new datapath, is called under the genl_lock
- *	 mutex, and genl_register_mc_group, called to acquire a new multicast
- *	 group ID, also acquires genl_lock, thus deadlock.
- */
+ * information is the datapath's multicast group ID, datapath ID, and
+ * datapath device name. */
 static int dp_genl_query(struct sk_buff *skb, struct genl_info *info)
 {
 	struct datapath *dp;
 	struct sk_buff *ans_skb = NULL;
-	int dp_idx;
-	int err = -ENOMEM;
-
-	if (!info->attrs[DP_GENL_A_DP_IDX])
-		return -EINVAL;
+	int err;
 
 	rcu_read_lock();
-	dp_idx = nla_get_u32((info->attrs[DP_GENL_A_DP_IDX]));
-	dp = dp_get(dp_idx);
-	if (!dp)
-		err = -ENOENT;
+	dp = lookup_dp(info);
+	if (IS_ERR(dp))
+		err = PTR_ERR(dp);
 	else {
 		void *data;
 		ans_skb = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_ATOMIC);
@@ -1235,14 +1395,14 @@ static int dp_genl_query(struct sk_buff *skb, struct genl_info *info)
 			err = -ENOMEM;
 			goto err;
 		}
+		err = -ENOMEM;
 		data = genlmsg_put_reply(ans_skb, info, &dp_genl_family,
 					 0, DP_GENL_C_QUERY_DP);
-		if (data == NULL) {
-			err = -ENOMEM;
+		if (data == NULL)
 			goto err;
-		}
-		NLA_PUT_U32(ans_skb, DP_GENL_A_DP_IDX, dp_idx);
-		NLA_PUT_U32(ans_skb, DP_GENL_A_MC_GROUP, mc_group.id);
+		NLA_PUT_U32(ans_skb, DP_GENL_A_DP_IDX, dp->dp_idx);
+		NLA_PUT_STRING(ans_skb, DP_GENL_A_DP_NAME, dp->netdev->name);
+		NLA_PUT_U32(ans_skb, DP_GENL_A_MC_GROUP, dp_mc_group(dp));
 
 		genlmsg_end(ans_skb, data);
 		err = genlmsg_reply(ans_skb, info);
@@ -1269,14 +1429,18 @@ static int dp_genl_add_del_port(struct sk_buff *skb, struct genl_info *info)
 	struct net_device *port;
 	int err;
 
-	if (!info->attrs[DP_GENL_A_DP_IDX] || !info->attrs[DP_GENL_A_PORTNAME])
+	if (!info->attrs[DP_GENL_A_PORTNAME] ||
+	    VERIFY_NUL_STRING(info->attrs[DP_GENL_A_PORTNAME]))
 		return -EINVAL;
 
+	rtnl_lock();
+	mutex_lock(&dp_mutex);
+
 	/* Get datapath. */
-	dp = dp_get(nla_get_u32(info->attrs[DP_GENL_A_DP_IDX]));
-	if (!dp) {
-		err = -ENOENT;
-		goto out;
+	dp = lookup_dp(info);
+	if (IS_ERR(dp)) {
+		err = PTR_ERR(dp);
+		goto out_unlock;
 	}
 
 	/* Get interface to add/remove. */
@@ -1284,7 +1448,7 @@ static int dp_genl_add_del_port(struct sk_buff *skb, struct genl_info *info)
 			nla_data(info->attrs[DP_GENL_A_PORTNAME]));
 	if (!port) {
 		err = -ENOENT;
-		goto out;
+		goto out_unlock;
 	}
 
 	/* Execute operation. */
@@ -1300,7 +1464,9 @@ static int dp_genl_add_del_port(struct sk_buff *skb, struct genl_info *info)
 
 out_put:
 	dev_put(port);
-out:
+out_unlock:
+	mutex_unlock(&dp_mutex);
+	rtnl_unlock();
 	return err;
 }
 
@@ -1331,7 +1497,7 @@ static int dp_genl_openflow(struct sk_buff *skb, struct genl_info *info)
 	if (!info->attrs[DP_GENL_A_DP_IDX] || !va)
 		return -EINVAL;
 
-	dp = dp_get(nla_get_u32(info->attrs[DP_GENL_A_DP_IDX]));
+	dp = dp_get_by_idx(nla_get_u32(info->attrs[DP_GENL_A_DP_IDX]));
 	if (!dp)
 		return -ENOENT;
 
@@ -1724,7 +1890,7 @@ dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 		if (!attrs[DP_GENL_A_DP_IDX])
 			return -EINVAL;
 		dp_idx = nla_get_u16(attrs[DP_GENL_A_DP_IDX]);
-		dp = dp_get(dp_idx);
+		dp = dp_get_by_idx(dp_idx);
 		if (!dp)
 			return -ENOENT;
 
@@ -1772,7 +1938,7 @@ dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 		dp_idx = cb->args[1];
 		s = &stats[cb->args[2]];
 
-		dp = dp_get(dp_idx);
+		dp = dp_get_by_idx(dp_idx);
 		if (!dp)
 			return -ENOENT;
 	} else {
@@ -1851,16 +2017,19 @@ static int dp_init_netlink(void)
 			goto err_unregister;
 	}
 
-	strcpy(mc_group.name, "openflow");
-	err = genl_register_mc_group(&dp_genl_family, &mc_group);
-	if (err < 0)
-		goto err_unregister;
+	for (i = 0; i < N_MC_GROUPS; i++) {
+		snprintf(mc_groups[i].name, sizeof mc_groups[i].name,
+			 "openflow%d", i);
+		err = genl_register_mc_group(&dp_genl_family, &mc_groups[i]);
+		if (err < 0)
+			goto err_unregister;
+	}
 
 	return 0;
 
 err_unregister:
 	genl_unregister_family(&dp_genl_family);
-		return err;
+	return err;
 }
 
 static void dp_uninit_netlink(void)
@@ -1920,6 +2089,12 @@ static int __init dp_init(void)
 	err = dp_init_netlink();
 	if (err)
 		goto error_unreg_notifier;
+
+	dp_ioctl_hook = NULL;
+	dp_add_dp_hook = NULL;
+	dp_del_dp_hook = NULL;
+	dp_add_if_hook = NULL;
+	dp_del_if_hook = NULL;
 
 	/* Check if better descriptions of the switch are available than the
 	 * defaults. */

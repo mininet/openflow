@@ -1,6 +1,6 @@
 /*
  * Distributed under the terms of the GNU GPL version 2.
- * Copyright (c) 2007, 2008 The Board of Trustees of The Leland 
+ * Copyright (c) 2007, 2008, 2009 The Board of Trustees of The Leland 
  * Stanford Junior University
  */
 
@@ -71,8 +71,7 @@ void fwd_port_input(struct sw_chain *chain, struct sk_buff *skb,
 	WARN_ON_ONCE(skb_shared(skb));
 	WARN_ON_ONCE(skb->destructor);
 	if (run_flow_through_tables(chain, skb, p))
-		dp_output_control(chain->dp, skb, fwd_save_skb(skb), 
-				  chain->dp->miss_send_len,
+		dp_output_control(chain->dp, skb, chain->dp->miss_send_len,
 				  OFPR_NO_MATCH);
 }
 
@@ -128,7 +127,8 @@ recv_packet_out(struct sw_chain *chain, const struct sender *sender,
 
 	if (actions_len > (ntohs(opo->header.length) - sizeof *opo)) {
 		if (net_ratelimit()) 
-			printk("message too short for number of actions\n");
+			printk(KERN_NOTICE "%s: message too short for number "
+			       "of actions\n", chain->dp->netdev->name);
 		return -EINVAL;
 	}
 
@@ -348,7 +348,8 @@ recv_vendor(struct sw_chain *chain, const struct sender *sender,
 		return nx_recv_msg(chain, sender, msg);
 	default:
 		if (net_ratelimit())
-			printk("unknown vendor: 0x%x\n", ntohl(ovh->vendor));
+			printk(KERN_NOTICE "%s: unknown vendor: 0x%x\n",
+			       chain->dp->netdev->name, ntohl(ovh->vendor));
 		dp_send_error_msg(chain->dp, sender, OFPET_BAD_REQUEST,
 				  OFPBRC_BAD_VENDOR, msg, ntohs(ovh->header.length));
 		return -EINVAL;
@@ -427,8 +428,9 @@ fwd_control_input(struct sw_chain *chain, const struct sender *sender,
 	}
 	if (ntohs(oh->length) != length) {
 		if (net_ratelimit())
-			printk("received message length wrong: %d/%d\n", 
-				ntohs(oh->length), length);
+			printk(KERN_NOTICE "%s: received message length "
+			       "wrong: %d/%d\n", chain->dp->netdev->name,
+			       ntohs(oh->length), length);
 		return -EINVAL;
 	}
 
@@ -517,8 +519,9 @@ static struct sk_buff *retrieve_skb(uint32_t id)
 		skb = p->skb;
 		p->skb = NULL;
 	} else {
-		printk("cookie mismatch: %x != %x\n",
-				id >> PKT_BUFFER_BITS, p->cookie);
+		if (net_ratelimit())
+			printk(KERN_NOTICE "cookie mismatch: %x != %x\n",
+			       id >> PKT_BUFFER_BITS, p->cookie);
 	}
 	spin_unlock_irqrestore(&buffer_lock, flags);
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -34,6 +34,7 @@
 #include <config.h>
 #include "dpif.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -60,15 +61,15 @@ static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 60);
 static int openflow_family;
 
 static int lookup_openflow_multicast_group(int dp_idx, int *multicast_group);
-static int send_mgmt_command(struct dpif *, int command,
+static int send_mgmt_command(struct dpif *, int dp_idx, int command,
                              const char *netdev);
 
-/* Opens the local datapath numbered 'dp_idx', initializing 'dp'.  If
- * 'subscribe' is true, listens for asynchronous messages (packet-in, etc.)
- * from the datapath; otherwise, 'dp' will receive only replies to explicitly
- * initiated requests. */
+/* Opens a socket for a local datapath, initializing 'dp'.  If
+ * 'subscribe_dp_idx' is nonnegative, listens for asynchronous messages
+ * (packet-in, etc.) from the datapath with that number; otherwise, 'dp' will
+ * receive only replies to explicitly initiated requests. */
 int
-dpif_open(int dp_idx, bool subscribe, struct dpif *dp)
+dpif_open(int subscribe_dp_idx, struct dpif *dp)
 {
     struct nl_sock *sock;
     int multicast_group = 0;
@@ -79,8 +80,9 @@ dpif_open(int dp_idx, bool subscribe, struct dpif *dp)
         return retval;
     }
 
-    if (subscribe) {
-        retval = lookup_openflow_multicast_group(dp_idx, &multicast_group);
+    if (subscribe_dp_idx >= 0) {
+        retval = lookup_openflow_multicast_group(subscribe_dp_idx,
+                                                 &multicast_group);
         if (retval) {
             return retval;
         }
@@ -94,7 +96,6 @@ dpif_open(int dp_idx, bool subscribe, struct dpif *dp)
         return retval;
     }
 
-    dp->dp_idx = dp_idx;
     dp->sock = sock;
     return 0;
 }
@@ -109,13 +110,15 @@ dpif_close(struct dpif *dp)
 }
 
 static const struct nl_policy openflow_policy[] = {
-    [DP_GENL_A_DP_IDX] = { .type = NL_A_U32 },
+    [DP_GENL_A_DP_IDX] = { .type = NL_A_U32,
+                           .optional = false },
     [DP_GENL_A_OPENFLOW] = { .type = NL_A_UNSPEC,
-                              .min_len = sizeof(struct ofp_header),
-                              .max_len = 65535 },
+                             .min_len = sizeof(struct ofp_header),
+                             .max_len = 65535,
+                             .optional = false },
 };
 
-/* Tries to receive an openflow message from the kernel on 'sock'.  If
+/* Tries to receive an openflow message from datapath 'dp_idx' on 'sock'.  If
  * successful, stores the received message into '*msgp' and returns 0.  The
  * caller is responsible for destroying the message with ofpbuf_delete().  On
  * failure, returns a positive errno value and stores a null pointer into
@@ -127,50 +130,49 @@ static const struct nl_policy openflow_policy[] = {
  * If 'wait' is true, dpif_recv_openflow waits for a message to be ready;
  * otherwise, returns EAGAIN if the 'sock' receive buffer is empty. */
 int
-dpif_recv_openflow(struct dpif *dp, struct ofpbuf **bufferp,
-                        bool wait) 
+dpif_recv_openflow(struct dpif *dp, int dp_idx, struct ofpbuf **bufferp,
+                   bool wait)
 {
     struct nlattr *attrs[ARRAY_SIZE(openflow_policy)];
     struct ofpbuf *buffer;
     struct ofp_header *oh;
     uint16_t ofp_len;
-    int retval;
 
     buffer = *bufferp = NULL;
     do {
-        ofpbuf_delete(buffer);
-        retval = nl_sock_recv(dp->sock, &buffer, wait);
-    } while (retval == ENOBUFS
-             || (!retval
-                 && (nl_msg_nlmsgerr(buffer, NULL)
-                     || nl_msg_nlmsghdr(buffer)->nlmsg_type == NLMSG_DONE)));
-    if (retval) {
-        if (retval != EAGAIN) {
-            VLOG_WARN_RL(&rl, "dpif_recv_openflow: %s", strerror(retval)); 
+        int retval;
+
+        do {
+            ofpbuf_delete(buffer);
+            retval = nl_sock_recv(dp->sock, &buffer, wait);
+        } while (retval == ENOBUFS
+                 || (!retval
+                     && (nl_msg_nlmsghdr(buffer)->nlmsg_type == NLMSG_DONE
+                         || nl_msg_nlmsgerr(buffer, NULL))));
+        if (retval) {
+            if (retval != EAGAIN) {
+                VLOG_WARN_RL(&rl, "dpif_recv_openflow: %s", strerror(retval));
+            }
+            return retval;
         }
-        return retval;
-    }
 
-    if (nl_msg_genlmsghdr(buffer) == NULL) {
-        VLOG_DBG_RL(&rl, "received packet too short for Generic Netlink");
-        goto error;
-    }
-    if (nl_msg_nlmsghdr(buffer)->nlmsg_type != openflow_family) {
-        VLOG_DBG_RL(&rl, "received type (%"PRIu16") != openflow family (%d)",
-                    nl_msg_nlmsghdr(buffer)->nlmsg_type, openflow_family);
-        goto error;
-    }
+        if (nl_msg_genlmsghdr(buffer) == NULL) {
+            VLOG_DBG_RL(&rl, "received packet too short for Generic Netlink");
+            goto error;
+        }
+        if (nl_msg_nlmsghdr(buffer)->nlmsg_type != openflow_family) {
+            VLOG_DBG_RL(&rl,
+                        "received type (%"PRIu16") != openflow family (%d)",
+                        nl_msg_nlmsghdr(buffer)->nlmsg_type, openflow_family);
+            goto error;
+        }
 
-    if (!nl_policy_parse(buffer, openflow_policy, attrs,
-                         ARRAY_SIZE(openflow_policy))) {
-        goto error;
-    }
-    if (nl_attr_get_u32(attrs[DP_GENL_A_DP_IDX]) != dp->dp_idx) {
-        VLOG_WARN_RL(&rl, "received dp_idx (%"PRIu32") differs from expected "
-                     "(%d)", nl_attr_get_u32(attrs[DP_GENL_A_DP_IDX]),
-                     dp->dp_idx);
-        goto error;
-    }
+        if (!nl_policy_parse(buffer, NLMSG_HDRLEN + GENL_HDRLEN,
+                             openflow_policy, attrs,
+                             ARRAY_SIZE(openflow_policy))) {
+            goto error;
+        }
+    } while (nl_attr_get_u32(attrs[DP_GENL_A_DP_IDX]) != dp_idx);
 
     oh = buffer->data = (void *) nl_attr_get(attrs[DP_GENL_A_OPENFLOW]);
     buffer->size = nl_attr_get_size(attrs[DP_GENL_A_OPENFLOW]);
@@ -190,18 +192,18 @@ error:
 }
 
 /* Encapsulates 'msg', which must contain an OpenFlow message, in a Netlink
- * message, and sends it to the OpenFlow kernel module via 'sock'.
+ * message, and sends it to the OpenFlow local datapath numbered 'dp_idx' via
+ * 'sock'.
  *
- * Returns 0 if successful, otherwise a positive errno value.  If
- * 'wait' is true, then the send will wait until buffer space is ready;
- * otherwise, returns EAGAIN if the 'sock' send buffer is full.
+ * Returns 0 if successful, otherwise a positive errno value.  Returns EAGAIN
+ * if the 'sock' send buffer is full.
  *
  * If the send is successful, then the kernel module will receive it, but there
  * is no guarantee that any reply will not be dropped (see nl_sock_transact()
  * for details). 
  */
 int
-dpif_send_openflow(struct dpif *dp, struct ofpbuf *buffer, bool wait) 
+dpif_send_openflow(struct dpif *dp, int dp_idx, struct ofpbuf *buffer)
 {
     struct ofp_header *oh;
     unsigned int dump_flag;
@@ -221,7 +223,7 @@ dpif_send_openflow(struct dpif *dp, struct ofpbuf *buffer, bool wait)
     ofpbuf_use(&hdr, fixed_buffer, sizeof fixed_buffer);
     nl_msg_put_genlmsghdr(&hdr, dp->sock, 32, openflow_family,
                           NLM_F_REQUEST | dump_flag, DP_GENL_C_OPENFLOW, 1);
-    nl_msg_put_u32(&hdr, DP_GENL_A_DP_IDX, dp->dp_idx);
+    nl_msg_put_u32(&hdr, DP_GENL_A_DP_IDX, dp_idx);
     nla = ofpbuf_put_uninit(&hdr, sizeof *nla);
     nla->nla_len = sizeof *nla + buffer->size;
     nla->nla_type = DP_GENL_A_OPENFLOW;
@@ -245,48 +247,56 @@ dpif_send_openflow(struct dpif *dp, struct ofpbuf *buffer, bool wait)
     return retval;
 }
 
-/* Creates the datapath represented by 'dp'.  Returns 0 if successful,
- * otherwise a positive errno value. */
+/* Creates local datapath numbered 'dp_idx' with the name 'dp_name'.  A
+ * 'dp_idx' of -1 or null 'dp_name' will have the kernel module choose values.
+ * (At least one or the other must be provided, however, so that the caller can
+ * identify the datapath that was created.)  Returns 0 if successful, otherwise
+ * a positive errno value. */
 int
-dpif_add_dp(struct dpif *dp)
+dpif_add_dp(struct dpif *dp, int dp_idx, const char *dp_name)
 {
-    return send_mgmt_command(dp, DP_GENL_C_ADD_DP, NULL);
+    return send_mgmt_command(dp, dp_idx, DP_GENL_C_ADD_DP, dp_name);
 }
 
-/* Destroys the datapath represented by 'dp'.  Returns 0 if successful,
- * otherwise a positive errno value. */
-int
-dpif_del_dp(struct dpif *dp) 
-{
-    return send_mgmt_command(dp, DP_GENL_C_DEL_DP, NULL);
-}
-
-/* Adds the Ethernet device named 'netdev' to this datapath.  Returns 0 if
+/* Destroys a local datapath.  If 'dp_idx' is not -1, destroys the datapath
+ * with that number; if 'dp_name' is not NULL, destroys the datapath with that
+ * name.  Exactly one of 'dp_idx' and 'dp_name' should be used.  Returns 0 if
  * successful, otherwise a positive errno value. */
 int
-dpif_add_port(struct dpif *dp, const char *netdev)
+dpif_del_dp(struct dpif *dp, int dp_idx, const char *dp_name)
 {
-    return send_mgmt_command(dp, DP_GENL_C_ADD_PORT, netdev);
+    return send_mgmt_command(dp, dp_idx, DP_GENL_C_DEL_DP, dp_name);
 }
 
-/* Removes the Ethernet device named 'netdev' from this datapath.  Returns 0
- * if successful, otherwise a positive errno value. */
+/* Adds the Ethernet device named 'netdev' to the local datapath numbered
+ * 'dp_idx'.  Returns 0 if successful, otherwise a positive errno value. */
 int
-dpif_del_port(struct dpif *dp, const char *netdev)
+dpif_add_port(struct dpif *dp, int dp_idx, const char *netdev)
 {
-    return send_mgmt_command(dp, DP_GENL_C_DEL_PORT, netdev);
+    return send_mgmt_command(dp, dp_idx, DP_GENL_C_ADD_PORT, netdev);
+}
+
+/* Removes the Ethernet device named 'netdev' from the local datapath numbered
+ * 'dp_idx'.  Returns 0 if successful, otherwise a positive errno value. */
+int
+dpif_del_port(struct dpif *dp, int dp_idx, const char *netdev)
+{
+    return send_mgmt_command(dp, dp_idx, DP_GENL_C_DEL_PORT, netdev);
 }
 
 static const struct nl_policy openflow_multicast_policy[] = {
     [DP_GENL_A_DP_IDX] = { .type = NL_A_U32 },
+    [DP_GENL_A_DP_NAME] = { .type = NL_A_STRING },
     [DP_GENL_A_MC_GROUP] = { .type = NL_A_U32 },
 };
 
-/* Looks up the Netlink multicast group used by datapath 'dp_idx'.  If
- * successful, stores the multicast group in '*multicast_group' and returns 0.
- * Otherwise, returns a positve errno value. */
+/* Looks up the Netlink multicast group and datapath index of a datapath
+ * by either the datapath index or name.  If 'dp_idx' points to a value 
+ * of '-1', then 'dp_name' is used to lookup the datapath.  If successful, 
+ * stores the multicast group in '*multicast_group' and the index in
+ * '*dp_idx' and returns 0. Otherwise, returns a positive errno value. */
 static int
-lookup_openflow_multicast_group(int dp_idx, int *multicast_group) 
+query_datapath(int *dp_idx, int *multicast_group, const char *dp_name)
 {
     struct nl_sock *sock;
     struct ofpbuf request, *reply;
@@ -300,19 +310,26 @@ lookup_openflow_multicast_group(int dp_idx, int *multicast_group)
     ofpbuf_init(&request, 0);
     nl_msg_put_genlmsghdr(&request, sock, 0, openflow_family, NLM_F_REQUEST,
                           DP_GENL_C_QUERY_DP, 1);
-    nl_msg_put_u32(&request, DP_GENL_A_DP_IDX, dp_idx);
+    if (*dp_idx != -1) {
+        nl_msg_put_u32(&request, DP_GENL_A_DP_IDX, *dp_idx);
+    }
+    if (dp_name) {
+        nl_msg_put_string(&request, DP_GENL_A_DP_NAME, dp_name);
+    }
     retval = nl_sock_transact(sock, &request, &reply);
     ofpbuf_uninit(&request);
     if (retval) {
         nl_sock_destroy(sock);
         return retval;
     }
-    if (!nl_policy_parse(reply, openflow_multicast_policy, attrs,
+    if (!nl_policy_parse(reply, NLMSG_HDRLEN + GENL_HDRLEN,
+                         openflow_multicast_policy, attrs,
                          ARRAY_SIZE(openflow_multicast_policy))) {
         nl_sock_destroy(sock);
         ofpbuf_delete(reply);
         return EPROTO;
     }
+    *dp_idx = nl_attr_get_u32(attrs[DP_GENL_A_DP_IDX]);
     *multicast_group = nl_attr_get_u32(attrs[DP_GENL_A_MC_GROUP]);
     nl_sock_destroy(sock);
     ofpbuf_delete(reply);
@@ -320,11 +337,36 @@ lookup_openflow_multicast_group(int dp_idx, int *multicast_group)
     return 0;
 }
 
-/* Sends the given 'command' to datapath 'dp'.  If 'netdev' is nonnull, adds it
- * to the command as the port name attribute.  Returns 0 if successful,
- * otherwise a positive errno value. */
+/* Looks up the Netlink multicast group used by datapath 'dp_idx'.  If
+ * successful, stores the multicast group in '*multicast_group' and returns 0.
+ * Otherwise, returns a positve errno value. */
 static int
-send_mgmt_command(struct dpif *dp, int command, const char *netdev) 
+lookup_openflow_multicast_group(int dp_idx, int *multicast_group)
+{
+    return query_datapath(&dp_idx, multicast_group, NULL);
+}
+
+/* Looks up the datatpath index based on the name.  Returns the index, or
+ * -1 on error. */
+int
+dpif_get_idx(const char *name)
+{
+    int dp_idx = -1;
+    int mc_group = 0;
+
+    if (query_datapath(&dp_idx, &mc_group, name)) {
+        return -1;
+    }
+
+    return dp_idx;
+}
+
+/* Sends the given 'command' to datapath 'dp', related to the local datapath
+ * numbered 'dp_idx'.  If 'arg' is nonnull, adds it to the command as the
+ * datapath or port name attribute depending on the requested operation.  
+ * Returns 0 if successful, otherwise a positive errno value. */
+static int
+send_mgmt_command(struct dpif *dp, int dp_idx, int command, const char *arg)
 {
     struct ofpbuf request, *reply;
     int retval;
@@ -332,9 +374,15 @@ send_mgmt_command(struct dpif *dp, int command, const char *netdev)
     ofpbuf_init(&request, 0);
     nl_msg_put_genlmsghdr(&request, dp->sock, 32, openflow_family,
                           NLM_F_REQUEST | NLM_F_ACK, command, 1);
-    nl_msg_put_u32(&request, DP_GENL_A_DP_IDX, dp->dp_idx);
-    if (netdev) {
-        nl_msg_put_string(&request, DP_GENL_A_PORTNAME, netdev);
+    if (dp_idx != -1) {
+        nl_msg_put_u32(&request, DP_GENL_A_DP_IDX, dp_idx);
+    }
+    if (arg) {
+        if ((command == DP_GENL_C_ADD_DP) || (command == DP_GENL_C_DEL_DP)) {
+            nl_msg_put_string(&request, DP_GENL_A_DP_NAME, arg);
+        } else {
+            nl_msg_put_string(&request, DP_GENL_A_PORTNAME, arg);
+        }
     }
     retval = nl_sock_transact(dp->sock, &request, &reply);
     ofpbuf_uninit(&request);

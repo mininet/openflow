@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -74,6 +74,7 @@ static struct vconn_class *vconn_classes[] = {
 #ifdef HAVE_OPENSSL
     &ssl_vconn_class,
 #endif
+    &fd_vconn_class,
 };
 
 static struct pvconn_class *pvconn_classes[] = {
@@ -152,6 +153,7 @@ vconn_usage(bool active, bool passive, bool bootstrap UNUSED)
                "SSL PORT (default: %d) on remote HOST\n", OFP_SSL_PORT);
 #endif
         printf("  unix:FILE               Unix domain socket named FILE\n");
+        printf("  fd:N                    File descriptor N\n");
     }
 
     if (passive) {
@@ -270,6 +272,19 @@ uint32_t
 vconn_get_ip(const struct vconn *vconn) 
 {
     return vconn->ip;
+}
+
+/* Returns true if, when 'vconn' is closed, it is possible to try to reconnect
+ * to it using the name that was originally used.  This is ordinarily the case.
+ *
+ * Returns false if reconnecting under the same name will never work in the way
+ * that you would expect.  This is the case if 'vconn' represents a "fd:N" type
+ * vconn; one can never connect to such a vconn more than once, because closing
+ * it closes the file descriptor. */
+bool
+vconn_is_reconnectable(const struct vconn *vconn)
+{
+    return vconn->reconnectable;
 }
 
 static void
@@ -449,6 +464,7 @@ do_recv(struct vconn *vconn, struct ofpbuf **msgp)
 {
     int retval;
 
+again:
     retval = (vconn->class->recv)(vconn, msgp);
     if (!retval) {
         struct ofp_header *oh;
@@ -468,6 +484,20 @@ do_recv(struct vconn *vconn, struct ofpbuf **msgp)
             && oh->type != OFPT_VENDOR)
         {
             if (vconn->version < 0) {
+                if (oh->type == OFPT_PACKET_IN
+                    || oh->type == OFPT_FLOW_EXPIRED
+                    || oh->type == OFPT_PORT_STATUS) {
+                    /* The kernel datapath is stateless and doesn't really
+                     * support version negotiation, so it can end up sending
+                     * these asynchronous message before version negotiation
+                     * is complete.  Just ignore them.
+                     *
+                     * (After we move OFPT_PORT_STATUS messages from the kernel
+                     * into secchan, we won't get those here, since secchan
+                     * does proper version negotiation.) */
+                    ofpbuf_delete(*msgp);
+                    goto again;
+                }
                 VLOG_ERR_RL(&rl, "%s: received OpenFlow message type %"PRIu8" "
                             "before version negotiation complete",
                             vconn->name, oh->type);
@@ -728,35 +758,94 @@ pvconn_wait(struct pvconn *pvconn)
     (pvconn->class->wait)(pvconn);
 }
 
-/* Allocates and returns the first byte of a buffer 'openflow_len' bytes long,
- * containing an OpenFlow header with the given 'type' and a random transaction
- * id.  Stores the new buffer in '*bufferp'.  The caller must free the buffer
- * when it is no longer needed. */
-void *
-make_openflow(size_t openflow_len, uint8_t type, struct ofpbuf **bufferp) 
+/* XXX we should really use consecutive xids to avoid probabilistic
+ * failures. */
+static inline uint32_t
+alloc_xid(void)
 {
-    return make_openflow_xid(openflow_len, type, random_uint32(), bufferp);
+    return random_uint32();
 }
 
-/* Allocates and returns the first byte of a buffer 'openflow_len' bytes long,
- * containing an OpenFlow header with the given 'type' and transaction id
- * 'xid'.  Stores the new buffer in '*bufferp'.  The caller must free the
- * buffer when it is no longer needed. */
+/* Allocates and stores in '*bufferp' a new ofpbuf with a size of
+ * 'openflow_len', starting with an OpenFlow header with the given 'type' and
+ * an arbitrary transaction id.  Allocated bytes beyond the header, if any, are
+ * zeroed.
+ *
+ * The caller is responsible for freeing '*bufferp' when it is no longer
+ * needed.
+ *
+ * The OpenFlow header length is initially set to 'openflow_len'; if the
+ * message is later extended, the length should be updated with
+ * update_openflow_length() before sending.
+ *
+ * Returns the header. */
+void *
+make_openflow(size_t openflow_len, uint8_t type, struct ofpbuf **bufferp)
+{
+    *bufferp = ofpbuf_new(openflow_len);
+    return put_openflow_xid(openflow_len, type, alloc_xid(), *bufferp);
+}
+
+/* Allocates and stores in '*bufferp' a new ofpbuf with a size of
+ * 'openflow_len', starting with an OpenFlow header with the given 'type' and
+ * transaction id 'xid'.  Allocated bytes beyond the header, if any, are
+ * zeroed.
+ *
+ * The caller is responsible for freeing '*bufferp' when it is no longer
+ * needed.
+ *
+ * The OpenFlow header length is initially set to 'openflow_len'; if the
+ * message is later extended, the length should be updated with
+ * update_openflow_length() before sending.
+ *
+ * Returns the header. */
 void *
 make_openflow_xid(size_t openflow_len, uint8_t type, uint32_t xid,
                   struct ofpbuf **bufferp)
 {
-    struct ofpbuf *buffer;
+    *bufferp = ofpbuf_new(openflow_len);
+    return put_openflow_xid(openflow_len, type, xid, *bufferp);
+}
+
+/* Appends 'openflow_len' bytes to 'buffer', starting with an OpenFlow header
+ * with the given 'type' and an arbitrary transaction id.  Allocated bytes
+ * beyond the header, if any, are zeroed.
+ *
+ * The OpenFlow header length is initially set to 'openflow_len'; if the
+ * message is later extended, the length should be updated with
+ * update_openflow_length() before sending.
+ *
+ * Returns the header. */
+void *
+put_openflow(size_t openflow_len, uint8_t type, struct ofpbuf *buffer)
+{
+    return put_openflow_xid(openflow_len, type, alloc_xid(), buffer);
+}
+
+/* Appends 'openflow_len' bytes to 'buffer', starting with an OpenFlow header
+ * with the given 'type' and an transaction id 'xid'.  Allocated bytes beyond
+ * the header, if any, are zeroed.
+ *
+ * The OpenFlow header length is initially set to 'openflow_len'; if the
+ * message is later extended, the length should be updated with
+ * update_openflow_length() before sending.
+ *
+ * Returns the header. */
+void *
+put_openflow_xid(size_t openflow_len, uint8_t type, uint32_t xid,
+                 struct ofpbuf *buffer)
+{
     struct ofp_header *oh;
 
     assert(openflow_len >= sizeof *oh);
     assert(openflow_len <= UINT16_MAX);
-    buffer = *bufferp = ofpbuf_new(openflow_len);
-    oh = ofpbuf_put_zeros(buffer, openflow_len);
+
+    oh = ofpbuf_put_uninit(buffer, openflow_len);
     oh->version = OFP_VERSION;
     oh->type = type;
     oh->length = htons(openflow_len);
     oh->xid = xid;
+    memset(oh + 1, 0, openflow_len - sizeof *oh);
     return oh;
 }
 
@@ -770,13 +859,12 @@ update_openflow_length(struct ofpbuf *buffer)
 }
 
 struct ofpbuf *
-make_add_flow(const struct flow *flow, uint32_t buffer_id,
-              uint16_t idle_timeout, size_t actions_len)
+make_flow_mod(uint16_t command, const struct flow *flow, size_t actions_len)
 {
     struct ofp_flow_mod *ofm;
     size_t size = sizeof *ofm + actions_len;
     struct ofpbuf *out = ofpbuf_new(size);
-    ofm = ofpbuf_put_zeros(out, size);
+    ofm = ofpbuf_put_zeros(out, sizeof *ofm);
     ofm->header.version = OFP_VERSION;
     ofm->header.type = OFPT_FLOW_MOD;
     ofm->header.length = htons(size);
@@ -791,10 +879,28 @@ make_add_flow(const struct flow *flow, uint32_t buffer_id,
     ofm->match.nw_proto = flow->nw_proto;
     ofm->match.tp_src = flow->tp_src;
     ofm->match.tp_dst = flow->tp_dst;
-    ofm->command = htons(OFPFC_ADD);
+    ofm->command = htons(command);
+    return out;
+}
+
+struct ofpbuf *
+make_add_flow(const struct flow *flow, uint32_t buffer_id,
+              uint16_t idle_timeout, size_t actions_len)
+{
+    struct ofpbuf *out = make_flow_mod(OFPFC_ADD, flow, actions_len);
+    struct ofp_flow_mod *ofm = out->data;
     ofm->idle_timeout = htons(idle_timeout);
     ofm->hard_timeout = htons(OFP_FLOW_PERMANENT);
     ofm->buffer_id = htonl(buffer_id);
+    return out;
+}
+
+struct ofpbuf *
+make_del_flow(const struct flow *flow)
+{
+    struct ofpbuf *out = make_flow_mod(OFPFC_DELETE_STRICT, flow, 0);
+    struct ofp_flow_mod *ofm = out->data;
+    ofm->out_port = htons(OFPP_NONE);
     return out;
 }
 
@@ -804,10 +910,9 @@ make_add_simple_flow(const struct flow *flow,
                      uint16_t idle_timeout)
 {
     struct ofp_action_output *oao;
-    struct ofpbuf *buffer = make_add_flow(flow, buffer_id, idle_timeout, 
-            sizeof *oao);
-    struct ofp_flow_mod *ofm = buffer->data;
-    oao = (struct ofp_action_output *)&ofm->actions[0];
+    struct ofpbuf *buffer = make_add_flow(flow, buffer_id, idle_timeout,
+                                          sizeof *oao);
+    oao = ofpbuf_put_zeros(buffer, sizeof *oao);
     oao->type = htons(OFPAT_OUTPUT);
     oao->len = htons(sizeof *oao);
     oao->port = htons(out_port);
@@ -891,9 +996,138 @@ make_echo_reply(const struct ofp_header *rq)
     return out;
 }
 
+static int
+check_message_type(uint8_t got_type, uint8_t want_type) 
+{
+    if (got_type != want_type) {
+        char *want_type_name = ofp_message_type_to_string(want_type);
+        char *got_type_name = ofp_message_type_to_string(got_type);
+        VLOG_WARN("received bad message type %s (expected %s)",
+                  got_type_name, want_type_name);
+        free(want_type_name);
+        free(got_type_name);
+        return false;
+    }
+    return true;
+}
+
+/* Checks that 'msg' has type 'type' and that it is exactly 'size' bytes long.
+ * Returns 0 if the checks pass, otherwise EINVAL. */
+int
+check_ofp_message(const struct ofp_header *msg, uint8_t type, size_t size)
+{
+    size_t got_size;
+
+    if (!check_message_type(msg->type, type)) {
+        return EINVAL;
+    }
+
+    got_size = ntohs(msg->length);
+    if (got_size != size) {
+        char *type_name = ofp_message_type_to_string(type);
+        VLOG_WARN("received %s message of length %"PRIu16" (expected %zu)",
+                  type_name, got_size, size);
+        free(type_name);
+        return EINVAL;
+    }
+
+    return 0;
+}
+
+/* Checks that 'msg' has type 'type' and that 'msg' is 'size' plus a
+ * nonnegative integer multiple of 'array_elt_size' bytes long.  Returns 0 if
+ * the checks pass, otherwise EINVAL.
+ *
+ * If 'n_array_elts' is nonnull, then '*n_array_elts' is set to the number of
+ * 'array_elt_size' blocks in 'msg' past the first 'min_size' bytes, when
+ * successful. */
+int
+check_ofp_message_array(const struct ofp_header *msg, uint8_t type,
+                        size_t min_size, size_t array_elt_size,
+                        size_t *n_array_elts)
+{
+    size_t got_size;
+
+    assert(array_elt_size);
+
+    if (!check_message_type(msg->type, type)) {
+        return EINVAL;
+    }
+
+    got_size = ntohs(msg->length);
+    if (got_size < min_size) {
+        char *type_name = ofp_message_type_to_string(type);
+        VLOG_WARN("received %s message of length %"PRIu16" "
+                  "(expected at least %zu)",
+                  type_name, got_size, min_size);
+        free(type_name);
+        return EINVAL;
+    }
+    if ((got_size - min_size) % array_elt_size) {
+        char *type_name = ofp_message_type_to_string(type);
+        VLOG_WARN("received %s message of bad length %"PRIu16": the "
+                  "excess over %zu (%zu) is not evenly divisible by %zu "
+                  "(remainder is %zu)",
+                  type_name, got_size, min_size, got_size - min_size,
+                  array_elt_size, (got_size - min_size) % array_elt_size);
+        free(type_name);
+        return EINVAL;
+    }
+    if (n_array_elts) {
+        *n_array_elts = (got_size - min_size) / array_elt_size;
+    }
+    return 0;
+}
+
+const struct ofp_flow_stats *
+flow_stats_first(struct flow_stats_iterator *iter,
+                 const struct ofp_stats_reply *osr)
+{
+    iter->pos = osr->body;
+    iter->end = osr->body + (ntohs(osr->header.length)
+                             - offsetof(struct ofp_stats_reply, body));
+    return flow_stats_next(iter);
+}
+
+const struct ofp_flow_stats *
+flow_stats_next(struct flow_stats_iterator *iter)
+{
+    static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
+    ptrdiff_t bytes_left = iter->end - iter->pos;
+    const struct ofp_flow_stats *fs;
+    size_t length;
+
+    if (bytes_left < sizeof *fs) {
+        if (bytes_left != 0) {
+            VLOG_WARN_RL(&rl, "%td leftover bytes in flow stats reply",
+                         bytes_left);
+        }
+        return NULL;
+    }
+
+    fs = (const void *) iter->pos;
+    length = ntohs(fs->length);
+    if (length < sizeof *fs) {
+        VLOG_WARN_RL(&rl, "flow stats length %zu is shorter than min %zu",
+        length, sizeof *fs);
+        return NULL;
+    } else if (length > bytes_left) {
+        VLOG_WARN_RL(&rl, "flow stats length %zu but only %td bytes left",
+                     length, bytes_left);
+        return NULL;
+    } else if ((length - sizeof *fs) % sizeof fs->actions[0]) {
+        VLOG_WARN_RL(&rl, "flow stats length %zu has %zu bytes "
+                     "left over in final action", length,
+                     (length - sizeof *fs) % sizeof fs->actions[0]);
+        return NULL;
+    }
+    iter->pos += length;
+    return fs;
+}
+
 void
 vconn_init(struct vconn *vconn, struct vconn_class *class, int connect_status,
-           uint32_t ip, const char *name)
+           uint32_t ip, const char *name, bool reconnectable)
 {
     vconn->class = class;
     vconn->state = (connect_status == EAGAIN ? VCS_CONNECTING
@@ -904,6 +1138,7 @@ vconn_init(struct vconn *vconn, struct vconn_class *class, int connect_status,
     vconn->min_version = -1;
     vconn->ip = ip;
     vconn->name = xstrdup(name);
+    vconn->reconnectable = reconnectable;
 }
 
 void

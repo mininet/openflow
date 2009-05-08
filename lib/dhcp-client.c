@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -428,7 +428,7 @@ dhclient_configure_netdev(struct dhclient *cli)
     }
 
     if (!error && router.s_addr) {
-        error = netdev_add_router(cli->netdev, router);
+        error = netdev_add_router(router);
         if (error) {
             VLOG_ERR("failed to add default route to "IP_FMT" on %s: %s",
                      IP_ARGS(&router), netdev_get_name(cli->netdev),
@@ -578,7 +578,7 @@ static bool
 dhcp_receive(struct dhclient *cli, unsigned int msgs, struct dhcp_msg *msg)
 {
     while (do_receive_msg(cli, msg)) {
-        if (msg->type < 0 || msg->type > 31 || !((1u << msg->type) & msgs)) {
+        if (msg->type > 31 || !((1u << msg->type) & msgs)) {
             VLOG_DBG_RL(&rl, "received unexpected %s in %s state: %s",
                         dhcp_type_name(msg->type), state_name(cli->state),
                         dhcp_msg_to_string(msg, false, &cli->s));
@@ -851,11 +851,11 @@ state_transition(struct dhclient *cli, enum dhclient_state state)
         cli->changed = true;
         if (am_bound) {
             assert(cli->binding != NULL);
-            VLOG_WARN("%s: obtained address "IP_FMT", netmask "IP_FMT,
+            VLOG_INFO("%s: obtained address "IP_FMT", netmask "IP_FMT,
                       netdev_get_name(cli->netdev),
                       IP_ARGS(&cli->ipaddr), IP_ARGS(&cli->netmask));
             if (cli->router) {
-                VLOG_WARN("%s: obtained default gateway "IP_FMT,
+                VLOG_INFO("%s: obtained default gateway "IP_FMT,
                           netdev_get_name(cli->netdev), IP_ARGS(&cli->router));
             }
         } else {
@@ -863,7 +863,7 @@ state_transition(struct dhclient *cli, enum dhclient_state state)
             free(cli->binding);
             cli->binding = NULL;
 
-            VLOG_WARN("%s: network address unbound",
+            VLOG_INFO("%s: network address unbound",
                       netdev_get_name(cli->netdev));
         }
     }
@@ -902,6 +902,10 @@ dhclient_msg_init(struct dhclient *cli, enum dhcp_msg_type type,
     memcpy(msg->chaddr, netdev_get_etheraddr(cli->netdev), ETH_ADDR_LEN);
 }
 
+/* If time goes backward this returns a large number, which makes it look like
+ * we've been in the current state a very long time.  That's probably
+ * fine for that corner case--we'll just expire our lease, etc., and try to
+ * get a new one.  */
 static unsigned int
 elapsed_in_this_state(const struct dhclient *cli)
 {
@@ -963,7 +967,7 @@ do_receive_msg(struct dhclient *cli, struct dhcp_msg *msg)
                 VLOG_DBG_RL(&rl, "received %s",
                             dhcp_msg_to_string(msg, false, &cli->s)); 
             } else {
-                VLOG_WARN_RL(&rl, "received %s", dhcp_type_name(msg->type));
+                VLOG_INFO_RL(&rl, "received %s", dhcp_type_name(msg->type));
             }
             ofpbuf_uninit(&b);
             return true;
@@ -1042,7 +1046,7 @@ do_send_msg(struct dhclient *cli, const struct dhcp_msg *msg)
         if (VLOG_IS_DBG_ENABLED()) {
             VLOG_DBG("sending %s", dhcp_msg_to_string(msg, false, &cli->s)); 
         } else {
-            VLOG_WARN("sending %s", dhcp_type_name(msg->type));
+            VLOG_INFO("sending %s", dhcp_type_name(msg->type));
         }
         error = netdev_send(cli->netdev, &b);
         if (error) {

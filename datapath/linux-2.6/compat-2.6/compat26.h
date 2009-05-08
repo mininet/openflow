@@ -10,10 +10,12 @@
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,23)
 /*----------------------------------------------------------------------------
  * In 2.6.24, a namespace argument became required for dev_get_by_name. */
-#define net_init NULL
 
 #define dev_get_by_name(net, name) \
 		dev_get_by_name((name))
+
+#define dev_get_by_index(net, ifindex) \
+		dev_get_by_index((ifindex))
 
 #endif /* linux kernel <= 2.6.23 */
 
@@ -25,10 +27,5 @@
 		kmem_cache_create((n), (s), (a), (f), (c), NULL)
 
 #endif /* linux kernel <= 2.6.22 */
-
-/* For CentOS / RHEL kernel compatibility */
-#ifndef RHEL_RELEASE_VERSION
-#define RHEL_RELEASE_VERSION(X,Y) ( 0 )
-#endif
 
 #endif /* compat26.h */

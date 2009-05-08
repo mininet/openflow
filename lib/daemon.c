@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -178,6 +178,7 @@ make_pidfile(void)
                     } else {
                         /* Keep 'fd' open to retain the lock. */
                     }
+                    free(text);
                 } else {
                     VLOG_ERR("%s: write failed: %s", tmpfile, strerror(errno));
                     close(fd);

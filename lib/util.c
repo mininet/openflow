@@ -242,3 +242,56 @@ ofp_hex_dump(FILE *stream, const void *buf_, size_t size,
       size -= n;
     }
 }
+
+bool
+str_to_int(const char *s, int base, int *i)
+{
+    long long ll;
+    bool ok = str_to_llong(s, base, &ll);
+    *i = ll;
+    return ok;
+}
+
+bool
+str_to_long(const char *s, int base, long *li)
+{
+    long long ll;
+    bool ok = str_to_llong(s, base, &ll);
+    *li = ll;
+    return ok;
+}
+
+bool
+str_to_llong(const char *s, int base, long long *x)
+{
+    int save_errno = errno;
+    char *tail;
+    errno = 0;
+    *x = strtoll(s, &tail, base);
+    if (errno == EINVAL || errno == ERANGE || tail == s || *tail != '\0') {
+        errno = save_errno;
+        *x = 0;
+        return false;
+    } else {
+        errno = save_errno;
+        return true;
+    }
+}
+
+bool
+str_to_uint(const char *s, int base, unsigned int *u)
+{
+    return str_to_int(s, base, (int *) u);
+}
+
+bool
+str_to_ulong(const char *s, int base, unsigned long *ul)
+{
+    return str_to_long(s, base, (long *) ul);
+}
+
+bool
+str_to_ullong(const char *s, int base, unsigned long long *ull)
+{
+    return str_to_llong(s, base, (long long *) ull);
+}

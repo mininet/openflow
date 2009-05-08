@@ -1,15 +1,16 @@
-.TH secchan 8 "October 2008" "OpenFlow" "OpenFlow Manual"
+.ds PN ofprotocol
+.TH ofprotocol 8 "October 2008" "OpenFlow" "OpenFlow Manual"
 
 .SH NAME
-secchan \- secure channel connecting an OpenFlow datapath to a controller
+ofprotocol \- secure channel connecting an OpenFlow datapath to a controller
 
 .SH SYNOPSIS
-.B secchan
+.B ofprotocol
 [\fIoptions\fR] \fIdatapath\fR [\fIcontroller\fR]
 
 .SH DESCRIPTION
-The \fBsecchan\fR program sets up a secure channel between a local
-OpenFlow datapath and a remote controller.  \fBsecchan\fR connects to
+The \fBofprotocol\fR program sets up a secure channel between a local
+OpenFlow datapath and a remote controller.  \fBofprotocol\fR connects to
 the local datapath over Netlink and to the controller over TCP or SSL,
 and then forwards OpenFlow messages from one endpoint to the other.
 
@@ -24,9 +25,9 @@ The \fIdp_idx\fR argument is the number of a datapath created with
 
 .TP
 \fBunix:\fIfile\fR
-Attach to the userspace datapath implemented by \fBudatapath\fR(8).
+Attach to the userspace datapath implemented by \fBofdatapath\fR(8).
 The \fIfile\fR argument must the same one specified on the
-\fBudatapath\fR command line.
+\fBofdatapath\fR command line.
 
 .PP
 The optional \fIcontroller\fR argument specifies how to connect to
@@ -48,7 +49,7 @@ The specified TCP \fIport\fR (default: 6633) on the given remote
 The Unix domain server socket named \fIfile\fR.
 
 .PP
-If \fIcontroller\fR is omitted, \fBsecchan\fR attempts to discover the
+If \fIcontroller\fR is omitted, \fBofprotocol\fR attempts to discover the
 location of the controller automatically (see below).
 
 .SH "CONTACTING THE CONTROLLER"
@@ -61,9 +62,9 @@ the data traffic that it controls, that is, the switch does not use
 any of the network devices added to the datapath with \fBdpctl
 addif\fR in its communication with the controller.
 
-To use \fBsecchan\fR in a network with out-of-band control, specify
-\fB--out-of-band\fR on the \fBsecchan\fR command line.  The control
-network must be configured separately, before or after \fBsecchan\fR
+To use \fBofprotocol\fR in a network with out-of-band control, specify
+\fB--out-of-band\fR on the \fBofprotocol\fR command line.  The control
+network must be configured separately, before or after \fBofprotocol\fR
 is started.
 
 .IP in-band
@@ -74,7 +75,7 @@ addif\fR.  This configuration is often more convenient than
 out-of-band control, because it is not necessary to maintain two
 independent networks.
 
-In-band control is the default for \fBsecchan\fR, so no special
+In-band control is the default for \fBofprotocol\fR, so no special
 command-line option is required.
 
 With in-band control, the location of the controller can be configured
@@ -82,23 +83,23 @@ manually or discovered automatically:
 
 .RS
 .IP "controller discovery"
-To make \fBsecchan\fR discover the location of the controller
+To make \fBofprotocol\fR discover the location of the controller
 automatically, do not specify the location of the controller on the
-\fBsecchan\fR command line.
+\fBofprotocol\fR command line.
 
-In this mode, \fBsecchan\fR will broadcast a DHCP request with vendor
+In this mode, \fBofprotocol\fR will broadcast a DHCP request with vendor
 class identifier \fBOpenFlow\fR across the network devices added to
 the datapath with \fBdpctl addif\fR.  It will accept any valid DHCP
 reply that has the same vendor class identifier and includes a
 vendor-specific option with code 1 whose contents are a string
 specifying the location of the controller in the same format used on
-the \fBsecchan\fR command line (e.g. \fBssl:192.168.0.1\fR).
+the \fBofprotocol\fR command line (e.g. \fBssl:192.168.0.1\fR).
 
 The DHCP reply may also, optionally, include a vendor-specific option
 with code 2 whose contents are a string specifying the URI to the base
 of the OpenFlow PKI (e.g. \fBhttp://192.168.0.1/openflow/pki\fR).
 This URI is used only for bootstrapping the OpenFlow PKI at initial
-switch setup; \fBsecchan\fR does not use it at all.
+switch setup; \fBofprotocol\fR does not use it at all.
 
 The following ISC DHCP server configuration file assigns the IP
 address range 192.168.0.20 through 192.168.0.30 to OpenFlow switches
@@ -152,12 +153,12 @@ subnet 192.168.0.0 netmask 255.255.255.0 {
 
 .IP "manual configuration"
 To configure in-band control manually, specify the location of the
-controller on the \fBsecchan\fR command line as the \fIcontroller\fR
+controller on the \fBofprotocol\fR command line as the \fIcontroller\fR
 argument.  You must also configure the network device for the OpenFlow
-``local port'' to allow \fBsecchan\fR to connect to that controller.
-The OpenFlow local port is a virtual network port that \fBsecchan\fR
+``local port'' to allow \fBofprotocol\fR to connect to that controller.
+The OpenFlow local port is a virtual network port that \fBofprotocol\fR
 bridges to the physical switch ports.  Its network device name depends
-on the \fIdatapath\fR specified on the \fBsecchan\fR command line:
+on the \fIdatapath\fR specified on the \fBofprotocol\fR command line:
 
 .RS
 .TP
@@ -168,12 +169,12 @@ The local port network device for \fBnl:\fIdp_idx\fR is always named
 .TP
 \fBunix:\fIfile\fR
 The local port network device name may be specified on the
-\fBudatapath\fR command line, using the \fB--local-port\fR option.  It
+\fBofdatapath\fR command line, using the \fB--local-port\fR option.  It
 is often \fBtap0\fR.
 .RE
 
 .IP
-Before \fBsecchan\fR starts, the local port network device is not
+Before \fBofprotocol\fR starts, the local port network device is not
 bridged to any physical network, so the next step depends on whether
 connectivity is required to configure the device's IP address.  If the
 switch has a static IP address, you may configure its IP address now
@@ -183,19 +184,20 @@ with a command such as:
 ifconfig of0 192.168.1.1
 .RE
 .IP
-and then invoke \fBsecchan\fR.
+and then invoke \fBofprotocol\fR.
 
 On the other hand, if the switch does not have a static IP address,
 e.g. it obtains its IP address dynamically via DHCP, the DHCP client
 will not be able to contact the DHCP server until the secure channel
-has started up.  Thus, start \fBsecchan\fR without configuring
+has started up.  Thus, start \fBofprotocol\fR without configuring
 the local port network device, and start the DHCP client afterward.
 .RE
 
 .SH OPTIONS
+.SS "Controller Discovery Options"
 .TP
 \fB--accept-vconn=\fIregex\fR
-When \fBsecchan\fR performs controller discovery (see \fBCONTACTING
+When \fBofprotocol\fR performs controller discovery (see \fBCONTACTING
 THE CONTROLLER\fR, above, for more information about controller
 discovery), it validates the controller location obtained via DHCP
 with a POSIX extended regular expression.  Only controllers whose
@@ -214,7 +216,7 @@ When controller discovery is not performed, this option has no effect.
 
 .TP
 \fB--no-resolv-conf\fR
-When \fBsecchan\fR performs controller discovery (see \fBCONTACTING
+When \fBofprotocol\fR performs controller discovery (see \fBCONTACTING
 THE CONTROLLER\fR, above, for more information about controller
 discovery), by default it overwrites the system's
 \fB/etc/resolv.conf\fR with domain information and DNS servers
@@ -222,14 +224,15 @@ obtained via DHCP.  If the location of the controller is specified
 using a hostname, rather than an IP address, and the network's DNS
 servers ever change, this behavior is essential.  But because it also
 interferes with any administrator or process that manages
-\fB/etc/resolv.conf\fR, when this option is specified, \fBsecchan\fR
+\fB/etc/resolv.conf\fR, when this option is specified, \fBofprotocol\fR
 will not modify \fB/etc/resolv.conf\fR.
 
-\fBsecchan\fR will only modify \fBresolv.conf\fR if the DHCP response
+\fBofprotocol\fR will only modify \fBresolv.conf\fR if the DHCP response
 that it receives specifies one or more DNS servers.
 
 When controller discovery is not performed, this option has no effect.
 
+.SS "Networking Options"
 .TP
 \fB-F\fR, \fB--fail=\fR[\fBopen\fR|\fBclosed\fR]
 The controller is, ordinarily, responsible for setting up all flows on
@@ -238,17 +241,17 @@ no new network connections can be set up.  If the connection to the
 controller stays down long enough, no packets can pass through the
 switch at all.
 
-If this option is set to \fBopen\fR (the default), \fBsecchan\fR will
+If this option is set to \fBopen\fR (the default), \fBofprotocol\fR will
 take over responsibility for setting up flows in the local datapath
 when no message has been received from the controller for three times
 the inactivity probe interval (see below), or 45 seconds by default.
-In this ``fail open'' mode, \fBsecchan\fR causes the datapath to act
-like an ordinary MAC-learning switch.  \fBsecchan\fR will continue to
+In this ``fail open'' mode, \fBofprotocol\fR causes the datapath to act
+like an ordinary MAC-learning switch.  \fBofprotocol\fR will continue to
 retry connection to the controller in the background and, when the
 connection succeeds, it discontinues its fail-open behavior.  The
 secure channel enters the fail-open mode when
 
-If this option is set to \fBclosed\fR, then \fBsecchan\fR will not
+If this option is set to \fBclosed\fR, then \fBofprotocol\fR will not
 set up flows on its own when the controller connection fails.
 
 .TP
@@ -333,15 +336,15 @@ command.  The \fImethod\fR must be given as one of the passive
 OpenFlow connection methods listed above as acceptable for
 \fB--listen\fR.
 
-When \fBdpctl monitor\fR makes a monitoring connection, \fBsecchan\fR
+When \fBdpctl monitor\fR makes a monitoring connection, \fBofprotocol\fR
 sends it a copy of every OpenFlow message sent to or received from the
 kernel in the normal course of its operations.  It does not send a
 copy of any messages sent to or from the OpenFlow connection to the
 controller.  Most of these messages will be seen anyhow, however,
-because \fBsecchan\fR mainly acts as a relay between the controller
-and the kernel.  \fBsecchan\fR also does not send a copy of any
+because \fBofprotocol\fR mainly acts as a relay between the controller
+and the kernel.  \fBofprotocol\fR also does not send a copy of any
 messages sent to or from the OpenFlow connection to the controller.
-Such messages will typically \fBnot\fR be seen, because \fBsecchan\fR
+Such messages will typically \fBnot\fR be seen, because \fBofprotocol\fR
 maintains a separate connection to the kernel for each management
 connection.
 
@@ -351,7 +354,7 @@ connection fills up, some messages will be lost.
 
 .TP
 \fB--in-band\fR, \fB--out-of-band\fR
-Configures \fBsecchan\fR to operate in in-band or out-of-band control
+Configures \fBofprotocol\fR to operate in in-band or out-of-band control
 mode (see \fBCONTACTING THE CONTROLLER\fR above).  When neither option
 is given, the default is in-band control.
 
@@ -361,6 +364,41 @@ Enable or disable implementation of IEEE 802.1D Spanning Tree Protocol
 at the switch.  The default is \fB--no-stp\fR in this distribution,
 because bugs in the STP implementation are still being worked out.
 The default will change to \fB--stp\fR at some point in the future.
+
+.TP
+\fB--netflow=\fIhost\fB:\fIport\fR
+When flows end on the switch, send NetFlow v5 messages to
+\fIhost\fR on UDP \fIport\fR.
+
+.SS "Rate-Limiting Options"
+
+These options configure how the switch applies a ``token bucket'' to
+limit the rate at which packets in unknown flows are forwarded to an
+OpenFlow controller for flow-setup processing.  This feature prevents
+a single OpenFlow switch from overwhelming a controller.
+
+.TP
+\fB--rate-limit\fR[\fB=\fIrate\fR]
+.
+Limits the maximum rate at which packets will be forwarded to the
+OpenFlow controller to \fIrate\fR packets per second.  If \fIrate\fR
+is not specified then the default of 1,000 packets per second is used.
+
+If \fB--rate-limit\fR is not used, then the switch does not limit the
+rate at which packets are forwarded to the controller.
+
+.TP
+\fB--burst-limit=\fIburst\fR
+.
+Sets the maximum number of unused packet credits that the switch will
+allow to accumulate during time in which no packets are being
+forwarded to the OpenFlow controller to \fIburst\fR (measured in
+packets).  The default \fIburst\fR is one-quarter of the \fIrate\fR
+specified on \fB--rate-limit\fR.
+
+This option takes effect only when \fB--rate-limit\fR is also specified.
+
+.SS "Remote Command Execution Options"
 
 .TP
 \fB--command-acl=\fR[\fB!\fR]\fIglob\fR[\fB,\fR[\fB!\fR]\fIglob\fR...]
@@ -378,7 +416,7 @@ Command names that include characters other than upper- and lower-case
 English letters, digits, and the underscore and hyphen characters are
 unconditionally disallowed.
 
-When the whitelist and blacklist permit a command name, \fBsecchan\fR
+When the whitelist and blacklist permit a command name, \fBofprotocol\fR
 looks for a program with the same name as the command in the commands
 directory (see below).  Other directories are not searched.
 
@@ -387,6 +425,11 @@ directory (see below).  Other directories are not searched.
 Sets the directory searched for remote command execution to
 \fBdirectory\fR.  The default directory is
 \fB@pkgdatadir@/commands\fR.
+
+.SS "Daemon Options"
+.so lib/daemon.man
+
+.SS "Public Key Infrastructure Options"
 
 .TP
 \fB--netflow=\fIhost\fB:\fIport\fR
@@ -412,7 +455,7 @@ the switch is connected to a trustworthy controller.
 .TP
 \fB--bootstrap-ca-cert=\fIcacert.pem\fR
 When \fIcacert.pem\fR exists, this option has the same effect as
-\fB-C\fR or \fB--ca-cert\fR.  If it does not exist, then \fBsecchan\fR
+\fB-C\fR or \fB--ca-cert\fR.  If it does not exist, then \fBofprotocol\fR
 will attempt to obtain the CA certificate from the controller on its
 first SSL connection and save it to the named PEM file.  If it is
 successful, it will immediately drop the connection and reconnect, and
@@ -429,37 +472,11 @@ require the controller to send the CA certificate, but
 \fBcontroller\fR(8) can be configured to do so with the
 \fB--peer-ca-cert\fR option.
 
-.TP
-\fB-P\fR[\fIpidfile\fR], \fB--pidfile\fR[\fB=\fIpidfile\fR]
-Causes a file (by default, \fBsecchan.pid\fR) to be created indicating
-the PID of the running process.  If \fIpidfile\fR is not specified, or
-if it does not begin with \fB/\fR, then it is created in
-\fB@RUNDIR@\fR.
-
-.TP
-\fB-f\fR, \fB--force\fR
-By default, when \fB-P\fR or \fB--pidfile\fR is specified and the
-specified pidfile already exists and is locked by a running process,
-\fBsecchan\fR refuses to start.  Specify \fB-f\fR or \fB--force\fR
-to cause it to instead overwrite the pidfile.
-
-When \fB-P\fR or \fB--pidfile\fR is not specified, this option has no
-effect.
-
-.TP
-\fB-D\fR, \fB--detach\fR
-Causes \fBsecchan\fR to detach itself from the foreground session and
-run as a background process.
-
-.TP
-.BR \-h ", " \-\^\-help
-Prints a brief help message to the console.
-
-@VLOG_OPTIONS@
-
-.TP
-.BR \-V ", " \-\^\-version
-Prints version information to the console.
+.SS "Logging Options"
+.so lib/vlog.man
+.SS "Other Options"
+.so lib/common.man
+.so lib/leak-checker.man
 
 .SH "SEE ALSO"
 
@@ -467,5 +484,5 @@ Prints version information to the console.
 .BR ofp-discover (8),
 .BR controller (8),
 .BR ofp-pki (8),
-.BR udatapath (8),
+.BR ofdatapath (8),
 .BR vlogconf (8)

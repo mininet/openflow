@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -36,17 +36,19 @@
 #include "nx_act.h"
 
 uint16_t
-nx_validate_act(struct datapath *dp, const struct sw_flow_key *key,
-		const struct ofp_action_vendor_header *avh, uint16_t len)
+nx_validate_act(struct datapath *dp UNUSED,
+                const struct sw_flow_key *key UNUSED,
+                const struct ofp_action_vendor_header *avh UNUSED,
+                uint16_t len UNUSED)
 {
 	/* Nothing to validate yet */
 	return OFPBAC_BAD_VENDOR_TYPE;
 }
 
 void
-nx_execute_act(struct ofpbuf *buffer, const struct sw_flow_key *key,
-		const struct ofp_action_vendor_header *avh)
+nx_execute_act(struct ofpbuf *buffer UNUSED,
+               const struct sw_flow_key *key UNUSED,
+               const struct ofp_action_vendor_header *avh UNUSED)
 {
 	/* Nothing to execute yet */
 }
-

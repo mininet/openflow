@@ -38,7 +38,7 @@ following components:
 	- A Linux kernel module that implements the flow table and
           OpenFlow protocol, in the datapath directory.
 
-	- secchan, a program that implements the secure channel
+	- ofprotocol, a program that implements the secure channel
           component of the reference switch.
 
 	- dpctl, a tool for configuring the kernel module.
@@ -47,10 +47,10 @@ following components:
 
 The second implementation has the following components:
 
-        - udatapath, which implements the same functionality as the
+        - ofdatapath, which implements the same functionality as the
           Linux kernel module in userspace, at a cost in performance.
 
-        - secchan, a program that implements the secure channel
+        - ofprotocol, a program that implements the secure channel
           component of the reference switch (the same program used in
           the kernel-based implementation).
 
@@ -61,7 +61,7 @@ This distribution includes some additional software as well:
           learning switches.
 
 	- vlogconf, a utility that can adjust the logging levels of a
-          running secchan or controller.
+          running ofprotocol or controller.
 
 	- ofp-pki, a utility for creating and managing the public-key
           infrastructure for OpenFlow switches.

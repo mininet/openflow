@@ -159,9 +159,10 @@ DAEMON_OPTS=""
 
 # DATAPATH_ID: Identifier for this switch.
 #
-# By default, the switch generates a new, random datapath ID every time
-# it starts up.  By setting this value, the datapath ID will be consistent
-# from one run to the next.
+# By default, the switch checks if the DMI System UUID contains a Nicira 
+# mac address to use as a datapath ID.  If not, then the switch generates 
+# a new, random datapath ID every time it starts up.  By setting this
+# value, the supplied datapath ID will always be used.
 #
 # Set DATAPATH_ID to a MAC address in the form XX:XX:XX:XX:XX:XX where each
 # X is a hexadecimal digit (0-9 or a-f).

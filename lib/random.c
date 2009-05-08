@@ -64,12 +64,40 @@ random_bytes(void *p_, size_t n)
     }
 }
 
+uint8_t
+random_uint8(void)
+{
+    random_init();
+    return rand();
+}
+
+uint16_t
+random_uint16(void)
+{
+    if (RAND_MAX >= UINT16_MAX) {
+        random_init();
+        return rand();
+    } else {
+        uint16_t x;
+        random_bytes(&x, sizeof x);
+        return x;
+    }
+}
+
 uint32_t
 random_uint32(void)
 {
-    uint32_t x;
-    random_bytes(&x, sizeof x);
-    return x;
+    if (RAND_MAX >= UINT32_MAX) {
+        random_init();
+        return rand();
+    } else if (RAND_MAX == INT32_MAX) {
+        random_init();
+        return rand() | ((rand() & 1u) << 31);
+    } else {
+        uint32_t x;
+        random_bytes(&x, sizeof x);
+        return x;
+    }
 }
 
 int

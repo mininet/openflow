@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -41,6 +41,7 @@
 struct ofpbuf;
 struct flow;
 struct ofp_header;
+struct ofp_stats_reply;
 struct pvconn;
 struct vconn;
 
@@ -51,6 +52,7 @@ int vconn_open(const char *name, int min_version, struct vconn **);
 void vconn_close(struct vconn *);
 const char *vconn_get_name(const struct vconn *);
 uint32_t vconn_get_ip(const struct vconn *);
+bool vconn_is_reconnectable(const struct vconn *);
 int vconn_connect(struct vconn *);
 int vconn_recv(struct vconn *, struct ofpbuf **);
 int vconn_send(struct vconn *, struct ofpbuf *);
@@ -81,9 +83,15 @@ void pvconn_wait(struct pvconn *);
 void *make_openflow(size_t openflow_len, uint8_t type, struct ofpbuf **);
 void *make_openflow_xid(size_t openflow_len, uint8_t type,
                         uint32_t xid, struct ofpbuf **);
+void *put_openflow(size_t openflow_len, uint8_t type, struct ofpbuf *);
+void *put_openflow_xid(size_t openflow_len, uint8_t type, uint32_t xid,
+                       struct ofpbuf *);
 void update_openflow_length(struct ofpbuf *);
+struct ofpbuf *make_flow_mod(uint16_t command, const struct flow *,
+                             size_t actions_len);
 struct ofpbuf *make_add_flow(const struct flow *, uint32_t buffer_id,
                              uint16_t max_idle, size_t actions_len);
+struct ofpbuf *make_del_flow(const struct flow *);
 struct ofpbuf *make_add_simple_flow(const struct flow *,
                                     uint32_t buffer_id, uint16_t out_port,
                                     uint16_t max_idle);
@@ -93,5 +101,16 @@ struct ofpbuf *make_unbuffered_packet_out(const struct ofpbuf *packet,
                                           uint16_t in_port, uint16_t out_port);
 struct ofpbuf *make_echo_request(void);
 struct ofpbuf *make_echo_reply(const struct ofp_header *rq);
+int check_ofp_message(const struct ofp_header *, uint8_t type, size_t size);
+int check_ofp_message_array(const struct ofp_header *, uint8_t type,
+                            size_t size, size_t array_elt_size,
+                            size_t *n_array_elts);
+
+struct flow_stats_iterator {
+    const uint8_t *pos, *end;
+};
+const struct ofp_flow_stats *flow_stats_first(struct flow_stats_iterator *,
+                                              const struct ofp_stats_reply *);
+const struct ofp_flow_stats *flow_stats_next(struct flow_stats_iterator *);
 
 #endif /* vconn.h */

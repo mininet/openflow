@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -123,6 +123,12 @@ int main(int argc, char *argv[])
                           p->name, p->max_args);
             else {
                 p->handler(&s, argc, argv);
+                if (ferror(stdout)) {
+                    ofp_fatal(0, "write to stdout failed");
+                }
+                if (ferror(stderr)) {
+                    ofp_fatal(0, "write to stderr failed");
+                }
                 exit(0);
             }
         }
@@ -211,6 +217,7 @@ usage(void)
            "  deldp nl:DP_ID              delete local datapath DP_ID\n"
            "  addif nl:DP_ID IFACE...     add each IFACE as a port on DP_ID\n"
            "  delif nl:DP_ID IFACE...     delete each IFACE from DP_ID\n"
+           "  get-idx OF_DEV              get datapath index for OF_DEV\n"
 #endif
            "\nFor local datapaths and remote switches:\n"
            "  show SWITCH                 show basic information\n"
@@ -288,68 +295,90 @@ static int if_up(const char *netdev_name)
     return retval;
 }
 
-static void open_nl_vconn(const char *name, bool subscribe, struct dpif *dpif)
+static void
+do_get_idx(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
+{
+    int dp_idx;
+
+    struct dpif dpif;
+    run(dpif_open(-1, &dpif), "opening management socket");
+    dp_idx = dpif_get_idx(argv[1]);
+    if (dp_idx == -1) {
+        dpif_close(&dpif);
+        ofp_fatal(0, "unknown OpenFlow device: %s", argv[1]);
+    }
+    printf("%d\n", dp_idx);
+    dpif_close(&dpif);
+}
+
+static int
+get_dp_idx(const char *name)
 {
     if (strncmp(name, "nl:", 3)
         || strlen(name) < 4
         || name[strspn(name + 3, "0123456789") + 3]) {
         ofp_fatal(0, "%s: argument is not of the form \"nl:DP_ID\"", name);
     }
-    run(dpif_open(atoi(name + 3), subscribe, dpif), "opening datapath");
+    return atoi(name + 3);
 }
 
-static void do_add_dp(const struct settings *s, int argc UNUSED, char *argv[])
+static void
+do_add_dp(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
-    struct dpif dp;
-    open_nl_vconn(argv[1], false, &dp);
-    run(dpif_add_dp(&dp), "add_dp");
-    dpif_close(&dp);
+    struct dpif dpif;
+    run(dpif_open(-1, &dpif), "opening management socket");
+    run(dpif_add_dp(&dpif, get_dp_idx(argv[1]), NULL), "add_dp");
+    dpif_close(&dpif);
 }
 
-static void do_del_dp(const struct settings *s, int argc UNUSED, char *argv[])
+static void
+do_del_dp(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
-    struct dpif dp;
-    open_nl_vconn(argv[1], false, &dp);
-    run(dpif_del_dp(&dp), "del_dp");
-    dpif_close(&dp);
+    struct dpif dpif;
+    run(dpif_open(-1, &dpif), "opening management socket");
+    run(dpif_del_dp(&dpif, get_dp_idx(argv[1]), NULL), "del_dp");
+    dpif_close(&dpif);
 }
 
 static void add_del_ports(int argc UNUSED, char *argv[],
-                          int (*function)(struct dpif *, const char *netdev),
+                          int (*function)(struct dpif *, int dp_idx,
+                                          const char *netdev),
                           const char *operation, const char *preposition)
 {
-    struct dpif dp;
     bool failure = false;
+    struct dpif dpif;
+    int dp_idx;
     int i;
 
-    open_nl_vconn(argv[1], false, &dp);
+    run(dpif_open(-1, &dpif), "opening management socket");
+    dp_idx = get_dp_idx(argv[1]);
     for (i = 2; i < argc; i++) {
-        int retval = function(&dp, argv[i]);
+        int retval = function(&dpif, dp_idx, argv[i]);
         if (retval) {
             ofp_error(retval, "failed to %s %s %s %s",
                       operation, argv[i], preposition, argv[1]);
             failure = true;
         }
     }
-    dpif_close(&dp);
+    dpif_close(&dpif);
     if (failure) {
         exit(EXIT_FAILURE);
     }
 }
 
-static int ifup_and_add_port(struct dpif *dpif, const char *netdev)
+static int ifup_and_add_port(struct dpif *dpif, int dp_idx, const char *netdev)
 {
     int retval = if_up(netdev);
-    return retval ? retval : dpif_add_port(dpif, netdev);
+    return retval ? retval : dpif_add_port(dpif, dp_idx, netdev);
 }
 
-static void do_add_port(const struct settings *s, int argc UNUSED, 
+static void do_add_port(const struct settings *s UNUSED, int argc UNUSED, 
         char *argv[])
 {
     add_del_ports(argc, argv, ifup_and_add_port, "add", "to");
 }
 
-static void do_del_port(const struct settings *s, int argc UNUSED, 
+static void do_del_port(const struct settings *s UNUSED, int argc UNUSED, 
         char *argv[])
 {
     add_del_ports(argc, argv, dpif_del_port, "remove", "from");
@@ -444,14 +473,14 @@ dump_trivial_stats_transaction(const char *vconn_name, uint8_t stats_type)
 }
 
 static void
-do_show(const struct settings *s, int argc UNUSED, char *argv[])
+do_show(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
   dump_trivial_transaction(argv[1], OFPT_FEATURES_REQUEST);
   dump_trivial_transaction(argv[1], OFPT_GET_CONFIG_REQUEST);
 }
 
 static void
-do_status(const struct settings *s, int argc, char *argv[])
+do_status(const struct settings *s UNUSED, int argc, char *argv[])
 {
     struct nicira_header *request, *reply;
     struct vconn *vconn;
@@ -482,20 +511,20 @@ do_status(const struct settings *s, int argc, char *argv[])
 }
 
 static void
-do_dump_desc(const struct settings *s, int argc, char *argv[])
+do_dump_desc(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     dump_trivial_stats_transaction(argv[1], OFPST_DESC);
 }
 
 static void
-do_dump_tables(const struct settings *s, int argc, char *argv[])
+do_dump_tables(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
   dump_trivial_stats_transaction(argv[1], OFPST_TABLE);
 }
 
 
 static uint32_t
-str_to_int(const char *str) 
+str_to_u32(const char *str) 
 {
     char *tail;
     uint32_t value;
@@ -572,124 +601,99 @@ str_to_ip(const char *str_, uint32_t *ip)
     return n_wild;
 }
 
-static void
-str_to_action(char *str, struct ofp_action_header *actions, 
-        size_t *actions_len) 
+static void *
+put_action(struct ofpbuf *b, size_t size, uint16_t type)
 {
-    size_t len = *actions_len;
+    struct ofp_action_header *ah = ofpbuf_put_zeros(b, size);
+    ah->type = htons(type);
+    ah->len = htons(size);
+    return ah;
+}
+
+static struct ofp_action_output *
+put_output_action(struct ofpbuf *b, uint16_t port)
+{
+    struct ofp_action_output *oao = put_action(b, sizeof *oao, OFPAT_OUTPUT);
+    oao->port = htons(port);
+    return oao;
+}
+
+static void
+str_to_action(char *str, struct ofpbuf *b)
+{
     char *act, *arg;
     char *saveptr = NULL;
-    uint8_t *p = (uint8_t *)actions;
-    
-    memset(actions, 0, len);
-    for (act = strtok_r(str, ", \t\r\n", &saveptr); 
-         (len >= sizeof(struct ofp_action_header)) && act;
+
+    for (act = strtok_r(str, ", \t\r\n", &saveptr); act;
          act = strtok_r(NULL, ", \t\r\n", &saveptr)) 
     {
-        uint16_t port;
-        struct ofp_action_header *ah = (struct ofp_action_header *)p;
-        int act_len = sizeof *ah;
-        port = OFPP_MAX;
-
         /* Arguments are separated by colons */
         arg = strchr(act, ':');
         if (arg) {
             *arg = '\0';
             arg++;
-        } 
+        }
 
         if (!strcasecmp(act, "mod_vlan_vid")) {
-            struct ofp_action_vlan_vid *va = (struct ofp_action_vlan_vid *)ah;
-
-            if (len < sizeof *va) {
-                ofp_fatal(0, "Insufficient room for vlan vid action\n");
-            }
-
-            act_len = sizeof *va;
-            va->type = htons(OFPAT_SET_VLAN_VID);
-            va->vlan_vid = htons(str_to_int(arg));
+            struct ofp_action_vlan_vid *va;
+            va = put_action(b, sizeof *va, OFPAT_SET_VLAN_VID);
+            va->vlan_vid = htons(str_to_u32(arg));
         } else if (!strcasecmp(act, "mod_vlan_pcp")) {
-            struct ofp_action_vlan_pcp *va = (struct ofp_action_vlan_pcp *)ah;
-
-            if (len < sizeof *va) {
-                ofp_fatal(0, "Insufficient room for vlan pcp action\n");
-            }
-
-            act_len = sizeof *va;
-            va->type = htons(OFPAT_SET_VLAN_PCP);
-            va->vlan_pcp = str_to_int(arg);
+            struct ofp_action_vlan_pcp *va;
+            va = put_action(b, sizeof *va, OFPAT_SET_VLAN_PCP);
+            va->vlan_pcp = str_to_u32(arg);
+        } else if (!strcasecmp(act, "mod_dst_mac")) {
+            struct ofp_action_dl_addr *va;
+            va = put_action(b, sizeof *va, OFPAT_SET_DL_DST);
+            str_to_mac(arg, va->dl_addr);
+        } else if (!strcasecmp(act, "mod_src_mac")) {
+            struct ofp_action_dl_addr *va;
+            va = put_action(b, sizeof *va, OFPAT_SET_DL_SRC);
+            str_to_mac(arg, va->dl_addr);
         } else if (!strcasecmp(act, "strip_vlan")) {
+            struct ofp_action_header *ah;
+            ah = put_action(b, sizeof *ah, OFPAT_STRIP_VLAN);
             ah->type = htons(OFPAT_STRIP_VLAN);
         } else if (!strcasecmp(act, "output")) {
-            port = str_to_int(arg);
+            put_output_action(b, str_to_u32(arg));
 #ifdef SUPPORT_SNAT
         } else if (!strcasecmp(act, "nat")) {
-            struct nx_action_snat *sa = (struct nx_action_snat *)ah;
+            struct nx_action_snat *sa;
 
-            if (len < sizeof *sa) {
-                ofp_fatal(0, "Insufficient room for SNAT action\n");
-            }
-
-            if (str_to_int(arg) > OFPP_MAX) {
+            if (str_to_u32(arg) > OFPP_MAX) {
                 ofp_fatal(0, "Invalid nat port: %s\n", arg);
             }
 
-            act_len = sizeof *sa;
-            sa->type = htons(OFPAT_VENDOR);
+            sa = put_action(b, sizeof *sa, OFPAT_VENDOR);
             sa->vendor = htonl(NX_VENDOR_ID);
             sa->subtype = htons(NXAST_SNAT);
-            sa->port = htons(str_to_int(arg));
+            sa->port = htons(str_to_u32(arg));
 #endif
         } else if (!strcasecmp(act, "TABLE")) {
-            port = OFPP_TABLE;
+            put_output_action(b, OFPP_TABLE);
         } else if (!strcasecmp(act, "NORMAL")) {
-            port = OFPP_NORMAL;
+            put_output_action(b, OFPP_NORMAL);
         } else if (!strcasecmp(act, "FLOOD")) {
-            port = OFPP_FLOOD;
+            put_output_action(b, OFPP_FLOOD);
         } else if (!strcasecmp(act, "ALL")) {
-            port = OFPP_ALL;
+            put_output_action(b, OFPP_ALL);
         } else if (!strcasecmp(act, "CONTROLLER")) {
-            struct ofp_action_output *ca = (struct ofp_action_output *)ah;
-
-            if (act_len < sizeof *ca) {
-                ofp_fatal(0, "Insufficient room for controller action\n");
-            }
-
-            act_len = sizeof *ca;
-            ca->type = htons(OFPAT_OUTPUT);
-            ca->port = htons(OFPP_CONTROLLER);
+            struct ofp_action_output *oao;
+            oao = put_output_action(b, OFPP_CONTROLLER);
 
             /* Unless a numeric argument is specified, we send the whole
              * packet to the controller. */
             if (arg && (strspn(act, "0123456789") == strlen(act))) {
-               ca->max_len= htons(str_to_int(arg));
+               oao->max_len = htons(str_to_u32(arg));
             }
         } else if (!strcasecmp(act, "LOCAL")) {
-            port = OFPP_LOCAL;
+            put_output_action(b, OFPP_LOCAL);
         } else if (strspn(act, "0123456789") == strlen(act)) {
-            port = str_to_int(act);
+            put_output_action(b, str_to_u32(act));
         } else {
             ofp_fatal(0, "Unknown action: %s", act);
         }
-
-        if (port != OFPP_MAX) {
-            struct ofp_action_output *oa = (struct ofp_action_output *)p;
-
-            if (act_len < sizeof *oa) {
-                ofp_fatal(0, "Insufficient room for output action\n");
-            }
-
-            act_len = sizeof *oa;
-            oa->type = htons(OFPAT_OUTPUT);
-            oa->port = htons(port);
-        }
-
-        ah->len = htons(act_len);
-        p += act_len;
-        len -= act_len;
     }
-
-    *actions_len -= len;
 }
 
 struct protocol {
@@ -702,8 +706,8 @@ static bool
 parse_protocol(const char *name, const struct protocol **p_out)
 {
     static const struct protocol protocols[] = {
-        { "ip", ETH_TYPE_IP },
-        { "arp", ETH_TYPE_ARP },
+        { "ip", ETH_TYPE_IP, 0 },
+        { "arp", ETH_TYPE_ARP, 0 },
         { "icmp", ETH_TYPE_IP, IP_TYPE_ICMP },
         { "tcp", ETH_TYPE_IP, IP_TYPE_TCP },
         { "udp", ETH_TYPE_IP, IP_TYPE_UDP },
@@ -732,20 +736,20 @@ parse_field(const char *name, const struct field **f_out)
 {
 #define F_OFS(MEMBER) offsetof(struct ofp_match, MEMBER)
     static const struct field fields[] = { 
-        { "in_port", OFPFW_IN_PORT, F_U16, F_OFS(in_port) },
-        { "dl_vlan", OFPFW_DL_VLAN, F_U16, F_OFS(dl_vlan) },
-        { "dl_src", OFPFW_DL_SRC, F_MAC, F_OFS(dl_src) },
-        { "dl_dst", OFPFW_DL_DST, F_MAC, F_OFS(dl_dst) },
-        { "dl_type", OFPFW_DL_TYPE, F_U16, F_OFS(dl_type) },
+        { "in_port", OFPFW_IN_PORT, F_U16, F_OFS(in_port), 0 },
+        { "dl_vlan", OFPFW_DL_VLAN, F_U16, F_OFS(dl_vlan), 0 },
+        { "dl_src", OFPFW_DL_SRC, F_MAC, F_OFS(dl_src), 0 },
+        { "dl_dst", OFPFW_DL_DST, F_MAC, F_OFS(dl_dst), 0 },
+        { "dl_type", OFPFW_DL_TYPE, F_U16, F_OFS(dl_type), 0 },
         { "nw_src", OFPFW_NW_SRC_MASK, F_IP,
           F_OFS(nw_src), OFPFW_NW_SRC_SHIFT },
         { "nw_dst", OFPFW_NW_DST_MASK, F_IP,
           F_OFS(nw_dst), OFPFW_NW_DST_SHIFT },
-        { "nw_proto", OFPFW_NW_PROTO, F_U8, F_OFS(nw_proto) },
-        { "tp_src", OFPFW_TP_SRC, F_U16, F_OFS(tp_src) },
-        { "tp_dst", OFPFW_TP_DST, F_U16, F_OFS(tp_dst) },
-        { "icmp_type", OFPFW_ICMP_TYPE, F_U16, F_OFS(icmp_type) },
-        { "icmp_code", OFPFW_ICMP_CODE, F_U16, F_OFS(icmp_code) }
+        { "nw_proto", OFPFW_NW_PROTO, F_U8, F_OFS(nw_proto), 0 },
+        { "tp_src", OFPFW_TP_SRC, F_U16, F_OFS(tp_src), 0 },
+        { "tp_dst", OFPFW_TP_DST, F_U16, F_OFS(tp_dst), 0 },
+        { "icmp_type", OFPFW_ICMP_TYPE, F_U16, F_OFS(icmp_type), 0 },
+        { "icmp_code", OFPFW_ICMP_CODE, F_U16, F_OFS(icmp_code), 0 }
     };
     const struct field *f;
 
@@ -760,12 +764,11 @@ parse_field(const char *name, const struct field **f_out)
 }
 
 static void
-str_to_flow(char *string, struct ofp_match *match, 
-            struct ofp_action_header *actions, size_t *actions_len, 
+str_to_flow(char *string, struct ofp_match *match, struct ofpbuf *actions,
             uint8_t *table_idx, uint16_t *out_port, uint16_t *priority, 
             uint16_t *idle_timeout, uint16_t *hard_timeout)
 {
-
+    char *save_ptr = NULL;
     char *name;
     uint32_t wildcards;
 
@@ -798,12 +801,12 @@ str_to_flow(char *string, struct ofp_match *match,
 
         act_str++;
 
-        str_to_action(act_str, actions, actions_len);
+        str_to_action(act_str, actions);
     }
     memset(match, 0, sizeof *match);
     wildcards = OFPFW_ALL;
-    for (name = strtok(string, "=, \t\r\n"); name;
-         name = strtok(NULL, "=, \t\r\n")) {
+    for (name = strtok_r(string, "=, \t\r\n", &save_ptr); name;
+         name = strtok_r(NULL, "=, \t\r\n", &save_ptr)) {
         const struct protocol *p;
 
         if (parse_protocol(name, &p)) {
@@ -817,7 +820,7 @@ str_to_flow(char *string, struct ofp_match *match,
             const struct field *f;
             char *value;
 
-            value = strtok(NULL, ", \t\r\n");
+            value = strtok_r(NULL, ", \t\r\n", &save_ptr);
             if (!value) {
                 ofp_fatal(0, "field %s missing value", name);
             }
@@ -839,9 +842,9 @@ str_to_flow(char *string, struct ofp_match *match,
                 } else {
                     wildcards &= ~f->wildcard;
                     if (f->type == F_U8) {
-                        *(uint8_t *) data = str_to_int(value);
+                        *(uint8_t *) data = str_to_u32(value);
                     } else if (f->type == F_U16) {
-                        *(uint16_t *) data = htons(str_to_int(value));
+                        *(uint16_t *) data = htons(str_to_u32(value));
                     } else if (f->type == F_MAC) {
                         str_to_mac(value, data);
                     } else if (f->type == F_IP) {
@@ -858,14 +861,15 @@ str_to_flow(char *string, struct ofp_match *match,
     match->wildcards = htonl(wildcards);
 }
 
-static void do_dump_flows(const struct settings *s, int argc, char *argv[])
+static void
+do_dump_flows(const struct settings *s UNUSED, int argc, char *argv[])
 {
     struct ofp_flow_stats_request *req;
     uint16_t out_port;
     struct ofpbuf *request;
 
     req = alloc_stats_request(sizeof *req, OFPST_FLOW, &request);
-    str_to_flow(argc > 2 ? argv[2] : "", &req->match, NULL, 0, 
+    str_to_flow(argc > 2 ? argv[2] : "", &req->match, NULL,
                 &req->table_id, &out_port, NULL, NULL, NULL);
     memset(&req->pad, 0, sizeof req->pad);
     req->out_port = htons(out_port);
@@ -873,15 +877,15 @@ static void do_dump_flows(const struct settings *s, int argc, char *argv[])
     dump_stats_transaction(argv[1], request);
 }
 
-static void do_dump_aggregate(const struct settings *s, int argc, 
-        char *argv[])
+static void
+do_dump_aggregate(const struct settings *s UNUSED, int argc, char *argv[])
 {
     struct ofp_aggregate_stats_request *req;
     struct ofpbuf *request;
     uint16_t out_port;
 
     req = alloc_stats_request(sizeof *req, OFPST_AGGREGATE, &request);
-    str_to_flow(argc > 2 ? argv[2] : "", &req->match, NULL, 0,
+    str_to_flow(argc > 2 ? argv[2] : "", &req->match, NULL,
                 &req->table_id, &out_port, NULL, NULL, NULL);
     memset(&req->pad, 0, sizeof req->pad);
     req->out_port = htons(out_port);
@@ -890,7 +894,8 @@ static void do_dump_aggregate(const struct settings *s, int argc,
 }
 
 #ifdef SUPPORT_SNAT
-static void do_add_snat(const struct settings *s, int argc, char *argv[])
+static void
+do_add_snat(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     struct vconn *vconn;
     struct ofpbuf *buffer;
@@ -906,7 +911,7 @@ static void do_add_snat(const struct settings *s, int argc, char *argv[])
 
     nac->type = htons(NXAST_SNAT);
     nac->snat[0].command = NXSC_ADD;
-    nac->snat[0].port = htons(str_to_int(argv[2]));
+    nac->snat[0].port = htons(str_to_u32(argv[2]));
     nac->snat[0].mac_timeout = htons(0);
     str_to_ip(argv[3], &nac->snat[0].ip_addr_start);
     str_to_ip(argv[3], &nac->snat[0].ip_addr_end);
@@ -916,7 +921,8 @@ static void do_add_snat(const struct settings *s, int argc, char *argv[])
     vconn_close(vconn);
 }
 
-static void do_del_snat(const struct settings *s, int argc, char *argv[])
+static void
+do_del_snat(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     struct vconn *vconn;
     struct ofpbuf *buffer;
@@ -932,7 +938,7 @@ static void do_del_snat(const struct settings *s, int argc, char *argv[])
 
     nac->type = htons(NXAST_SNAT);
     nac->snat[0].command = NXSC_DELETE;
-    nac->snat[0].port = htons(str_to_int(argv[2]));
+    nac->snat[0].port = htons(str_to_u32(argv[2]));
     nac->snat[0].mac_timeout = htons(0);
 
     open_vconn(argv[1], &vconn);
@@ -941,20 +947,22 @@ static void do_del_snat(const struct settings *s, int argc, char *argv[])
 }
 #endif /* SUPPORT_SNAT */
 
-static void do_add_flow(const struct settings *s, int argc, char *argv[])
+static void
+do_add_flow(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     struct vconn *vconn;
     struct ofpbuf *buffer;
     struct ofp_flow_mod *ofm;
     uint16_t priority, idle_timeout, hard_timeout;
-    size_t size;
-    size_t actions_len = MAX_ACT_LEN;
+    struct ofp_match match;
 
-    /* Parse and send. */
-    size = sizeof *ofm + actions_len;
-    ofm = make_openflow(size, OFPT_FLOW_MOD, &buffer);
-    str_to_flow(argv[2], &ofm->match, &ofm->actions[0], &actions_len, 
+    /* Parse and send.  str_to_flow() will expand and reallocate the data in
+     * 'buffer', so we can't keep pointers to across the str_to_flow() call. */
+    make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
+    str_to_flow(argv[2], &match, buffer,
                 NULL, NULL, &priority, &idle_timeout, &hard_timeout);
+    ofm = buffer->data;
+    ofm->match = match;
     ofm->command = htons(OFPFC_ADD);
     ofm->idle_timeout = htons(idle_timeout);
     ofm->hard_timeout = htons(hard_timeout);
@@ -962,15 +970,13 @@ static void do_add_flow(const struct settings *s, int argc, char *argv[])
     ofm->priority = htons(priority);
     ofm->reserved = htonl(0);
 
-    /* xxx Should we use the ofpbuf library? */
-    buffer->size -= MAX_ACT_LEN - actions_len;
-
     open_vconn(argv[1], &vconn);
     send_openflow_buffer(vconn, buffer);
     vconn_close(vconn);
 }
 
-static void do_add_flows(const struct settings *s, int argc, char *argv[])
+static void
+do_add_flows(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     struct vconn *vconn;
     FILE *file;
@@ -986,8 +992,7 @@ static void do_add_flows(const struct settings *s, int argc, char *argv[])
         struct ofpbuf *buffer;
         struct ofp_flow_mod *ofm;
         uint16_t priority, idle_timeout, hard_timeout;
-        size_t size;
-        size_t actions_len = MAX_ACT_LEN;
+        struct ofp_match match;
 
         char *comment;
 
@@ -1002,11 +1007,14 @@ static void do_add_flows(const struct settings *s, int argc, char *argv[])
             continue;
         }
 
-        /* Parse and send. */
-        size = sizeof *ofm + actions_len;
-        ofm = make_openflow(size, OFPT_FLOW_MOD, &buffer);
-        str_to_flow(line, &ofm->match, &ofm->actions[0], &actions_len, 
+        /* Parse and send.  str_to_flow() will expand and reallocate the data
+         * in 'buffer', so we can't keep pointers to across the str_to_flow()
+         * call. */
+        ofm = make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
+        str_to_flow(line, &match, buffer,
                     NULL, NULL, &priority, &idle_timeout, &hard_timeout);
+        ofm = buffer->data;
+        ofm->match = match;
         ofm->command = htons(OFPFC_ADD);
         ofm->idle_timeout = htons(idle_timeout);
         ofm->hard_timeout = htons(hard_timeout);
@@ -1014,28 +1022,23 @@ static void do_add_flows(const struct settings *s, int argc, char *argv[])
         ofm->priority = htons(priority);
         ofm->reserved = htonl(0);
 
-        /* xxx Should we use the ofpbuf library? */
-        buffer->size -= MAX_ACT_LEN - actions_len;
-
         send_openflow_buffer(vconn, buffer);
     }
     vconn_close(vconn);
     fclose(file);
 }
 
-static void do_mod_flows(const struct settings *s, int argc, char *argv[])
+static void
+do_mod_flows(const struct settings *s, int argc UNUSED, char *argv[])
 {
     uint16_t priority, idle_timeout, hard_timeout;
     struct vconn *vconn;
     struct ofpbuf *buffer;
     struct ofp_flow_mod *ofm;
-    size_t size;
-    size_t actions_len = MAX_ACT_LEN;
 
     /* Parse and send. */
-    size = sizeof *ofm + actions_len;
-    ofm = make_openflow(size, OFPT_FLOW_MOD, &buffer);
-    str_to_flow(argv[2], &ofm->match, &ofm->actions[0], &actions_len, 
+    ofm = make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
+    str_to_flow(argv[2], &ofm->match, buffer,
                 NULL, NULL, &priority, &idle_timeout, &hard_timeout);
     if (s->strict) {
         ofm->command = htons(OFPFC_MODIFY_STRICT);
@@ -1047,9 +1050,6 @@ static void do_mod_flows(const struct settings *s, int argc, char *argv[])
     ofm->buffer_id = htonl(UINT32_MAX);
     ofm->priority = htons(priority);
     ofm->reserved = htonl(0);
-
-    /* xxx Should we use the buffer library? */
-    buffer->size -= MAX_ACT_LEN - actions_len;
 
     open_vconn(argv[1], &vconn);
     send_openflow_buffer(vconn, buffer);
@@ -1063,12 +1063,10 @@ static void do_del_flows(const struct settings *s, int argc, char *argv[])
     uint16_t out_port;
     struct ofpbuf *buffer;
     struct ofp_flow_mod *ofm;
-    size_t size;
 
     /* Parse and send. */
-    size = sizeof *ofm;
-    ofm = make_openflow(size, OFPT_FLOW_MOD, &buffer);
-    str_to_flow(argc > 2 ? argv[2] : "", &ofm->match, NULL, 0, NULL, 
+    ofm = make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
+    str_to_flow(argc > 2 ? argv[2] : "", &ofm->match, NULL, NULL, 
                 &out_port, &priority, NULL, NULL);
     if (s->strict) {
         ofm->command = htons(OFPFC_DELETE_STRICT);
@@ -1089,7 +1087,7 @@ static void do_del_flows(const struct settings *s, int argc, char *argv[])
 
 
 static void
-do_monitor(const struct settings *s, int argc UNUSED, char *argv[])
+do_monitor(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     struct vconn *vconn;
     const char *name;
@@ -1112,13 +1110,13 @@ do_monitor(const struct settings *s, int argc UNUSED, char *argv[])
 }
 
 static void
-do_dump_ports(const struct settings *s, int argc, char *argv[])
+do_dump_ports(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     dump_trivial_stats_transaction(argv[1], OFPST_PORT);
 }
 
 static void
-do_probe(const struct settings *s, int argc, char *argv[])
+do_probe(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     struct ofpbuf *request;
     struct vconn *vconn;
@@ -1135,7 +1133,7 @@ do_probe(const struct settings *s, int argc, char *argv[])
 }
 
 static void
-do_mod_port(const struct settings *s, int argc, char *argv[])
+do_mod_port(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     struct ofpbuf *request, *reply;
     struct ofp_switch_features *osf;
@@ -1215,7 +1213,7 @@ do_mod_port(const struct settings *s, int argc, char *argv[])
 }
 
 static void
-do_ping(const struct settings *s, int argc, char *argv[])
+do_ping(const struct settings *s UNUSED, int argc, char *argv[])
 {
     size_t max_payload = 65535 - sizeof(struct ofp_header);
     unsigned int payload;
@@ -1262,7 +1260,7 @@ do_ping(const struct settings *s, int argc, char *argv[])
 }
 
 static void
-do_benchmark(const struct settings *s, int argc, char *argv[])
+do_benchmark(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     size_t max_payload = 65535 - sizeof(struct ofp_header);
     struct timeval start, end;
@@ -1305,7 +1303,7 @@ do_benchmark(const struct settings *s, int argc, char *argv[])
 }
 
 static void
-do_execute(const struct settings *s, int argc, char *argv[])
+do_execute(const struct settings *s UNUSED, int argc, char *argv[])
 {
     struct vconn *vconn;
     struct ofpbuf *request;
@@ -1369,8 +1367,8 @@ do_execute(const struct settings *s, int argc, char *argv[])
     }
 }
 
-static void do_help(const struct settings *s, int argc UNUSED, 
-        char *argv[] UNUSED)
+static void
+do_help(const struct settings *s UNUSED, int argc UNUSED, char *argv[] UNUSED)
 {
     usage();
 }
@@ -1381,6 +1379,7 @@ static struct command all_commands[] = {
     { "deldp", 1, 1, do_del_dp },
     { "addif", 2, INT_MAX, do_add_port },
     { "delif", 2, INT_MAX, do_del_port },
+    { "get-idx", 1, 1, do_get_idx },
 #endif
 
     { "show", 1, 1, do_show },

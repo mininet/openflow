@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -126,7 +126,7 @@ executer_is_permitted(const char *acl_, const char *cmd)
 
     /* Check the command white/blacklisted state. */
     if (allowed && !denied) {
-        VLOG_WARN("permitting command execution: \"%s\" is whitelisted", cmd);
+        VLOG_INFO("permitting command execution: \"%s\" is whitelisted", cmd);
     } else if (allowed && denied) {
         VLOG_WARN("denying command execution: \"%s\" is both blacklisted "
                   "and whitelisted", cmd);
@@ -252,7 +252,7 @@ executer_remote_packet_cb(struct relay *r, void *e_)
         /* Running in parent. */
         struct child *child;
 
-        VLOG_WARN("started \"%s\" subprocess", argv[0]);
+        VLOG_INFO("started \"%s\" subprocess", argv[0]);
         send_child_status(r, request->header.xid, NXT_STATUS_STARTED, NULL, 0);
         child = &e->children[e->n_children++];
         child->name = xstrdup(argv[0]);
@@ -330,7 +330,7 @@ child_terminated(struct child *child, int status)
     if (WCOREDUMP(status)) {
         ds_put_cstr(&ds, " (core dumped)");
     }
-    VLOG_WARN("child process \"%s\" with pid %ld terminated %s",
+    VLOG_INFO("child process \"%s\" with pid %ld terminated %s",
               child->name, (long int) child->pid, ds_cstr(&ds));
     ds_destroy(&ds);
 

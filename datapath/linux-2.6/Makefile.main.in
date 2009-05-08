@@ -4,25 +4,26 @@ export srcdir = @abs_srcdir@
 export top_srcdir = @abs_top_srcdir@
 export KSRC = @KSRC26@
 export VERSION = @VERSION@
+export BUILD_VETH = @BUILD_VETH@
 
 include $(srcdir)/../Modules.mk
 include $(srcdir)/Modules.mk
 include @HW_TABLES@
 
-default: $(all_links)
+default: $(build_links)
 
-$(foreach m,$(all_modules), \
-  $(foreach s,$($(m)_sources), \
-    $(eval $(notdir $(s)): ; ln -s $(srcdir)/../$(s) $@)))
+$(foreach s,$(sort $(foreach m,$(build_modules),$($(m)_sources))), \
+  $(eval $(notdir $(s)): ; ln -s $(srcdir)/../$(s) $@))
 
 distclean: clean
+	rm -f kcompat.h
 distdir: clean
 install:
 all: default
 check: all
 clean:
-	rm -f *.o *.ko *_mod.* Module.symvers *.cmd
-	for d in $(all_links); do if test -h $$d; then rm $$d; fi; done
+	rm -f *.o *.ko *_mod.* Module.symvers *.cmd kcompat.h.new
+	for d in $(build_links); do if test -h $$d; then rm $$d; fi; done
 
 ifneq ($(KSRC),)
 

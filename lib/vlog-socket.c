@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -238,7 +238,7 @@ recv_with_creds(const struct vlog_server *server,
 
 /* Processes incoming requests for 'server'. */
 static void
-poll_server(int fd UNUSED, short int events, void *server_)
+poll_server(int fd UNUSED, short int events UNUSED, void *server_)
 {
     struct vlog_server *server = server_;
     for (;;) {

@@ -1,7 +1,15 @@
-all_modules = $(dist_modules)
-dist_modules = openflow 
+# Some modules should be built and distributed, e.g. openflow.
+#
+# Some modules should be distributed but not built, e.g. we do not build
+# veth if the kernel in question already has it.
+#
+# Some modules should be built but not distributed, e.g. third-party
+# hwtable modules.
+both_modules = ofdatapath
+build_modules = $(both_modules)	# Modules to build
+dist_modules = $(both_modules)	# Modules to distribute
 
-openflow_sources = \
+ofdatapath_sources = \
 	chain.c \
 	crc32.c \
 	datapath.c \
@@ -16,7 +24,7 @@ openflow_sources = \
 	table-hash.c \
 	table-linear.c 
 
-openflow_headers = \
+ofdatapath_headers = \
 	chain.h \
 	compat.h \
 	crc32.h \
@@ -32,7 +40,7 @@ openflow_headers = \
 
 dist_sources = $(foreach module,$(dist_modules),$($(module)_sources))
 dist_headers = $(foreach module,$(dist_modules),$($(module)_headers))
-all_sources = $(foreach module,$(all_modules),$($(module)_sources))
-all_headers = $(foreach module,$(all_modules),$($(module)_headers))
-all_links = $(notdir $(all_sources))
-all_objects = $(notdir $(patsubst %.c,%.o,$(all_sources)))
+build_sources = $(foreach module,$(build_modules),$($(module)_sources))
+build_headers = $(foreach module,$(build_modules),$($(module)_headers))
+build_links = $(notdir $(build_sources))
+build_objects = $(notdir $(patsubst %.c,%.o,$(build_sources)))

@@ -3,6 +3,7 @@
 /Makefile
 /Makefile.main
 /attr.c
+/brcompat.c
 /chain.c
 /datapath.c
 /compat24.c

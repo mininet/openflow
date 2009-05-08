@@ -58,7 +58,7 @@ struct switch_status {
     const struct settings *s;
     time_t booted;
     struct switch_status_category *categories;
-    int n_categories, allocated_categories;
+    size_t n_categories, allocated_categories;
 };
 
 struct status_reply {
@@ -195,10 +195,8 @@ switch_status_register_category(struct switch_status *ss,
 {
     struct switch_status_category *c;
     if (ss->n_categories >= ss->allocated_categories) {
-        ss->allocated_categories = 1 + ss->allocated_categories * 2;
-        ss->categories = xrealloc(ss->categories,
-                                  (sizeof *ss->categories
-                                   * ss->allocated_categories));
+        ss->categories = x2nrealloc(ss->categories, &ss->allocated_categories,
+                                    sizeof *ss->categories);
     }
     c = &ss->categories[ss->n_categories++];
     c->cb = cb;

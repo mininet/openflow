@@ -4,7 +4,7 @@ bridge 1 0x97 = c:5 a d:5
 bridge 2 0x45 = b e
 bridge 3 0x57 = b:5 e:5
 bridge 4 0x83 = a:5 e:5
-run 256
+run 1000
 check 0 = root
 check 1 = F F:10 F
 check 2 = F:10 B

@@ -47,6 +47,7 @@
 #include "hwtable_nf2/nf2_flowtable.h"
 #include "hwtable_nf2/nf2_openflow.h"
 #include "hwtable_nf2/nf2_lib.h"
+#include "hwtable_nf2/nf2_procfs.h"
 
 struct nf2_flowtable {
 	struct sw_table flowtab;
@@ -390,12 +391,14 @@ nf2_create_flowtable(void)
 static int __init
 nf2_startup(void)
 {
+	nf2_create_procfs();
 	return chain_set_hw_hook(nf2_create_flowtable, THIS_MODULE);
 }
 
 static void
 nf2_cleanup(void)
 {
+	nf2_remove_procfs();
 	chain_clear_hw_hook();
 }
 

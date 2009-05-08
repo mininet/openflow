@@ -130,7 +130,7 @@ static void
 in_band_learn_mac(struct in_band_data *in_band,
                   uint16_t in_port, const uint8_t src_mac[ETH_ADDR_LEN])
 {
-    if (mac_learning_learn(in_band->ml, src_mac, in_port)) {
+    if (mac_learning_learn(in_band->ml, src_mac, 0, in_port)) {
         VLOG_DBG_RL(&rl, "learned that "ETH_ADDR_FMT" is on port %"PRIu16,
                     ETH_ADDR_ARGS(src_mac), in_port);
     }
@@ -158,7 +158,7 @@ in_band_local_packet_cb(struct relay *r, void *in_band_)
     /* Deal with local stuff. */
     if (in_port == OFPP_LOCAL) {
         /* Sent by secure channel. */
-        out_port = mac_learning_lookup(in_band->ml, eth->eth_dst);
+        out_port = mac_learning_lookup(in_band->ml, eth->eth_dst, 0);
     } else if (eth_addr_equals(eth->eth_dst,
                                netdev_get_etheraddr(in_band->of_device))) {
         /* Sent to secure channel. */
@@ -179,7 +179,7 @@ in_band_local_packet_cb(struct relay *r, void *in_band_)
                    || flow.tp_dst == htons(OFP_SSL_PORT))) {
         /* Traffic to or from controller.  Switch it by hand. */
         in_band_learn_mac(in_band, in_port, eth->eth_src);
-        out_port = mac_learning_lookup(in_band->ml, eth->eth_dst);
+        out_port = mac_learning_lookup(in_band->ml, eth->eth_dst, 0);
     } else {
         const uint8_t *controller_mac;
         controller_mac = get_controller_mac(in_band);
@@ -190,7 +190,7 @@ in_band_local_packet_cb(struct relay *r, void *in_band_)
             out_port = OFPP_FLOOD;
         } else if (is_controller_mac(eth->eth_dst, in_band)
                    && in_port == mac_learning_lookup(in_band->ml,
-                                                     controller_mac)) {
+                                                     controller_mac, 0)) {
             /* Drop controller traffic that arrives on the controller port. */
             out_port = -1;
         } else {
@@ -290,11 +290,25 @@ in_band_local_port_cb(const struct ofp_phy_port *port, void *in_band_)
     }
 }
 
+static void
+in_band_periodic_cb(void *in_band_)
+{
+    struct in_band_data *in_band = in_band_;
+    mac_learning_run(in_band->ml, NULL);
+}
+
+static void
+in_band_wait_cb(void *in_band_)
+{
+    struct in_band_data *in_band = in_band_;
+    mac_learning_wait(in_band->ml);
+}
+
 static struct hook_class in_band_hook_class = {
     in_band_local_packet_cb,    /* local_packet_cb */
     NULL,                       /* remote_packet_cb */
-    NULL,                       /* periodic_cb */
-    NULL,                       /* wait_cb */
+    in_band_periodic_cb,        /* periodic_cb */
+    in_band_wait_cb,            /* wait_cb */
     NULL,                       /* closing_cb */
 };
 

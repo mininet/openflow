@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -40,6 +40,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "leak-checker.h"
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
 #include "poll-loop.h"
@@ -70,12 +71,13 @@ static void stream_clear_txbuf(struct stream_vconn *);
 
 int
 new_stream_vconn(const char *name, int fd, int connect_status,
-                 uint32_t ip, struct vconn **vconnp)
+                 uint32_t ip, bool reconnectable, struct vconn **vconnp)
 {
     struct stream_vconn *s;
 
     s = xmalloc(sizeof *s);
-    vconn_init(&s->vconn, &stream_vconn_class, connect_status, ip, name);
+    vconn_init(&s->vconn, &stream_vconn_class, connect_status, ip, name,
+               reconnectable);
     s->fd = fd;
     s->txbuf = NULL;
     s->tx_waiter = NULL;
@@ -212,6 +214,7 @@ stream_send(struct vconn *vconn, struct ofpbuf *buffer)
         ofpbuf_delete(buffer);
         return 0;
     } else if (retval >= 0 || errno == EAGAIN) {
+        leak_checker_claim(buffer);
         s->txbuf = buffer;
         if (retval > 0) {
             ofpbuf_pull(buffer, retval);

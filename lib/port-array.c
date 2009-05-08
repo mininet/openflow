@@ -33,6 +33,7 @@
 
 #include <config.h>
 #include "port-array.h"
+#include <stdlib.h>
 
 static struct port_array_l2 l2_sentinel;
 static struct port_array_l3 l3_sentinel;
@@ -52,6 +53,38 @@ port_array_init(struct port_array *pa)
     for (i = 0; i < PORT_ARRAY_L1_SIZE; i++) {
         pa->l1[i] = &l2_sentinel;
     }
+}
+
+/* Frees all the memory allocated for 'pa'.  It is the client's responsibility
+ * to free memory that 'pa' elements point to. */
+void
+port_array_destroy(struct port_array *pa)
+{
+    unsigned int l1_idx;
+
+    for (l1_idx = 0; l1_idx < PORT_ARRAY_L1_SIZE; l1_idx++) {
+        struct port_array_l2 *l2 = pa->l1[l1_idx];
+
+        if (l2 != &l2_sentinel) {
+            unsigned int l2_idx;
+
+            for (l2_idx = 0; l2_idx < PORT_ARRAY_L2_SIZE; l2_idx++) {
+                struct port_array_l3 *l3 = l2->l2[l2_idx];
+                if (l3 != &l3_sentinel) {
+                    free(l3);
+                }
+            }
+            free(l2);
+        }
+    }
+}
+
+/* Clears all elements of 'pa' to null pointers. */
+void
+port_array_clear(struct port_array *pa)
+{
+    port_array_destroy(pa);
+    port_array_init(pa);
 }
 
 /* Sets 'pa' element numbered 'idx' to 'p'. */

@@ -1,3 +1,14 @@
+TESTS += tests/test-flows.sh
+noinst_PROGRAMS += tests/test-flows
+tests_test_flows_SOURCES = tests/test-flows.c
+tests_test_flows_LDADD = lib/libopenflow.a
+dist_check_SCRIPTS = tests/test-flows.sh tests/flowgen.pl
+
+TESTS += tests/test-hmap
+noinst_PROGRAMS += tests/test-hmap
+tests_test_hmap_SOURCES = tests/test-hmap.c
+tests_test_hmap_LDADD = lib/libopenflow.a
+
 TESTS += tests/test-list
 noinst_PROGRAMS += tests/test-list
 tests_test_list_SOURCES = tests/test-list.c

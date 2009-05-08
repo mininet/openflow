@@ -1,4 +1,4 @@
-/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
  *
  * We are making the OpenFlow specification and associated documentation
@@ -54,7 +54,7 @@ struct stp_data {
     struct port_watcher *pw;
     struct rconn *local_rconn;
     struct rconn *remote_rconn;
-    long long int last_tick_256ths;
+    long long int last_tick;
     int n_txq;
 };
 
@@ -126,18 +126,12 @@ stp_local_packet_cb(struct relay *r, void *stp_)
     return true;
 }
 
-static long long int
-time_256ths(void)
-{
-    return time_msec() * 256 / 1000;
-}
-
 static void
 stp_periodic_cb(void *stp_)
 {
     struct stp_data *stp = stp_;
-    long long int now_256ths = time_256ths();
-    long long int elapsed_256ths = now_256ths - stp->last_tick_256ths;
+    long long int now = time_msec();
+    long long int elapsed = now - stp->last_tick;
     struct stp_port *p;
 
     if (!port_watcher_is_ready(stp->pw)) {
@@ -145,19 +139,19 @@ stp_periodic_cb(void *stp_)
          * disable STP. */
         return;
     }
-    if (elapsed_256ths <= 0) {
+    if (elapsed <= 0) {
         return;
     }
 
-    stp_tick(stp->stp, MIN(INT_MAX, elapsed_256ths));
-    stp->last_tick_256ths = now_256ths;
+    stp_tick(stp->stp, MIN(INT_MAX, elapsed));
+    stp->last_tick = now;
 
     while (stp_get_changed_port(stp->stp, &p)) {
         int port_no = stp_port_no(p);
         enum stp_state s_state = stp_port_get_state(p);
 
         if (s_state != STP_DISABLED) {
-            VLOG_WARN("STP: Port %d entered %s state",
+            VLOG_INFO("STP: Port %d entered %s state",
                       port_no, stp_state_name(s_state));
         }
         if (!(port_watcher_get_config(stp->pw, port_no) & OFPPC_NO_STP)) {
@@ -202,39 +196,22 @@ stp_wait_cb(void *stp_ UNUSED)
 }
 
 static void
-send_bpdu(const void *bpdu, size_t bpdu_size, int port_no, void *stp_)
+send_bpdu(struct ofpbuf *pkt, int port_no, void *stp_)
 {
     struct stp_data *stp = stp_;
-    const uint8_t *port_mac;
-    struct eth_header *eth;
-    struct llc_header *llc;
-    struct ofpbuf pkt, *opo;
+    const uint8_t *port_mac = port_watcher_get_hwaddr(stp->pw, port_no);
+    if (port_mac) {
+        struct eth_header *eth = pkt->l2;
+        struct ofpbuf *opo;
 
-    port_mac = port_watcher_get_hwaddr(stp->pw, port_no);
-    if (!port_mac) {
+        memcpy(eth->eth_src, port_mac, ETH_ADDR_LEN);
+        opo = make_unbuffered_packet_out(pkt, OFPP_NONE, port_no);
+
+        rconn_send_with_limit(stp->local_rconn, opo, &stp->n_txq, OFPP_MAX);
+    } else {
         VLOG_WARN_RL(&rl, "cannot send BPDU on missing port %d", port_no);
-        return;
     }
-
-    /* Packet skeleton. */
-    ofpbuf_init(&pkt, ETH_HEADER_LEN + LLC_HEADER_LEN + bpdu_size);
-    eth = ofpbuf_put_uninit(&pkt, sizeof *eth);
-    llc = ofpbuf_put_uninit(&pkt, sizeof *llc);
-    ofpbuf_put(&pkt, bpdu, bpdu_size);
-
-    /* 802.2 header. */
-    memcpy(eth->eth_dst, stp_eth_addr, ETH_ADDR_LEN);
-    memcpy(eth->eth_src, port_mac, ETH_ADDR_LEN);
-    eth->eth_type = htons(pkt.size - ETH_HEADER_LEN);
-
-    /* LLC header. */
-    llc->llc_dsap = STP_LLC_DSAP;
-    llc->llc_ssap = STP_LLC_SSAP;
-    llc->llc_cntl = STP_LLC_CNTL;
-
-    opo = make_unbuffered_packet_out(&pkt, OFPP_NONE, port_no);
-    ofpbuf_uninit(&pkt);
-    rconn_send_with_limit(stp->local_rconn, opo, &stp->n_txq, OFPP_MAX);
+    ofpbuf_delete(pkt);
 }
 
 static bool
@@ -245,7 +222,7 @@ stp_is_port_supported(uint16_t port_no)
 
 static void
 stp_port_changed_cb(uint16_t port_no,
-                    const struct ofp_phy_port *old,
+                    const struct ofp_phy_port *old UNUSED,
                     const struct ofp_phy_port *new,
                     void *stp_)
 {
@@ -295,8 +272,7 @@ static struct hook_class stp_hook_class = {
 };
 
 void
-stp_start(struct secchan *secchan, const struct settings *s,
-          struct port_watcher *pw,
+stp_start(struct secchan *secchan, struct port_watcher *pw,
           struct rconn *local, struct rconn *remote)
 {
     uint8_t dpid[ETH_ADDR_LEN];
@@ -308,7 +284,7 @@ stp_start(struct secchan *secchan, const struct settings *s,
     stp->pw = pw;
     stp->local_rconn = local;
     stp->remote_rconn = remote;
-    stp->last_tick_256ths = time_256ths();
+    stp->last_tick = time_msec();
 
     port_watcher_register_callback(pw, stp_port_changed_cb, stp);
     port_watcher_register_local_port_callback(pw, stp_local_port_changed_cb,

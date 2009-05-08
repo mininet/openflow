@@ -53,10 +53,11 @@ struct vconn {
     int version;
     uint32_t ip;
     char *name;
+    bool reconnectable;
 };
 
 void vconn_init(struct vconn *, struct vconn_class *, int connect_status,
-                uint32_t ip, const char *name);
+                uint32_t ip, const char *name, bool reconnectable);
 static inline void vconn_assert_class(const struct vconn *vconn,
                                       const struct vconn_class *class)
 {
@@ -178,6 +179,7 @@ extern struct vconn_class tcp_vconn_class;
 extern struct pvconn_class ptcp_pvconn_class;
 extern struct vconn_class unix_vconn_class;
 extern struct pvconn_class punix_pvconn_class;
+extern struct vconn_class fd_vconn_class;
 #ifdef HAVE_OPENSSL
 extern struct vconn_class ssl_vconn_class;
 extern struct pvconn_class pssl_pvconn_class;

@@ -1,4 +1,4 @@
-# Copyright (c) 2008 The Board of Trustees of The Leland Stanford
+# Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
 # Junior University
 #
 # We are making the OpenFlow specification and associated documentation
@@ -31,7 +31,7 @@
 # derivatives without specific, written prior permission.
 
 AC_PREREQ(2.60)
-AC_INIT([openflow], [0.9.0-alpha3], [info@openflowswitch.org])
+AC_INIT([openflow], [0.9.0-alpha4], [info@openflowswitch.org])
 NX_BUILDNR
 AC_CONFIG_SRCDIR([README.hwtables])
 AC_CONFIG_MACRO_DIR([m4])
@@ -54,17 +54,32 @@ fi
 OFP_CHECK_LIBOPENFLOW
 OFP_CHECK_IF_PACKET
 OFP_CHECK_HWTABLES
+AC_SYS_LARGEFILE
 
 AC_CHECK_FUNCS([strsignal])
 
 AC_ARG_VAR(KARCH, [Kernel Architecture String])
 AC_SUBST(KARCH)
-OFP_CHECK_LINUX(l26, 2.6, 2.6, KSRC26, L26_ENABLED)
-OFP_CHECK_LINUX(l24, 2.4, 2.4, KSRC24, L24_ENABLED)
+OFP_CHECK_LINUX(l26, 2.6, KSRC26, L26_ENABLED)
+OFP_CHECK_LINUX(l24, 2.4, KSRC24, L24_ENABLED)
 
 OFP_CHECK_DPKG_BUILDPACKAGE
 
-CFLAGS="$CFLAGS -Wall -Wno-sign-compare -Wpointer-arith -Wdeclaration-after-statement"
+OFP_ENABLE_OPTION([-Wall])
+OFP_ENABLE_OPTION([-Wno-sign-compare])
+OFP_ENABLE_OPTION([-Wpointer-arith])
+OFP_ENABLE_OPTION([-Wdeclaration-after-statement])
+OFP_ENABLE_OPTION([-Wformat-security])
+OFP_ENABLE_OPTION([-Wswitch-enum])
+OFP_ENABLE_OPTION([-Wunused-parameter])
+OFP_ENABLE_OPTION([-Wstrict-aliasing])
+OFP_ENABLE_OPTION([-Wbad-function-cast])
+OFP_ENABLE_OPTION([-Wcast-align])
+OFP_ENABLE_OPTION([-Wstrict-prototypes])
+OFP_ENABLE_OPTION([-Wold-style-definition])
+OFP_ENABLE_OPTION([-Wmissing-prototypes])
+OFP_ENABLE_OPTION([-Wmissing-field-initializers])
+OFP_ENABLE_OPTION([-Wno-override-init])
 
 OFP_ENABLE_EXT
 m4_include([ext.m4])

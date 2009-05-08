@@ -1,7 +1,7 @@
-bin_PROGRAMS += udatapath/udatapath
-man_MANS += udatapath/udatapath.8
+bin_PROGRAMS += udatapath/ofdatapath
+man_MANS += udatapath/ofdatapath.8
 
-udatapath_udatapath_SOURCES = \
+udatapath_ofdatapath_SOURCES = \
 	udatapath/chain.c \
 	udatapath/chain.h \
 	udatapath/crc32.c \
@@ -21,7 +21,7 @@ udatapath_udatapath_SOURCES = \
 	udatapath/table-hash.c \
 	udatapath/table-linear.c
 
-udatapath_udatapath_LDADD = lib/libopenflow.a $(SSL_LIBS) $(FAULT_LIBS)
+udatapath_ofdatapath_LDADD = lib/libopenflow.a $(SSL_LIBS) $(FAULT_LIBS)
 
-EXTRA_DIST += udatapath/udatapath.8.in
-DISTCLEANFILES += udatapath/udatapath.8
+EXTRA_DIST += udatapath/ofdatapath.8.in
+DISTCLEANFILES += udatapath/ofdatapath.8

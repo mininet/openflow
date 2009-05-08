@@ -91,5 +91,6 @@ time_t rconn_get_creation_time(const struct rconn *);
 unsigned long int rconn_get_total_time_connected(const struct rconn *);
 int rconn_get_backoff(const struct rconn *);
 unsigned int rconn_get_state_elapsed(const struct rconn *);
+unsigned int rconn_get_connection_seqno(const struct rconn *);
 
 #endif /* rconn.h */
