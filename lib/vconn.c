@@ -74,7 +74,6 @@ static struct vconn_class *vconn_classes[] = {
 #ifdef HAVE_OPENSSL
     &ssl_vconn_class,
 #endif
-    &fd_vconn_class,
 };
 
 static struct pvconn_class *pvconn_classes[] = {
