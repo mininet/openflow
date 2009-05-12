@@ -90,8 +90,7 @@ Please contact us with portability-related bug reports or patches.
 The Linux kernel module is, of course, Linux-specific, and the dpctl
 utility will not be useful without the kernel module.  The testing of
 the kernel module has focused on Linux 2.6.26.  Linux 2.6 releases
-from 2.6.15 onward and Linux 2.4 releases from 2.4.20 onward should
-also work.
+from 2.6.15 onward should also work.
 
 The userspace datapath implementation should be easy to port to
 Unix-like systems.  The interface to network devices, in netdev.c, is

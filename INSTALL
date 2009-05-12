@@ -12,9 +12,9 @@ The OpenFlow reference implementation includes two OpenFlow switch
 implementations:
 
         - The "kernel-based switch": This divides the switch into a
-          "datapath" Linux kernel module (ofdatapath.o for Linux 2.4
-          or ofdatapath.ko for Linux 2.6) and a userspace program
-          (ofprotocol).  The kernel-based switch is faster than either of
+          "datapath" Linux kernel module (ofdatapath.ko for Linux 2.6) and
+          a userspace program (ofprotocol).
+          The kernel-based switch is faster than either of
           the other two implementations but requires building and
           installing a kernel module, which can sometimes be
           challenging.
@@ -114,9 +114,6 @@ software listed in the "Base Prerequisites" section above:
           the same version of GCC that was used to build that kernel
           (usually version 4.0 or later).
 
-        * To build a kernel module for a Linux 2.4 kernel, you need an
-          earlier version of GCC, typically GCC 2.95, 3.3, or 3.4.
-
     - A kernel build directory corresponding to the Linux kernel image
       the module is to run on.  Under Debian and Ubuntu, for example,
       each linux-image package containing a kernel binary has a
@@ -146,7 +143,7 @@ distribution in the ordinary way using "configure" and "make".
       % ./configure CC=gcc-4.2
 
    To build the Linux kernel module, so that you can run the
-   kernel-based switch, add --with-l26 or --with-l24 option, or both,
+   kernel-based switch, add --with-l26 option, or both,
    to the configure script's command line.  Refer to Building the
    Linux Kernel-Based Switch, below, for more information.
 
@@ -192,10 +189,8 @@ distribution in the ordinary way using "configure" and "make".
       - datapath/linux-2.6/ofdatapath_<table>.ko for each <table>
         specified on --enable-hw-tables (if any).
 
-   If you passed --with-l24 to configure, "make" will also build the
+   If you passed --with-l26 to configure, "make" will also build the
    following kernel modules:
-
-      - datapath/linux-2.4/ofdatapath.o      
 
       - datapath/linux-2.6/ofdatapath_<table>.o for each <table>
         specified on --enable-hw-tables (if any).
@@ -207,10 +202,6 @@ distribution in the ordinary way using "configure" and "make".
 
       (Linux 2.6)
       % insmod datapath/linux-2.6/ofdatapath.ko
-
-      (Linux 2.4)
-      % insmod datapath/linux-2.4/compat24_mod.o
-      % insmod datapath/linux-2.4/ofdatapath.o
 
    After you load the openflow module, you may load one hardware switch
    table module (if any were built) to enable support for that hardware
@@ -233,23 +224,17 @@ Building the Linux Kernel-Based Switch
 To build the kernel module, follow the build process described above,
 but pass the location of the kernel build directory as an additional
 argument to the configure script, as described under step 1 in that
-section.  Specify the location on --with-l26 for Linux 2.6, --with-l24
-for Linux 2.4.  For example, to build for a running instance of Linux
-2.6:
+section.  Specify the location on --with-l26 for Linux 2.6.
+For example, to build for a running instance of Linux 2.6:
 
       % ./configure --with-l26=/lib/modules/`uname -r`/build
-
-To build for a running instance of Linux 2.4:
-
-      % ./configure --with-l24=/lib/modules/`uname -r`/build
 
 If you wish to build OpenFlow for an architecture other than the
 architecture used for compilation, you may specify the kernel
 architecture string using the KARCH variable when invoking the
-configure script. For example, to build OpenFlow for MIPS with Linux
-2.4:
+configure script.
 
-      % ./configure --with-l24=/path/to/linux-2.4 KARCH=mips
+      % ./configure --with-l26=/path/to/linux-2.6 KARCH=mips
 
 If you have hardware that supports accelerated OpenFlow switching, and
 you have obtained a hardware table module for your hardware and

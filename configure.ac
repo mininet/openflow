@@ -61,7 +61,6 @@ AC_CHECK_FUNCS([strsignal])
 AC_ARG_VAR(KARCH, [Kernel Architecture String])
 AC_SUBST(KARCH)
 OFP_CHECK_LINUX(l26, 2.6, KSRC26, L26_ENABLED)
-OFP_CHECK_LINUX(l24, 2.4, KSRC24, L24_ENABLED)
 
 OFP_CHECK_DPKG_BUILDPACKAGE
 
@@ -88,9 +87,6 @@ AC_CONFIG_FILES([Makefile
 datapath/Makefile 
 datapath/linux-2.6/Kbuild
 datapath/linux-2.6/Makefile
-datapath/linux-2.6/Makefile.main
-datapath/linux-2.4/Kbuild
-datapath/linux-2.4/Makefile
-datapath/linux-2.4/Makefile.main])
+datapath/linux-2.6/Makefile.main])
 
 AC_OUTPUT
