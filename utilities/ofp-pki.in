@@ -303,8 +303,7 @@ resolve_prefix() {
             ;;
     esac
     
-    fingerprint=$(cd "$pkidir/${type}ca/incoming" && echo "$1"*-req.pem
-                  | sed 's/-req\.pem$//')
+    fingerprint=$(cd "$pkidir/${type}ca/incoming" && echo "$1"*-req.pem | sed 's/-req\.pem$//')
     case $fingerprint in
         "${1}*")
             echo "No certificate requests matching $1"
