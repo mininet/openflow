@@ -1490,7 +1490,7 @@ void proto_register_openflow()
 
         /* CSM: Stats: Port */
         { &ofp_port_stats,
-          { "Port Stats", "of.stats_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port Stats", HFILL } },
+          { "Port Stats", "of.stats_port", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Stats", HFILL } },
 
         { &ofp_port_stats_port_no,
           { "Port #", "of.stats_port_port_no", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL } },
