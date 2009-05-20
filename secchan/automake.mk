@@ -17,6 +17,8 @@ secchan_ofprotocol_SOURCES = \
 	secchan/netflow.h \
 	secchan/port-watcher.c \
 	secchan/port-watcher.h \
+	secchan/protocol-stat.c \
+	secchan/protocol-stat.h \
 	secchan/ratelimit.c \
 	secchan/ratelimit.h \
 	secchan/secchan.c \

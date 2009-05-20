@@ -113,6 +113,17 @@ command.  Instead, specify \fB-l\fR or \fB--listen\fR on the
 method specified there.)
 
 .TP
+\fBshow-protostat \fIswitch\fR
+Prints to the OpenFlow protocol statiscal information of \fIswitch\fR.
+
+(In the OpenFlow reference implementation, the \fBshow-protostat\fR command
+is implemented in \fBofprotocol\fR(8), not in the kernel module, so the
+\fBnl:\fIdp_idx\fR connection method should not be used with this
+command.  Instead, specify \fB-l\fR or \fB--listen\fR on the
+\fBofprotocol\fR command line and tell \fBdpctl\fR to use the connection
+method specified there.)
+
+.TP
 \fBdump-tables \fIswitch\fR
 Prints to the console statistics for each of the flow tables used by
 datapath \fIswitch\fR.

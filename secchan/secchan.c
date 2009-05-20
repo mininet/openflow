@@ -56,6 +56,7 @@
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
 #include "packets.h"
+#include "protocol-stat.h"
 #include "port-watcher.h"
 #include "poll-loop.h"
 #include "ratelimit.h"
@@ -228,6 +229,9 @@ main(int argc, char *argv[])
     }
     if (s.num_controllers > 1) {
         failover_start(&secchan, &s, switch_status, remote_rconn);
+    }
+    if (s.n_listeners > 0) {
+        protocol_stat_start(&secchan, &s, local_rconn, remote_rconn);
     }
     if (s.rate_limit) {
         rate_limit_start(&secchan, &s, switch_status, remote_rconn);

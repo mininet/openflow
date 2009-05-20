@@ -13,6 +13,7 @@
 #include "forward.h"
 #include "datapath.h"
 #include "openflow/nicira-ext.h"
+#include "openflow/private-ext.h"
 #include "dp_act.h"
 #include "nx_msg.h"
 #include "chain.h"
@@ -346,6 +347,7 @@ recv_vendor(struct sw_chain *chain, const struct sender *sender,
 	{
 	case NX_VENDOR_ID:
 		return nx_recv_msg(chain, sender, msg);
+	case PRIVATE_VENDOR_ID:
 	default:
 		if (net_ratelimit())
 			printk(KERN_NOTICE "%s: unknown vendor: 0x%x\n",

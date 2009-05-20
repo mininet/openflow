@@ -52,6 +52,7 @@
  */
 
 struct vconn;
+struct ofpstat;
 
 struct rconn *rconn_new(const char *name, 
                         int inactivity_probe_interval, int max_backoff);
@@ -92,5 +93,7 @@ unsigned long int rconn_get_total_time_connected(const struct rconn *);
 int rconn_get_backoff(const struct rconn *);
 unsigned int rconn_get_state_elapsed(const struct rconn *);
 unsigned int rconn_get_connection_seqno(const struct rconn *);
+void rconn_update_protocol_stat(struct rconn *,
+                                struct ofpstat *, struct ofpstat *);
 
 #endif /* rconn.h */

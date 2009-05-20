@@ -38,6 +38,8 @@
  * OpenFlow device. */
 
 #include <assert.h>
+#include <stdint.h>
+#include "ofpstat.h"
 #include "vconn.h"
 
 /* Active virtual connection to an OpenFlow device. */
@@ -54,6 +56,8 @@ struct vconn {
     uint32_t ip;
     char *name;
     bool reconnectable;
+    struct ofpstat ofps_rcvd;
+    struct ofpstat ofps_sent;
 };
 
 void vconn_init(struct vconn *, struct vconn_class *, int connect_status,

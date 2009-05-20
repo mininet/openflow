@@ -65,6 +65,10 @@
 #include "vconn-ssl.h"
 #include "vconn.h"
 
+#include "xtoxll.h"
+#include "ofpstat.h"
+#include "openflow/private-ext.h"
+
 #include "vlog.h"
 #define THIS_MODULE VLM_dpctl
 
@@ -222,6 +226,7 @@ usage(void)
            "\nFor local datapaths and remote switches:\n"
            "  show SWITCH                 show basic information\n"
            "  status SWITCH [KEY]         report statistics (about KEY)\n"
+           "  show-protostat SWITCH       report protocol statistics\n"
            "  dump-desc SWITCH            print switch description\n"
            "  dump-tables SWITCH          print table stats\n"
            "  mod-port SWITCH IFACE ACT   modify port behavior\n"
@@ -508,6 +513,175 @@ do_status(const struct settings *s UNUSED, int argc, char *argv[])
     }
 
     fwrite(reply + 1, b->size, 1, stdout);
+}
+
+static void
+print_protocol_stat(struct ofpstat *ofps_rcvd, struct ofpstat *ofps_sent)
+{
+    int i;
+    struct ofpstat *ifps = NULL;
+#define PREFIX_STR  "      "
+#define PREFIX_RCVD "Rcvd: "
+#define PREFIX_SENT "Sent: "
+
+    fprintf(stdout,
+            "OpenFlow protocol version 0x%x statisical information\n",
+            OFP_VERSION);
+    fprintf(stdout, "\n");
+
+    fprintf(stdout, "Protocol message:\n");
+    for (i = 0; i < 2; ++i) {
+        ifps = i == 0 ? ofps_rcvd : ofps_sent;
+        fprintf(stdout,
+                "%s"
+                "%"PRIu64" total msgs, %"PRIu64" unknown msgs\n",
+                i == 0 ? PREFIX_RCVD : PREFIX_SENT,
+                ntohll(ifps->ofps_total),
+                ntohll(ifps->ofps_unknown));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" hello, %"PRIu64" errors, "
+                "%"PRIu64" echo, %"PRIu64" echo reply, "
+                "%"PRIu64" vendor\n",
+                ntohll(ifps->ofps_hello),
+                ntohll(ifps->ofps_error),
+                ntohll(ifps->ofps_echo_request),
+                ntohll(ifps->ofps_echo_reply),
+                ntohll(ifps->ofps_vendor));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" feats, %"PRIu64" feats reply\n",
+                ntohll(ifps->ofps_feats_request),
+                ntohll(ifps->ofps_feats_reply));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" get config, %"PRIu64" get config reply, "
+                "%"PRIu64" set config\n",
+                ntohll(ifps->ofps_get_config_request),
+                ntohll(ifps->ofps_get_config_reply),
+                ntohll(ifps->ofps_set_config));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" packet in, %"PRIu64" flow expried, "
+                "%"PRIu64" port status\n",
+                ntohll(ifps->ofps_packet_in),
+                ntohll(ifps->ofps_flow_expired),
+                ntohll(ifps->ofps_port_status));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" packet out, %"PRIu64" flow mod, %"PRIu64" port mod\n",
+                ntohll(ifps->ofps_packet_out),
+                ntohll(ifps->ofps_flow_mod),
+                ntohll(ifps->ofps_port_mod));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" stats, %"PRIu64" stats reply\n",
+                ntohll(ifps->ofps_stats_request),
+                ntohll(ifps->ofps_stats_reply));
+    }
+    fprintf(stdout, "\n");
+
+    fprintf(stdout, "Flow manipulation:\n");
+    for (i = 0; i < 2; ++i) {
+        ifps = i == 0 ? ofps_rcvd : ofps_sent;
+        fprintf(stdout,
+                "%s"
+                "%"PRIu64" add, %"PRIu64" modify, %"PRIu64" modify strict\n",
+                i == 0 ? PREFIX_RCVD : PREFIX_SENT,
+                ntohll(ifps->ofps_flow_mod_ops.add),
+                ntohll(ifps->ofps_flow_mod_ops.modify),
+                ntohll(ifps->ofps_flow_mod_ops.modify_strict));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" delete, %"PRIu64" delete strict, %"PRIu64" unknown cmd\n",
+                ntohll(ifps->ofps_flow_mod_ops.delete),
+                ntohll(ifps->ofps_flow_mod_ops.delete_strict),
+                ntohll(ifps->ofps_flow_mod_ops.unknown));
+    }
+    fprintf(stdout, "\n");
+
+    fprintf(stdout, "Error notification:\n");
+    for (i = 0; i < 2; ++i) {
+        ifps = i == 0 ? ofps_rcvd : ofps_sent;
+        fprintf(stdout,
+                "%s"
+                "%"PRIu64" hello fail: %"PRIu64" incompat\n",
+                i == 0 ? PREFIX_RCVD : PREFIX_SENT,
+                ntohll(ifps->ofps_error_type.hello_fail),
+                ntohll(ifps->ofps_error_code.hf_incompat));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" bad request: %"PRIu64" version, %"PRIu64" type, %"PRIu64" stat\n"
+                PREFIX_STR
+                "  %"PRIu64" vendor\n",
+                ntohll(ifps->ofps_error_type.bad_request),
+                ntohll(ifps->ofps_error_code.br_bad_version),
+                ntohll(ifps->ofps_error_code.br_bad_type),
+                ntohll(ifps->ofps_error_code.br_bad_stat),
+                ntohll(ifps->ofps_error_code.br_bad_vendor));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" bad action: %"PRIu64" type, %"PRIu64" len, %"PRIu64" vendor, %"PRIu64" vendor type\n"
+                PREFIX_STR
+                "  %"PRIu64" out port, %"PRIu64" argument\n",
+                ntohll(ifps->ofps_error_type.bad_action),
+                ntohll(ifps->ofps_error_code.ba_bad_type),
+                ntohll(ifps->ofps_error_code.ba_bad_len),
+                ntohll(ifps->ofps_error_code.ba_bad_vendor),
+                ntohll(ifps->ofps_error_code.ba_bad_vendor_type),
+                ntohll(ifps->ofps_error_code.ba_bad_out_port),
+                ntohll(ifps->ofps_error_code.ba_bad_argument));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" flow mod fail: %"PRIu64" all tables full\n",
+                ntohll(ifps->ofps_error_type.flow_mod_fail),
+                ntohll(ifps->ofps_error_code.fmf_all_tables_full));
+        fprintf(stdout,
+                PREFIX_STR
+                "%"PRIu64" unknown type, %"PRIu64" unknown code\n",
+                ntohll(ifps->ofps_error_type.unknown),
+                ntohll(ifps->ofps_error_code.unknown));
+    }
+    fprintf(stdout, "\n");
+}
+
+static void
+do_protostat(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
+{
+    struct ofpbuf *buf;
+    struct private_vxhdr *vxhdr;
+    struct private_vxopt *vxopt;
+    struct vconn *vconn;
+    struct ofpstat* ofps;
+
+    vxhdr = make_openflow(sizeof(*vxhdr) + sizeof(*vxopt), OFPT_VENDOR, &buf);
+    vxopt = (struct private_vxopt *)(vxhdr + 1);
+    vxhdr->ofp_vxid = htonl(PRIVATE_VENDOR_ID);
+    vxopt->pvo_type = htons(PRIVATEOPT_PROTOCOL_STATS_REQUEST);
+    vxopt->pvo_len = 0;
+
+    open_vconn(argv[1], &vconn);
+    run(vconn_transact(vconn, buf, &buf), "talking to %s", argv[1]);
+    vconn_close(vconn);
+    if (buf->size < sizeof(*vxhdr)) {
+        ofp_fatal(0, "short reply (%zu bytes)", buf->size);
+    }
+
+    vxhdr = buf->data;
+    if (vxhdr->ofp_hdr.type != OFPT_VENDOR
+        || ntohl(vxhdr->ofp_vxid) != PRIVATE_VENDOR_ID) {
+        ofp_print(stderr, buf->data, buf->size, 2);
+        ofp_fatal(0, "bad reply");
+    }
+    vxopt = (struct private_vxopt *)(vxhdr + 1);
+    if (ntohs(vxopt->pvo_type) != PRIVATEOPT_PROTOCOL_STATS_REPLY
+        || ntohs(vxopt->pvo_len) != (sizeof(*ofps) * 2)) {
+        ofp_print(stderr, buf->data, buf->size, 2);
+        ofp_fatal(0, "bad reply");
+    }
+
+    ofps = (struct ofpstat *)(vxopt + 1);
+    print_protocol_stat(ofps, ofps + 1);
 }
 
 static void
@@ -1384,6 +1558,8 @@ static struct command all_commands[] = {
 
     { "show", 1, 1, do_show },
     { "status", 1, 2, do_status },
+
+    { "show-protostat", 1, 1, do_protostat },
 
     { "help", 0, INT_MAX, do_help },
     { "monitor", 1, 1, do_monitor },

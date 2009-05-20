@@ -45,6 +45,8 @@ lib_libopenflow_a_SOURCES = \
 	lib/ofp-print.h \
 	lib/ofpbuf.c \
 	lib/ofpbuf.h \
+	lib/ofpstat.c \
+	lib/ofpstat.h \
 	lib/packets.h \
 	lib/pcap.c \
 	lib/pcap.h \

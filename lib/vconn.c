@@ -308,6 +308,8 @@ vcs_send_hello(struct vconn *vconn)
     make_openflow(sizeof(struct ofp_header), OFPT_HELLO, &b);
     retval = do_send(vconn, b);
     if (!retval) {
+        ++vconn->ofps_sent.ofps_total;
+        ++vconn->ofps_sent.ofps_hello;
         vconn->state = VCS_RECV_HELLO;
     } else {
         ofpbuf_delete(b);
@@ -353,6 +355,8 @@ vcs_recv_hello(struct vconn *vconn)
                          OFP_VERSION, oh->version);
                 vconn->state = VCS_CONNECTED;
             }
+            ++vconn->ofps_rcvd.ofps_total;
+            ++vconn->ofps_rcvd.ofps_hello;
             ofpbuf_delete(b);
             return;
         } else {
@@ -389,6 +393,10 @@ vcs_send_error(struct vconn *vconn)
     update_openflow_length(b);
     retval = do_send(vconn, b);
     if (retval) {
+        ++vconn->ofps_sent.ofps_total;
+        ++vconn->ofps_sent.ofps_error;
+        ++vconn->ofps_sent.ofps_error_type.hello_fail;
+        ++vconn->ofps_sent.ofps_error_code.hf_incompat;
         ofpbuf_delete(b);
     }
     if (retval != EAGAIN) {
@@ -1138,6 +1146,8 @@ vconn_init(struct vconn *vconn, struct vconn_class *class, int connect_status,
     vconn->ip = ip;
     vconn->name = xstrdup(name);
     vconn->reconnectable = reconnectable;
+    memset(&vconn->ofps_rcvd, 0, sizeof(vconn->ofps_rcvd));
+    memset(&vconn->ofps_sent, 0, sizeof(vconn->ofps_sent));
 }
 
 void

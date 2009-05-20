@@ -45,6 +45,7 @@
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
 #include "openflow/nicira-ext.h"
+#include "openflow/private-ext.h"
 #include "packets.h"
 #include "poll-loop.h"
 #include "rconn.h"
@@ -1519,6 +1520,7 @@ recv_vendor(struct datapath *dp, const struct sender *sender,
     case NX_VENDOR_ID:
         return nx_recv_msg(dp, sender, oh);
 
+    case PRIVATE_VENDOR_ID:
     default:
         VLOG_WARN_RL(&rl, "unknown vendor: 0x%x\n", ntohl(ovh->vendor));
         dp_send_error_msg(dp, sender, OFPET_BAD_REQUEST,

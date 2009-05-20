@@ -45,6 +45,7 @@
 #include "timeval.h"
 #include "util.h"
 #include "vconn.h"
+#include "vconn-provider.h"
 
 #define THIS_MODULE VLM_rconn
 #include "vlog.h"
@@ -476,6 +477,7 @@ rconn_recv(struct rconn *rc)
         struct ofpbuf *buffer;
         int error = vconn_recv(rc->vconn, &buffer);
         if (!error) {
+            struct ofp_header *h = buffer->data;
             copy_to_monitor(rc, buffer);
             if (is_admitted_msg(buffer)
                 || time_now() - rc->last_connected >= 30) {
@@ -484,6 +486,7 @@ rconn_recv(struct rconn *rc)
             }
             rc->last_received = time_now();
             rc->packets_received++;
+            ofpstat_inc_protocol_stat(&rc->ofps_rcvd, h);
             if (rc->state == S_IDLE) {
                 /* Check liveliness of a peer. */
                 if (h->type == OFPT_ECHO_REPLY) {
@@ -734,6 +737,39 @@ rconn_get_connection_seqno(const struct rconn *rc)
 {
     return rc->seqno;
 }
+
+/* Returns protocol statistical information. */
+void
+rconn_update_protocol_stat(struct rconn *rconn,
+                           struct ofpstat *ofps_rcvd,
+                           struct ofpstat *ofps_sent)
+{
+    struct vconn *vconn = rconn->vconn;
+
+    if (vconn != NULL) {
+        rconn->ofps_rcvd.ofps_total += vconn->ofps_rcvd.ofps_total;
+        vconn->ofps_rcvd.ofps_total = 0;
+        rconn->ofps_rcvd.ofps_hello += vconn->ofps_rcvd.ofps_hello;
+        vconn->ofps_rcvd.ofps_hello = 0;
+    }
+    *ofps_rcvd = rconn->ofps_rcvd;
+
+    if (vconn != NULL) {
+        rconn->ofps_sent.ofps_total += vconn->ofps_sent.ofps_total;
+        vconn->ofps_sent.ofps_total = 0;
+        rconn->ofps_sent.ofps_hello += vconn->ofps_sent.ofps_hello;
+        vconn->ofps_sent.ofps_hello = 0;
+        rconn->ofps_sent.ofps_error += vconn->ofps_sent.ofps_error;
+        vconn->ofps_sent.ofps_error = 0;
+        rconn->ofps_sent.ofps_error_type.hello_fail
+            += vconn->ofps_sent.ofps_error_type.hello_fail;
+        vconn->ofps_sent.ofps_error_type.hello_fail = 0;
+        rconn->ofps_sent.ofps_error_code.hf_incompat
+            += vconn->ofps_sent.ofps_error_code.hf_incompat;
+        vconn->ofps_sent.ofps_error_code.hf_incompat = 0;
+    }
+    *ofps_sent = rconn->ofps_sent;
+}
 
 /* Tries to send a packet from 'rc''s send buffer.  Returns 0 if successful,
  * otherwise a positive errno value. */
@@ -742,6 +778,7 @@ try_send(struct rconn *rc)
 {
     int retval = 0;
     struct ofpbuf *next = rc->txq.head->next;
+    struct ofp_header *h = rc->txq.head->data;
     int *n_queued = rc->txq.head->private;
     ofpstat_inc_protocol_stat(&rc->ofps_sent, h);
     rc->idle_echo_xid = h->xid;
