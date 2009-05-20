@@ -1493,7 +1493,7 @@ void proto_register_openflow()
           { "Port Stats", "of.stats_port", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Stats", HFILL } },
 
         { &ofp_port_stats_port_no,
-          { "Port #", "of.stats_port_port_no", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "", HFILL } },
+          { "Port #", "of.stats_port_port_no", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "", HFILL } },
 
         { &ofp_port_stats_rx_packets,
           { "# Received packets", "of.stats_port_rx_packets", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# Received packets", HFILL } },
