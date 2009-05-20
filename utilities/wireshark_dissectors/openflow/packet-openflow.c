@@ -65,18 +65,18 @@ static const value_string names_ofp_type[] = {
     { OFPT_GET_CONFIG_REQUEST,  "Get Config Request (CSM)" },
     { OFPT_GET_CONFIG_REPLY,    "Get Config Reply (CSM)" },
     { OFPT_SET_CONFIG,          "Set Config (CSM)" },
-    
+
     /* Asynchronous messages. */
     { OFPT_PACKET_IN,           "Packet In (AM)" },
     { OFPT_FLOW_EXPIRED,        "Flow Expired (AM)" },
     { OFPT_PORT_STATUS,         "Port Status (AM)" },
-    
-    /* Controller command messages. */    
+
+    /* Controller command messages. */
     { OFPT_PACKET_OUT,          "Packet Out (CSM)" },
     { OFPT_FLOW_MOD,            "Flow Mod (CSM)" },
     { OFPT_PORT_MOD,            "Port Mod (CSM)" },
-    
-    /* Statistics messages. */    
+
+    /* Statistics messages. */
     { OFPT_STATS_REQUEST,       "Stats Request (CSM)" },
     { OFPT_STATS_REPLY,         "Stats Reply (CSM)" },
     { 0,                        NULL }
@@ -140,7 +140,7 @@ static const value_string names_flow_mod_command[] = {
 
 /** names of stats_types */
 static const value_string names_stats_types[] = {
-    { OFPST_DESC,      "Description of this OpenFlow switch" }, 
+    { OFPST_DESC,      "Description of this OpenFlow switch" },
     { OFPST_FLOW,      "Individual flow statistics" },
     { OFPST_AGGREGATE, "Aggregate flow statistics" },
     { OFPST_TABLE,     "Flow table statistics" },
@@ -167,7 +167,7 @@ static const value_string names_ofp_packet_in_reason[] = {
 /** names from ofp_flow_expired_reason */
 static const value_string names_ofp_flow_expired_reason[] = {
     { OFPER_IDLE_TIMEOUT, "Flow idle time exceeded idle_timeout" },
-    { OFPER_HARD_TIMEOUT, "Time exceeded hard_timeout" },  
+    { OFPER_HARD_TIMEOUT, "Time exceeded hard_timeout" },
     { 0,                  NULL }
 };
 
@@ -175,7 +175,7 @@ static const value_string names_ofp_flow_expired_reason[] = {
 static const value_string names_ip_frag[] = {
     { OFPC_FRAG_NORMAL, "No special handling for fragments." },
     { OFPC_FRAG_DROP,   "Drop fragments." },
-    { OFPC_FRAG_REASM,  "Reassemble (only if OFPC_IP_REASM set)" },    
+    { OFPC_FRAG_REASM,  "Reassemble (only if OFPC_IP_REASM set)" },
     { 0,                NULL }
 };
 
@@ -442,7 +442,7 @@ static gint ofp_flow_mod              = -1;
 /* field: ofp_match */
 static gint ofp_flow_mod_command      = -1;
 static gint ofp_flow_mod_idle_timeout = -1;
-static gint ofp_flow_mod_hard_timeout = -1; 
+static gint ofp_flow_mod_hard_timeout = -1;
 static gint ofp_flow_mod_priority     = -1;
 static gint ofp_flow_mod_buffer_id    = -1;
 static gint ofp_flow_mod_out_port     = -1;
@@ -715,7 +715,7 @@ void proto_register_openflow()
         { &ofp_port,
           { "Port #", "of.port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Port #", HFILL }}, /* for searching numerically */
 
-          
+
         /* CS: Physical Port Information */
         { &ofp_phy_port,
           { "Physical Port", "of.port", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Physical Port", HFILL }},
@@ -743,10 +743,10 @@ void proto_register_openflow()
 
         { &ofp_phy_port_config[3],
           { "  Drop received 802.1D STP packets", "of.port_config_no_revc_stp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_RECV_STP, "Drop received 802.1D STP packets", HFILL }},
-     
+
         { &ofp_phy_port_config[4],
           { "  Do not include this port when flooding", "of.port_config_no_flood", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FLOOD, "Do not include this port when flooding", HFILL }},
-            
+
         { &ofp_phy_port_config[5],
           { "  Drop packets forwarded to port", "of.port_config_no_fwd", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FWD, "Drop packets forwarded to port", HFILL }},
 
@@ -754,19 +754,19 @@ void proto_register_openflow()
           { "  Do not send packet-in msgs for port", "of.port_config_no_packet_in", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_PACKET_IN, "Do not send packet-in msgs for port", HFILL }},
 
         { &ofp_phy_port_state_hdr,
-          { "Port State Flags", "of.port_state", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "State Flags", HFILL }},  
+          { "Port State Flags", "of.port_state", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "State Flags", HFILL }},
 /*
  *      { &ofp_phy_port_state[0],
           { "  No physical link present", "of.port_state_link_down", FT_NONE, BASE_NONE, NO_STRINGS, OFPPS_LINK_DOWN, "No physical link present", HFILL }},
 */
         { &ofp_phy_port_state_not_evil,
           { "  No physical link present", "of.port_state_link_down_not_evil", FT_NONE, BASE_NONE, NO_STRINGS, OFPPS_LINK_DOWN, "No physical link present", HFILL }},
-        
+
         { &ofp_phy_port_state_stp_state,
           { "STP state", "of.port_state_stp_listen", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "STP state", HFILL }},
-             
+
         { &ofp_phy_port_curr_hdr,
-          { "Port Current Flags", "of.port_curr", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Current Flags", HFILL }},            
+          { "Port Current Flags", "of.port_curr", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Current Flags", HFILL }},
 		
         { &ofp_phy_port_curr[0],
 	      { "   10 Mb half-duplex rate support", "of.port_curr_10mb_hd" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10MB_HD, "10 Mb half-duplex rate support", HFILL }},
@@ -805,7 +805,7 @@ void proto_register_openflow()
 	      { "   Asymmetric pause support", "of.port_curr_pause_asym",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_PAUSE_ASYM, "Asymmetric pause support", HFILL }},
 
         { &ofp_phy_port_advertised_hdr,
-          { "Port Advertsied Flags", "of.port_advertised", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Advertised Flags", HFILL }},  
+          { "Port Advertsied Flags", "of.port_advertised", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Advertised Flags", HFILL }},
 
         { &ofp_phy_port_advertised[0],
   	      { "   10 Mb half-duplex rate support", "of.port_advertised_10mb_hd" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10MB_HD, "10 Mb half-duplex rate support", HFILL }},
@@ -841,11 +841,11 @@ void proto_register_openflow()
   		  { "   Pause support", "of.port_advertised_pause",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_PAUSE, "Pause support", HFILL }},
   		
   	    { &ofp_phy_port_advertised[11],
-  	      { "   Asymmetric pause support", "of.port_advertised_pause_asym",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_PAUSE_ASYM, "Asymmetric pause support", HFILL }},      
-          
+  	      { "   Asymmetric pause support", "of.port_advertised_pause_asym",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_PAUSE_ASYM, "Asymmetric pause support", HFILL }},
+
         { &ofp_phy_port_supported_hdr,
-          { "Port Supported Flags", "of.port_supported", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Supported Flags", HFILL }},  
-              
+          { "Port Supported Flags", "of.port_supported", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Supported Flags", HFILL }},
+
         { &ofp_phy_port_supported[0],
   	      { "   10 Mb half-duplex rate support", "of.port_supported_10mb_hd" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10MB_HD, "10 Mb half-duplex rate support", HFILL }},
   		
@@ -881,10 +881,10 @@ void proto_register_openflow()
   		
   	    { &ofp_phy_port_supported[11],
   	      { "   Asymmetric pause support", "of.port_supported_pause_asym",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_PAUSE_ASYM, "Asymmetric pause support", HFILL }},
-        
+
         { &ofp_phy_port_peer_hdr,
-          { "Port Peer Flags", "of.port_peer", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Peer Flags", HFILL }},            
-              
+          { "Port Peer Flags", "of.port_peer", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Peer Flags", HFILL }},
+
         { &ofp_phy_port_peer[0],
     	  { "   10 Mb half-duplex rate support", "of.port_peer_10mb_hd" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10MB_HD, "10 Mb half-duplex rate support", HFILL }},
     		
@@ -899,7 +899,7 @@ void proto_register_openflow()
     		
     	{ &ofp_phy_port_peer[4],
     	  { "    1 Gb half-duplex rate support", "of.port_peer_1gb_hd",   FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_1GB_HD, "1 Gb half-duplex rate support", HFILL }},
-    
+
         { &ofp_phy_port_peer[5],
     	  { "    1 Gb full-duplex rate support", "of.port_peer_1gb_fd",   FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_1GB_FD, "1 Gb full-duplex rate support", HFILL }},
     		
@@ -920,8 +920,8 @@ void proto_register_openflow()
     		
         { &ofp_phy_port_peer[11],
     	  { "   Asymmetric pause support", "of.port_peer_pause_asym",  FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_PAUSE_ASYM, "Asymmetric pause support", HFILL }},
-               
-          
+
+
         /* CS: match */
         { &ofp_match,
           { "Match", "of.match", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Match", HFILL }},
@@ -1040,7 +1040,7 @@ void proto_register_openflow()
 
         { &ofp_action_len,
           { "Len", "of.action_len", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Len", HFILL }},
-          
+
         { &ofp_action_vlan_vid,
           { "VLAN ID", "of.action_vlan_vid", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "VLAN ID", HFILL }},
 
@@ -1058,7 +1058,7 @@ void proto_register_openflow()
 
         { &ofp_action_vendor,
           { "Vendor-defined", "of.action_vendor", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Vendor-defined", HFILL }},
-          
+
         { &ofp_action_unknown,
           { "Unknown Action Type", "of.action_unknown", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Unknown Action Type", HFILL }},
 
@@ -1071,10 +1071,10 @@ void proto_register_openflow()
         /* CS: ofp_action_output */
         { &ofp_action_output,
           { "Output Action(s)", "of.action_output", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Output Action(s)", HFILL }},
-          
+
         { &ofp_action_output_port,
-          { "Output port", "of.action_output_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Output port", HFILL }},   
-          
+          { "Output port", "of.action_output_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Output port", HFILL }},
+
         { &ofp_action_output_max_len,
           { "Max Bytes to Send", "of.action_output_max_len", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Maximum Bytes to Send", HFILL }},
 
@@ -1093,7 +1093,7 @@ void proto_register_openflow()
 
         { &ofp_switch_features_n_tables,
           { "Number of Tables", "of.sf_n_tables", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Number of tables", HFILL }},
-          
+
         { &ofp_switch_features_capabilities_hdr,
           { "Capabilities", "of.sf_capabilities", FT_UINT32, BASE_HEX, NO_STRINGS, NO_MASK, "Capabilities", HFILL }},
 
@@ -1114,7 +1114,7 @@ void proto_register_openflow()
 
         { &ofp_switch_features_capabilities[5],
           { "  Can reassemble IP fragments", "of.sf_capabilities_ip_reasm", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_IP_REASM,  "Can reassemble IP fragments", HFILL }},
-          
+
         { &ofp_switch_features_actions_hdr,
           { "Actions", "of.sf_actions", FT_UINT32, BASE_HEX, NO_STRINGS, NO_MASK, "Actions", HFILL }},
 
@@ -1132,7 +1132,7 @@ void proto_register_openflow()
 
         { &ofp_switch_features_actions[3],
           { "  Strip the 802.1q header", "of.sf_actions_strip_vlan", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_STRIP_VLAN, "Strip the 802.1q header", HFILL }},
-          
+
         { &ofp_switch_features_actions[4],
           { "  Ethernet source address", "of.sf_actions_eth_src_addr", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_SET_DL_SRC, "Ethernet source address", HFILL }},
 
@@ -1163,7 +1163,7 @@ void proto_register_openflow()
 
         /* CSM: Get Config Request */
         /* nothing beyond the header */
-          
+
         /* CSM: Get Config Reply */
         /* CSM: Set Config */
         { &ofp_switch_config,
@@ -1177,17 +1177,17 @@ void proto_register_openflow()
 
         { &ofp_switch_config_flags_ip_frag,
           { "  Handling of IP fragments", "of.sc_flags_ip_frag", FT_UINT16, BASE_DEC, VALS(sc_frag_choices), OFPC_FRAG_MASK, "Handling of IP fragments", HFILL }},
-      
+
 /*        { &ofp_switch_config_flags[1],
           { "  No special fragment handling", "of.sc_flags_frag_normal", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_FRAG_NORMAL, "No special fragment handling", HFILL }},
 
         { &ofp_switch_config_flags[2],
           { "  Drop fragments", "of.sc_flags_frag_drop", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_FRAG_DROP, "Drop fragments", HFILL }},
- 
+
         { &ofp_switch_config_flags[3],
           { "  Reassemble (only if OFPC_IP_REASM set)", "of.sc_flags_frag_reasm", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_FRAG_REASM, "Reassemble (only if OFPC_IP_REASM set)", HFILL }},
 
-*/            
+*/
         { &ofp_switch_config_miss_send_len,
           { "Max Bytes of New Flow to Send to Controller", "of.sc_miss_send_len", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Max Bytes of New Flow to Send to Controller", HFILL } },
 
@@ -1246,14 +1246,14 @@ void proto_register_openflow()
           { "Max Time (sec) Before Discarding", "of.fm_max_idle", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Max Idle Time (sec) Before Discarding", HFILL } },
 
         { &ofp_flow_mod_priority,
-          { "Priority", "of.fm_priority", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Priority", HFILL } },          
-          
+          { "Priority", "of.fm_priority", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Priority", HFILL } },
+
         { &ofp_flow_mod_buffer_id,
           { "Buffer ID", "of.fm_buffer_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Buffer ID", HFILL } },
 
         { &ofp_flow_mod_out_port,
-          { "Out Port (delete* only)", "of.fm_out_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Out Port (delete* only)", HFILL } },          
-          
+          { "Out Port (delete* only)", "of.fm_out_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Out Port (delete* only)", HFILL } },
+
         { &ofp_flow_mod_reserved,
           { "Reserved", "of.fm_reserved", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Reserved", HFILL } },
 
@@ -1267,7 +1267,7 @@ void proto_register_openflow()
 
         { &ofp_flow_expired_reason,
           { "Reason", "of.fe_reason", FT_UINT8, BASE_DEC, VALS(names_ofp_flow_expired_reason), NO_MASK, "Reason", HFILL } },
-          
+
         { &ofp_flow_expired_duration,
           { "Flow Duration (sec)", "of.fe_duration", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Time Flow was Alive (sec)", HFILL } },
 
@@ -1306,10 +1306,10 @@ void proto_register_openflow()
 
         { &ofp_port_mod_config[3],
           { "  Drop received 802.1D STP packets", "of.port_config_no_revc_stp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_RECV_STP, "Drop received 802.1D STP packets", HFILL }},
-     
+
         { &ofp_port_mod_config[4],
           { "  Do not include this port when flooding", "of.port_config_no_flood", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FLOOD, "Do not include this port when flooding", HFILL }},
-            
+
         { &ofp_port_mod_config[5],
           { "  Drop packets forwarded to port", "of.port_config_no_fwd", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FWD, "Drop packets forwarded to port", HFILL }},
 
@@ -1330,10 +1330,10 @@ void proto_register_openflow()
 
         { &ofp_port_mod_mask[3],
           { "  Drop received 802.1D STP packets", "of.port_mask_no_revc_stp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_RECV_STP, "Drop received 802.1D STP packets", HFILL }},
-     
+
         { &ofp_port_mod_mask[4],
           { "  Do not include this port when flooding", "of.port_mask_no_flood", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FLOOD, "Do not include this port when flooding", HFILL }},
-            
+
         { &ofp_port_mod_mask[5],
           { "  Drop packets forwarded to port", "of.port_mask_no_fwd", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_FWD, "Drop packets forwarded to port", HFILL }},
 
@@ -1341,7 +1341,7 @@ void proto_register_openflow()
           { "  Do not send packet-in msgs for port", "of.port_mask_no_packet_in", FT_UINT32, BASE_DEC, VALS(names_choice), OFPPC_NO_PACKET_IN, "Do not send packet-in msgs for port", HFILL }},
 
         { &ofp_port_mod_advertise_hdr,
-          { "Port Advertise Flags", "of.port_advertise", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Advertise Flags", HFILL }},            
+          { "Port Advertise Flags", "of.port_advertise", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Advertise Flags", HFILL }},
 		
         { &ofp_port_mod_advertise[0],
             { "   10 Mb half-duplex rate support", "of.port_advertise_10mb_hd" , FT_UINT32, BASE_DEC, VALS(names_choice), OFPPF_10MB_HD, "10 Mb half-duplex rate support", HFILL }},
@@ -1419,11 +1419,11 @@ void proto_register_openflow()
 
         { &ofp_stats_reply_body,
           { "Body", "of.srep_body", FT_BYTES, BASE_NONE, NO_STRINGS, NO_MASK, "Body", HFILL } },
-          
-        /* CSM: Stats: Desc: Reply */         
+
+        /* CSM: Stats: Desc: Reply */
         { &ofp_desc_stats,
           { "Desc Stats Reply", "of.stats_desc", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Desc Statistics Reply", HFILL } },
-          
+
         { &ofp_desc_stats_mfr_desc,
           { "Mfr Desc", "of.stats_desc_mfr_desc", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Mfr Desc", HFILL } },
 
@@ -1434,8 +1434,8 @@ void proto_register_openflow()
           { "SW Desc", "of.stats_desc_sw_desc", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "SW Desc", HFILL } },
 
         { &ofp_desc_stats_serial_num,
-          { "Serial Num", "of.stats_desc_serial_num", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Serial Num", HFILL } },          
-          
+          { "Serial Num", "of.stats_desc_serial_num", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Serial Num", HFILL } },
+
         /* CSM: Stats: Flow: Request */
         { &ofp_flow_stats_request,
           { "Flow Stats Request", "of.stats_flow", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flow Statistics Request", HFILL } },
@@ -1461,7 +1461,7 @@ void proto_register_openflow()
 
         { &ofp_flow_stats_reply_hard_timeout,
           { "Number of seconds before expiration", "of.stats_flow_hard_timeout", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Number of seconds before expiration", HFILL } },
-          
+
         { &ofp_flow_stats_reply_packet_count,
           { "Packet Count", "of.stats_flow_packet_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Packet Count", HFILL } },
 
@@ -1506,7 +1506,7 @@ void proto_register_openflow()
 
         { &ofp_port_stats_tx_bytes,
           { "# Transmitted bytes", "of.stats_port_tx_bytes", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# Transmitted bytes", HFILL } },
-          
+
         { &ofp_port_stats_rx_dropped,
           { "# RX dropped", "of.stats_port_rx_dropped", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# RX dropped", HFILL } },
 
@@ -1518,16 +1518,16 @@ void proto_register_openflow()
 
         { &ofp_port_stats_tx_errors,
           { "# TX errors", "of.stats_port_tx_errors", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# TX errors", HFILL } },
-              
+
         { &ofp_port_stats_rx_frame_err,
           { "# RX frame errors", "of.stats_port_rx_frame_err", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# RX frame alignment errors", HFILL } },
 
         { &ofp_port_stats_rx_over_err,
           { "# RX overrun errors", "of.stats_port_rx_over_err", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# RX overrun errors", HFILL } },
-                          
+
         { &ofp_port_stats_rx_crc_err,
           { "# RX CRC errors", "of.stats_port_rx_crc_err", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# RX crc errors", HFILL } },
-            
+
         { &ofp_port_stats_collisions,
           { "# Collisions", "of.stats_port_collisions", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Number of collisions", HFILL } },
 
@@ -1540,10 +1540,10 @@ void proto_register_openflow()
 
         { &ofp_table_stats_name,
           { "Name", "of.stats_table_name", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Name", HFILL } },
-                    
+
         { &ofp_table_stats_wildcards_hdr,
           { "Wildcards", "of.stats_table_wildcards", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Wildcards", HFILL } },
-          
+
         { &ofp_table_stats_max_entries,
           { "Max Supported Entries", "of.stats_table_max_entries", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Max Supported Entries", HFILL } },
 
@@ -1552,16 +1552,16 @@ void proto_register_openflow()
 
         { &ofp_table_stats_lookup_count,
           { "Lookup Count", "of.stats_table_lookup_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Lookup Count", HFILL } },
-          
+
         { &ofp_table_stats_matched_count,
           { "Packet Match Count", "of.stats_table_match_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Packet Match Count", HFILL } },
 
         { &ofp_vendor_stats_vendor,
-          { "Vendor ID", "of.stats_vendor_vendor", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Vendor ID", HFILL } },                  
-          
+          { "Vendor ID", "of.stats_vendor_vendor", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Vendor ID", HFILL } },
+
         { &ofp_vendor_stats_body,
-          { "Vendor Stats Body", "of.stats_vendor_body", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Vendor Stats Body", HFILL } },        
-          
+          { "Vendor Stats Body", "of.stats_vendor_body", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Vendor Stats Body", HFILL } },
+
         /* AM:  Error Message */
         { &ofp_error_msg,
           { "Error Message", "of.err", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Error Message", HFILL } },
@@ -1711,7 +1711,7 @@ static void dissect_port(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offs
     case OFPP_IN_PORT:
         str_port = "In Port  (send the packet out the input port; This virtual port must be explicitly used  in order to send back out of the input port. )";
         break;
-        
+
     case OFPP_TABLE:
         str_port = "Table  (perform actions in flow table; only allowed for dst port packet out messages)";
         break;
@@ -1775,7 +1775,7 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
         dissect_port( port_tree, ofp_phy_port_port_no, tvb, offset );
         add_child( port_tree, ofp_phy_port_hw_addr, tvb, offset, OFP_ETH_ALEN );
         add_child( port_tree, ofp_phy_port_name, tvb, offset, OFP_MAX_PORT_NAME_LEN );
-        
+
         /* config */
         config_item = proto_tree_add_item(port_tree, ofp_phy_port_config_hdr, tvb, *offset, 4, FALSE);
         config_tree = proto_item_add_subtree(config_item, ett_ofp_phy_port_config_hdr);
@@ -1783,18 +1783,18 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
             add_child_const(config_tree, ofp_phy_port_config[i], tvb, *offset, 4);
         }
         *offset += 4;
-                
-        /* state */  
+
+        /* state */
         state_item = proto_tree_add_item(port_tree, ofp_phy_port_state_hdr, tvb, *offset, 4, FALSE);
         state_tree = proto_item_add_subtree(state_item, ett_ofp_phy_port_state_hdr);
-        
+
         /* grab the stp state */
         guint32 state = tvb_get_ntohl( tvb, *offset );
         /*
-        if (state & OFPPS_LINK_DOWN) 
+        if (state & OFPPS_LINK_DOWN)
         	add_child_const(state_tree, ofp_phy_port_state[0], tvb, *offset, 4);
         */
-        if (state & OFPPS_LINK_DOWN) 
+        if (state & OFPPS_LINK_DOWN)
         	add_child_const(state_tree, ofp_phy_port_state_not_evil, tvb, *offset, 4);
 
         guint32 stp_state = state & OFPPS_STP_MASK;
@@ -1803,37 +1803,37 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
         else if (stp_state == OFPPS_STP_LEARN)
         	add_child_str_const( state_tree, ofp_phy_port_state_stp_state, tvb, *offset, 4, "Learning but not relaying frames" );        	
         else if (stp_state == OFPPS_STP_FORWARD)
-        	add_child_str_const( state_tree, ofp_phy_port_state_stp_state, tvb, *offset, 4, "Learning and relaying frames" );   
+        	add_child_str_const( state_tree, ofp_phy_port_state_stp_state, tvb, *offset, 4, "Learning and relaying frames" );
         else if (stp_state == OFPPS_STP_BLOCK)
         	add_child_str_const( state_tree, ofp_phy_port_state_stp_state, tvb, *offset, 4, "Not part of spanning tree" );        	
         else
-        	add_child_str_const( state_tree, ofp_phy_port_state_stp_state, tvb, *offset, 4, "Unknown STP state" );   
+        	add_child_str_const( state_tree, ofp_phy_port_state_stp_state, tvb, *offset, 4, "Unknown STP state" );
 
         *offset += 4;
-  
+
         /* curr */
         curr_item = proto_tree_add_item(port_tree, ofp_phy_port_curr_hdr, tvb, *offset, 4, FALSE);
         curr_tree = proto_item_add_subtree(curr_item, ett_ofp_phy_port_curr_hdr);
         for(i=0; i<NUM_PORT_FEATURES_FLAGS; i++) {
             add_child_const(curr_tree, ofp_phy_port_curr[i], tvb, *offset, 4);
         }
-        *offset += 4;       
-        
+        *offset += 4;
+
         /* advertised */
         advertised_item = proto_tree_add_item(port_tree, ofp_phy_port_advertised_hdr, tvb, *offset, 4, FALSE);
         advertised_tree = proto_item_add_subtree(advertised_item, ett_ofp_phy_port_advertised_hdr);
         for(i=0; i<NUM_PORT_FEATURES_FLAGS; i++) {
             add_child_const(advertised_tree, ofp_phy_port_advertised[i], tvb, *offset, 4);
         }
-        *offset += 4;       
-        
+        *offset += 4;
+
         /* supported */
         supported_item = proto_tree_add_item(port_tree, ofp_phy_port_supported_hdr, tvb, *offset, 4, FALSE);
         supported_tree = proto_item_add_subtree(supported_item, ett_ofp_phy_port_supported_hdr);
         for(i=0; i<NUM_PORT_FEATURES_FLAGS; i++) {
             add_child_const(supported_tree, ofp_phy_port_supported[i], tvb, *offset, 4);
         }
-        *offset += 4;            
+        *offset += 4;
 
         /* peer */
         peer_item = proto_tree_add_item(port_tree, ofp_phy_port_peer_hdr, tvb, *offset, 4, FALSE);
@@ -1857,7 +1857,7 @@ static void dissect_port_mod(proto_tree* tree, proto_item* item, tvbuff_t *tvb, 
     int i;
     dissect_port( tree, ofp_port_mod_port_no, tvb, offset );
     add_child( tree, ofp_port_mod_hw_addr, tvb, offset, OFP_ETH_ALEN );
-    
+
     /* config */
     config_item = proto_tree_add_item(tree, ofp_port_mod_config_hdr, tvb, *offset, 4, FALSE);
     config_tree = proto_item_add_subtree(config_item, ett_ofp_port_mod_config_hdr);
@@ -1865,7 +1865,7 @@ static void dissect_port_mod(proto_tree* tree, proto_item* item, tvbuff_t *tvb, 
         add_child_const(config_tree, ofp_port_mod_config[i], tvb, *offset, 4);
     }
     *offset += 4;
-            
+
     /* mask */
     mask_item = proto_tree_add_item(tree, ofp_port_mod_mask_hdr, tvb, *offset, 4, FALSE);
     mask_tree = proto_item_add_subtree(mask_item, ett_ofp_port_mod_mask_hdr);
@@ -1890,7 +1890,7 @@ static void dissect_wildcards(proto_tree* match_tree, proto_item* match_item, tv
 {
     proto_item *wild_item = proto_tree_add_item(match_tree, ofp_match_wildcards_hdr, tvb, *offset, 4, FALSE);
     proto_tree *wild_tree = proto_item_add_subtree(wild_item, ett_ofp_match_wildcards_hdr);
-    
+
     /* add wildcard subtree */
     int i;
     for(i=0; i<NUM_WILDCARDS; i++)
@@ -2048,10 +2048,10 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
 {
     proto_item *match_item = proto_tree_add_item(tree, ofp_match, tvb, *offset, sizeof(struct ofp_match), FALSE);
     proto_tree *match_tree = proto_item_add_subtree(match_item, ett_ofp_match);
-    
+
 	/* save wildcards field for later */
-    guint32 wildcards = tvb_get_ntohl( tvb, *offset );   
-    
+    guint32 wildcards = tvb_get_ntohl( tvb, *offset );
+
     dissect_wildcards(match_tree, match_item, tvb, pinfo, offset, ofp_match_wildcards);
 
     /* show only items whose corresponding wildcard bit is not set */
@@ -2064,7 +2064,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
         add_child(match_tree, ofp_match_dl_src, tvb, offset, 6);
     else
         *offset += 6;
-    
+
     if( ~wildcards & OFPFW_DL_DST )
         add_child(match_tree, ofp_match_dl_dst, tvb, offset, 6);
     else
@@ -2074,7 +2074,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
         add_child(match_tree, ofp_match_dl_vlan, tvb, offset, 2);
     else
         *offset += 2;
-    
+
     if( ~wildcards & OFPFW_DL_TYPE )
         dissect_dl_type(match_tree, ofp_match_nw_proto, tvb, offset);
     else
@@ -2089,7 +2089,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
         *offset += 1;
 
     dissect_pad(match_tree, offset, 1);
-    
+
     if( ~wildcards & OFPFW_NW_SRC_MASK )
         add_child(match_tree, ofp_match_nw_src, tvb, offset, 4);
     else
@@ -2099,7 +2099,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
         add_child(match_tree, ofp_match_nw_dst, tvb, offset, 4);
     else
         *offset += 4;
-    
+
     /* Display either ICMP type/code or TCP/UDP ports */
     if( nw_proto == IP_PROTO_ICMP) {
         dissect_icmp_type_code_match(match_tree, tvb, offset,
@@ -2146,11 +2146,11 @@ static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pa
     proto_item *action_item = proto_tree_add_item(tree, ofp_action, tvb, *offset, len, FALSE);
     proto_tree *action_tree = proto_item_add_subtree(action_item, ett_ofp_action);
 
-    if (!(len == 8 || len == 16)) { 
+    if (!(len == 8 || len == 16)) {
         add_child_str(action_tree, ofp_action_unknown, tvb, offset, len, "Invalid Action Length");
         return -1;
     }
-    
+
     add_child( action_tree, ofp_action_type, tvb, offset, 2 );
     add_child( action_tree, ofp_action_len, tvb, offset, 2 );
 
@@ -2168,7 +2168,7 @@ static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pa
         add_child( action_tree, ofp_action_vlan_pcp, tvb, offset, 1 );
         dissect_pad(action_tree, offset, 3);
         break;
-   
+
     case OFPAT_STRIP_VLAN:
         add_child( action_tree, ofp_action_unknown, tvb, offset, 0 );
     	dissect_pad(action_tree, offset, 4);    	
@@ -2177,7 +2177,7 @@ static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pa
     case OFPAT_SET_DL_SRC:
     case OFPAT_SET_DL_DST:
         add_child(action_tree, ofp_action_dl_addr, tvb, offset, 6 );
-    	dissect_pad(action_tree, offset, 6);   
+    	dissect_pad(action_tree, offset, 6);
         break;
 
     case OFPAT_SET_NW_SRC:
@@ -2203,7 +2203,7 @@ static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pa
 static void dissect_action_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint len, guint offset)
 {
     guint total_len = len - offset;
-        
+
     proto_item* action_item = proto_tree_add_item(tree, ofp_action_output, tvb, offset, total_len, FALSE);
     proto_tree* action_tree = proto_item_add_subtree(action_item, ett_ofp_action_output);
 
@@ -2404,12 +2404,12 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         add_child( header_tree, ofp_header_xid,     tvb, &offset, 4 );
 
         switch( type ) {
-        
+
         case OFPT_HELLO: {
             /* nothing else in this packet type */
             break;        	
         }
-                
+
         case OFPT_ERROR: {
             type_item = proto_tree_add_item(ofp_tree, ofp_error_msg, tvb, offset, -1, FALSE);
             type_tree = proto_item_add_subtree(type_item, ett_ofp_error_msg);
@@ -2438,14 +2438,14 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 dissect_openflow_message(next_tvb, pinfo, data_tree);
 
                 col_set_writable( pinfo->cinfo, writeable);
-                
+
                 offset += (len - offset);
             }
             else
                 add_child(type_tree, ofp_error_msg_data, tvb, &offset, len - offset);
             break;
         }
-        
+
         case OFPT_ECHO_REQUEST:
         case OFPT_ECHO_REPLY: {
             if (len - offset > 0)
@@ -2457,7 +2457,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(tree, ofp_vendor, tvb, &offset, len - offset);
             break;        	
         }
-        
+
         case OFPT_FEATURES_REQUEST:
             /* nothing else in this packet type */
             break;
@@ -2468,28 +2468,28 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             proto_tree *sf_port_tree = NULL;
             guint num_ports;
             gint sz;
-            
+
             type_item = proto_tree_add_item(ofp_tree, ofp_switch_features, tvb, offset, -1, FALSE);
             //break;
             type_tree = proto_item_add_subtree(type_item, ett_ofp_switch_features);
-           
+
             /* fields we'll put directly in the subtree */
 
             add_child(type_tree, ofp_switch_features_datapath_id, tvb, &offset, 8);
 
-            add_child(type_tree, ofp_switch_features_n_buffers, tvb, &offset, 4);           
+            add_child(type_tree, ofp_switch_features_n_buffers, tvb, &offset, 4);
             add_child(type_tree, ofp_switch_features_n_tables, tvb, &offset, 1);
-            dissect_pad(type_tree, &offset, 3);            
-         
-           
+            dissect_pad(type_tree, &offset, 3);
+
+
             /* capabilities */
             dissect_capability_array(tvb, pinfo, type_tree, offset, 4);
             offset += 4;
-           
+
             /* actions */
             dissect_switch_features_actions(tvb, pinfo, type_tree, offset, 4);
             offset += 4;
-           
+
             /* handle ports */
             sf_port_item = proto_tree_add_item(type_tree, ofp_switch_features_ports_hdr, tvb, offset, -1, FALSE);
             sf_port_tree = proto_item_add_subtree(sf_port_item, ett_ofp_switch_features_ports_hdr);
@@ -2522,7 +2522,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         case OFPT_GET_CONFIG_REPLY:
         case OFPT_SET_CONFIG: {
             type_item = proto_tree_add_item(ofp_tree, ofp_switch_config, tvb, offset, -1, FALSE);
-            type_tree = proto_item_add_subtree(type_item, ett_ofp_switch_config);           
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_switch_config);
             dissect_switch_config_flags(tvb, pinfo, type_tree, &offset);
             add_child(type_tree, ofp_switch_config_miss_send_len, tvb, &offset, 2);
             break;
@@ -2572,7 +2572,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(type_tree, ofp_flow_expired_byte_count, tvb, &offset, 8);
             break;
         }
-        
+
         case OFPT_PORT_STATUS: {
             type_item = proto_tree_add_item(ofp_tree, ofp_port_status, tvb, offset, -1, FALSE);
             type_tree = proto_item_add_subtree(type_item, ett_ofp_port_status);
@@ -2582,33 +2582,33 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             dissect_phy_ports(type_tree, type_item, tvb, pinfo, &offset, 1);
             break;
         }
-        
+
         case OFPT_PACKET_OUT: {
             type_item = proto_tree_add_item(ofp_tree, ofp_packet_out, tvb, offset, -1, FALSE);
             type_tree = proto_item_add_subtree(type_item, ett_ofp_packet_out);
 
             /* get buffer_id value for later use */
             guint32 buffer_id = tvb_get_ntohl( tvb, offset );
-            
+
             if( buffer_id == 0xFFFFFFFF )
                 add_child_str(type_tree, ofp_packet_out_buffer_id, tvb, &offset, 4, "None");
             else {
                 snprintf(str, STR_LEN, "%u", buffer_id);
                 add_child_str(type_tree, ofp_packet_out_buffer_id, tvb, &offset, 4, str);
             }
-            
+
             /* display in port */
             // FIXME: bug in dissect_port for latest version
             dissect_port(type_tree, ofp_packet_out_in_port, tvb, &offset);
-            
+
             /* pull out actions len */
             guint16 actions_len = tvb_get_ntohs( tvb, offset);
             add_child(type_tree, ofp_packet_out_actions_len, tvb, &offset, 2);
-            
+
             /* dissect action array; will handle no-action case */
             dissect_action_array(tvb, pinfo, type_tree, offset + actions_len, offset);
             offset += actions_len;
-            
+
             /* if buffer id == -1, then display the provided packet */
             if( buffer_id == -1 ) {
                 /* continue the dissection with the Ethernet dissector */
@@ -2624,7 +2624,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     add_child(type_tree, ofp_packet_out_data_hdr, tvb, &offset, total_len);
                 }
             }
-            
+
             break;
         }
 
@@ -2637,17 +2637,17 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(type_tree, ofp_flow_mod_idle_timeout, tvb, &offset, 2);
             add_child(type_tree, ofp_flow_mod_hard_timeout, tvb, &offset, 2);
             add_child(type_tree, ofp_flow_mod_priority, tvb, &offset, 2);
-            
+
             /* get buffer_id value for later use */
             guint32 buffer_id = tvb_get_ntohl( tvb, offset );
-            
+
             if( buffer_id == 0xFFFFFFFF )
                 add_child_str(type_tree, ofp_flow_mod_buffer_id, tvb, &offset, 4, "None");
             else {
                 snprintf(str, STR_LEN, "%u", buffer_id);
                 add_child_str(type_tree, ofp_flow_mod_buffer_id, tvb, &offset, 4, str);
             }
-            
+
             /* add the output port */
             dissect_port(type_tree, ofp_flow_mod_out_port, tvb, &offset );
             dissect_pad(type_tree, &offset, 2);
@@ -2731,7 +2731,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(type_tree, ofp_stats_reply_flags, tvb, &offset, 2);
 
             switch( type ) {
-            
+
             case OFPST_DESC: {
             	// FIXME: add desc stats
             	proto_item* desc_item = proto_tree_add_item(type_tree, ofp_desc_stats, tvb, offset, -1, FALSE);
@@ -2741,10 +2741,10 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 add_child( desc_tree, ofp_desc_stats_hw_desc, tvb, &offset, DESC_STR_LEN );
                 add_child( desc_tree, ofp_desc_stats_sw_desc, tvb, &offset, DESC_STR_LEN );
                 add_child( desc_tree, ofp_desc_stats_serial_num, tvb, &offset, SERIAL_NUM_LEN );
-                
+
             	break;
             }
-            
+
             case OFPST_FLOW: {
                 /* process each flow stats struct in the packet */
                 while( offset < len ) {
@@ -2796,7 +2796,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     add_child(table_tree, ofp_table_stats_table_id, tvb, &offset, 1);
                     dissect_pad(table_tree, &offset, 3);
                     add_child( table_tree, ofp_table_stats_name, tvb, &offset, OFP_MAX_TABLE_NAME_LEN);
-                    dissect_wildcards(table_tree, table_item, tvb, pinfo, &offset, ofp_table_stats_wildcards);                    
+                    dissect_wildcards(table_tree, table_item, tvb, pinfo, &offset, ofp_table_stats_wildcards);
                     add_child(table_tree, ofp_table_stats_max_entries, tvb, &offset, 4);
                     add_child(table_tree, ofp_table_stats_active_count, tvb, &offset, 4);
                     add_child(table_tree, ofp_table_stats_lookup_count, tvb, &offset, 8);
@@ -2818,7 +2818,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     add_child(port_tree, ofp_port_stats_rx_bytes, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_tx_bytes, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_rx_dropped, tvb, &offset, 8);
-                    add_child(port_tree, ofp_port_stats_tx_dropped, tvb, &offset, 8);                    
+                    add_child(port_tree, ofp_port_stats_tx_dropped, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_rx_errors, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_tx_errors, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_rx_frame_err, tvb, &offset, 8);
@@ -2833,12 +2833,12 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 proto_item* vendor_item = proto_tree_add_item(type_tree, ofp_vendor_stats, tvb, offset, -1, FALSE);
                 proto_tree* vendor_tree = proto_item_add_subtree(vendor_item, ett_ofp_vendor_stats);
 
-                add_child(vendor_tree, ofp_vendor_stats_vendor, tvb, &offset, 4);           
+                add_child(vendor_tree, ofp_vendor_stats_vendor, tvb, &offset, 4);
                 add_child(vendor_tree, ofp_vendor_stats_body, tvb, &offset, len - offset);
                	
             	break;
             }
-            
+
             default:
                 /* add as bytes if type isn't one we know how to dissect */
                 add_child(type_tree, ofp_stats_reply_body, tvb, &offset, len - offset);
