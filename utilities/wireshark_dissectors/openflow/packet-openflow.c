@@ -1011,7 +1011,7 @@ void proto_register_openflow()
           { "IP Dst Addr", "of.match_nw_dst", FT_IPv4, BASE_DEC, NO_STRINGS, NO_MASK, "Destination IP Address", HFILL }},
 
         { &ofp_match_nw_proto,
-          { "IP Protocol", "of.match_", FT_UINT8, BASE_HEX, NO_STRINGS, NO_MASK, "IP Protocol", HFILL }},
+          { "IP Protocol", "of.match_nw_proto", FT_UINT8, BASE_HEX, NO_STRINGS, NO_MASK, "IP Protocol", HFILL }},
 
         { &ofp_match_tp_src,
           { "TCP/UDP Src Port", "of.match_tp_src", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Source Port", HFILL }},
@@ -2076,7 +2076,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
         *offset += 2;
 
     if( ~wildcards & OFPFW_DL_TYPE )
-        dissect_dl_type(match_tree, ofp_match_nw_proto, tvb, offset);
+        dissect_dl_type(match_tree, ofp_match_dl_type, tvb, offset);
     else
         *offset += 2;
 
