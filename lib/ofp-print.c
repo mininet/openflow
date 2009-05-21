@@ -214,20 +214,8 @@ static void ofp_print_port_name(struct ds *string, uint16_t port)
 static void
 ofp_print_nx_action(struct ds *string, const struct nx_action_header *nah)
 {
-
-    if (nah->subtype == htonl(NXAST_SNAT)) {
-        const struct nx_action_snat *nas = (struct nx_action_snat *)nah;
-        uint16_t port = ntohs(nas->port);
-
-        if (port < OFPP_MAX) {
-            ds_put_format(string, "nat:%"PRIu16, port);
-        } else {
-            ds_put_format(string, "nat:%"PRIu16" (invalid port)", port);
-        }
-    } else {
-        ds_put_format(string, "***unknown Nicira action:%d***\n", 
-                ntohl(nah->subtype));
-    }
+    ds_put_format(string, "***unknown Nicira action:%d***\n", 
+            ntohl(nah->subtype));
 }
 
 static int

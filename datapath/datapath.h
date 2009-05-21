@@ -78,7 +78,6 @@ struct net_bridge_port {
 	struct datapath	*dp;
 	struct net_device *dev;
 	struct kobject kobj;
-	struct snat_conf *snat;  /* Only set if SNAT is configured for this port. */
 	struct list_head node;   /* Element in datapath.ports. */
 };
 

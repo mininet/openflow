@@ -27,11 +27,6 @@ secchan_ofprotocol_SOURCES = \
 	secchan/status.h \
 	secchan/stp-secchan.c \
 	secchan/stp-secchan.h
-if SUPPORT_SNAT
-secchan_ofprotocol_SOURCES += \
-	secchan/snat.c \
-	secchan/snat.h
-endif
 secchan_ofprotocol_LDADD = lib/libopenflow.a $(FAULT_LIBS) $(SSL_LIBS)
 
 EXTRA_DIST += secchan/ofprotocol.8.in

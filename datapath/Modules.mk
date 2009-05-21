@@ -19,7 +19,6 @@ ofdatapath_sources = \
 	flow.c \
 	forward.c \
 	nx_act.c \
-	nx_act_snat.c \
 	nx_msg.c \
 	table-hash.c \
 	table-linear.c 
@@ -34,7 +33,6 @@ ofdatapath_headers = \
 	forward.h \
 	dp_act.h \
 	nx_act.h \
-	nx_act_snat.h \
 	nx_msg.h \
 	table.h 
 

@@ -38,7 +38,6 @@
 #include "openflow/nicira-ext.h"
 #include "openflow/openflow-netlink.h"
 #include "datapath.h"
-#include "nx_act_snat.h"
 #include "table.h"
 #include "chain.h"
 #include "dp_dev.h"
@@ -443,9 +442,6 @@ int add_switch_port(struct datapath *dp, struct net_device *dev)
  * Called with RTNL lock and dp_mutex. */
 int dp_del_switch_port(struct net_bridge_port *p)
 {
-#ifdef SUPPORT_SNAT
-	unsigned long flags;
-#endif
 
 #if CONFIG_SYSFS
 	if ((p->port_no != OFPP_LOCAL) && dp_del_if_hook) 
@@ -461,13 +457,6 @@ int dp_del_switch_port(struct net_bridge_port *p)
 
 	/* Then wait until no one is still using it, and destroy it. */
 	synchronize_rcu();
-
-#ifdef SUPPORT_SNAT
-	/* Free any SNAT configuration on the port. */
-	spin_lock_irqsave(&p->lock, flags);
-	snat_free_conf(p);
-	spin_unlock_irqrestore(&p->lock, flags);
-#endif
 
 	/* Notify the ctlpath that this port no longer exists */
 	dp_send_port_status(p, OFPPR_DELETE);
@@ -520,16 +509,6 @@ static int dp_maint_func(void *data)
 
 	allow_signal(SIGKILL);
 	while (!signal_pending(current)) {
-#ifdef SUPPORT_SNAT
-		struct net_bridge_port *p;
-
-		/* Expire old SNAT entries */
-		rcu_read_lock();
-		list_for_each_entry_rcu (p, &dp->port_list, node) 
-			snat_maint(p);
-		rcu_read_unlock();
-#endif
-
 		/* Timeout old entries */
 		chain_timeout(dp->chain);
 		msleep_interruptible(MAINT_SLEEP_MSECS);
@@ -551,12 +530,6 @@ do_port_input(struct net_bridge_port *p, struct sk_buff *skb)
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (!skb)
 		return;
-
-#ifdef SUPPORT_SNAT
-	/* Check if this packet needs early SNAT processing. */
-	if (snat_pre_route(skb)) 
-		return;
-#endif
 
 	/* Push the Ethernet header back on. */
 	skb_push(skb, ETH_HLEN);
@@ -653,56 +626,6 @@ void dp_set_origin(struct datapath *dp, uint16_t in_port,
 		skb->dev = NULL;
 }
 
-#ifdef SUPPORT_SNAT
-static int 
-dp_xmit_skb_finish(struct sk_buff *skb)
-{
-	/* Copy back the Ethernet header that was stowed earlier. */
-	if (skb->protocol == htons(ETH_P_IP) && snat_copy_header(skb)) {
-		kfree_skb(skb);
-		return -EINVAL;
-	}
-	skb_reset_mac_header(skb);
-
-	if (packet_length(skb) > skb->dev->mtu && !skb_is_gso(skb)) {
-		printk("dropped over-mtu packet: %d > %d\n",
-			   packet_length(skb), skb->dev->mtu);
-		kfree_skb(skb);
-		return -E2BIG;
-	}
-
-	skb_push(skb, ETH_HLEN);
-	dev_queue_xmit(skb);
-
-	return 0;
-}
-
-int
-dp_xmit_skb(struct sk_buff *skb)
-{
-	int len = skb->len;
-	int err;
-
-	skb_pull(skb, ETH_HLEN);
-
-	/* The ip_fragment function does not copy the Ethernet header into
-	 * the newly generated frames, so stow the original. */
-	if (skb->protocol == htons(ETH_P_IP))
-		snat_save_header(skb);
-
-	if (skb->protocol == htons(ETH_P_IP) &&
-			skb->len > skb->dev->mtu &&
-			!skb_is_gso(skb)) {
-		err = ip_fragment(skb, dp_xmit_skb_finish);
-	} else {
-		err = dp_xmit_skb_finish(skb);
-	}
-	if (err)
-		return err;
-
-	return len;
-}
-#else
 int 
 dp_xmit_skb(struct sk_buff *skb)
 {
@@ -720,7 +643,6 @@ dp_xmit_skb(struct sk_buff *skb)
 
 	return len;
 }
-#endif
 
 /* Takes ownership of 'skb' and transmits it to 'out_port' on 'dp'.
  */
@@ -761,9 +683,6 @@ int dp_output_port(struct datapath *dp, struct sk_buff *skb, int out_port,
 
 	case OFPP_LOCAL: {
 		struct net_device *dev = dp->netdev;
-#ifdef SUPPORT_SNAT
-		snat_local_in(skb);
-#endif
 		return dev ? dp_dev_recv(dev, skb) : -ESRCH;
 	}
 

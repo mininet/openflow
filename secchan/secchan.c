@@ -61,9 +61,6 @@
 #include "poll-loop.h"
 #include "ratelimit.h"
 #include "rconn.h"
-#ifdef SUPPORT_SNAT
-#include "snat.h"
-#endif
 #include "flow-end.h"
 #include "stp-secchan.h"
 #include "status.h"
@@ -213,9 +210,6 @@ main(int argc, char *argv[])
     /* Set up hooks. */
     port_watcher_start(&secchan, local_rconn, remote_rconn, &pw);
     discovery = s.discovery ? discovery_init(&s, pw, switch_status) : NULL;
-#ifdef SUPPORT_SNAT
-    snat_start(&secchan, pw);
-#endif
     flow_end_start(&secchan, s.netflow_dst, local_rconn, remote_rconn);
     if (s.enable_stp) {
         stp_start(&secchan, pw, local_rconn, remote_rconn);
