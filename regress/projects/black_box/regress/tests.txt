@@ -47,6 +47,10 @@ test_ip_offset/run.pl
 test_tcp_options/run.pl
 ##test_llc/run.pl
 
+# Failover Tests
+test_failover_startup/run.pl
+test_failover_close/run.pl
+
 # BELOW NOT INCLUDED IN CURRRENT RELEASE 
 # WILL BE AVAILABLE SOON
 # Stress Tests / Performance Evaluation
@@ -61,3 +65,5 @@ test_tcp_options/run.pl
 #test_forward_latency/run.pl
 #test_switch_bandwidth_random/run.pl
 #test_switch_bandwidth_random/run.pl
+# Additional Failover tests
+#test_failover_stop_responding/run.pl

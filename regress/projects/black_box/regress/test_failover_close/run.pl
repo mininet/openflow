@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-# Simple Two-controller Failover test
+# Simple two-controller failover test
 #
 # For this test to work, the switch must be set up to use our
 # two "controllers", e.g.
@@ -8,10 +8,13 @@
 # ofprotocol --controller=tcp:127.0.0.1:6633,tcp:127.0.0.1:6634
 #
 # If you use different ports than the defaults, then you must
-# pass the --controller option into this script as well
-#
+# pass the --controller option into this script as well.
 #
 # Failover test 2: Controller is fine, but closes connection
+#
+# For this test, we accept the Hello sequence and then close
+# the socket. Then we listen for a failover connection on the
+# second socket.
 #
 
 use strict;
@@ -20,14 +23,16 @@ use OF::Includes;
 # Save ARGV for future reference
 my @ARGS = @ARGV;
 
-print "Failover Close() Test phase 1: calling run_black_box_test with @ARGV\n";
+my $test = "Failover test 2 (connection closed)";
+
+print "$test phase 1: calling run_black_box_test with @ARGV\n";
 
 # Start up, say Hello, and close connection
 sub close_failover_test_phase_1 {
    my ($sock) = @_;
-   print "Close() Failover: got socket $sock\n";
-   print "Startup Failover Close() Test: finished Hello sequence on first controller\n";
-   print "Startup Failover Close() Test: closing socket\n";
+   print "$test: Got socket $sock\n";
+   print "$test: Finished Hello sequence on first controller\n";
+   print "$test: Closing socket\n";
    $sock->close();
 }
 
@@ -55,9 +60,9 @@ for (my $i = 0; $i < @ARGV; $i++) {
 
 
 sub close_failover_test_phase_2 {
-   print "Close() Failover: Failover to second controller succeeded\n";
+   print "$test: Failover to second controller succeeded\n";
 }
 
-print "Failover Close() Test phase 2: calling run_black_box_test with @ARGV\n";
+print "$test: Calling run_black_box_test with @ARGV\n";
 run_black_box_test( \&close_failover_test_phase_2, \@ARGV ); # do exit this time
 

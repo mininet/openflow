@@ -25,13 +25,15 @@ use Test::PacketLib;
 use threads;
 use threads::shared;
 use Net::RawIP;
-use Getopt::Long;
+use Getopt::Long qw(GetOptionsFromArray);
 
 use vars qw(@ISA @EXPORT);    # needed cos strict is on
 
 @ISA    = ('Exporter');
 @EXPORT = qw(
   &nftest_init
+  &nftest_default_controllers
+  &nftest_parse_controllers
   &nftest_start
   &nftest_restart
   &nftest_send
@@ -156,6 +158,45 @@ my %vhostsARPdisable : shared;
 my %vhARPReqLog : shared;
 my %vhARPRepLog : shared;
 
+
+
+###############################################################
+# Name: nftest_default_controllers
+#
+# Returns a string of two default controllers (to support
+# failover testing)
+###############################################################
+sub nftest_default_controllers { return "tcp:127.0.0.1:6633,tcp:127.0.0.1:6634"; }
+
+###############################################################
+# Name: nftest_parse_controllers
+#
+# Parses a list of controllers for easy access
+#
+# Arguments: controllers	controller parameter string
+#
+# Returns: list of ((proto,host,port)...)
+#
+###############################################################
+sub nftest_parse_controllers {
+   # Parse a list of proto:host:port,proto:host:port...
+   my @controllers = split(/,/, $_[0]);
+   my @default_controllers = split(/,/, nftest_default_controllers());
+   my ($proto, $host, $port) = split(/:/, $default_controllers[0]);
+   my @results = ();
+   foreach my $controller (@controllers) {
+      my @params = split(/:/, $controller);
+      # Accept "proto:host:port", "host:port", "host", or ""
+      if (@params == 1) { $controller = "$proto:$controller:$port"; }
+      if (@params == 2) { $controller = "$proto:$controller"; }
+      if (@params < 1 || @params > 3) { die "bad controller specified: $controller\n"; }
+      @params = split(/:/, $controller);
+      # print "parse: adding $params[0], $params[1], $params[2]\n";
+      push(@results, @params);
+   }
+   return @results;
+}
+
 ###############################################################
 # Name: nftest_init
 #
@@ -178,8 +219,9 @@ sub nftest_init {
 	$options{'base_idle'} = 2;
 
 	unless (
-		GetOptions( 
-			\%options, 
+		GetOptionsFromArray(
+                        \@ARGV,
+ 			\%options,
 			"map=s",
 			"controller=s",
 			"port_base=i",
@@ -202,8 +244,11 @@ sub nftest_init {
 
 	# next in line for generalizing the tests
 	$options{'num_ports'} = 4;
-	
-	if ( not defined ($options{'controller'})) { die "please define controller\n"};
+
+	if ( not defined ($options{'controller'})) {
+           $options{'controller'} = nftest_default_controllers();
+           print "Using default controller(s) $options{'controller'}\n";
+        }
 	
 	# Process the mappings if specified, else use defaults
 	if ( defined( $options{'map'} ) ) {

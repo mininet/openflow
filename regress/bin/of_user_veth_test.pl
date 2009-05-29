@@ -23,6 +23,6 @@ sub INT_Handler {
 }
 
 my $of_port = get_of_port();
-push @ARGV, "--map=$ENV{'OFT_ROOT'}/bin/veth.map", "--root=$ENV{'OFT_ROOT'}", "--common-st-args=user_veth", "--controller=localhost:$of_port";
+push( @ARGV, "--map=$ENV{'OFT_ROOT'}/bin/veth.map", "--root=$ENV{'OFT_ROOT'}", "--common-st-args=user_veth");
 
 run_regress_test( \&INT_Handler, @ARGV );

@@ -5,10 +5,11 @@ use Getopt::Long;
 use OF::OFUtil;
 use Test::TestLib;
 
-my $mapFile;
+my ($mapFile, $controller);
 
 # Process command line options
-unless ( GetOptions( "map=s" => \$mapFile, ) ) {
+unless ( GetOptions( "map=s" => \$mapFile,
+                     "controller=s", \$controller) ) {
 	print "unrecognized option\n";
 	exit 1;
 }
@@ -17,4 +18,4 @@ if ( defined($mapFile) ) {
 	nftest_process_iface_map($mapFile);
 }
 
-setup_user();
+setup_user($controller);

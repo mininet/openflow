@@ -2,19 +2,24 @@
 
 # Simple two-controller failover test
 #
-# Failover Test #1: Startup Failover
-#
 # For this test to work, the switch must be set up to use our
 # two "controllers", e.g.
 #
 # ofprotocol --controller=tcp:127.0.0.1:6633,tcp:127.0.0.1:6634
 #
 # If you use different ports than the defaults, then you must
-# pass the --controller option into this script as well
+# pass the --controller option into this script as well.
+#
+# Failover Test 1: Startup Failover
+#
+# For this test, we listen on the second controller port rather
+# than the first.
 #
 
 use strict;
 use OF::Includes;
+
+my $test="Failover test 1 (startup failover)";
 
 # If no controllers specified, use default
 if  (not @ARGV =~ "--controller") {
@@ -30,10 +35,10 @@ for (my $i = 0; $i < @ARGV; $i++) {
    }
 }
 
-"Startup Failover Test: calling run_black_box_test with @ARGV\n";
+print "$test: Calling run_black_box_test with @ARGV\n";
 
 sub startup_failover_test {
-   print "Startup Failover Test: failed over successfully\n";
+   print "$test: Failed over successfully\n";
 }
 
 run_black_box_test( \&startup_failover_test, \@ARGV );

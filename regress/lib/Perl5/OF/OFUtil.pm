@@ -160,6 +160,17 @@ sub setup_pcap_interfaces {
 	}
 }
 
+sub start_ofprotocol {
+
+        my ( $controller ) = @_;
+        if ( !$controller) { $controller = nftest_default_controllers(); }
+
+        my $cmd = "${openflow_dir}/secchan/ofprotocol unix:/var/run/test $controller --inactivity-probe=999999 &";
+
+        print "about to run $cmd\n";
+        system($cmd);
+}
+
 sub setup_kmod {
 
 	setup_pcap_interfaces();
@@ -190,7 +201,7 @@ sub setup_kmod {
 		`${openflow_dir}/utilities/dpctl addif nl:0 $iface`;
 	}
 
-	system("${openflow_dir}/secchan/ofprotocol --inactivity-probe=999999 nl:0 tcp:127.0.0.1 &");
+        start_ofprotocol(@_);
 }
 
 sub setup_NF2 {
@@ -239,8 +250,9 @@ sub setup_NF2 {
         print "added interface\n";
 	}
 
-	system("${openflow_dir}/secchan/ofprotocol --inactivity-probe=999999 nl:0 tcp:127.0.0.1 &");
+        start_ofprotocol(@_);
 }
+
 
 sub setup_user {
 
@@ -252,11 +264,11 @@ sub setup_user {
 		$if_string .= nftest_get_iface("eth$i") . ',';
 	}
 	$if_string .= nftest_get_iface("eth8");
-	print "about to create ofdatapath punix:/var/run/test -i $if_string \& \
-n";
-	system("${openflow_dir}/udatapath/ofdatapath punix:/var/run/test -i $if_string \&");
-	print "about to create ofprotocol \& \n";
-	system("${openflow_dir}/secchan/ofprotocol --inactivity-probe=999999 unix:/var/run/test tcp:127.0.0.1 &");
+
+	print "about to create ofdatapath` punix:/var/run/test -i $if_string \& \n";	
+        system("${openflow_dir}/udatapath/ofdatapath punix:/var/run/test -i $if_string \&");
+
+        start_ofprotocol(@_);
 }
 
 sub teardown_kmod {
@@ -355,7 +367,7 @@ sub compare {
 
 sub create_controller_socket {
 	my ($host, $port) = @_;
-	print "about to make socket\n";
+	print "about to make socket: tcp:$host:$port\n";
 	my $sock = new IO::Socket::INET(
 		LocalHost => $host,
 		LocalPort => $port,
@@ -611,26 +623,14 @@ sub set_config {
 	syswrite( $sock, $set_config );
 }
 
+
 sub run_black_box_test {
-	
-	my ( $test_ref, $argv_ref ) = @_;
+
+	my ( $test_ref, $argv_ref, $dont_exit ) = @_;
 
 	my %options = nftest_init( $argv_ref, \@interfaces, );
 
-	my $host = 'localhost';
-	my $port = $of_port;
-	# extract host and port from controller string if passed in
-	if (defined $options{'controller'}) {
-		# Assume fully qualified string : tcp:<controller>:<port>
-		# Jean II
-		($proto, $host, $port) = split(/:/,$options{'controller'});
-		# Check for string missing the protocol - Jean II
-		if ( ! defined ($port) ) {
-			$proto = "tcp";
-			($host, $port) = split(/:/,$options{'controller'});
-		}
-	}
-	#!!!
+        my ($proto, $host, $port) = nftest_parse_controllers( $options{'controller'} );
 	print "using host $host and port $port\n";
 
 	$sock = create_controller_socket($host, $port);
@@ -679,7 +679,7 @@ sub run_black_box_test {
 			print "FAIL: $total_errors errors\n";
 			$exitCode = 1;
 		}
-		exit($exitCode);
+		if (!$dont_exit ) { exit($exitCode); }
 	};
 }
 

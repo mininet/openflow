@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-# Simple Two-controller Failover test
+# Simple two-controller failover test
 #
 # For this test to work, the switch must be set up to use our
 # two "controllers", e.g.
@@ -8,9 +8,12 @@
 # ofprotocol --controller=tcp:127.0.0.1:6633,tcp:127.0.0.1:6634
 #
 # If you use different ports than the defaults, then you must
-# pass the --controller option into this script as well
+# pass the --controller option into this script as well.
 #
 # Failover test 3: Controller is fine, but stops responding
+#
+# For this test, we accept the Hello sequence on the first port
+# but then listen for a failover connection on the second port.
 #
 
 use strict;
@@ -19,15 +22,17 @@ use OF::Includes;
 # Save ARGV for future reference
 my @ARGS = @ARGV;
 
-print "Failover Stop Responding Test phase 1: calling run_black_box_test with @ARGV\n";
+my $test="Failover test 3 (controller stops responding)";
+
+print "$test phase 1: calling run_black_box_test with @ARGV\n";
 
 # Start up, say Hello, and close connection
 sub stop_responding_test_phase_1 {
    my ($sock) = @_;
-   print "Close() Failover: got socket $sock\n";
-   print "Startup Failover Stop Responding Test: finished Hello sequence on first controller\n";
-   print "Startup Failover Close() Test: not closing socket\n";
-   print "Startup Failover Close() Test: invoking phase 2\n";
+   print "$test: Got socket $sock\n";
+   print "$test: Finished Hello sequence on first controller\n";
+   print "$test: Not closing socket\n";
+   print "$test: Invoking phase 2\n";
    stop_responding_phase_2();
 }
 
@@ -50,11 +55,11 @@ sub stop_responding_phase_2 {
    # run_black_box_test() will use bar's port rather than foo's
    for (my $i = 0; $i < @ARGV; $i++) {
       if ($ARGV[$i] =~ /controller=[^,]*,([^\s]+)/ ) {
-         print "failover_startup: got controller $1\n";
+         print "$test: got controller $1\n";
          $ARGV[$i] = "--controller=$1";
       }
    }
 
-   print "Failover Stop Responding Test phase 2: calling run_black_box_test with @ARGV\n";
+   print "$test: Calling run_black_box_test with @ARGV\n";
    run_black_box_test( \&close_failover_test_phase_2, \@ARGV ); # do exit this time
 }
