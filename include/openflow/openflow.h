@@ -73,7 +73,7 @@
 
 #define OFP_ETH_ALEN 6          /* Bytes in an Ethernet address. */
 
-/* Port numbering.  Physical ports are numbered starting from 0. */
+/* Port numbering.  Physical ports are numbered starting from 1. */
 enum ofp_port {
     /* Maximum number of physical switch ports. */
     OFPP_MAX = 0xff00,

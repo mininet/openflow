@@ -95,7 +95,7 @@ Table 2 shows the header fields an incoming packet is compared against. Each ent
 \footnotesize
 \begin{tabularx}{\textwidth}{ |X|X|X|X| }
 \hline Field & Bits & When applicable & Notes \\
-\hline Ingress Port & (Implementation dependent) & All packets & Numerical representation of incoming port.  \\
+\hline Ingress Port & (Implementation dependent) & All packets & Numerical representation of incoming port, starting at 1.  \\
 \hline Ethernet source address & 48 & All packets on enabled ports & \\
 \hline Ethernet destination address & 48 & All packets on enabled ports & \\ 
 \hline Ethernet type & 16 & All packets on enabled ports & An OpenFlow switch is required to match the type in both standard Ethernet and 802.2 with a SNAP header and OUI of 0x000000.  The special value of 0x05FF is used to match all 802.3 packets without SNAP headers. \\
