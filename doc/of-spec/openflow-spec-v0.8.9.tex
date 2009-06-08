@@ -352,11 +352,11 @@ Flow table modification messages can have the following types:
 For ADD requests with set wildcard fields, the switch must first check for any already-inserted entries that conflict with the incoming entry (i.e., same priority and there exists an entry that could match both).   If a conflict is found, the switch should refuse the addition and may respond with an \verb|OFPEFM_ADD_OVERLAP| error message.  For valid (non-conflicting) ADD requests, the new flow should be added to the lowest numbered table for which the switch supports all  wildcards set in the \verb|flow_match| struct, and for which the priority would be observed during the matching process.    
 If a flow entry with identical header fields and priority already resides in any table, then that entry, including its counters, must be removed, and the new flow entry added.  
 \\\\
+If a switch cannot find any table in which to add the incoming flow entry, the switch should send an \verb|OFPT_ERROR_MSG| with \verb|OFPET_FLOW_MOD_FAILED| type and \verb|OFPFMFC_ALL_TABLES_FULL| type.
+\\\\
 For MODIFY requests, if a flow entry with identical header fields does not current reside in any table, the new flow entry must be inserted with zeroed counters.  Otherwise, the actions field is changed on the existing entry and its counters and idle time fields are left unchanged.
 \\\\
 For DELETE requests, if no flow entry matches, no error is recorded, and no flow table modification occurs.  If flow entries match, and must be deleted, then each entry with the \verb|OFPFF_SEND_FLOW_EXP| flag set should generate a flow expiration message.
-\\\\
-If a switch cannot find any table in which to add the incoming flow entry, the switch should send an \verb|OFPT_ERROR_MSG| with \verb|OFPET_FLOW_MOD_FAILED| type and \verb|OFPFMFC_ALL_TABLES_FULL| type.
 \\\\
 MODIFY and DELETE flow mod commands have corresponding \_STRICT versions.   Without \_STRICT appended, the wildcards are “active” and all flows that match the description are modified or removed.  If \_STRICT is appended, all fields, including the wildcards and priority, are strictly matched against the entry, and only an identical flow is modified or removed.  For example, if a message to remove entries is sent that has all the wildcard flags set, the DELETE command would delete all flows from all tables, while the DELETE\_STRICT command would only delete a rule that applies to all packets at the specified priority. 
 \\\\
