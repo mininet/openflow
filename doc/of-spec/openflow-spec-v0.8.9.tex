@@ -28,11 +28,9 @@ Current Maintainer: Brandon Heller (brandonh@stanford.edu)
 \end{center}
 
 \section{Introduction}
-This document describes the requirements of an OpenFlow Switch.  We recommend that you read the latest version of the OpenFlow whitepaper before reading this specification. The whitepaper is available on the  OpenFlow Consortium website (\url{http://OpenFlowSwitch.org}). This specification covers the components and the basic functions of the switch, and the OpenFlow protocol to manage an OpenFlow switch from a remote controller. 
+This document describes the requirements of an OpenFlow Switch.  We recommend that you read the latest version of the OpenFlow whitepaper before reading this specification. The whitepaper is available on the  OpenFlow Consortium website (\url{http://OpenFlowSwitch.org}). This specification covers the components and the basic functions of the switch, and the OpenFlow protocol to manage an OpenFlow switch from a remote controller.
 \\\\
-OpenFlow Switches will be of ``Type 0'' or ``Type 1'', depending on their capabilities. Type 0 represents the minimum requirements for any conforming OpenFlow Switch. Type 1 requirements will be a superset of Type 0, and remain to be defined. It is expected that commercial OpenFlow Switches will initially be of Type 0, evolving to Type 1; and that vendors will support additional features over time. However, all switches are expected to use the same OpenFlow Protocol for communication between switch and controller. For the remainder of this version of the document, unless otherwise specified, all references to an OpenFlow Switch refer to Type 0.
-\\\\
-Version 1.0 of this document will be the first to specify a Type 0 switch suitable for implementation. Versions before Version 1.0 will be marked ``Draft", and will include the header: ``Do not build a switch from this specification!" We hope to generate feedback from versions prior to Version 1.0 from switch designers and network researchers.
+Version 1.0 of this document will be the first for which official vendor support is expected.  Versions before 1.0 will be marked ``Draft", and will include the header: ``Do not build a switch from this specification!" We hope to generate feedback prior to Version 1.0 from switch designers and network researchers, so that the set of features defined in Version 1.0 enables production deployments on a variety of vendor hardware.
 
 \begin{figure}[htbp]
 \centering
@@ -100,7 +98,7 @@ Table 2 shows the header fields an incoming packet is compared against. Each ent
 \hline Ingress Port & (Implementation dependent) & All packets & Numerical representation of incoming port.  \\
 \hline Ethernet source address & 48 & All packets on enabled ports & \\
 \hline Ethernet destination address & 48 & All packets on enabled ports & \\ 
-\hline Ethernet type & 16 & All packets on enabled ports & A Type 0 switch is required to match the type in both standard Ethernet and 802.2 with a SNAP header and OUI of 0x000000.  The special value of 0x05FF is used to match all 802.3 packets without SNAP headers. \\
+\hline Ethernet type & 16 & All packets on enabled ports & An OpenFlow switch is required to match the type in both standard Ethernet and 802.2 with a SNAP header and OUI of 0x000000.  The special value of 0x05FF is used to match all 802.3 packets without SNAP headers. \\
 \hline VLAN id & 12 & All packets of Ethernet type 0x8100 & \\
 \hline IP source address & 32 & All IP packets & Can be subnet masked \\
 \hline IP destination address & 32 & All IP packets & Can be subnet masked \\
@@ -119,7 +117,7 @@ Switch designers are free to implement the internals in any way convenient provi
 
 Counters are maintained per-table, per-flow, and per-port.  OpenFlow-compliant counters may be implemented in software and maintained by polling hardware counters with more limited ranges.
 \\\\
-Table \ref{table:counters} contains the required set of counters for Type 0 switches.  Duration refers to the number of seconds a flow has been active.  The Receive Errors field includes all explicitly specified errors, including frame, overrun, and CRC errors, plus any others.
+Table \ref{table:counters} contains the required set of counters.  Duration refers to the number of seconds a flow has been active.  The Receive Errors field includes all explicitly specified errors, including frame, overrun, and CRC errors, plus any others.
 \begin{table}[!hbp] 	
 \centering
 \footnotesize
@@ -162,7 +160,7 @@ A switch is not required to support all action types --- just those marked ``Req
 OpenFlow-only switches support only the required actions below, while OpenFlow-enabled switches, routers, and access points may also support the \textbf{NORMAL} action.  Either type of switch can also support the \textbf{FLOOD} action.
 \\\\
 \textbf{Required Action:} \textit{Forward}. 
-Type 0 switches must support forwarding the packet to physical ports and the following virtual ones:
+OpenFlow switches must support forwarding the packet to physical ports and the following virtual ones:
 \begin{itemize}
 \item \textbf{ALL:} Send the packet out all interfaces, not including the incoming interface.
 \item \textbf{CONTROLLER:} Encapsulate and send the packet to the controller.
@@ -173,7 +171,7 @@ Type 0 switches must support forwarding the packet to physical ports and the fol
 \textbf{Optional Action:} \textit{Forward}.
 The switch may optionally support the following virtual ports:
 \begin{itemize}
-\item \textbf{NORMAL:} Process the packet using the traditional forwarding path supported by the switch (i.e., traditional L2, VLAN, and L3 processing.)  A Type 0 switch may check the VLAN field to determine whether or not to forward the packet along the normal processing route.  If the switch cannot forward entries for the OpenFlow-specific VLAN back to the normal processing route, it must indicate that it does not support this action.
+\item \textbf{NORMAL:} Process the packet using the traditional forwarding path supported by the switch (i.e., traditional L2, VLAN, and L3 processing.)  The switch may check the VLAN field to determine whether or not to forward the packet along the normal processing route.  If the switch cannot forward entries for the OpenFlow-specific VLAN back to the normal processing route, it must indicate that it does not support this action.
 \item \textbf{FLOOD:} Flood the packet along the minimum spanning tree, not including the incoming interface.
 \end{itemize}
 Ideally, a switch will support flow-entries that can forward packets to any combination of the physical and virtual ports. For example, this could be expressed internally in the switch with a bitmap that includes all the physical and virtual ports.
@@ -251,7 +249,7 @@ This action is only applied to TCP and UDP packets.\\
 \begin{figure}[!hbp]
 \centering
 \includegraphics[width=4.8in]{figure_packet_flow_flowchart.png}
-\caption{The functions performed on a packet as it moves through an OpenFlow switch.  As discussed in Section \ref{flow_table:stp_support}, support for 802.1D is optional in Type 0 switches.}
+\caption{The functions performed on a packet as it moves through an OpenFlow switch.  As discussed in Section \ref{flow_table:stp_support}, support for 802.1D is optional.}
 \label{fig:packet_flow}
 \end{figure}
 
@@ -339,7 +337,7 @@ The switch and controller communicate through an SSL connection.  The SSL connec
 
 \subsection{Spanning Tree}
 \label{flow_table:stp_support}
-Type 0 switches may optionally support 802.1D Spanning Tree Protocol.  Those switches that do support it are expected to process all 802.1D packets locally before performing flow lookup.  A switch that implements STP must set the \verb|OFPC_STP| bit in the 'capabilities' field of its \verb|OFPT_FEATURES_REPLY| message. A switch that implements STP must make it available on all of its physical ports, but it need not implement it on virtual ports (e.g. \verb|OFPP_LOCAL|). 
+OpenFlow switches may optionally support 802.1D Spanning Tree Protocol.  Those switches that do support it are expected to process all 802.1D packets locally before performing flow lookup.  A switch that implements STP must set the \verb|OFPC_STP| bit in the 'capabilities' field of its \verb|OFPT_FEATURES_REPLY| message. A switch that implements STP must make it available on all of its physical ports, but it need not implement it on virtual ports (e.g. \verb|OFPP_LOCAL|). 
 \\\\
 Port status, as specified by the spanning tree protocol, is then used to limit packets forwarded to the \verb|OFP_FLOOD| port to only those ports along the spanning tree.  Port changes as a result of the spanning tree are sent to the controller via port-update messages.  Note that forward actions that specify the outgoing port or \verb|OFP_ALL| ignore the port status set by the spanning tree protocol.
 \\\\
