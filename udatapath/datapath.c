@@ -375,7 +375,7 @@ remote_run(struct datapath *dp, struct remote *r)
             if (buffer->size >= sizeof *oh) {
                 struct sender sender;
 
-                oh = buffer->data;
+                oh = (struct ofp_header *)buffer->data;
                 sender.remote = r;
                 sender.xid = oh->xid;
                 fwd_control_input(dp, &sender, buffer->data, buffer->size);
@@ -982,13 +982,8 @@ add_flow(struct datapath *dp, const struct sender *sender,
     flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
     flow->idle_timeout = ntohs(ofm->idle_timeout);
     flow->hard_timeout = ntohs(ofm->hard_timeout);
-    flow->used = flow->created = time_msec();
-    flow->sf_acts->actions_len = actions_len;
-    flow->byte_count = 0;
-    flow->packet_count = 0;
-    flow->tcp_flags = 0;
-    flow->ip_tos = 0;
-    memcpy(flow->sf_acts->actions, ofm->actions, actions_len);
+
+    flow_setup_actions(flow, ofm->actions, actions_len);
 
     /* Act. */
     error = chain_insert(dp->chain, flow);
@@ -1314,6 +1309,64 @@ static void port_stats_done(void *state)
     free(state);
 }
 
+/*
+ * We don't define any vendor_stats_state, we let the actual
+ * vendor implementation do that.
+ * The only requirement is that the first member of that object
+ * should be the vendor id.
+ * Jean II
+ *
+ * Basically, it would look like :
+ * struct acme_stats_state {
+ *   uint32_t              vendor;         // ACME_VENDOR_ID.
+ * <...>                                  // Other stuff.
+ * };
+ */
+static int
+vendor_stats_init(struct datapath *dp, const void *body, int body_len,
+		  void **state)
+{
+	/* min_body was checked, this should be safe */
+	const uint32_t vendor = ntohl(*((uint32_t *)body));
+	int err;
+
+	switch (vendor) {
+	default:
+		err = -EINVAL;
+	}
+
+	return err;
+}
+
+static int
+vendor_stats_dump(struct datapath *dp, void *state, struct ofpbuf *buffer)
+{
+	const uint32_t vendor = *((uint32_t *)state);
+	int err;
+
+	switch (vendor) {
+	default:
+		/* Should never happen */
+		err = 0;
+	}
+
+	return err;
+}
+
+static void
+vendor_stats_done(void *state)
+{
+	const uint32_t vendor = *((uint32_t *) state);
+
+	switch (vendor) {
+	default:
+		/* Should never happen */
+		free(state);
+	}
+
+	return;
+}
+
 struct stats_type {
     /* Value for 'type' member of struct ofp_stats_request. */
     int type;
@@ -1380,6 +1433,14 @@ static const struct stats_type stats[] = {
         port_stats_init,
         port_stats_dump,
         port_stats_done
+    },
+    {
+	OFPST_VENDOR,
+	8,             /* vendor + subtype */
+	32,            /* whatever */
+	vendor_stats_init,
+	vendor_stats_dump,
+	vendor_stats_done
     },
 };
 
@@ -1624,7 +1685,7 @@ uint32_t save_buffer(struct ofpbuf *buffer)
         /* Don't buffer packet if existing entry is less than
          * OVERWRITE_SECS old. */
         if (time_now() < p->timeout) { /* FIXME */
-            return -1;
+		return (uint32_t)-1;
         } else {
             ofpbuf_delete(p->buffer); 
         }

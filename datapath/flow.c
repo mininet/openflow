@@ -260,6 +260,31 @@ void flow_deferred_free_acts(struct sw_flow_actions *sf_acts)
 }
 EXPORT_SYMBOL(flow_deferred_free_acts);
 
+/* Setup the action on the flow, just after it was created with flow_alloc().
+ * Jean II */
+void flow_setup_actions(struct sw_flow *                       flow,
+			const struct ofp_action_header *        actions,
+			int                                     actions_len)
+{
+	/* Basic init of the flow stucture */
+	flow->used = flow->created = get_jiffies_64();
+	flow->byte_count = 0;
+	flow->packet_count = 0;
+	flow->tcp_flags = 0;
+	flow->ip_tos = 0;
+	spin_lock_init(&flow->lock);
+
+	/* Make sure we don't blow the allocation done earlier */
+	if(actions_len > flow->sf_acts->actions_len) {
+		printk(KERN_ERR "flow_setup_actions: actions_len is too big (%d > %d)",
+		       actions_len, flow->sf_acts->actions_len);
+		return;
+	}
+
+	/* Setup the actions - No need for RCU at this point ;-) */
+	memcpy(flow->sf_acts->actions, actions, actions_len);
+}
+
 /* Copies 'actions' into a newly allocated structure for use by 'flow'
  * and safely frees the structure that defined the previous actions. */
 void flow_replace_acts(struct sw_flow *flow, 

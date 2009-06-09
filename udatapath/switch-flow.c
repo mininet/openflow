@@ -173,6 +173,28 @@ flow_alloc(size_t actions_len)
     return flow;
 }
 
+/* Setup the action on the flow, just after it was created with flow_alloc().
+ * Jean II */
+void
+flow_setup_actions(struct sw_flow *                    flow,
+		   const struct ofp_action_header *     actions,
+		   int                                  actions_len)
+{
+	/* Make sure we don't blow the allocation */
+	if (actions_len > flow->sf_acts->actions_len)
+		ofp_fatal(0,
+			  "flow_setup_actions: actions_len is too big (%d > %lu)",
+			  actions_len, flow->sf_acts->actions_len);
+
+	flow->used = flow->created = time_msec();
+	flow->sf_acts->actions_len = actions_len;
+	flow->byte_count = 0;
+	flow->packet_count = 0;
+	flow->tcp_flags = 0;
+	flow->ip_tos = 0;
+	memcpy(flow->sf_acts->actions, actions, actions_len);
+}
+
 /* Frees 'flow' immediately. */
 void
 flow_free(struct sw_flow *flow)

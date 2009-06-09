@@ -1712,6 +1712,62 @@ static void port_stats_done(void *state)
 	kfree(state);
 }
 
+/*
+ * We don't define any vendor_stats_state, we let the actual
+ * vendor implementation do that.
+ * The only requirement is that the first member of that object
+ * should be the vendor id.
+ * Jean II
+ *
+ * Basically, it would look like :
+ * struct acme_stats_state {
+ *  uint32_t              vendor;         // ACME_VENDOR_ID.
+ * <...>                                  // Other stuff.
+ * };
+ */
+static int vendor_stats_init(struct datapath *dp, const void *body,
+			     int body_len, void **state)
+{
+	/* min_body was checked, this is safe */
+	const uint32_t vendor = ntohl(*((uint32_t *)body));
+	int          err;
+
+	switch (vendor) {
+	default:
+		err = -EINVAL;
+	}
+
+	return err;
+}
+
+static int vendor_stats_dump(struct datapath *dp, void *state, void *body,
+			     int *body_len)
+{
+	const uint32_t vendor = *((uint32_t *)state);
+	int           newbuf;
+
+	switch (vendor) {
+	default:
+		/* Should never happen */
+		newbuf = 0;
+	}
+
+	  return newbuf;
+}
+
+static void vendor_stats_done(void *state)
+{
+	const uint32_t vendor = *((uint32_t *)state);
+
+	switch (vendor) {
+	default:
+		/* Should never happen */
+		kfree(state);
+	}
+
+	return;
+}
+
 struct stats_type {
 	/* Minimum and maximum acceptable number of bytes in body member of
 	 * struct ofp_stats_request. */
@@ -1775,6 +1831,15 @@ static const struct stats_type stats[] = {
 	},
 };
 
+/* For OFPST_VENDOR... Jean II */
+static const struct stats_type stats_vendor = {
+	8,              /* vendor + subtype */
+	32,             /* whatever */
+	vendor_stats_init,
+	vendor_stats_dump,
+	vendor_stats_done
+};
+
 static int
 dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 {
@@ -1830,13 +1895,18 @@ dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 		    || ntohs(rq->header.length) != len)
 			return -EINVAL;
 
-		if (type >= ARRAY_SIZE(stats) || !stats[type].dump) {
-			dp_send_error_msg(dp, &sender, OFPET_BAD_REQUEST,
-					  OFPBRC_BAD_STAT, rq, len);
-			return -EINVAL;
+		if (type == OFPST_VENDOR) {
+			/* Vendor is not in the array, take care of it */
+			s = &stats_vendor;
+		} else {
+			if (type >= ARRAY_SIZE(stats) || !stats[type].dump) {
+				dp_send_error_msg(dp, &sender,
+						  OFPET_BAD_REQUEST,
+						  OFPBRC_BAD_STAT, rq, len);
+				return -EINVAL;
+			}
+			s = &stats[type];
 		}
-
-		s = &stats[type];
 		body_len = len - offsetof(struct ofp_stats_request, body);
 		if (body_len < s->min_body || body_len > s->max_body)
 			return -EINVAL;
@@ -1855,7 +1925,12 @@ dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 	} else if (cb->args[0] == 1) {
 		sender.xid = cb->args[3];
 		dp_idx = cb->args[1];
-		s = &stats[cb->args[2]];
+		if (cb->args[2] == OFPST_VENDOR) {
+			/* Vendor is not in the array, take care of it */
+			s = &stats_vendor;
+		} else {
+			s = &stats[cb->args[2]];
+		}
 
 		dp = dp_get_by_idx(dp_idx);
 		if (!dp)
@@ -1868,7 +1943,7 @@ dp_genl_openflow_dumpit(struct sk_buff *skb, struct netlink_callback *cb)
 				   &max_openflow_len);
 	if (IS_ERR(osr))
 		return PTR_ERR(osr);
-	osr->type = htons(s - stats);
+	osr->type = htons(cb->args[2]);
 	osr->flags = 0;
 	resize_openflow_skb(skb, &osr->header, max_openflow_len);
 	body = osr->body;
@@ -1893,7 +1968,13 @@ static int
 dp_genl_openflow_done(struct netlink_callback *cb)
 {
 	if (cb->args[0]) {
-		const struct stats_type *s = &stats[cb->args[2]];
+		const struct stats_type *s;
+		if (cb->args[2] == OFPST_VENDOR) {
+			/* Vendor is not in the array, take care of it */
+			s = &stats_vendor;
+		} else {
+			s = &stats[cb->args[2]];
+		}
 		if (s->done)
 			s->done((void *) cb->args[4]);
 	}

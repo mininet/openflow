@@ -227,13 +227,7 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 	flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
 	flow->idle_timeout = ntohs(ofm->idle_timeout);
 	flow->hard_timeout = ntohs(ofm->hard_timeout);
-	flow->used = flow->created = get_jiffies_64();
-	flow->byte_count = 0;
-	flow->packet_count = 0;
-	flow->tcp_flags = 0;
-	flow->ip_tos = 0;
-	spin_lock_init(&flow->lock);
-	memcpy(flow->sf_acts->actions, ofm->actions, actions_len);
+	flow_setup_actions(flow, ofm->actions, actions_len);
 
 	/* Act. */
 	error = chain_insert(chain, flow);

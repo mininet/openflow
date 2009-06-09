@@ -120,6 +120,8 @@ struct sw_flow *flow_alloc(size_t actions_len, gfp_t flags);
 void flow_free(struct sw_flow *);
 void flow_deferred_free(struct sw_flow *);
 void flow_deferred_free_acts(struct sw_flow_actions *);
+void flow_setup_actions(struct sw_flow *, const struct ofp_action_header *,
+			int);
 void flow_replace_acts(struct sw_flow *, const struct ofp_action_header *, 
 		size_t);
 int flow_extract(struct sk_buff *, uint16_t in_port, struct sw_flow_key *);

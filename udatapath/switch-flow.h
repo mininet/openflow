@@ -83,9 +83,8 @@ int flow_matches_desc(const struct sw_flow_key *, const struct sw_flow_key *,
                      int);
 int flow_has_out_port(struct sw_flow *flow, uint16_t out_port);
 struct sw_flow *flow_alloc(size_t);
+void flow_setup_actions(struct sw_flow *, const struct ofp_action_header *, int);
 void flow_free(struct sw_flow *);
-void flow_deferred_free(struct sw_flow *);
-void flow_deferred_free_acts(struct sw_flow_actions *);
 void flow_replace_acts(struct sw_flow *, const struct ofp_action_header *, 
         size_t);
 void flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from);
