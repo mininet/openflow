@@ -162,10 +162,10 @@ sub setup_pcap_interfaces {
 
 sub start_ofprotocol {
 
-        my ( $controller ) = @_;
+        my ( $dpinst, $controller ) = @_;
         if ( !$controller) { $controller = nftest_default_controllers(); }
 
-        my $cmd = "${openflow_dir}/secchan/ofprotocol unix:/var/run/test $controller --inactivity-probe=999999 &";
+        my $cmd = "${openflow_dir}/secchan/ofprotocol $dpinst $controller --inactivity-probe=999999 &";
 
         print "about to run $cmd\n";
         system($cmd);
@@ -201,7 +201,7 @@ sub setup_kmod {
 		`${openflow_dir}/utilities/dpctl addif nl:0 $iface`;
 	}
 
-        start_ofprotocol(@_);
+        start_ofprotocol("nl:0", @_);
 }
 
 sub setup_NF2 {
@@ -250,7 +250,7 @@ sub setup_NF2 {
         print "added interface\n";
 	}
 
-        start_ofprotocol(@_);
+        start_ofprotocol("nl:0", @_);
 }
 
 
@@ -268,7 +268,7 @@ sub setup_user {
 	print "about to create ofdatapath` punix:/var/run/test -i $if_string \& \n";	
         system("${openflow_dir}/udatapath/ofdatapath punix:/var/run/test -i $if_string \&");
 
-        start_ofprotocol(@_);
+        start_ofprotocol("unix:/var/run/test", @_);
 }
 
 sub teardown_kmod {
