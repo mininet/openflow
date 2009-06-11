@@ -339,7 +339,7 @@ The switch and controller communicate through an SSL connection.  The SSL connec
 \label{flow_table:stp_support}
 OpenFlow switches may optionally support 802.1D Spanning Tree Protocol.  Those switches that do support it are expected to process all 802.1D packets locally before performing flow lookup.  A switch that implements STP must set the \verb|OFPC_STP| bit in the 'capabilities' field of its \verb|OFPT_FEATURES_REPLY| message. A switch that implements STP must make it available on all of its physical ports, but it need not implement it on virtual ports (e.g. \verb|OFPP_LOCAL|). 
 \\\\
-Port status, as specified by the spanning tree protocol, is then used to limit packets forwarded to the \verb|OFP_FLOOD| port to only those ports along the spanning tree.  Port changes as a result of the spanning tree are sent to the controller via port-update messages.  Note that forward actions that specify the outgoing port or \verb|OFP_ALL| ignore the port status set by the spanning tree protocol.
+Port status, as specified by the spanning tree protocol, is then used to limit packets forwarded to the \verb|OFP_FLOOD| port to only those ports along the spanning tree.  Port changes as a result of the spanning tree are sent to the controller via port-update messages.  Note that forward actions that specify the outgoing port or \verb|OFP_ALL| ignore the port status set by the spanning tree protocol.  Packets received on ports that are disabled by spanning tree must follow the normal flow table processing path. 
 \\\\
 Switches that do not support 802.1D spanning tree must allow the controller to specify the port status for packet flooding through the port-mod messages. 
 
