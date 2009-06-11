@@ -23,6 +23,6 @@ sub INT_Handler {
 }
 
 my $of_port = get_of_port();
-push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=user", "--controller=localhost:$of_port";
+push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=user", "--controller=tcp:localhost:$of_port";
 
 run_regress_test( \&INT_Handler, @ARGV );
