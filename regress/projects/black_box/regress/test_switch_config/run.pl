@@ -25,7 +25,7 @@ sub my_test {
 	# Change miss_send_len from the default
 	my $miss_send_len = 0x100;
 	
-	set_config($ofp, $sock, $flags, $miss_send_len);
+	set_config($ofp, $sock, $options_ref, $flags, $miss_send_len);
 	
 	$msg = get_config( $ofp, $sock );
 	

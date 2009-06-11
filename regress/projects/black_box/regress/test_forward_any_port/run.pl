@@ -13,9 +13,9 @@ sub my_test {
 
 	my ( $sock, $options_ref ) = @_;
 
-	enable_flow_expirations( $ofp, $sock );
+	enable_flow_expirations( $ofp, $sock, $options_ref );
 
-	for_all_port_pairs( $ofp, $sock, $options_ref, \&forward_any, 0x3ff);
+	for_all_port_pairs( $ofp, $sock, $options_ref, \&forward_any, 0xfffff);
 }
 
 run_black_box_test( \&my_test, \@ARGV );

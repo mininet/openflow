@@ -13,7 +13,7 @@ sub my_test {
 
 	my ( $sock, $options_ref ) = @_;
 
-	enable_flow_expirations( $ofp, $sock );
+	enable_flow_expirations( $ofp, $sock, $options_ref );
 
 	for_all_wildcards( $ofp, $sock, $options_ref, \&forward_wc_all);
 }
@@ -103,7 +103,7 @@ run_black_box_test( \&my_test, \@ARGV );
 #	my ( $sock, $options_ref ) = @_;
 #	my $j = $enums{'OFPP_FLOOD'};
 #
-#	enable_flow_expirations( $ofp, $sock );
+#	enable_flow_expirations( $ofp, $sock, $options_ref );
 #
 #	my $max_idle =  $$options_ref{'max_idle'};
 #	my $pkt_len = $$options_ref{'pkt_len'};

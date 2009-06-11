@@ -377,7 +377,10 @@ sub create_controller_socket {
 	);
 	die "Could not create socket: $!\n" unless $sock;
 	# Don't hold to data - Jean II
+	# This does NOT work, as it apply only to SOL_SOCKET
 	$sock->sockopt(TCP_NODELAY, 1) or die "\$sock->sockopt NODELAY, 1: $! ($^E)";
+	# This works properly - Jean II
+	setsockopt($sock, IPPROTO_TCP, TCP_NODELAY, pack("l", 1)) or die "\$sock->sockopt NODELAY, 1: $! ($^E)";
 	$sock->autoflush();
 	# It also tried $| = 1; before the print but it did not help - Jean II
 	print "made socket\n";
@@ -418,8 +421,25 @@ sub run_learning_switch_test {
 	# Fork off a process for controller
 	if ( !( $pid = fork ) ) {
 
-		# Run controller from this process
-		exec "$ENV{'OF_ROOT'}/controller/controller", "ptcp:";
+	# extract host and port from controller string if passed in
+	if (defined $options{'controller'}) {
+		# Assume fully qualified string :
+		# tcp:<controller>:<port>
+		# Jean II
+		($proto, $host, $port) = split(/:/,$options{'controller'});
+		# Check for string missing the protocol - Jean II
+		if ( ! defined ($port) ) {
+		die "Invalid controller string $options{'controller'}"
+		}
+		#!!!
+		print "Controller : using protocol $proto and port $port\n";
+		}
+                # Run controller from this process
+		if ( ! defined ($port) ) {
+			exec "$ENV{'OF_ROOT'}/controller/controller", "ptcp:";
+		} else {
+			exec "$ENV{'OF_ROOT'}/controller/controller", "p$proto:$port";
+		}
 		die "Failed to launch controller: $!";
 	}
 	else {
@@ -602,8 +622,7 @@ sub get_config {
 
 sub set_config {
 
-	my ( $ofp, $sock, $flags, $miss_send_len ) = @_;
-
+	my ( $ofp, $sock, $options_ref, $flags, $miss_send_len ) = @_;
 	my $hdr_args = {
 		version => $of_ver,
 		type    => $enums{'OFPT_SET_CONFIG'},
@@ -619,8 +638,11 @@ sub set_config {
 
 	my $set_config = $ofp->pack( 'ofp_switch_config', $set_config_args );
 
-	# Send 'get_config_request' message
+	# Send 'set_config_request' message
 	syswrite( $sock, $set_config );
+
+	# Give OF switch time to process the set_config
+	usleep($$options_ref{'send_delay'});
 }
 
 
@@ -644,7 +666,7 @@ sub run_black_box_test {
 
 		do_hello_sequence( $ofp, $new_sock );
 
-		# Launch PCAP listenting interface
+		# Launch PCAP listening interface
 		nftest_start( \@interfaces );
 
 		&$test_ref( $new_sock, \%options );
@@ -795,6 +817,8 @@ sub create_flow_mod_from_udp_action {
                         max_len => 0,                                     # send entire packet  
                 };
                 $action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
+	} else {
+		$action_output = "";
         }
 
         #SET_DL_SRC
@@ -1024,11 +1048,11 @@ sub get_of_miss_send_len_default {
 
 sub enable_flow_expirations {
 
-	my ( $ofp, $sock ) = @_;
+	my ( $ofp, $sock, $options_ref ) = @_;
 
 	my $flags         = 1;                       # OFPC_SEND_FLOW_EXP = 0x0001;
 	my $miss_send_len = $of_miss_send_len;
-	set_config( $ofp, $sock, $flags, $miss_send_len );
+	set_config( $ofp, $sock, $options_ref, $flags, $miss_send_len );
 }
 
 sub get_default_black_box_pkt {
@@ -1262,9 +1286,9 @@ sub forward_simple {
 	
 		verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
 	
-		compare( "total len", $$msg{'total_len'}, '==', length( $test_pkt->packed ) );
-		compare( "in_port",   $$msg{'in_port'},   '==', $in_port );
-		compare( "reason",    $$msg{'reason'},    '==', $enums{'OFPR_ACTION'} );
+		compare( "ofp_packet_in total len", $$msg{'total_len'}, '==', length( $test_pkt->packed ) );
+		compare( "ofp_packet_in in_port",   $$msg{'in_port'},   '==', $in_port );
+		compare( "ofp_packet_in reason",    $$msg{'reason'},    '==', $enums{'OFPR_ACTION'} );
 	
 		# verify packet was unchanged!
 		my $recvd_pkt_data = substr( $recvd_mesg, $ofp->offsetof( 'ofp_packet_in', 'data' ) );

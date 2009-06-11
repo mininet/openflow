@@ -58,7 +58,7 @@ sub my_test {
 	my $pkt_len = $$options_ref{'pkt_len'};
 	my $pkt_total = $$options_ref{'pkt_total'};
 
-	enable_flow_expirations( $ofp, $sock );
+	enable_flow_expirations( $ofp, $sock, $options_ref );
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < 4 ; $i++ ) {

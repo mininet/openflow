@@ -13,7 +13,7 @@ sub my_test {
 
 	my ( $sock, $options_ref ) = @_;
 
-	enable_flow_expirations( $ofp, $sock );
+	enable_flow_expirations( $ofp, $sock, $options_ref );
 
 	for_all_port_pairs( $ofp, $sock, $options_ref, \&forward_port, 0x0);
 }

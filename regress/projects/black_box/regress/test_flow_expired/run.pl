@@ -12,7 +12,7 @@ sub my_test {
 	my $out_port = $in_port + 1;
 	
 	# Set flags to make sure we get flow expiration messages
-	enable_flow_expirations($ofp, $sock);
+	enable_flow_expirations($ofp, $sock, $options_ref );
 	
 	my $test_pkt = get_default_black_box_pkt( $in_port, $out_port);
 	

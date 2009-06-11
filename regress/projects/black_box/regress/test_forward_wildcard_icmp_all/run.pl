@@ -13,7 +13,7 @@ sub my_test {
 
 	my ( $sock, $options_ref ) = @_;
 
-	enable_flow_expirations( $ofp, $sock );
+	enable_flow_expirations( $ofp, $sock, $options_ref );
 
 	for_all_wildcards( $ofp, $sock, $options_ref, \&forward_wc_all);
 }

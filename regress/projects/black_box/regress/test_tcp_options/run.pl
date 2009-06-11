@@ -156,7 +156,7 @@ sub my_test {
     my $port_base = $$options_ref{'port_base'};
 	my $num_ports = $$options_ref{'num_ports'};
 
-	enable_flow_expirations( $ofp, $sock );
+	enable_flow_expirations( $ofp, $sock, $options_ref );
 
 	# send from every port to every other port
 	for ( my $i = 0 ; $i < $num_ports ; $i++ ) {
