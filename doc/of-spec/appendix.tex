@@ -61,6 +61,7 @@ A number of actions may be associated with flows or packets.  The currently defi
 
 \input{enum/ofp_action_type} 
 Output actions are described in Section \ref{ft:actions}, while Field-Modify actions are described in Table \ref{table:field modify actions}.  An action definition contains the action type, length, and any associated data:
+
 \input{struct/ofp_action_header}
 An \verb|action_output| has the following fields:
 
@@ -76,6 +77,8 @@ An \verb|action_vlan_pcp| has the following fields:
 
 \input{struct/ofp_action_vlan_pcp}
 The \verb|vlan_pcp| field is 8 bits long, but only the lower 3 bits have meaning.  
+\\\\
+An \verb|action_strip_vlan| takes no arguments and consists only of a generic \verb|ofp_action_header|.  This action strips the VLAN tag if one is present.
 \\\\
 An \verb|action_dl_addr| has the following fields:
 
