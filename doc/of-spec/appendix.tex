@@ -292,6 +292,8 @@ For the \verb|OFPET_FLOW_MOD_FAILED| error \verb|type|, one \verb|code| is curre
 
 \input{enum/ofp_flow_mod_failed_code}
 The \verb|data| field contains at least 64 bytes of the failed request.
+\\\\
+If the error message is in response to a specific message from the controller, e.g., \verb|OFPET_BAD_REQUEST|, \verb|OFPET_BAD_ACTION|, or \verb|OFPET_FLOW_MOD_FAILED|, then the The \verb|xid| field of the header should match that of the offending message.
 
 %If the controller attempts a \verb|flow_mod| and fails, and the \verb|flow_mod| entry had the \verb|REPORT_ERROR| flag set, then the switch responds with one of the following.  The data field must include the full message that failed. 
 
