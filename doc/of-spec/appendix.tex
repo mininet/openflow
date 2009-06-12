@@ -122,8 +122,6 @@ There is no body for \verb|OFPT_GET_CONFIG_REQUEST| beyond the OpenFlow header. 
 The configuration flags include the following:
 
 \input{enum/ofp_config_flags}
-When the \verb|OFPC_SEND_FLOW_EXP| configuration flag is set, the switch sends controls whether the switch sends flow expiration messages.  The default flags value is zero, indicating that the switch should not send flow expirations.  
-\\\\
 The \verb|OFPC_FRAG_*| flags indicate whether IP fragments should be treated normally, dropped, or reassembled.  ``Normal" handling of fragments means that an attempt should be made to pass the fragments through the OpenFlow tables. If any field is not present (e.g., the TCP/UDP ports didn't fit), then the packet should not match any entry that has that field set.
 
 \subsubsection{Modify State Messages}
@@ -147,6 +145,11 @@ The \verb|priority| field is only relevant for flow entries with wildcard fields
 The \verb|buffer_id| refers to a buffered packet sent by the \verb|OFPT_PACKET_IN| message.
 \\\\
 The \verb|out_port| field optionally filters the scope of DELETE and DELETE\_STRICT messages by output port.  If \verb|out_port| contains a value other than \verb|OFPP_NONE|, it introduces a constraint when matching.  This constraint is that the rule must contain an output action directed at that port.  Other constraints such as \verb|ofp_match| structs and priorities are still used; this is purely an \emph{additional} constraint.  Note that to disable output port filtering, \verb|out_port| must be set to \verb|OFPP_NONE|, since 0 is a valid port id.  This field is ignored by ADD, MODIFY, and MODIFY\_STRICT messages.
+\\\\
+The \verb|flags| field may include the follow flag:
+
+\input{enum/ofp_flow_mod_flags}
+When the \verb|OFPFF_SEND_FLOW_EXP| flag is set, the switch must send a flow expiration message when the flow expires.  The default is for the switch to not send flow expirations.  
 
 \paragraph{Port Modification Message}
 The controller uses the \verb|OFPT_PORT_MOD| message to modify the behavior of the physical port:

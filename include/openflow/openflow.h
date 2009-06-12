@@ -145,14 +145,11 @@ struct ofp_hello {
 #define OFP_DEFAULT_MISS_SEND_LEN   128
 
 enum ofp_config_flags {
-    /* Tells datapath to notify the controller of expired flow entries. */
-    OFPC_SEND_FLOW_EXP = 1 << 0,
-
     /* Handling of IP fragments. */
-    OFPC_FRAG_NORMAL   = 0 << 1,  /* No special handling for fragments. */
-    OFPC_FRAG_DROP     = 1 << 1,  /* Drop fragments. */
-    OFPC_FRAG_REASM    = 2 << 1,  /* Reassemble (only if OFPC_IP_REASM set). */
-    OFPC_FRAG_MASK     = 3 << 1
+    OFPC_FRAG_NORMAL   = 0,  /* No special handling for fragments. */
+    OFPC_FRAG_DROP     = 1,  /* Drop fragments. */
+    OFPC_FRAG_REASM    = 2,  /* Reassemble (only if OFPC_IP_REASM set). */
+    OFPC_FRAG_MASK     = 3
 };
 
 /* Switch configuration. */
