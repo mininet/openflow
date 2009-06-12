@@ -590,7 +590,8 @@ enum ofp_error_type {
 /* ofp_error_msg 'code' values for OFPET_HELLO_FAILED.  'data' contains an
  * ASCII text string that may give failure details. */
 enum ofp_hello_failed_code {
-    OFPHFC_INCOMPATIBLE         /* No compatible version. */
+    OFPHFC_INCOMPATIBLE,        /* No compatible version. */
+    OFPHFC_EPERM                /* Permissions error. */
 };
 
 /* ofp_error_msg 'code' values for OFPET_BAD_REQUEST.  'data' contains at least
@@ -601,7 +602,8 @@ enum ofp_bad_request_code {
     OFPBRC_BAD_STAT,            /* ofp_stats_request.type not supported. */
     OFPBRC_BAD_VENDOR,          /* Vendor not supported (in ofp_vendor_header 
                                  * or ofp_stats_request or ofp_stats_reply). */
-    OFPBRC_BAD_SUBTYPE          /* Vendor subtype not supported. */
+    OFPBRC_BAD_SUBTYPE,         /* Vendor subtype not supported. */
+    OFPBRC_EPERM                /* Permissions error. */
 };
 
 /* ofp_error_msg 'code' values for OFPET_BAD_ACTION.  'data' contains at least 
@@ -612,15 +614,17 @@ enum ofp_bad_action_code {
     OFPBAC_BAD_VENDOR,         /* Unknown vendor id specified. */
     OFPBAC_BAD_VENDOR_TYPE,    /* Unknown action type for vendor id. */
     OFPBAC_BAD_OUT_PORT,       /* Problem validating output action. */
-    OFPBAC_BAD_ARGUMENT        /* Bad action argument. */
+    OFPBAC_BAD_ARGUMENT,       /* Bad action argument. */
+    OFPBAC_EPERM               /* Permissions error. */
 };
 
 /* ofp_error_msg 'code' values for OFPET_FLOW_MOD_FAILED.  'data' contains 
  * at least the first 64 bytes of the failed request. */
 enum ofp_flow_mod_failed_code {
     OFPFMFC_ALL_TABLES_FULL,    /* Flow not added because of full tables. */
-    OFPFMFC_OVERLAP             /* Attempted to add overlapping flow with 
-                                * CHECK_OVERLAP flag set. */
+    OFPFMFC_OVERLAP,            /* Attempted to add overlapping flow with 
+                                 * CHECK_OVERLAP flag set. */
+    OFPFMFC_EPERM               /* Permissions error. */
 };
 
 /* OFPT_ERROR: Error message (datapath -> controller). */
