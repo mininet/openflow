@@ -550,7 +550,8 @@ OFP_ASSERT(sizeof(struct ofp_flow_mod) == 64);
 /* Why did this flow expire? */
 enum ofp_flow_expired_reason {
     OFPER_IDLE_TIMEOUT,         /* Flow idle time exceeded idle_timeout. */
-    OFPER_HARD_TIMEOUT          /* Time exceeded hard_timeout. */
+    OFPER_HARD_TIMEOUT,         /* Time exceeded hard_timeout. */
+    OFPER_DELETE                /* Evicted by a DELETE flow mod. */
 };
 
 /* Flow expiration (datapath -> controller). */

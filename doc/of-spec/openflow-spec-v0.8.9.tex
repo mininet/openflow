@@ -356,7 +356,7 @@ If a flow entry with identical header fields and priority already resides in any
 \\\\
 For MODIFY requests, if a flow entry with identical header fields does not current reside in any table, the new flow entry must be inserted with zeroed counters.  Otherwise, the actions field is changed on the existing entry and its counters and idle time fields are left unchanged.
 \\\\
-For DELETE requests, if no flow entry matches, no error is recorded, and no flow table modification occurs.
+For DELETE requests, if no flow entry matches, no error is recorded, and no flow table modification occurs.  If flow entries match, and must be deleted, then each entry with the \verb|OFPFF_SEND_FLOW_EXP| flag set should generate a flow expiration message.
 \\\\
 If a switch cannot find any table in which to add the incoming flow entry, the switch should send an \verb|OFPT_ERROR_MSG| with \verb|OFPET_FLOW_MOD_FAILED| type and \verb|OFPFMFC_ALL_TABLES_FULL| type.
 \\\\
