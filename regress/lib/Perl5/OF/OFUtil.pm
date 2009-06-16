@@ -909,23 +909,23 @@ sub create_flow_mod_from_udp_action {
 
 sub wait_for_flow_expired {
 
-	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total ) = @_;
+	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout ) = @_;
 
-	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len, $pkt_total );
+	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout );
 }
 
 sub wait_for_flow_expired_all {
 
 	my ( $ofp, $sock, $options_ref ) = @_;
 
-	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );
+	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'}, undef );
 }
 
 sub wait_for_flow_expired_readone {
 
-	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total ) = @_;
+	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout ) = @_;
 
-	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len, $pkt_total,
+	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout,
 		$ofp->sizeof('ofp_flow_expired') );
 }
 
@@ -933,13 +933,13 @@ sub wait_for_flow_expired_readsize {
 
 	# can specify the reading size from socket (by the last argument, $read_size_)
 
-	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $read_size_ ) = @_;
+	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout, $read_size_ ) = @_;
 	wait_for_flow_expired_total_bytes( $ofp, $sock, $options_ref, ( $pkt_len * $pkt_total ),
-		$pkt_total, $read_size_ );
+		$pkt_total, $idle_timeout, $read_size_ );
 }
 
 sub wait_for_flow_expired_total_bytes {
-	my ( $ofp, $sock, $options_ref, $bytes, $pkt_total, $read_size_ ) = @_;
+	my ( $ofp, $sock, $options_ref, $bytes, $pkt_total, $idle_timeout, $read_size_ ) = @_;
 	my $read_size;
 
 	if ( defined $read_size_ ) {
@@ -973,6 +973,10 @@ sub wait_for_flow_expired_total_bytes {
 	    compare( "ofp_flow_expired byte_count",     $$msg{'byte_count'},        '==', $bytes );
 	}
 	compare( "ofp_flow_expired packet_count",   $$msg{'packet_count'},      '==', $pkt_total );
+
+	if ( defined $idle_timeout ) {
+		compare( "ofp_flow_expired idle_timeout",   $$msg{'idle_timeout'},      '==', $idle_timeout );
+	}
 }
 
 sub wait_for_one_packet_in {
