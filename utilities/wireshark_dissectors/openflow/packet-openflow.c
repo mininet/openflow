@@ -551,6 +551,7 @@ static gint ofp_flow_expired              = -1;
 static gint ofp_flow_expired_priority     = -1;
 static gint ofp_flow_expired_reason       = -1;
 static gint ofp_flow_expired_duration     = -1;
+static gint ofp_flow_expired_idle_timeout = -1;
 static gint ofp_flow_expired_packet_count = -1;
 static gint ofp_flow_expired_byte_count   = -1;
 
@@ -1270,6 +1271,9 @@ void proto_register_openflow()
 
         { &ofp_flow_expired_duration,
           { "Flow Duration (sec)", "of.fe_duration", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Time Flow was Alive (sec)", HFILL } },
+
+        { &ofp_flow_expired_idle_timeout,
+          { "Idle Time (sec) Before Discarding", "of.fe_idle_timeout", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Idle Time (sec) Before Discarding", HFILL } },
 
         { &ofp_flow_expired_packet_count,
           { "Packet Count", "of.fe_packet_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Packet Cout", HFILL } },
@@ -2567,7 +2571,8 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(type_tree, ofp_flow_expired_reason, tvb, &offset, 1);
             dissect_pad(type_tree, &offset, 1);
             add_child(type_tree, ofp_flow_expired_duration, tvb, &offset, 4);
-            dissect_pad(type_tree, &offset, 4);
+            add_child(type_tree, ofp_flow_expired_idle_timeout, tvb, &offset, 2);
+            dissect_pad(type_tree, &offset, 2);
             add_child(type_tree, ofp_flow_expired_packet_count, tvb, &offset, 8);
             add_child(type_tree, ofp_flow_expired_byte_count, tvb, &offset, 8);
             break;
