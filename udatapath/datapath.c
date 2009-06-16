@@ -735,7 +735,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
     struct ofpbuf *buffer;
     struct nx_flow_end *nfe;
 
-    if (!dp->send_flow_end) {
+    if (!dp->send_flow_end && !flow->send_flow_exp) {
         return;
     }
 

@@ -1100,7 +1100,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 	struct sk_buff *skb;
 	struct nx_flow_end *nfe;
 
-	if (!dp->send_flow_end)
+	if (!dp->send_flow_end && !flow->send_flow_exp)
 		return 0;
 
 	nfe = alloc_openflow_skb(dp, sizeof *nfe, OFPT_VENDOR, 0, &skb);
