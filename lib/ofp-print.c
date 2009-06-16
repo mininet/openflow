@@ -775,10 +775,10 @@ ofp_print_flow_expired(struct ds *string, const void *oh, size_t len UNUSED,
         break;
     }
     ds_put_format(string, 
-         " pri%"PRIu16" secs%"PRIu32" pkts%"PRIu64" bytes%"PRIu64"\n", 
+         " pri%"PRIu16" secs%"PRIu32" idle%"PRIu16" pkts%"PRIu64" bytes%"PRIu64"\n", 
          ofe->match.wildcards ? ntohs(ofe->priority) : (uint16_t)-1,
-         ntohl(ofe->duration), ntohll(ofe->packet_count), 
-         ntohll(ofe->byte_count));
+         ntohl(ofe->duration), ntohs(ofe->idle_timeout),
+         ntohll(ofe->packet_count), ntohll(ofe->byte_count));
 }
 /* Pretty-print the NXT_FLOW_EXPIRED packet of 'len' bytes at 'oh' to 'string'
  * at the given 'verbosity' level. */
