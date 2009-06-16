@@ -1118,11 +1118,11 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 	nfe->tcp_flags = flow->tcp_flags;
 	nfe->ip_tos = flow->ip_tos;
 
-	memset(nfe->pad, 0, sizeof nfe->pad);
+	nfe->send_flow_exp = flow->send_flow_exp;
 
 	nfe->idle_timeout = htons(flow->idle_timeout);
 
-	memset(nfe->pad2, 0, sizeof nfe->pad2);
+	memset(nfe->pad, 0, sizeof nfe->pad);
 
 	nfe->init_time = cpu_to_be64(jiffies_64_to_msecs(flow->created));
 	nfe->used_time = cpu_to_be64(jiffies_64_to_msecs(flow->used));
