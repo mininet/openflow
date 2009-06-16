@@ -228,6 +228,7 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 	flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
 	flow->idle_timeout = ntohs(ofm->idle_timeout);
 	flow->hard_timeout = ntohs(ofm->hard_timeout);
+        flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_EXP) ? 1 : 0;
 	flow_setup_actions(flow, ofm->actions, actions_len);
 
 	/* Act. */
