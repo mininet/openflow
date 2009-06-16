@@ -226,7 +226,7 @@ nf2_flow_timeout(struct datapath *dpinst, struct sw_table *flowtab)
 		}
 		reason = flow_timeout(flow);
 		if (reason >= 0) {
-			if (dpinst->flags & OFPC_SEND_FLOW_EXP) {
+			if (flow->send_flow_exp) {
 				dp_send_flow_end(dpinst, flow, reason);
 			}
 			num_uninst_flows += do_uninstall(flowtab, flow);
