@@ -57,8 +57,6 @@ struct flow_end_data {
     struct rconn *remote_rconn;
     struct rconn *local_rconn;
 
-    bool send_ofp_exp;         /* Send OpenFlow 'flow expired' messages? */
-
     int netflow_fd;            /* Socket for NetFlow collector. */
     uint32_t netflow_cnt;      /* Flow sequence number for NetFlow. */
 };
@@ -223,7 +221,7 @@ send_nx_flow_end_config(const struct flow_end_data *fe)
     nfec = make_openflow(sizeof(*nfec), OFPT_VENDOR, &b);
     nfec->header.vendor  = htonl(NX_VENDOR_ID);
     nfec->header.subtype = htonl(NXT_FLOW_END_CONFIG);
-    if ((fe->send_ofp_exp == false) && (fe->netflow_fd < 0)) {
+    if (fe->netflow_fd < 0) {
         nfec->enable = 0;
     } else {
         nfec->enable = 1;
@@ -308,10 +306,8 @@ flow_end_start(struct secchan *secchan, char *netflow_dst,
         if (fe->netflow_fd < 0) {
             ofp_fatal(0, "NetFlow setup failed");
         }
-        fe->send_ofp_exp = true;
     } else {
         fe->netflow_fd = -1;
-        fe->send_ofp_exp = false;
     }
 
     add_hook(secchan, &flow_end_hook_class, fe);
