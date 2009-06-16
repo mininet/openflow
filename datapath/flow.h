@@ -91,6 +91,7 @@ struct sw_flow {
 	uint16_t idle_timeout;	/* Idle time before discarding (seconds). */
 	uint16_t hard_timeout;  /* Hard expiration time (seconds) */
 	uint64_t used;          /* Last used time (in jiffies). */
+        uint8_t send_flow_exp;  /* Send a flow expiry to the controller */
 
 	struct sw_flow_actions *sf_acts;
 
