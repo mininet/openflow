@@ -255,7 +255,7 @@ flow_end_local_packet_cb(struct relay *r, void *flow_end_)
         send_netflow_msg(nfe, fe);
     }
 
-    if (fe->send_ofp_exp) {
+    if (nfe->send_flow_exp) {
         send_ofp_expired(nfe, fe);
     }
 
