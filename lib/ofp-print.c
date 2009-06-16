@@ -589,10 +589,6 @@ ofp_print_switch_config(struct ds *string, const void *oh, size_t len UNUSED,
     uint16_t flags;
 
     flags = ntohs(osc->flags);
-    if (flags & OFPC_SEND_FLOW_EXP) {
-        flags &= ~OFPC_SEND_FLOW_EXP;
-        ds_put_format(string, " (sending flow expirations)");
-    }
     if (flags) {
         ds_put_format(string, " ***unknown flags 0x%04"PRIx16"***", flags);
     }

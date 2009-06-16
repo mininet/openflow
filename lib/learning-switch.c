@@ -347,7 +347,7 @@ send_features_request(struct lswitch *sw, struct rconn *rconn)
 
         /* Send OFPT_SET_CONFIG. */
         osc = make_openflow(sizeof *osc, OFPT_SET_CONFIG, &b);
-        osc->flags = htons(OFPC_SEND_FLOW_EXP);
+        osc->flags = 0;
         osc->miss_send_len = htons(OFP_DEFAULT_MISS_SEND_LEN);
         queue_tx(sw, rconn, b);
 

@@ -279,12 +279,6 @@ flow_end_remote_packet_cb(struct relay *r, void *flow_end_)
         return false;
     }
 
-    if (osc->flags & htons(OFPC_SEND_FLOW_EXP)) {
-        fe->send_ofp_exp = true;
-    } else {
-        fe->send_ofp_exp = false;
-    }
-
     send_nx_flow_end_config(fe);
 
     return false;
