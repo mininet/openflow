@@ -1120,6 +1120,10 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 
 	memset(nfe->pad, 0, sizeof nfe->pad);
 
+	nfe->idle_timeout = htons(flow->idle_timeout);
+
+	memset(nfe->pad2, 0, sizeof nfe->pad2);
+
 	nfe->init_time = cpu_to_be64(jiffies_64_to_msecs(flow->created));
 	nfe->used_time = cpu_to_be64(jiffies_64_to_msecs(flow->used));
 	nfe->end_time = cpu_to_be64(jiffies_64_to_msecs(get_jiffies_64()));

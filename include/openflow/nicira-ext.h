@@ -178,7 +178,11 @@ struct nx_flow_end {
     uint8_t tcp_flags;        /* Union of seen TCP flags. */
     uint8_t ip_tos;           /* IP TOS value. */
 
-    uint8_t pad[7];           /* Align to 64-bits. */
+    uint8_t pad[1];           /* Align to 16-bits. */
+
+    uint16_t idle_timeout;    /* Idle time before discarding (seconds). */
+
+    uint8_t pad2[4];          /* Align to 64-bits. */
 
     uint64_t init_time;       /* Time flow started in milliseconds. */
     uint64_t used_time;       /* Time entry was last used in milliseconds. */

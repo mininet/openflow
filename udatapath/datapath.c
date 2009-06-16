@@ -756,6 +756,10 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 
     memset(nfe->pad, 0, sizeof nfe->pad);
 
+    nfe->idle_timeout = htons(flow->idle_timeout);
+
+    memset(nfe->pad2, 0, sizeof nfe->pad2);
+
     nfe->init_time = htonll(flow->created);
     nfe->used_time = htonll(flow->used);
     nfe->end_time = htonll(time_msec());
