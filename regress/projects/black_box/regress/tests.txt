@@ -6,6 +6,7 @@ test_packet_in/run.pl
 test_packet_out/run.pl
 test_switch_config/run.pl
 test_flow_expired/run.pl
+test_flow_expired_idle_timeout/run.pl
 test_miss_send_length/run.pl
 
 # Read State Tests
