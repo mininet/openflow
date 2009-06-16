@@ -816,10 +816,10 @@ nx_print_flow_end(struct ds *string, const void *oh, size_t len,
         break;
     }
     ds_put_format(string, 
-         " pri=%"PRIu16" init=%"PRIu64" used=%"PRIu64" end=%"PRIu64,
+         " pri=%"PRIu16" init=%"PRIu64" used=%"PRIu64" end=%"PRIu64" idle=%"PRIu16,
          nfe->match.wildcards ? ntohs(nfe->priority) : (uint16_t)-1,
          ntohll(nfe->init_time), ntohll(nfe->used_time), 
-         ntohll(nfe->end_time));
+         ntohll(nfe->end_time), ntohs(nfe->idle_timeout));
     ds_put_format(string, 
          " tflags=0x%x tos=0x%x pkts=%"PRIu64" bytes=%"PRIu64"\n", 
          nfe->tcp_flags, nfe->ip_tos, ntohll(nfe->packet_count), 
