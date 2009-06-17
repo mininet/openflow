@@ -38,13 +38,14 @@ sub send_expect_exact_with_wildcard {
 
 	# Flow entry -- exact match, $out_port
 	my $wildcards = 0x0;    # exact match
+	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
 	my $flow_mod_exact_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards );
 
 	# 2nd flow entry -- wildcard match, $out_port2
 	my $wildcards =  $enums{'OFPFW_TP_SRC'} | $enums{'OFPFW_TP_DST'};     # wildcard match (don't care udp src/dst ports)
 	my $flow_mod_wildcard_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port2, $max_idle, $wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port2, $max_idle, $flags, $wildcards );
 
 	#print HexDump($flow_mod_exact_pkt);
 	#print HexDump($flow_mod_wildcard_pkt);
@@ -105,10 +106,11 @@ sub delete_strict_send_expect {
 	my $test_pkt2 = new NF2::UDP_pkt(%$test_pkt_args2);
 
 	my $wildcards =  $enums{'OFPFW_TP_SRC'} | $enums{'OFPFW_TP_DST'};     # wildcard match (don't care udp src/dst ports)
+	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
 	my $flow_mod_wildcard_pkt =
 
 	  # delete_strict_from_udp( $ofp, $test_pkt, $in_port, $out_port2, $wildcards );
-	  create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port2, $max_idle, $wildcards,
+	  create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port2, $max_idle, $flags, $wildcards,
 		'OFPFC_DELETE_STRICT' );
 
 	#print HexDump($flow_mod_exact_pkt);

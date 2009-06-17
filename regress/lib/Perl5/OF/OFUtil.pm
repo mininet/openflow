@@ -707,12 +707,12 @@ sub run_black_box_test {
 
 sub create_flow_mod_from_udp {
 
-	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $chg_field, $chg_val ) = @_;
+	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $chg_field, $chg_val ) = @_;
 
 	my $flow_mod_pkt;
 
 	$flow_mod_pkt =
-	  create_flow_mod_from_udp_action( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards,
+	  create_flow_mod_from_udp_action( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards,
 		'OFPFC_ADD', $chg_field, $chg_val );
 
 	return $flow_mod_pkt;
@@ -720,7 +720,7 @@ sub create_flow_mod_from_udp {
 
 sub create_flow_mod_from_udp_action {
 
-        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $mod_type, $chg_field, $chg_val ) = @_;
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $mod_type, $chg_field, $chg_val ) = @_;
 
         if (   $mod_type ne 'drop' 
                 && $mod_type ne 'OFPFC_ADD'
@@ -882,6 +882,7 @@ sub create_flow_mod_from_udp_action {
                 command   => $enums{"$mod_type"},
                 idle_timeout  => $max_idle,
                 hard_timeout  => $max_idle,
+                flags  => $flags,
                 priority => 0,
                 buffer_id => -1,
                 out_port => $enums{'OFPP_NONE'}
@@ -1054,7 +1055,7 @@ sub enable_flow_expirations {
 
 	my ( $ofp, $sock, $options_ref ) = @_;
 
-	my $flags         = 1;                       # OFPC_SEND_FLOW_EXP = 0x0001;
+	my $flags         = 0;                       # OFPC_SEND_FLOW_EXP = 0x0001;
 	my $miss_send_len = $of_miss_send_len;
 	set_config( $ofp, $sock, $options_ref, $flags, $miss_send_len );
 }
@@ -1211,11 +1212,12 @@ sub forward_simple {
 	print HexDump ( $test_pkt->packed );
 
 	my $flow_mod_pkt;
+	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
 	if ($type eq 'drop') {
-		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $wildcards, 'drop' );
+		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $flags, $wildcards, 'drop' );
 	} else {
 		$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, 
-		                $wildcards, $chg_field, $chg_val );
+		                $flags, $wildcards, $chg_field, $chg_val );
 	}
 
 	print HexDump($flow_mod_pkt);
@@ -1337,12 +1339,12 @@ sub get_default_black_box_pkt_len_icmp {
 
 sub create_flow_mod_from_icmp {
 
-        my ( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $wildcards, $fool ) = @_;
+        my ( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $fool ) = @_;
 
         my $flow_mod_pkt;
 
         $flow_mod_pkt =
-          create_flow_mod_from_icmp_action( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $wildcards,
+          create_flow_mod_from_icmp_action( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards,
                 'OFPFC_ADD', $fool );
 
         return $flow_mod_pkt;
@@ -1350,7 +1352,7 @@ sub create_flow_mod_from_icmp {
 
 sub create_flow_mod_from_icmp_action {
 
-        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $mod_type, $fool ) = @_;
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $mod_type, $fool ) = @_;
 
         if (   $mod_type ne 'OFPFC_ADD'
                 && $mod_type ne 'OFPFC_DELETE'
@@ -1433,6 +1435,7 @@ sub create_flow_mod_from_icmp_action {
                 command   => $enums{"$mod_type"},
                 idle_timeout  => $max_idle,
                 hard_timeout  => $max_idle,
+                flags  => $flags,
                 priority => 0,
                 buffer_id => -1,
                 out_port => $enums{'OFPP_NONE'}
@@ -1453,6 +1456,8 @@ sub forward_simple_icmp {
 
         my $fool_port = 0;
         my $flow_mod_pkt_fool;
+
+	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
 
         if ($type eq 'all') {
                 $out_port = $enums{'OFPP_ALL'};    # all physical ports except the input
@@ -1477,7 +1482,7 @@ sub forward_simple_icmp {
 
         if (($fool == 1) && ($type eq 'port') && ($wildcards != 0x40)) {
                 my $flow_mod_pkt_fool =
-                  create_flow_mod_from_icmp( $ofp, $test_pkt, $in_port, $fool_port, $$options_ref{'max_idle'}, $wildcards, $fool );
+                  create_flow_mod_from_icmp( $ofp, $test_pkt, $in_port, $fool_port, $$options_ref{'max_idle'}, $flags, $wildcards, $fool );
                 print HexDump($flow_mod_pkt_fool);
                 #print Dumper($flow_mod_pkt_fool);
                 # Send 'flow_mod' message
@@ -1488,7 +1493,7 @@ sub forward_simple_icmp {
         }
 
         my $flow_mod_pkt =
-          create_flow_mod_from_icmp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $wildcards, 0 );
+          create_flow_mod_from_icmp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $flags, $wildcards, 0 );
 
         #print HexDump($flow_mod_pkt);
         #print Dumper($flow_mod_pkt);

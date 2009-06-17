@@ -82,8 +82,9 @@ sub send_expect_exact_oneshot {
 	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
 
 	my $wildcards = 0x0;    # exact match
+	my $flags = 0x0;        # don't send flow expiry
 	my $flow_mod_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards );
 
 	#print HexDump($flow_mod_pkt);
 

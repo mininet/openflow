@@ -6,7 +6,7 @@ use OF::Includes;
 
 sub create_flow_mod_from_ip {
 
-	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $wildcards, $s_port, $d_port ) = @_;
+	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $s_port, $d_port ) = @_;
 
 	my $hdr_args = {
 		version => get_of_ver(),
@@ -75,6 +75,7 @@ sub create_flow_mod_from_ip {
 		command   => $enums{'OFPFC_ADD'},
 		idle_timeout  => $max_idle,
 		hard_timeout  => $max_idle,
+		flags => $flags,
 		priority => 0,
 		buffer_id => -1
 	};
@@ -127,8 +128,9 @@ sub send_tcp_op_expect_exact {
 		$enums{'OFPFW_TP_DST'};# | 
 	#	$enums{'OFPFW_NW_PROTO'};     # wildcard match (don't care udp src/dst ports)
 
+	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
 	my $flow_mod_pkt =
-	  create_flow_mod_from_ip( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards,
+	  create_flow_mod_from_ip( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards,
 		$src_tcp_port, $dst_tcp_port );
 
 	#print HexDump($flow_mod_pkt);

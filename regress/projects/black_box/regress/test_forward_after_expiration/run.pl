@@ -16,9 +16,11 @@ sub send_expect_exact {
 	#print HexDump ( $test_pkt->packed );
 
 	my $wildcards = 0x0;    # exact match
+	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
 
 	my $flow_mod_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
+		  $$options_ref{'max_idle'}, $flags, $wildcards );
 
 	#print HexDump($flow_mod_pkt);
 

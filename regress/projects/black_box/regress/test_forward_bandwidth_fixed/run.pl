@@ -39,10 +39,11 @@ sub send_expect_exact {
 	#my $wildcards = 0x3FD; # exact match on vlan
 	#my $wildcards = 0x3FB; # exact match on ether source
 	#my $wildcards = 0x3F7; # exact match on ether dest
+	my $flags = 0x0;        # don't send flow expiry
 
 	my $flow_mod_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
-		$max_idle, $wildcards );
+		$max_idle, $flags, $wildcards );
 
 	#print HexDump($flow_mod_pkt);
 

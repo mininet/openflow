@@ -42,9 +42,10 @@ sub send_expect_exact {
 	#print HexDump ( $test_pkt->packed );
 
 	my $wildcards = 0x0;       # exact match
+	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
 
 	my $flow_mod_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards );
 
 	#print HexDump($flow_mod_pkt);
 
@@ -66,7 +67,7 @@ sub my_test {
 	my $pkt_len   = $$options_ref{'pkt_len'};
 	my $pkt_total = $$options_ref{'pkt_total'};
 
-    my $port_base = $$options_ref{'port_base'};
+	my $port_base = $$options_ref{'port_base'};
 	my $num_ports = $$options_ref{'num_ports'};
 	
 	enable_flow_expirations( $ofp, $sock, $options_ref );

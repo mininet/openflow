@@ -23,8 +23,9 @@ sub my_test {
 	my $in_port = 1;
 	my $out_port = 2;
 	my $max_idle = 0;
+	my $flags = 0x0;        # don't send flow expiry
 
-	my $flow_mod_pkt = create_flow_mod_from_udp($ofp,$test_pkt,$in_port,$out_port,$max_idle,$wildcards);
+	my $flow_mod_pkt = create_flow_mod_from_udp($ofp,$test_pkt,$in_port,$out_port,$max_idle,$flags,$wildcards);
 
 	print $sock $flow_mod_pkt;
 	usleep(1000000);

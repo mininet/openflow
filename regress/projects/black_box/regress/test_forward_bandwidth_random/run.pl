@@ -39,11 +39,12 @@ sub send_expect_exact {
 
 
 	my $wildcards = 0x1; # wild card on input port
+	my $flags = 0x0;        # don't send flow expiry
 
 	my $test_pkt = pop @packets;
 	my $flow_mod_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
-		$max_idle, $wildcards );
+		$max_idle, $flags, $wildcards );
 	push @packets, $test_pkt;
 
 	# Send 'flow_mod' message
