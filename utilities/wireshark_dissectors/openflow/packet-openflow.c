@@ -104,7 +104,7 @@ static const value_string names_ofp_action_type[] = {
 #define NUM_PORT_FEATURES_FLAGS 12
 #define NUM_WILDCARDS 10
 #define NUM_CAPABILITIES_FLAGS 6
-#define NUM_CONFIG_FLAGS 1
+#define NUM_FLOW_MOD_FLAGS 1
 #define NUM_SF_REPLY_FLAGS 1
 
 /** yes/no for bitfields field */
@@ -434,7 +434,6 @@ static gint ofp_switch_features_ports_warn = -1;
 
 static gint ofp_switch_config               = -1;
 static gint ofp_switch_config_flags_hdr = -1;
-static gint ofp_switch_config_flags[NUM_CONFIG_FLAGS];
 static gint ofp_switch_config_flags_ip_frag = -1;
 static gint ofp_switch_config_miss_send_len = -1;
 
@@ -446,6 +445,7 @@ static gint ofp_flow_mod_hard_timeout = -1;
 static gint ofp_flow_mod_priority     = -1;
 static gint ofp_flow_mod_buffer_id    = -1;
 static gint ofp_flow_mod_out_port     = -1;
+static gint ofp_flow_mod_flags[NUM_FLOW_MOD_FLAGS];
 static gint ofp_flow_mod_reserved     = -1;
 static gint ofp_flow_mod_actions      = -1;
 
@@ -596,6 +596,7 @@ static gint ett_ofp_switch_features_ports_hdr = -1;
 static gint ett_ofp_switch_config = -1;
 static gint ett_ofp_switch_config_flags_hdr = -1;
 static gint ett_ofp_flow_mod = -1;
+static gint ett_ofp_flow_mod_flags_hdr = -1;
 static gint ett_ofp_port_mod = -1;
 static gint ett_ofp_port_mod_config_hdr = -1;
 static gint ett_ofp_port_mod_mask_hdr = -1;
@@ -1173,9 +1174,6 @@ void proto_register_openflow()
         { &ofp_switch_config_flags_hdr,
           { "Flags", "of.sc_flags", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flags", HFILL } },
 
-        { &ofp_switch_config_flags[0],
-          { "  Send flow expirations", "of.sc_flags_send_flow_exp", FT_UINT16, BASE_DEC, VALS(names_choice), OFPC_SEND_FLOW_EXP, "Send flow expirations", HFILL }},
-
         { &ofp_switch_config_flags_ip_frag,
           { "  Handling of IP fragments", "of.sc_flags_ip_frag", FT_UINT16, BASE_DEC, VALS(sc_frag_choices), OFPC_FRAG_MASK, "Handling of IP fragments", HFILL }},
 
@@ -1254,6 +1252,9 @@ void proto_register_openflow()
 
         { &ofp_flow_mod_out_port,
           { "Out Port (delete* only)", "of.fm_out_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Out Port (delete* only)", HFILL } },
+
+        { &ofp_flow_mod_flags[0],
+          { "  Send flow expirations", "of.fm_flags_send_flow_exp", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_SEND_FLOW_EXP, "Send flow expirations", HFILL }},
 
         { &ofp_flow_mod_reserved,
           { "Reserved", "of.fm_reserved", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Reserved", HFILL } },
@@ -1604,6 +1605,7 @@ void proto_register_openflow()
         &ett_ofp_switch_config,
         &ett_ofp_switch_config_flags_hdr,
         &ett_ofp_flow_mod,
+        &ett_ofp_flow_mod_flags_hdr,
         &ett_ofp_port_mod,
         &ett_ofp_port_mod_config_hdr,
         &ett_ofp_port_mod_mask_hdr,
@@ -2243,7 +2245,6 @@ static void dissect_switch_config_flags(tvbuff_t *tvb, packet_info *pinfo, proto
     proto_item *sf_pc_item = proto_tree_add_item(tree, ofp_switch_config_flags_hdr, tvb, *offset, 2, FALSE);
     proto_tree *sf_pc_tree = proto_item_add_subtree(sf_pc_item, ett_ofp_switch_config_flags_hdr);
 
-    add_child_const(sf_pc_tree, ofp_switch_config_flags[0], tvb, *offset, 2);
     add_child_const(sf_pc_tree, ofp_switch_config_flags_ip_frag, tvb, *offset, 2);
 
     *offset += 2;
@@ -2327,6 +2328,17 @@ static void dissect_error_code(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32
 
     *offset += 2;
 }
+
+static void dissect_flow_mod_flags(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint *offset) {
+    proto_item *fm_flags_item = proto_tree_add_item(tree, ofp_switch_config_flags_hdr, tvb, *offset, 2, FALSE);
+    proto_tree *fm_flags_tree = proto_item_add_subtree(fm_flags_item, ett_ofp_flow_mod_flags_hdr);
+
+    add_child_const(fm_flags_tree, ofp_flow_mod_flags[0], tvb, *offset, 2);
+
+    *offset += 2;
+
+}
+
 
 static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
@@ -2655,7 +2667,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
             /* add the output port */
             dissect_port(type_tree, ofp_flow_mod_out_port, tvb, &offset );
-            dissect_pad(type_tree, &offset, 2);
+            dissect_flow_mod_flags(tvb, pinfo, type_tree, &offset);
             add_child(type_tree, ofp_flow_mod_reserved, tvb, &offset, 4);
             dissect_action_array(tvb, pinfo, type_tree, len, offset);
             break;
