@@ -191,7 +191,8 @@ send_ofp_expired(const struct nx_flow_end *nfe, const struct flow_end_data *fe)
     struct ofpbuf *b;
 
     if ((nfe->reason != NXFER_IDLE_TIMEOUT) 
-            && (nfe->reason != NXFER_HARD_TIMEOUT)) {
+            && (nfe->reason != NXFER_HARD_TIMEOUT)
+            && (nfe->reason != NXFER_DELETE)) {
         return;
     }
 
@@ -200,8 +201,10 @@ send_ofp_expired(const struct nx_flow_end *nfe, const struct flow_end_data *fe)
     ofe->priority = nfe->priority;
     if (nfe->reason == NXFER_IDLE_TIMEOUT) {
         ofe->reason = OFPER_IDLE_TIMEOUT;
-    } else {
+    } else if (nfe->reason == NXFER_HARD_TIMEOUT) {
         ofe->reason = OFPER_HARD_TIMEOUT;
+    } else {
+        ofe->reason = OFPER_DELETE;
     }
     /* 'duration' is in seconds, but we keeping track of milliseconds. */
     ofe->duration = htonl((ntohll(nfe->end_time)-ntohll(nfe->init_time))/1000);
