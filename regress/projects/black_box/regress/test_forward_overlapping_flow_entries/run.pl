@@ -67,8 +67,6 @@ sub my_test {
 
 	my $num_ports = $$options_ref{'num_ports'};
 
-	enable_flow_expirations( $ofp, $sock, $options_ref );
-
 	my $j = 0;
 
 	# send from every port, receive on every port except the send port

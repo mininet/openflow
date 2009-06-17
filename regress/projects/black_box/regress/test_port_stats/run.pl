@@ -13,8 +13,6 @@ sub my_test {
 
 	my ( $sock, $options_ref ) = @_;
 
-	enable_flow_expirations( $ofp, $sock, $options_ref );
-
 	my $port_base = $$options_ref{'port_base'};
 	my $num_ports = $$options_ref{'num_ports'};
 		

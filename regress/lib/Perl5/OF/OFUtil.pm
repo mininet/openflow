@@ -56,7 +56,6 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &get_of_ver
   &get_of_port
   &get_of_miss_send_len_default
-  &enable_flow_expirations
   &get_default_black_box_pkt
   &get_default_black_box_pkt_len
   &for_all_port_pairs
@@ -1049,15 +1048,6 @@ sub get_of_port {
 
 sub get_of_miss_send_len_default {
 	return $of_miss_send_len;
-}
-
-sub enable_flow_expirations {
-
-	my ( $ofp, $sock, $options_ref ) = @_;
-
-	my $flags         = 0;                       # OFPC_SEND_FLOW_EXP = 0x0001;
-	my $miss_send_len = $of_miss_send_len;
-	set_config( $ofp, $sock, $options_ref, $flags, $miss_send_len );
 }
 
 sub get_default_black_box_pkt {

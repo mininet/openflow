@@ -89,8 +89,6 @@ sub my_test {
 
 	my ($sock, $options_ref) = @_;
 
-	enable_flow_expirations( $ofp, $sock, $options_ref );
-
 	my $max_idle =  $$options_ref{'max_idle'};
 	my $pkt_len = $$options_ref{'pkt_len'};
 	my $pkt_total = $$options_ref{'pkt_total'};
