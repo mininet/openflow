@@ -168,6 +168,7 @@ static const value_string names_ofp_packet_in_reason[] = {
 static const value_string names_ofp_flow_expired_reason[] = {
     { OFPER_IDLE_TIMEOUT, "Flow idle time exceeded idle_timeout" },
     { OFPER_HARD_TIMEOUT, "Time exceeded hard_timeout" },
+    { OFPER_DELETE,       "Evicted by a DELETE flow mod." },
     { 0,                  NULL }
 };
 
