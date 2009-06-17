@@ -26,6 +26,7 @@ test_forward_after_expiration/run.pl
 test_forward_overlapping_flow_entries/run.pl
 test_delete/run.pl
 test_delete_strict/run.pl
+test_delete_send_flow_exp/run.pl
 test_drop_exact/run.pl
 
 ## Modify Action Tests
