@@ -67,7 +67,8 @@ static int nf2_modify_flow(struct sw_table *, const struct sw_flow_key *,
 			   size_t);
 static void deferred_uninstall_callback(struct rcu_head *);
 static void do_deferred_uninstall(struct sw_flow *);
-static int do_uninstall(struct sw_table *, struct sw_flow *);
+static int do_uninstall(struct datapath *, struct sw_table *, struct sw_flow *,
+                        enum nx_flow_end_reason);
 static int nf2_uninstall_flow(struct datapath *, struct sw_table *,
 			      const struct sw_flow_key *, uint16_t,
 			      uint16_t, int);
@@ -162,9 +163,12 @@ do_deferred_uninstall(struct sw_flow *flow)
 }
 
 static int
-do_uninstall(struct sw_table *flowtab, struct sw_flow *flow)
+do_uninstall(struct datapath *dpinst, struct sw_table *flowtab,
+             struct sw_flow *flow, enum nx_flow_end_reason reason)
 {
 	if (flow != NULL && flow->private != NULL) {
+		if (dpinst != NULL)
+			dp_send_flow_end(dpinst, flow, reason);
 		list_del_rcu(&flow->node);
 		list_del_rcu(&flow->iter_node);
 		nf2_delete_private(flow->private);
@@ -180,19 +184,36 @@ nf2_uninstall_flow(struct datapath *dpinst, struct sw_table *flowtab,
 		   const struct sw_flow_key *key, uint16_t out_port,
 		   uint16_t priority, int strict)
 {
+	struct net_device *netdev;
 	struct nf2_flowtable *nf2flowtab = (struct nf2_flowtable *)flowtab;
 	struct sw_flow *flow;
+	struct nf2_flow *nf2flow;
 	unsigned int count = 0;
+
+	netdev = nf2_get_net_device();
+	if (netdev == NULL)
+		return 0;
 
 	list_for_each_entry(flow, &nf2flowtab->flows, node) {
 		if (flow_matches_desc(&flow->key, key, strict)
 		    && (!strict || flow->priority == priority)
-		    && flow_has_out_port(flow, out_port))
-			count += do_uninstall(flowtab, flow);
+		    && flow_has_out_port(flow, out_port)) {
+			nf2flow = flow->private;
+			if (nf2flow != NULL) {
+				flow->packet_count
+				    += nf2_get_packet_count(netdev, nf2flow);
+				flow->byte_count
+				    += nf2_get_byte_count(netdev, nf2flow);
+			}
+			count += do_uninstall(dpinst, flowtab,
+		                              flow, NXFER_DELETE);
+		}
 	}
-
 	if (count != 0)
 		atomic_sub(count, &nf2flowtab->num_flows);
+
+	nf2_free_net_device(netdev);
+
 	return count;
 }
 
@@ -226,10 +247,8 @@ nf2_flow_timeout(struct datapath *dpinst, struct sw_table *flowtab)
 		}
 		reason = flow_timeout(flow);
 		if (reason >= 0) {
-			if (flow->send_flow_exp) {
-				dp_send_flow_end(dpinst, flow, reason);
-			}
-			num_uninst_flows += do_uninstall(flowtab, flow);
+			num_uninst_flows += do_uninstall(dpinst, flowtab,
+			                                 flow, reason);
 		}
 	}
 	mutex_unlock(&dp_mutex);
