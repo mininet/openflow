@@ -48,25 +48,24 @@ sub send_expect_exact {
 		$test_pkt->packed );
 }
 
+sub test_ip_protocol {
 
-sub my_test {
-	
-	my ($sock, $options_ref) = @_;
+	my ( $ofp, $sock, $options_ref, $i, $j, $wildcards ) = @_;
 
 	my $max_idle = $$options_ref{'max_idle'};
 	my $pkt_len = $$options_ref{'pkt_len'};
 	my $pkt_total = $$options_ref{'pkt_total'};
 
+	send_expect_exact( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
+	wait_for_flow_expired_all( $ofp, $sock, $options_ref );
+}
+
+sub my_test {
+
+	my ($sock, $options_ref) = @_;
+
 	# send from every port to every other port
-	for ( my $i = 0 ; $i < 4 ; $i++ ) {
-		for ( my $j = 0 ; $j < 4 ; $j++ ) {
-			if ( $i != $j ) {
-				print "sending from $i to $j\n";
-				send_expect_exact( $ofp, $sock, $i, $j, $max_idle, $pkt_len );
-				wait_for_flow_expired_all( $ofp, $sock, $options_ref );
-			}
-		}
-	}
+	for_all_port_pairs( $ofp, $sock, $options_ref, \&test_ip_protocol, 0x0);
 }
 
 sub create_flow_mod_from_pseudo_tcp {

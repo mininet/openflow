@@ -228,7 +228,8 @@ sub nftest_init {
 			"send_delay=i",
 			"base_idle=i",
 			"ignore_byte_count",
-			"num_ports=i"
+			"num_ports=i",
+			"less_ports"
 			)
 		) 
 	{

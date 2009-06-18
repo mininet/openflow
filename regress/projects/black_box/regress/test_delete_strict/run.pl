@@ -120,6 +120,9 @@ sub delete_strict_send_expect {
 	print $sock $flow_mod_wildcard_pkt;
 	print "sent flow_mod message (delete (strict) wildcard entry)\n";
 
+	# Expect a flow expire due to the delete
+	wait_for_flow_expired_readone( $ofp, $sock, $options_ref, $pkt_len, 1 );
+
 	# Give OF switch time to process the flow mod
 	usleep($$options_ref{'send_delay'});
 	# Give extra time, delete takes more time - Jean II
@@ -127,7 +130,7 @@ sub delete_strict_send_expect {
 
 	# Send a packet
 	print
-"Verify packets are forwarded correctly i.e., one fwded to contoller and one (exact match) fwd to the specified port\n";
+	"Verify packets are forwarded correctly i.e., one fwded to contoller and one (exact match) fwd to the specified port\n";
 	nftest_send( "eth" . ( $in_port_offset + 1 ), $test_pkt->packed );
 	nftest_expect( "eth" . ( $out_port_offset + 1 ), $test_pkt->packed );
 
@@ -135,33 +138,32 @@ sub delete_strict_send_expect {
 	wait_for_one_packet_in( $ofp, $sock, $pkt_len, $test_pkt2->packed );
 }
 
-sub my_test {
+sub test_delete_strict {
 
-	my ($sock, $options_ref) = @_;
+	my ( $ofp, $sock, $options_ref, $i, $j, $o_port2, $wildcards ) = @_;
 
 	my $max_idle =  $$options_ref{'max_idle'};
 	my $pkt_len = $$options_ref{'pkt_len'};
 	my $pkt_total = $$options_ref{'pkt_total'};
 
+	print "sending from $i to $j & $i to $o_port2 -- both should match\n";
+	send_expect_exact_with_wildcard( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle, $pkt_len );
+
+	# wait for switch to process last packets
+	usleep($$options_ref{'send_delay'});
+
+	print "delete wildcard entry (with STRICT) \n";
+	print "sending from $i to $j & $i to $o_port2 ";
+	delete_strict_send_expect( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle, $pkt_len );
+	wait_for_flow_expired_readone( $ofp, $sock, $options_ref, $pkt_len, 2 );
+}
+
+sub my_test {
+
+	my ($sock, $options_ref) = @_;
+
 	# send from every port to every other port
-	for ( my $i = 0 ; $i < 4 ; $i++ ) {
-		for ( my $j = 0 ; $j < 4 ; $j++ ) {
-			my $o_port2 = ( ( $j + 1 ) % 4 );
-			if ( $i != $j && $i != $o_port2) { 
-				print "sending from $i to $j & $i to $o_port2 -- both should match\n";
-				send_expect_exact_with_wildcard( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle,
-					$pkt_len );
-
-				# wait for switch to process last packets	
-				usleep($$options_ref{'send_delay'});
-
-				print "delete wildcard entry (with STRICT) \n";
-				print "sending from $i to $j & $i to $o_port2 ";
-				delete_strict_send_expect( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle, $pkt_len );
-				wait_for_flow_expired_readone( $ofp, $sock, $options_ref, $pkt_len, 2 );
-			}
-		}
-	}
+	for_all_port_triplets( $ofp, $sock, $options_ref, \&test_delete_strict, 0x0);
 }
 
 run_black_box_test( \&my_test, \@ARGV );

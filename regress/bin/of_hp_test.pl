@@ -26,7 +26,7 @@ sub INT_Handler {
 # Test need extra delay due to slow controller socket (local buffers ?)
 # Add more idle time due to stat resolution
 # byte count is not available - Jean II
-push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=hp", "--controller=".$ENV{'OFT_HP_CONTROLLER'}, "--port_base=1", "--send_delay=500000", "--base_idle=3", "--ignore_byte_count";
+push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=hp", "--controller=".$ENV{'OFT_HP_CONTROLLER'}, "--port_base=1", "--send_delay=500000", "--base_idle=3", "--ignore_byte_count", "--less_ports";
 
 # Other configuration is through Environment Variables, See of_hp_setup.pl
 # Jean II

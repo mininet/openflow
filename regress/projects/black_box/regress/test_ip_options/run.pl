@@ -52,27 +52,25 @@ sub send_expect_exact {
 	nftest_expect( "eth" . ( $out_port_offset + 1 ), $test_pkt->packed );
 }
 
+sub test_ip_options {
+
+	my ( $ofp, $sock, $options_ref, $i, $j, $wildcards ) = @_;
+
+	my $max_idle =  $$options_ref{'max_idle'};
+	#my $pkt_len = $$options_ref{'pkt_len'};
+	my $pkt_len   = 68;
+	my $pkt_total = $$options_ref{'pkt_total'};
+
+	send_expect_exact( $ofp, $sock, $options_ref, $i, $j, $max_idle, $pkt_len );
+	wait_for_flow_expired( $ofp, $sock, $options_ref, $pkt_len, $pkt_total );
+}
+
 sub my_test {
 
 	my ($sock, $options_ref) = @_;
 
-	my $max_idle =  $$options_ref{'max_idle'};
-	my $pkt_len = $$options_ref{'pkt_len'};
-	#my $pkt_len   = 68;
-	my $pkt_total = $$options_ref{'pkt_total'};
-	my $port_base = $$options_ref{'port_base'};
-	my $num_ports = $$options_ref{'num_ports'};
-
 	# send from every port to every other port
-	for ( my $i = 0 ; $i < $num_ports ; $i++ ) {
-		for ( my $j = 0 ; $j < $num_ports ; $j++ ) {
-			if ( $i != $j ) {
-				print "sending from $i to $j\n";
-				send_expect_exact( $ofp, $sock, $options_ref, $i, $j, $max_idle, $pkt_len );
-				wait_for_flow_expired( $ofp, $sock, $options_ref, $pkt_len, $pkt_total );
-			}
-		}
-	}
+	for_all_port_pairs( $ofp, $sock, $options_ref, \&test_ip_options, 0x0);
 }
 
 run_black_box_test( \&my_test, \@ARGV );

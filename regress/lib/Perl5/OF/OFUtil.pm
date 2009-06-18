@@ -61,6 +61,7 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &for_all_port_pairs
   &for_all_ports
   &for_all_wildcards
+  &for_all_port_triplets
   &forward_simple
   &forward_simple_icmp
   &get_default_black_box_pkt_len_icmp
@@ -1076,15 +1077,25 @@ sub for_all_port_pairs {
 
 	my ( $ofp, $sock, $options_ref, $fcn_ref, $wc ) = @_;
 
-    my $port_base = $$options_ref{'port_base'};
+	my $port_base = $$options_ref{'port_base'};
 	my $num_ports = $$options_ref{'num_ports'};
 
-	# send from every port to every other port
-	for ( my $i = 0 ; $i < $num_ports ; $i++ ) {
-		for ( my $j = 0 ; $j < $num_ports ; $j++ ) {
-			if ( $i != $j ) {
-				print "sending from port offset $i to $j\n";
-				&$fcn_ref( $ofp, $sock, $options_ref, $i, $j, $wc);
+	# Check if we need to be exhaustive or not...
+	if ( defined( $$options_ref{'less_ports'} ) ) {
+		# Just pick a pair of random ports
+		my $source_port = int(rand($num_ports));
+		my $offset = int(rand($num_ports - 1)) + 1;
+		my $dest_port = ($source_port + $offset) % $num_ports;
+		print "sending from port offset $source_port to $dest_port\n";
+		&$fcn_ref( $ofp, $sock, $options_ref, $source_port, $dest_port, $wc);
+	} else {
+		# send from every port to every other port
+		for ( my $i = 0 ; $i < $num_ports ; $i++ ) {
+			for ( my $j = 0 ; $j < $num_ports ; $j++ ) {
+				if ( $i != $j ) {
+					print "sending from port offset $i to $j\n";
+					&$fcn_ref( $ofp, $sock, $options_ref, $i, $j, $wc);
+				}
 			}
 		}
 	}
@@ -1094,13 +1105,22 @@ sub for_all_ports {
 
 	my ( $ofp, $sock, $options_ref, $fcn_ref, $wc ) = @_;
 
-    my $port_base = $$options_ref{'port_base'};
+	my $port_base = $$options_ref{'port_base'};
 	my $num_ports = $$options_ref{'num_ports'};
 
-	# send from every port
-	for ( my $i = 0 ; $i < $num_ports ; $i++ ) {
-		print "sending from port offset $i to (all port offsets but $i)\n";
-		&$fcn_ref( $ofp, $sock, $options_ref, $i, -1, $wc);
+
+	# Check if we need to be exhaustive or not...
+	if ( defined( $$options_ref{'less_ports'} ) ) {
+		# Just pick one random port
+		my $random_port = int(rand($num_ports));
+		print "sending from port offset $random_port to (all port offsets but $random_port)\n";
+		&$fcn_ref( $ofp, $sock, $options_ref, $random_port, -1, $wc);
+	} else {
+		# send from every port
+		for ( my $i = 0 ; $i < $num_ports ; $i++ ) {
+			print "sending from port offset $i to (all port offsets but $i)\n";
+			&$fcn_ref( $ofp, $sock, $options_ref, $i, -1, $wc);
+		}
 	}
 }
 
@@ -1108,7 +1128,7 @@ sub for_all_wildcards {
 
 	my ( $ofp, $sock, $options_ref, $fcn_ref) = @_;
 
-    my $port_base = $$options_ref{'port_base'};
+	my $port_base = $$options_ref{'port_base'};
 	my $num_ports = $$options_ref{'num_ports'};
 
 	my %wildcards = (
@@ -1124,21 +1144,63 @@ sub for_all_wildcards {
 		0x0080 => 'TP_DST',
 	);
 
-	# send from every port
-	# uncomment below for a more complete test 
-	my $i = 0;
-	
-	#for ( $i = 0 ; $i < $num_ports ; $i++ ) {
+	# Disable "1 ||" below for a more complete test
+	# Check if we need to be exhaustive or not...
+	if ( 1 || defined( $$options_ref{'less_ports'} ) ) {
+		# Just pick a pair of random ports
+		my $source_port = int(rand($num_ports));
+		my $offset = int(rand($num_ports - 1)) + 1;
+		my $dest_port = ($source_port + $offset) % $num_ports;
 
-		my $j = ($i + 1) % 4;
-		
-		print "sending from $i to $j\n";
-		
+		print "sending from $source_port to $dest_port\n";
+
 		for my $wc (sort keys %wildcards) {
 			printf ("wildcards: 0x%04x ".$wildcards{$wc}."\n", $wc);
-			&$fcn_ref( $ofp, $sock, $options_ref, $i, $j, $wc);
+			&$fcn_ref( $ofp, $sock, $options_ref, $source_port, $dest_port, $wc);
 		}
-	#}
+	} else {
+		# send from every port
+		for ( $i = 0 ; $i < $num_ports ; $i++ ) {
+			my $j = ($i + 1) % 4;
+			print "sending from $i to $j\n";
+			for my $wc (sort keys %wildcards) {
+				printf ("wildcards: 0x%04x ".$wildcards{$wc}."\n", $wc);
+				&$fcn_ref( $ofp, $sock, $options_ref, $i, $j, $wc);
+			}
+		}
+	}
+}
+
+sub for_all_port_triplets {
+	my ( $ofp, $sock, $options_ref, $fcn_ref, $wc ) = @_;
+
+	my $port_base = $$options_ref{'port_base'};
+	my $num_ports = $$options_ref{'num_ports'};
+
+	# Check if we need to be exhaustive or not...
+	if ( defined( $$options_ref{'less_ports'} ) ) {
+		# Just pick a triplet of random ports
+		my $source_port = int(rand($num_ports));
+		my $offset = int(rand($num_ports - 1)) + 1;
+		my $dest_port = ($source_port + $offset) % $num_ports;
+		my $offset2 = int(rand($num_ports - 2)) + 1;
+		if( $offset2 >= $offset) {
+			$offset2++;
+		}
+		my $dest2_port = ($source_port + $offset2) % $num_ports;
+
+		&$fcn_ref( $ofp, $sock, $options_ref, $source_port, $dest_port, $dest2_port, $wc);
+	} else {
+		# send from every port to every other port
+		for ( my $i = 0 ; $i < $num_ports ; $i++ ) {
+			for ( my $j = 0 ; $j < $num_ports ; $j++ ) {
+				my $o_port2 = ( ( $j + 1 ) % 4 );
+				if ( $i != $j && $i != $o_port2) {
+					&$fcn_ref( $ofp, $sock, $options_ref, $i, $j, $o_port2, $wc);
+				}
+			}
+		}
+	}
 }
 
 sub forward_simple {

@@ -64,6 +64,7 @@ my $portBase = 0;
 my $sendDelay;
 my $baseIdle;
 my $ignoreByteCount;
+my $lessPorts;
 
 sub run_regress_test {
 
@@ -90,7 +91,8 @@ sub run_regress_test {
 			"port_base=s"		=> \$portBase,
 			"send_delay=s"		=> \$sendDelay,
 			"base_idle=s"		=> \$baseIdle,
-			"ignore_byte_count"	=> \$ignoreByteCount
+			"ignore_byte_count"	=> \$ignoreByteCount,
+			"less_ports"            => \$lessPorts
 		)
 		and ( $help eq '' )
 	  )
@@ -518,6 +520,11 @@ sub runTest {
 	# Some platforms can't do byte counts - Jean II
 	if ( defined($ignoreByteCount) ) {
 		$args .= " --ignore_byte_count";
+	}
+
+	# Don't do all ports on some platforms, it's slow and useless...
+	if ( defined($lessPorts) ) {
+		$args .= " --less_ports";
 	}
 
 	if ( -d "$_ROOT_DIR/$projectRoot/$project/$regressRoot/$test" ) {

@@ -85,28 +85,27 @@ sub send_expect_secchan_nomatch {
 
 }
 
-sub my_test {
+sub test_forward_after_expiration {
 
-	my ($sock, $options_ref) = @_;
+	my ( $ofp, $sock, $options_ref, $i, $j, $wildcards ) = @_;
 
 	my $max_idle =  $$options_ref{'max_idle'};
 	my $pkt_len = $$options_ref{'pkt_len'};
 	my $pkt_total = $$options_ref{'pkt_total'};
 
+	send_expect_exact( $ofp, $sock, $options_ref, $i, $j);
+	print "waiting for flow to expire\n";
+	wait_for_flow_expired_all( $ofp, $sock, $options_ref );
+	usleep($$options_ref{'send_delay'});
+	send_expect_secchan_nomatch( $ofp, $sock, $options_ref, $i, $j);
+}
+
+sub my_test {
+
+	my ($sock, $options_ref) = @_;
+
 	# send from every port to every other port
-	for ( my $i = 0 ; $i < 4 ; $i++ ) {
-		for ( my $j = 0 ; $j < 4 ; $j++ ) {
-			if ( $i != $j ) {
-				print "sending from $i to $j\n";
-				send_expect_exact( $ofp, $sock, $options_ref, $i, $j);
-				print "waiting for flow to expire\n";
-				wait_for_flow_expired_all( $ofp, $sock, $options_ref );
-				usleep($$options_ref{'send_delay'});
-				send_expect_secchan_nomatch( $ofp, $sock, $options_ref, $i, $j);
-			}
-		}
-	}
+	for_all_port_pairs( $ofp, $sock, $options_ref, \&test_forward_after_expiration, 0x0);
 }
 
 run_black_box_test( \&my_test, \@ARGV );
-

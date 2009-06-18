@@ -137,32 +137,30 @@ sub delete_send_expect {
 
 }
 
-sub my_test {
+sub test_delete {
 
-	my ($sock, $options_ref) = @_;
+	my ( $ofp, $sock, $options_ref, $i, $j, $o_port2, $wildcards ) = @_;
 
 	my $max_idle =  $$options_ref{'max_idle'};
 	my $pkt_len = $$options_ref{'pkt_len'};
 	my $pkt_total = $$options_ref{'pkt_total'};
 
+	print "sending from $i to $j & $i to $o_port2 -- both should match\n";
+	send_expect_exact_with_wildcard( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle, $pkt_len );
+
+	# wait for switch to process last packets
+	usleep($$options_ref{'send_delay'});
+
+	print "delete wildcard entry (without STRICT) and send packets again\n";
+	delete_send_expect( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle, $pkt_len );
+}
+
+sub my_test {
+
+	my ($sock, $options_ref) = @_;
+
 	# send from every port to every other port
-	for ( my $i = 0 ; $i < 4 ; $i++ ) {
-		for ( my $j = 0 ; $j < 4 ; $j++ ) {
-			my $o_port2 = ( ( $j + 1 ) % 4 );
-			if ( $i != $j && $i != $o_port2) { 
-				print "sending from $i to $j & $i to $o_port2 -- both should match\n";
-				send_expect_exact_with_wildcard( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle,
-					$pkt_len );
-
-				# wait for switch to process last packets	
-				usleep($$options_ref{'send_delay'});
-
-				print "delete wildcard entry (without STRICT) and send packets again\n";
-				delete_send_expect( $ofp, $sock, $options_ref, $i, $j, $o_port2, $max_idle, $pkt_len );
-
-			}
-		}
-	}
+	for_all_port_triplets( $ofp, $sock, $options_ref, \&test_delete, 0x0);
 }
 
 run_black_box_test( \&my_test, \@ARGV );
