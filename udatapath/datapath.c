@@ -1354,7 +1354,7 @@ static void port_stats_done(void *state)
  * };
  */
 static int
-vendor_stats_init(struct datapath *dp, const void *body, int body_len,
+vendor_stats_init(const void *body, int body_len,
 		  void **state)
 {
 	/* min_body was checked, this should be safe */
