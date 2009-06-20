@@ -46,6 +46,10 @@
 
 #define MAX_INT_32	0xFFFFFFFF
 
+#define VID_BITMASK 0x0FFF
+#define PCP_BITSHIFT 13
+#define PCP_BITMASK 0xE000
+
 struct list_head wildcard_free_list;
 struct nf2_flow *exact_free_list[OPENFLOW_NF2_EXACT_TABLE_SIZE];
 
@@ -287,6 +291,8 @@ nf2_write_static_wildcard(void)
 void
 nf2_populate_of_entry(nf2_of_entry_wrap *key, struct sw_flow *flow)
 {
+	int vlan_vid;
+	int vlan_pcp;
 	int i;
 
 	key->entry.transp_dst = ntohs(flow->key.tp_dst);
@@ -304,7 +310,16 @@ nf2_populate_of_entry(nf2_of_entry_wrap *key, struct sw_flow *flow)
 	}
 
 	key->entry.src_port = ntohs(flow->key.in_port) * 2;
-	key->entry.vlan_id = ntohs(flow->key.dl_vlan);
+
+	if (ntohs(flow->key.dl_vlan) == 0xffff) {
+		key->entry.vlan_id = 0xffff;
+	}
+	else {
+		vlan_vid = VID_BITMASK & ntohs(flow->key.dl_vlan);
+		vlan_pcp = PCP_BITMASK &
+		           ((uint16_t)(flow->key.dl_vlan_pcp) << PCP_BITSHIFT);
+		key->entry.vlan_id = vlan_pcp | vlan_vid;
+	}
 }
 
 static uint32_t
@@ -318,14 +333,20 @@ make_nw_wildcard(int n_wild_bits)
 void
 nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow)
 {
+	int vlan_vid = 0;
+	int vlan_pcp = 0;
 	int i;
 
 	if (OFPFW_IN_PORT & flow->key.wildcards) {
 		mask->entry.src_port = 0xFF;
 	}
 	if (OFPFW_DL_VLAN & flow->key.wildcards) {
-		mask->entry.vlan_id = 0xFFFF;
+		vlan_vid = 0x0FFF;
 	}
+	if (OFPFW_DL_VLAN_PCP & flow->key.wildcards) {
+		vlan_pcp = 0xE000;
+	}
+	mask->entry.vlan_id = vlan_pcp | vlan_vid;
 	if (OFPFW_DL_SRC & flow->key.wildcards) {
 		for (i = 0; i < 6; ++i) {
 			mask->entry.eth_src[i] = 0xFF;
