@@ -260,9 +260,9 @@ nf2_reset_card(struct net_device *dev)
 
 	/* If we are operating on a NetFPGA enabled box, reset the card */
 	printk(KERN_INFO "openflowswitch-netfpga2: Resetting the NetFPGA.\n");
-	nf2k_reg_read(dev, CPCI_REG_CTRL, (void *)&val);
+	nf2k_reg_read(dev, WDT_CPCI_REG_CTRL, (void *)&val);
 	val |= 0x100;
-	nf2k_reg_write(dev, CPCI_REG_CTRL, (void *)&val);
+	nf2k_reg_write(dev, WDT_CPCI_REG_CTRL, (void *)&val);
 	printk(KERN_INFO "openflowswitch-netfpga2: Reset the NetFPGA.\n");
 	ssleep(2);
 }
@@ -312,27 +312,27 @@ nf2_write_of_wildcard(struct net_device *dev, int row,
 
 	for (i = 0; i < NF2_OF_ENTRY_WORD_LEN; ++i) {
 		nf2k_reg_write(dev,
-			       OPENFLOW_WILDCARD_LOOKUP_CMP_BASE_REG
+			       OPENFLOW_WILDCARD_LOOKUP_CMP_0_REG
 			       + (4 * i), &(entry->raw[i]));
 	}
 
 	for (i = 0; i < NF2_OF_MASK_WORD_LEN; ++i) {
 		nf2k_reg_write(dev,
-			       OPENFLOW_WILDCARD_LOOKUP_CMP_MASK_BASE_REG
+			       OPENFLOW_WILDCARD_LOOKUP_CMP_MASK_0_REG
 			       + (4 * i), &(mask->raw[i]));
 	}
 
 	for (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
 		nf2k_reg_write(dev,
-			       OPENFLOW_WILDCARD_LOOKUP_ACTION_BASE_REG
+			       OPENFLOW_WILDCARD_LOOKUP_ACTION_0_REG
 			       + (4 * i), &(action->raw[i]));
 	}
 
 	// Reset the stats for the row
 	val = 0;
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_BASE_REG, &val);
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_BASE_REG, &val);
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_REG, &val);
+	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_0_REG + (4 * row), &val);
+	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_0_REG + (4 * row), &val);
+	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_0_REG + (4 * row), &val);
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_WRITE_ADDR_REG, &row);
 
 	do_gettimeofday(&t);
@@ -358,21 +358,21 @@ nf2_write_of_exact(struct net_device *dev, int row,
 	log_action_raw(action);
 
 	for (i = 0; i < NF2_OF_ENTRY_WORD_LEN; ++i) {
-		nf2k_reg_write(dev, SRAM_BASE_ADDR_REG + index
+		nf2k_reg_write(dev, SRAM_BASE_ADDR + index
 			       + (4 * i), &(entry->raw[i]));
 	}
 
 	// blank out the counters
 	val = 0;
 	for (i = 0; i < NF2_OF_EXACT_COUNTERS_WORD_LEN; ++i) {
-		nf2k_reg_write(dev, SRAM_BASE_ADDR_REG + index
+		nf2k_reg_write(dev, SRAM_BASE_ADDR + index
 			       + sizeof(nf2_of_entry_wrap)
 			       + (4 * i), &val);
 	}
 
 	// write the actions
 	for (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
-		nf2k_reg_write(dev, SRAM_BASE_ADDR_REG + index
+		nf2k_reg_write(dev, SRAM_BASE_ADDR + index
 			       + sizeof(nf2_of_entry_wrap)
 			       + sizeof(nf2_of_exact_counters_wrap)
 			       + (4 * i), &(action->raw[i]));
@@ -408,34 +408,34 @@ nf2_modify_write_of_wildcard(struct net_device *dev, int row,
 
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_READ_ADDR_REG, &row);
 	nf2k_reg_read(dev,
-		      OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_BASE_REG + (4 * row),
+		      OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_0_REG + (4 * row),
 		      &bytes_reg_val);
 	nf2k_reg_read(dev,
-		      OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_BASE_REG + (4 * row),
+		      OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_0_REG + (4 * row),
 		      &pkts_reg_val);
-	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_REG,
+	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_0_REG + (4 * row),
 		      &last_reg_val);
 
 	for (i = 0; i < NF2_OF_ENTRY_WORD_LEN; ++i) {
-		nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_CMP_BASE_REG
+		nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_CMP_0_REG
 			       + (4 * i), &(entry->raw[i]));
 	}
 
 	for (i = 0; i < NF2_OF_MASK_WORD_LEN; ++i) {
-		nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_CMP_MASK_BASE_REG
+		nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_CMP_MASK_0_REG
 			       + (4 * i), &(mask->raw[i]));
 	}
 
 	for (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
-		nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_ACTION_BASE_REG
+		nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_ACTION_0_REG
 			       + (4 * i), &(action->raw[i]));
 	}
 
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_BASE_REG,
+	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_0_REG + (4 * row),
 		       &bytes_reg_val);
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_BASE_REG,
+	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_0_REG + (4 * row),
 		       &pkts_reg_val);
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_REG,
+	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_0_REG + (4 * row),
 		       &last_reg_val);
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_WRITE_ADDR_REG, &row);
 
@@ -465,7 +465,7 @@ nf2_modify_write_of_exact(struct net_device *dev, int row,
 
 	// write the actions
 	for (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
-		nf2k_reg_write(dev, SRAM_BASE_ADDR_REG + index
+		nf2k_reg_write(dev, SRAM_BASE_ADDR + index
 			       + sizeof(nf2_of_entry_wrap)
 			       + sizeof(nf2_of_exact_counters_wrap)
 			       + (4 * i), &(action->raw[i]));
@@ -497,7 +497,7 @@ nf2_get_exact_packet_count(struct net_device *dev, int row)
 
 	// Read the first word into our struct, to not disturb the byte count
 	nf2k_reg_read(dev,
-		      SRAM_BASE_ADDR_REG + index + sizeof(nf2_of_entry_wrap),
+		      SRAM_BASE_ADDR + index + sizeof(nf2_of_entry_wrap),
 		      &counters);
 	val = counters.counters.pkt_count;
 
@@ -524,7 +524,7 @@ nf2_get_exact_byte_count(struct net_device *dev, int row)
 	index = row << 7;
 
 	// Read the second word into our struct, to not disturb the packet count
-	nf2k_reg_read(dev, SRAM_BASE_ADDR_REG + index +
+	nf2k_reg_read(dev, SRAM_BASE_ADDR + index +
 		      sizeof(nf2_of_entry_wrap) + 4, &counters.raw[1]);
 	val = counters.counters.byte_count;
 
@@ -543,7 +543,7 @@ nf2_get_wildcard_packet_count(struct net_device *dev, int row)
 #endif
 
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_READ_ADDR_REG, &row);
-	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_BASE_REG
+	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_0_REG
 		      + (4 * row), &val);
 
 #ifdef NF2_DEBUG
@@ -565,7 +565,7 @@ nf2_get_wildcard_byte_count(struct net_device *dev, int row)
 #endif
 
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_READ_ADDR_REG, &row);
-	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_BASE_REG
+	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_0_REG
 		      + (4 * row), &val);
 
 #ifdef NF2_DEBUG
@@ -635,12 +635,12 @@ nf2_get_device_info(struct net_device *dev)
 		return NULL;
 
 	// Read the version and revision
-	nf2k_reg_read(dev, DEVICE_ID_REG, &(nf2devinfo->nf2_device_id));
-	nf2k_reg_read(dev, DEVICE_REVISION_REG, &(nf2devinfo->nf2_device_rev));
+	nf2k_reg_read(dev, DEV_ID_DEVICE_ID_REG, &(nf2devinfo->nf2_device_id));
+	nf2k_reg_read(dev, DEV_ID_REVISION_REG, &(nf2devinfo->nf2_device_rev));
 
 	// Read the design name string
 	for (i = 0; i < (DEVICE_STR_LEN / 4) - 2; i++) {
-		nf2k_reg_read(dev, DEVICE_STR_REG + i * 4,
+		nf2k_reg_read(dev, DEV_ID_DEV_STR_0_REG + i * 4,
 			      (uint32_t *)(nf2devinfo->nf2_device_str + i * 4));
 		*(uint32_t *)(nf2devinfo->nf2_device_str + i * 4)
 			= ntohl(*(uint32_t *)
@@ -691,104 +691,104 @@ nf2_get_all_ports_info_addr(void)
 		return NULL;
 
 	nf2addr->rx_q_num_pkts_stored_reg[0]
-		= RX_QUEUE_0_NUM_PKTS_STORED_REG;
+		= MAC_GRP_0_RX_QUEUE_NUM_PKTS_STORED_REG;
 	nf2addr->rx_q_num_pkts_dropped_full_reg[0]
-		= RX_QUEUE_0_NUM_PKTS_DROPPED_FULL_REG;
+		= MAC_GRP_0_RX_QUEUE_NUM_PKTS_DROPPED_FULL_REG;
 	nf2addr->rx_q_num_pkts_dropped_bad_reg[0]
-		= RX_QUEUE_0_NUM_PKTS_DROPPED_BAD_REG;
+		= MAC_GRP_0_RX_QUEUE_NUM_PKTS_DROPPED_BAD_REG;
 	nf2addr->rx_q_num_words_pushed_reg[0]
-		= RX_QUEUE_0_NUM_WORDS_PUSHED_REG;
+		= MAC_GRP_0_RX_QUEUE_NUM_WORDS_PUSHED_REG;
 	nf2addr->rx_q_num_bytes_pushed_reg[0]
-		= RX_QUEUE_0_NUM_BYTES_PUSHED_REG;
+		= MAC_GRP_0_RX_QUEUE_NUM_BYTES_PUSHED_REG;
 	nf2addr->rx_q_num_pkts_dequeued_reg[0]
-		= RX_QUEUE_0_NUM_PKTS_DEQUEUED_REG;
+		= MAC_GRP_0_RX_QUEUE_NUM_PKTS_DEQUEUED_REG;
 	nf2addr->rx_q_num_pkts_in_queue_reg[0]
-		= RX_QUEUE_0_NUM_PKTS_IN_QUEUE_REG;
+		= MAC_GRP_0_RX_QUEUE_NUM_PKTS_IN_QUEUE_REG;
 	nf2addr->tx_q_num_pkts_in_queue_reg[0]
-		= TX_QUEUE_0_NUM_PKTS_IN_QUEUE_REG;
+		= MAC_GRP_0_TX_QUEUE_NUM_PKTS_IN_QUEUE_REG;
 	nf2addr->tx_q_num_pkts_sent_reg[0]
-		= TX_QUEUE_0_NUM_PKTS_SENT_REG;
+		= MAC_GRP_0_TX_QUEUE_NUM_PKTS_SENT_REG;
 	nf2addr->tx_q_num_words_pushed_reg[0]
-		= TX_QUEUE_0_NUM_WORDS_PUSHED_REG;
+		= MAC_GRP_0_TX_QUEUE_NUM_WORDS_PUSHED_REG;
 	nf2addr->tx_q_num_bytes_pushed_reg[0]
-		= TX_QUEUE_0_NUM_BYTES_PUSHED_REG;
+		= MAC_GRP_0_TX_QUEUE_NUM_BYTES_PUSHED_REG;
 	nf2addr->tx_q_num_pkts_enqueued_reg[0]
-		= TX_QUEUE_0_NUM_PKTS_ENQUEUED_REG;
+		= MAC_GRP_0_TX_QUEUE_NUM_PKTS_ENQUEUED_REG;
 
 	nf2addr->rx_q_num_pkts_stored_reg[1]
-		= RX_QUEUE_1_NUM_PKTS_STORED_REG;
+		= MAC_GRP_1_RX_QUEUE_NUM_PKTS_STORED_REG;
 	nf2addr->rx_q_num_pkts_dropped_full_reg[1]
-		= RX_QUEUE_1_NUM_PKTS_DROPPED_FULL_REG;
+		= MAC_GRP_1_RX_QUEUE_NUM_PKTS_DROPPED_FULL_REG;
 	nf2addr->rx_q_num_pkts_dropped_bad_reg[1]
-		= RX_QUEUE_1_NUM_PKTS_DROPPED_BAD_REG;
+		= MAC_GRP_1_RX_QUEUE_NUM_PKTS_DROPPED_BAD_REG;
 	nf2addr->rx_q_num_words_pushed_reg[1]
-		= RX_QUEUE_1_NUM_WORDS_PUSHED_REG;
+		= MAC_GRP_1_RX_QUEUE_NUM_WORDS_PUSHED_REG;
 	nf2addr->rx_q_num_bytes_pushed_reg[1]
-		= RX_QUEUE_1_NUM_BYTES_PUSHED_REG;
+		= MAC_GRP_1_RX_QUEUE_NUM_BYTES_PUSHED_REG;
 	nf2addr->rx_q_num_pkts_dequeued_reg[1]
-		= RX_QUEUE_1_NUM_PKTS_DEQUEUED_REG;
+		= MAC_GRP_1_RX_QUEUE_NUM_PKTS_DEQUEUED_REG;
 	nf2addr->rx_q_num_pkts_in_queue_reg[1]
-		= RX_QUEUE_1_NUM_PKTS_IN_QUEUE_REG;
+		= MAC_GRP_1_RX_QUEUE_NUM_PKTS_IN_QUEUE_REG;
 	nf2addr->tx_q_num_pkts_in_queue_reg[1]
-		= TX_QUEUE_1_NUM_PKTS_IN_QUEUE_REG;
+		= MAC_GRP_1_TX_QUEUE_NUM_PKTS_IN_QUEUE_REG;
 	nf2addr->tx_q_num_pkts_sent_reg[1]
-		= TX_QUEUE_1_NUM_PKTS_SENT_REG;
+		= MAC_GRP_1_TX_QUEUE_NUM_PKTS_SENT_REG;
 	nf2addr->tx_q_num_words_pushed_reg[1]
-		= TX_QUEUE_1_NUM_WORDS_PUSHED_REG;
+		= MAC_GRP_1_TX_QUEUE_NUM_WORDS_PUSHED_REG;
 	nf2addr->tx_q_num_bytes_pushed_reg[1]
-		= TX_QUEUE_1_NUM_BYTES_PUSHED_REG;
+		= MAC_GRP_1_TX_QUEUE_NUM_BYTES_PUSHED_REG;
 	nf2addr->tx_q_num_pkts_enqueued_reg[1]
-		= TX_QUEUE_1_NUM_PKTS_ENQUEUED_REG;
+		= MAC_GRP_1_TX_QUEUE_NUM_PKTS_ENQUEUED_REG;
 
 	nf2addr->rx_q_num_pkts_stored_reg[2]
-		= RX_QUEUE_2_NUM_PKTS_STORED_REG;
+		= MAC_GRP_2_RX_QUEUE_NUM_PKTS_STORED_REG;
 	nf2addr->rx_q_num_pkts_dropped_full_reg[2]
-		= RX_QUEUE_2_NUM_PKTS_DROPPED_FULL_REG;
+		= MAC_GRP_2_RX_QUEUE_NUM_PKTS_DROPPED_FULL_REG;
 	nf2addr->rx_q_num_pkts_dropped_bad_reg[2]
-		= RX_QUEUE_2_NUM_PKTS_DROPPED_BAD_REG;
+		= MAC_GRP_2_RX_QUEUE_NUM_PKTS_DROPPED_BAD_REG;
 	nf2addr->rx_q_num_words_pushed_reg[2]
-		= RX_QUEUE_2_NUM_WORDS_PUSHED_REG;
+		= MAC_GRP_2_RX_QUEUE_NUM_WORDS_PUSHED_REG;
 	nf2addr->rx_q_num_bytes_pushed_reg[2]
-		= RX_QUEUE_2_NUM_BYTES_PUSHED_REG;
+		= MAC_GRP_2_RX_QUEUE_NUM_BYTES_PUSHED_REG;
 	nf2addr->rx_q_num_pkts_dequeued_reg[2]
-		= RX_QUEUE_2_NUM_PKTS_DEQUEUED_REG;
+		= MAC_GRP_2_RX_QUEUE_NUM_PKTS_DEQUEUED_REG;
 	nf2addr->rx_q_num_pkts_in_queue_reg[2]
-		= RX_QUEUE_2_NUM_PKTS_IN_QUEUE_REG;
+		= MAC_GRP_2_RX_QUEUE_NUM_PKTS_IN_QUEUE_REG;
 	nf2addr->tx_q_num_pkts_in_queue_reg[2]
-		= TX_QUEUE_2_NUM_PKTS_IN_QUEUE_REG;
+		= MAC_GRP_2_TX_QUEUE_NUM_PKTS_IN_QUEUE_REG;
 	nf2addr->tx_q_num_pkts_sent_reg[2]
-		= TX_QUEUE_2_NUM_PKTS_SENT_REG;
+		= MAC_GRP_2_TX_QUEUE_NUM_PKTS_SENT_REG;
 	nf2addr->tx_q_num_words_pushed_reg[2]
-		= TX_QUEUE_2_NUM_WORDS_PUSHED_REG;
+		= MAC_GRP_2_TX_QUEUE_NUM_WORDS_PUSHED_REG;
 	nf2addr->tx_q_num_bytes_pushed_reg[2]
-		= TX_QUEUE_2_NUM_BYTES_PUSHED_REG;
+		= MAC_GRP_2_TX_QUEUE_NUM_BYTES_PUSHED_REG;
 	nf2addr->tx_q_num_pkts_enqueued_reg[2]
-		= TX_QUEUE_2_NUM_PKTS_ENQUEUED_REG;
+		= MAC_GRP_2_TX_QUEUE_NUM_PKTS_ENQUEUED_REG;
 
 	nf2addr->rx_q_num_pkts_stored_reg[3]
-		= RX_QUEUE_3_NUM_PKTS_STORED_REG;
+		= MAC_GRP_3_RX_QUEUE_NUM_PKTS_STORED_REG;
 	nf2addr->rx_q_num_pkts_dropped_full_reg[3]
-		= RX_QUEUE_3_NUM_PKTS_DROPPED_FULL_REG;
+		= MAC_GRP_3_RX_QUEUE_NUM_PKTS_DROPPED_FULL_REG;
 	nf2addr->rx_q_num_pkts_dropped_bad_reg[3]
-		= RX_QUEUE_3_NUM_PKTS_DROPPED_BAD_REG;
+		= MAC_GRP_3_RX_QUEUE_NUM_PKTS_DROPPED_BAD_REG;
 	nf2addr->rx_q_num_words_pushed_reg[3]
-		= RX_QUEUE_3_NUM_WORDS_PUSHED_REG;
+		= MAC_GRP_3_RX_QUEUE_NUM_WORDS_PUSHED_REG;
 	nf2addr->rx_q_num_bytes_pushed_reg[3]
-		= RX_QUEUE_3_NUM_BYTES_PUSHED_REG;
+		= MAC_GRP_3_RX_QUEUE_NUM_BYTES_PUSHED_REG;
 	nf2addr->rx_q_num_pkts_dequeued_reg[3]
-		= RX_QUEUE_3_NUM_PKTS_DEQUEUED_REG;
+		= MAC_GRP_3_RX_QUEUE_NUM_PKTS_DEQUEUED_REG;
 	nf2addr->rx_q_num_pkts_in_queue_reg[3]
-		= RX_QUEUE_3_NUM_PKTS_IN_QUEUE_REG;
+		= MAC_GRP_3_RX_QUEUE_NUM_PKTS_IN_QUEUE_REG;
 	nf2addr->tx_q_num_pkts_in_queue_reg[3]
-		= TX_QUEUE_3_NUM_PKTS_IN_QUEUE_REG;
+		= MAC_GRP_3_TX_QUEUE_NUM_PKTS_IN_QUEUE_REG;
 	nf2addr->tx_q_num_pkts_sent_reg[3]
-		= TX_QUEUE_3_NUM_PKTS_SENT_REG;
+		= MAC_GRP_3_TX_QUEUE_NUM_PKTS_SENT_REG;
 	nf2addr->tx_q_num_words_pushed_reg[3]
-		= TX_QUEUE_3_NUM_WORDS_PUSHED_REG;
+		= MAC_GRP_3_TX_QUEUE_NUM_WORDS_PUSHED_REG;
 	nf2addr->tx_q_num_bytes_pushed_reg[3]
-		= TX_QUEUE_3_NUM_BYTES_PUSHED_REG;
+		= MAC_GRP_3_TX_QUEUE_NUM_BYTES_PUSHED_REG;
 	nf2addr->tx_q_num_pkts_enqueued_reg[3]
-		= TX_QUEUE_3_NUM_PKTS_ENQUEUED_REG;
+		= MAC_GRP_3_TX_QUEUE_NUM_PKTS_ENQUEUED_REG;
 
 	return nf2addr;
 }
