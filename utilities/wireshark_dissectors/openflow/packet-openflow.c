@@ -5,8 +5,9 @@
  * dgu 	     2008-Aug-26 created
  * brandonh  2008-Oct-5  updated to 0x95
  * brandonh  2008-Nov-25 updated to 0x96 + bugfixes
+ * tyabe     2009-May-20 added vlan_pcp_match
  *
- * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x96.
+ * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x97.
  */
 
 /** the version of openflow this dissector was written for */
@@ -102,7 +103,7 @@ static const value_string names_ofp_action_type[] = {
 #define NUM_PORT_CONFIG_FLAGS 7
 #define NUM_PORT_STATE_FLAGS 1
 #define NUM_PORT_FEATURES_FLAGS 12
-#define NUM_WILDCARDS 10
+#define NUM_WILDCARDS 11
 #define NUM_CAPABILITIES_FLAGS 6
 #define NUM_FLOW_MOD_FLAGS 1
 #define NUM_SF_REPLY_FLAGS 1
@@ -388,6 +389,7 @@ static gint ofp_match_in_port   = -1;
 static gint ofp_match_dl_src    = -1;
 static gint ofp_match_dl_dst    = -1;
 static gint ofp_match_dl_vlan   = -1;
+static gint ofp_match_dl_vlan_pcp = -1;
 static gint ofp_match_dl_type   = -1;
 static gint ofp_match_nw_src    = -1;
 static gint ofp_match_nw_dst    = -1;
@@ -936,7 +938,7 @@ void proto_register_openflow()
           { "  Input port", "of.wildcard_in_port" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_IN_PORT, "Input Port", HFILL }},
 
         { &ofp_match_wildcards[1],
-          { "  VLAN", "of.wildcard_dl_vlan" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_DL_VLAN, "VLAN", HFILL }},
+          { "  VLAN ID", "of.wildcard_dl_vlan" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_DL_VLAN, "VLAN ID", HFILL }},
 
         { &ofp_match_wildcards[2],
           { "  Ethernet Src Addr", "of.wildcard_dl_src" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_DL_SRC, "Ethernet Source Address", HFILL }},
@@ -962,11 +964,14 @@ void proto_register_openflow()
         { &ofp_match_wildcards[9],
             { "  IP Dst Addr Mask", "of.wildcard_nw_dst" , FT_UINT32, BASE_DEC, VALS(addr_mask), OFPFW_NW_DST_MASK , "IP Destination Address Mask", HFILL }},
 
+        { &ofp_match_wildcards[10],
+            { "  VLAN priority", "of.wildcard_dl_vlan_pcp" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_DL_VLAN_PCP, "VLAN priority", HFILL }},
+
         { &ofp_table_stats_wildcards[0],
           { "  Input port", "of.wildcard_in_port" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_IN_PORT, "Input Port", HFILL }},
 
         { &ofp_table_stats_wildcards[1],
-          { "  VLAN", "of.wildcard_dl_vlan" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_DL_VLAN, "VLAN", HFILL }},
+          { "  VLAN ID", "of.wildcard_dl_vlan" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_DL_VLAN, "VLAN ID", HFILL }},
 
         { &ofp_table_stats_wildcards[2],
           { "  Ethernet Src Addr", "of.wildcard_dl_src" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_DL_SRC, "Ethernet Source Address", HFILL }},
@@ -992,6 +997,9 @@ void proto_register_openflow()
         { &ofp_table_stats_wildcards[9],
             { "  IP Dst Addr Mask", "of.wildcard_nw_dst" , FT_UINT32, BASE_DEC, VALS(ts_addr_mask), OFPFW_NW_DST_MASK , "IP Destination Address Mask", HFILL }},
 
+        { &ofp_table_stats_wildcards[10],
+          { "  VLAN priority", "of.wildcard_dl_vlan_pcp" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_DL_VLAN_PCP, "VLAN priority", HFILL }},
+
         { &ofp_match_in_port,
           { "Input Port", "of.match_in_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Input Port", HFILL }},
 
@@ -1002,7 +1010,7 @@ void proto_register_openflow()
           { "Ethernet Dst Addr", "of.match_dl_dst", FT_ETHER, BASE_NONE, NO_STRINGS, NO_MASK, "Destination MAC Address", HFILL }},
 
         { &ofp_match_dl_vlan,
-          { "Input VLAN", "of.match_dl_vlan", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Input VLAN", HFILL }},
+          { "Input VLAN ID", "of.match_dl_vlan", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Input VLAN ID", HFILL }},
 
         { &ofp_match_dl_type,
           { "Ethernet Type", "of.match_dl_type", FT_UINT16, BASE_HEX, NO_STRINGS, NO_MASK, "Ethernet Type", HFILL }},
@@ -1015,6 +1023,9 @@ void proto_register_openflow()
 
         { &ofp_match_nw_proto,
           { "IP Protocol", "of.match_nw_proto", FT_UINT8, BASE_HEX, NO_STRINGS, NO_MASK, "IP Protocol", HFILL }},
+
+        { &ofp_match_dl_vlan_pcp,
+          { "Input VLAN priority", "of.match_dl_vlan_pcp", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Input VLAN priority", HFILL }},
 
         { &ofp_match_tp_src,
           { "TCP/UDP Src Port", "of.match_tp_src", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Source Port", HFILL }},
@@ -2095,7 +2106,10 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 1;
 
-    dissect_pad(match_tree, offset, 1);
+    if( ~wildcards & OFPFW_DL_VLAN_PCP )
+        add_child(match_tree, ofp_match_dl_vlan_pcp, tvb, offset, 1);
+    else
+        *offset += 1;
 
     if( ~wildcards & OFPFW_NW_SRC_MASK )
         add_child(match_tree, ofp_match_nw_src, tvb, offset, 4);
