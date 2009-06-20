@@ -50,14 +50,14 @@ struct flow {
     uint32_t nw_src;            /* IP source address. */
     uint32_t nw_dst;            /* IP destination address. */
     uint16_t in_port;           /* Input switch port. */
-    uint16_t dl_vlan;           /* Input VLAN. */
+    uint16_t dl_vlan;           /* Input VLAN id. */
     uint16_t dl_type;           /* Ethernet frame type. */
     uint16_t tp_src;            /* TCP/UDP source port. */
     uint16_t tp_dst;            /* TCP/UDP destination port. */
     uint8_t dl_src[6];          /* Ethernet source address. */
     uint8_t dl_dst[6];          /* Ethernet destination address. */
     uint8_t nw_proto;           /* IP protocol. */
-    uint8_t reserved;           /* Pad to 32-bit alignment. */
+    uint8_t dl_vlan_pcp;        /* Input VLAN priority. */
 };
 BUILD_ASSERT_DECL(sizeof(struct flow) == 32);
 

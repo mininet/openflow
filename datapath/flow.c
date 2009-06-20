@@ -30,6 +30,7 @@ int flow_fields_match(const struct sw_flow_key *a, const struct sw_flow_key *b,
 {
 	return ((w & OFPFW_IN_PORT || a->in_port == b->in_port)
 		&& (w & OFPFW_DL_VLAN || a->dl_vlan == b->dl_vlan)
+		&& (w & OFPFW_DL_VLAN_PCP || a->dl_vlan_pcp == b->dl_vlan_pcp)
 		&& (w & OFPFW_DL_SRC || !memcmp(a->dl_src, b->dl_src, ETH_ALEN))
 		&& (w & OFPFW_DL_DST || !memcmp(a->dl_dst, b->dl_dst, ETH_ALEN))
 		&& (w & OFPFW_DL_TYPE || a->dl_type == b->dl_type)
@@ -85,7 +86,7 @@ static uint32_t make_nw_mask(int n_wild_bits)
 void flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from)
 {
 	to->wildcards = ntohl(from->wildcards) & OFPFW_ALL;
-	to->pad = 0;
+	to->dl_vlan_pcp = from->dl_vlan_pcp;
 	to->in_port = from->in_port;
 	to->dl_vlan = from->dl_vlan;
 	memcpy(to->dl_src, from->dl_src, ETH_ALEN);
@@ -146,7 +147,7 @@ void flow_fill_match(struct ofp_match* to, const struct sw_flow_key* from)
 	to->nw_proto  = from->nw_proto;
 	to->tp_src    = from->tp_src;
 	to->tp_dst    = from->tp_dst;
-	to->pad       = 0;
+	to->dl_vlan_pcp  = from->dl_vlan_pcp;
 }
 
 int flow_timeout(struct sw_flow *flow)
@@ -311,10 +312,11 @@ EXPORT_SYMBOL(flow_replace_acts);
 /* Prints a representation of 'key' to the kernel log. */
 void print_flow(const struct sw_flow_key *key)
 {
-	printk("wild%08x port%04x:vlan%04x mac%02x:%02x:%02x:%02x:%02x:%02x"
+	printk("wild%08x port%04x:vlan%04x vlan_pcp%02x mac%02x:%02x:%02x:%02x:%02x:%02x"
 			"->%02x:%02x:%02x:%02x:%02x:%02x "
 			"proto%04x ip%u.%u.%u.%u->%u.%u.%u.%u port%d->%d\n",
 			key->wildcards, ntohs(key->in_port), ntohs(key->dl_vlan),
+			key->dl_vlan_pcp,
 			key->dl_src[0], key->dl_src[1], key->dl_src[2],
 			key->dl_src[3], key->dl_src[4], key->dl_src[5],
 			key->dl_dst[0], key->dl_dst[1], key->dl_dst[2],
@@ -394,6 +396,8 @@ int flow_extract(struct sk_buff *skb, uint16_t in_port,
 		struct vlan_hdr *vh = (struct vlan_hdr*)(skb->data + nh_ofs);
 		key->dl_type = vh->h_vlan_encapsulated_proto;
 		key->dl_vlan = vh->h_vlan_TCI & htons(VLAN_VID_MASK);
+		key->dl_vlan_pcp = (uint8_t)((ntohs(vh->h_vlan_TCI) >> VLAN_PCP_SHIFT)
+		                             & VLAN_PCP_BITMASK);
 		nh_ofs += sizeof(struct vlan_hdr);
 	}
 	memcpy(key->dl_src, eth->h_source, ETH_ALEN);

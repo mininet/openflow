@@ -144,6 +144,8 @@ flow_extract(struct ofpbuf *packet, uint16_t in_port, struct flow *flow)
             if (vh) {
                 flow->dl_type = vh->vlan_next_type;
                 flow->dl_vlan = vh->vlan_tci & htons(VLAN_VID_MASK);
+                flow->dl_vlan_pcp = (uint8_t)((ntohs(vh->vlan_tci) >> VLAN_PCP_SHIFT)
+                                               & VLAN_PCP_BITMASK);
             }
         }
         memcpy(flow->dl_src, eth->eth_src, ETH_ADDR_LEN);
@@ -216,16 +218,16 @@ flow_fill_match(struct ofp_match *to, const struct flow *from,
     to->nw_proto = from->nw_proto;
     to->tp_src = from->tp_src;
     to->tp_dst = from->tp_dst;
-    to->pad = 0;
+    to->dl_vlan_pcp = from->dl_vlan_pcp;
 }
 
 void
 flow_print(FILE *stream, const struct flow *flow) 
 {
     fprintf(stream,
-            "port%04x:vlan%04x mac"ETH_ADDR_FMT"->"ETH_ADDR_FMT" "
+            "port%04x:vlan%04x vlan_pcp%02x mac"ETH_ADDR_FMT"->"ETH_ADDR_FMT" "
             "proto%04x ip"IP_FMT"->"IP_FMT" port%d->%d",
-            ntohs(flow->in_port), ntohs(flow->dl_vlan),
+            ntohs(flow->in_port), ntohs(flow->dl_vlan), flow->dl_vlan_pcp,
             ETH_ADDR_ARGS(flow->dl_src), ETH_ADDR_ARGS(flow->dl_dst),
             ntohs(flow->dl_type),
             IP_ARGS(&flow->nw_src), IP_ARGS(&flow->nw_dst),

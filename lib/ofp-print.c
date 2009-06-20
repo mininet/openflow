@@ -160,7 +160,7 @@ ofp_packet_in(struct ds *string, const void *oh, size_t len, int verbosity)
         match.dl_vlan = flow.dl_vlan;
         match.dl_type = flow.dl_type;
         match.nw_proto = flow.nw_proto;
-        match.pad = 0;
+        match.dl_vlan_pcp = flow.dl_vlan_pcp;
         match.nw_src = flow.nw_src;
         match.nw_dst = flow.nw_dst;
         match.tp_src = flow.tp_src;
@@ -682,6 +682,8 @@ ofp_match_to_string(const struct ofp_match *om, int verbosity)
                "%d", ntohs(om->in_port));
     print_wild(&f, "dl_vlan=", w & OFPFW_DL_VLAN, verbosity,
                "0x%04x", ntohs(om->dl_vlan));
+    print_wild(&f, "dl_vlan_pcp=", w & OFPFW_DL_VLAN_PCP, verbosity,
+               "0x%02x", om->dl_vlan_pcp);
     print_wild(&f, "dl_src=", w & OFPFW_DL_SRC, verbosity,
                ETH_ADDR_FMT, ETH_ADDR_ARGS(om->dl_src));
     print_wild(&f, "dl_dst=", w & OFPFW_DL_DST, verbosity,

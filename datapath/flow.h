@@ -18,6 +18,9 @@
 
 #include "openflow/openflow.h"
 
+#define VLAN_PCP_SHIFT 13
+#define VLAN_PCP_BITMASK 0x0007 /* the least 3-bit is valid */
+
 struct sk_buff;
 struct ofp_flow_mod;
 
@@ -32,14 +35,14 @@ struct sw_flow_key {
 	uint32_t nw_src;	/* IP source address. */
 	uint32_t nw_dst;	/* IP destination address. */
 	uint16_t in_port;	/* Input switch port */
-	uint16_t dl_vlan;	/* Input VLAN. */
+	uint16_t dl_vlan;	/* Input VLAN id. */
 	uint16_t dl_type;	/* Ethernet frame type. */
 	uint16_t tp_src;	/* TCP/UDP source port. */
 	uint16_t tp_dst;	/* TCP/UDP destination port. */
 	uint8_t dl_src[ETH_ALEN]; /* Ethernet source address. */
 	uint8_t dl_dst[ETH_ALEN]; /* Ethernet destination address. */
 	uint8_t nw_proto;	/* IP protocol. */
-	uint8_t pad;		/* Pad to 32-bit alignment. */
+	uint8_t dl_vlan_pcp;	/* Input VLAN priority. */
 	uint32_t wildcards;	/* Wildcard fields (host byte order). */
 	uint32_t nw_src_mask;	/* 1-bit in each significant nw_src bit. */
 	uint32_t nw_dst_mask;	/* 1-bit in each significant nw_dst bit. */

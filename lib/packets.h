@@ -153,6 +153,8 @@ BUILD_ASSERT_DECL(LLC_SNAP_HEADER_LEN == sizeof(struct llc_snap_header));
 
 #define VLAN_VID_MASK 0x0fff
 #define VLAN_PCP_MASK 0xe000
+#define VLAN_PCP_SHIFT 13
+#define VLAN_PCP_BITMASK 0x0007 /* the least 3-bit is valid */
 
 #define VLAN_HEADER_LEN 4
 struct vlan_header {

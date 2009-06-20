@@ -366,7 +366,7 @@ struct ofp_action_vlan_pcp {
     uint8_t vlan_pcp;               /* VLAN priority. */
     uint8_t pad[3];
 };
-OFP_ASSERT(sizeof(struct ofp_action_vlan_vid) == 8);
+OFP_ASSERT(sizeof(struct ofp_action_vlan_pcp) == 8);
 
 /* Action structure for OFPAT_SET_DL_SRC/DST. */
 struct ofp_action_dl_addr {
@@ -440,7 +440,7 @@ enum ofp_flow_mod_command {
 /* Flow wildcards. */
 enum ofp_flow_wildcards {
     OFPFW_IN_PORT  = 1 << 0,  /* Switch input port. */
-    OFPFW_DL_VLAN  = 1 << 1,  /* VLAN. */
+    OFPFW_DL_VLAN  = 1 << 1,  /* VLAN id. */
     OFPFW_DL_SRC   = 1 << 2,  /* Ethernet source address. */
     OFPFW_DL_DST   = 1 << 3,  /* Ethernet destination address. */
     OFPFW_DL_TYPE  = 1 << 4,  /* Ethernet frame type. */
@@ -463,8 +463,10 @@ enum ofp_flow_wildcards {
     OFPFW_NW_DST_MASK = ((1 << OFPFW_NW_DST_BITS) - 1) << OFPFW_NW_DST_SHIFT,
     OFPFW_NW_DST_ALL = 32 << OFPFW_NW_DST_SHIFT,
 
+    OFPFW_DL_VLAN_PCP = 1 << 20,  /* VLAN priority. */
+
     /* Wildcard all fields. */
-    OFPFW_ALL = ((1 << 20) - 1)
+    OFPFW_ALL = ((1 << 21) - 1)
 };
 
 /* The wildcards for ICMP type and code fields use the transport source 
@@ -494,10 +496,10 @@ struct ofp_match {
     uint16_t in_port;          /* Input switch port. */
     uint8_t dl_src[OFP_ETH_ALEN]; /* Ethernet source address. */
     uint8_t dl_dst[OFP_ETH_ALEN]; /* Ethernet destination address. */
-    uint16_t dl_vlan;          /* Input VLAN. */
+    uint16_t dl_vlan;          /* Input VLAN id. */
     uint16_t dl_type;          /* Ethernet frame type. */
     uint8_t nw_proto;          /* IP protocol. */
-    uint8_t pad;               /* Align to 32-bits. */
+    uint8_t dl_vlan_pcp;       /* Input VLAN priority. */
     uint32_t nw_src;           /* IP source address. */
     uint32_t nw_dst;           /* IP destination address. */
     uint16_t tp_src;           /* TCP/UDP source port. */

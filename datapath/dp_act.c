@@ -18,6 +18,7 @@
 #include "dp_act.h"
 #include "openflow/nicira-ext.h"
 #include "nx_act.h"
+#include "flow.h"
 
 
 static uint16_t
@@ -88,6 +89,8 @@ modify_vlan_tci(struct sk_buff *skb, struct sw_flow_key *key,
 		vh = vlan_eth_hdr(skb);
 	}
 	key->dl_vlan = vh->h_vlan_TCI & htons(VLAN_VID_MASK);
+	key->dl_vlan_pcp = (uint8_t)((ntohs(vh->h_vlan_TCI) >> VLAN_PCP_SHIFT)
+	                             & VLAN_PCP_BITMASK);
 
 	return skb;
 }

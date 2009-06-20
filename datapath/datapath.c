@@ -1512,7 +1512,7 @@ static int flow_stats_dump_callback(struct sw_flow *flow, void *private)
 	ofs->match.nw_src    = flow->key.nw_src;
 	ofs->match.nw_dst    = flow->key.nw_dst;
 	ofs->match.nw_proto  = flow->key.nw_proto;
-	ofs->match.pad       = 0;
+	ofs->match.dl_vlan_pcp = flow->key.dl_vlan_pcp;
 	ofs->match.tp_src    = flow->key.tp_src;
 	ofs->match.tp_dst    = flow->key.tp_dst;
 

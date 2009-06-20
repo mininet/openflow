@@ -802,7 +802,7 @@ fill_flow_stats(struct ofpbuf *buffer, struct sw_flow *flow,
     ofs->match.nw_src    = flow->key.flow.nw_src;
     ofs->match.nw_dst    = flow->key.flow.nw_dst;
     ofs->match.nw_proto  = flow->key.flow.nw_proto;
-    ofs->match.pad       = 0;
+    ofs->match.dl_vlan_pcp = flow->key.flow.dl_vlan_pcp;
     ofs->match.tp_src    = flow->key.flow.tp_src;
     ofs->match.tp_dst    = flow->key.flow.tp_dst;
     ofs->duration        = htonl((now - flow->created) / 1000);

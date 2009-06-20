@@ -50,6 +50,7 @@ flow_fields_match(const struct flow *a, const struct flow *b, uint16_t w,
 {
     return ((w & OFPFW_IN_PORT || a->in_port == b->in_port)
             && (w & OFPFW_DL_VLAN || a->dl_vlan == b->dl_vlan)
+            && (w & OFPFW_DL_VLAN_PCP || a->dl_vlan_pcp == b->dl_vlan_pcp)
             && (w & OFPFW_DL_SRC || eth_addr_equals(a->dl_src, b->dl_src))
             && (w & OFPFW_DL_DST || eth_addr_equals(a->dl_dst, b->dl_dst))
             && (w & OFPFW_DL_TYPE || a->dl_type == b->dl_type)
@@ -104,7 +105,7 @@ void
 flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from)
 {
     to->wildcards = ntohl(from->wildcards) & OFPFW_ALL;
-    to->flow.reserved = 0;
+    to->flow.dl_vlan_pcp = from->dl_vlan_pcp;
     to->flow.in_port = from->in_port;
     to->flow.dl_vlan = from->dl_vlan;
     memcpy(to->flow.dl_src, from->dl_src, ETH_ADDR_LEN);
@@ -232,10 +233,11 @@ void
 print_flow(const struct sw_flow_key *key)
 {
     const struct flow *f = &key->flow;
-    printf("wild%08x port%04x:vlan%04x mac%02x:%02x:%02x:%02x:%02x:%02x"
+    printf("wild%08x port%04x:vlan%04x vlan_pcp%02x mac%02x:%02x:%02x:%02x:%02x:%02x"
            "->%02x:%02x:%02x:%02x:%02x:%02x "
            "proto%04x ip%u.%u.%u.%u->%u.%u.%u.%u port%d->%d\n",
            key->wildcards, ntohs(f->in_port), ntohs(f->dl_vlan),
+           f->dl_vlan_pcp,
            f->dl_src[0], f->dl_src[1], f->dl_src[2],
            f->dl_src[3], f->dl_src[4], f->dl_src[5],
            f->dl_dst[0], f->dl_dst[1], f->dl_dst[2],

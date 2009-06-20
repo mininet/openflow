@@ -99,6 +99,8 @@ modify_vlan_tci(struct ofpbuf *buffer, struct sw_flow_key *key,
     }
 
     key->flow.dl_vlan = veh->veth_tci & htons(VLAN_VID_MASK);
+    key->flow.dl_vlan_pcp = (uint8_t)((ntohs(veh->veth_tci) >> VLAN_PCP_SHIFT)
+                                      & VLAN_PCP_BITMASK);
 }
 
 
