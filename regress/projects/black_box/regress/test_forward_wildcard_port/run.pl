@@ -9,11 +9,19 @@ sub forward_wc_port {
 	forward_simple(@_, 'port');
 }
 
+sub forward_wc_port_vlan {
+        my $vlan_id = 0x8ea5;
+                #[15:13] priority, [11:0] vlan id
+		#The value was chosen at random
+        forward_simple(@_, 'port', undef, undef, $vlan_id);
+}
+
 sub my_test {
 
 	my ( $sock, $options_ref ) = @_;
 
 	for_all_wildcards( $ofp, $sock, $options_ref, \&forward_wc_port);
+	for_all_wildcards( $ofp, $sock, $options_ref, \&forward_wc_port_vlan);
 }
 
 run_black_box_test( \&my_test, \@ARGV );

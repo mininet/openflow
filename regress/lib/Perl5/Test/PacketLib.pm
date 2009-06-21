@@ -1430,31 +1430,49 @@ use Carp;
 use strict;
 
 use constant IP_Ethertype => 0x0800;
-use constant ETH_HDR_LEN => 6 + 6 + 2;
+#use constant ETH_HDR_LEN => 6 + 6 + 2;
 use constant IP_HDR_LEN => 5 * 4;
 #use constant MIN_LEN => ETH_HDR_LEN + IP_HDR_LEN;
 use constant PROTO_RESERVED => 255;
 
-sub MIN_LEN {ETH_HDR_LEN + IP_HDR_LEN;}
+sub ETH_HDR_LEN
+{
+  my (%arg) = @_;
+  if (defined ($arg{'VLAN_ID'})) {
+    return 6+6+4+2;
+  } else {
+    return 6+6+2;
+  }
+}
+
+sub MIN_LEN
+  {
+  my (%arg) = @_;
+  return ETH_HDR_LEN(%arg) + IP_HDR_LEN;
+  }
 
 sub new   # Ethernet_hdr
   {
     my ($class, %arg) = @_;
 
     my $force = defined($arg{'force'}) && $arg{'force'};
-
     $arg{'Ethertype'} = IP_Ethertype if (!$force || !defined($arg{'Ethertype'}));
-    $arg{'len'} = MIN_LEN if (!defined($arg{'len'}));
-    $arg{'dgram_len'} = $arg{'len'} - ETH_HDR_LEN if (!$force || !defined($arg{'dgram_len'}));
+    $arg{'len'} = MIN_LEN(%arg) if (!defined($arg{'len'}));
+    $arg{'dgram_len'} = $arg{'len'} - ETH_HDR_LEN(%arg) if (!$force || !defined($arg{'dgram_len'}));
     if ($arg{'dgram_len'} < IP_HDR_LEN && !$force) {
-      die "IP packet length $arg{'dgram_len'} is too small. Must be at least " . MIN_LEN . " bytes\n";
+      die "IP packet length $arg{'dgram_len'} is too small. Must be at least " . MIN_LEN(%arg) . " bytes\n";
     }
     my $payloadLen = $arg{'dgram_len'} - IP_HDR_LEN;
     $payloadLen = 0 if $payloadLen < 0;
     $arg{'proto'} = PROTO_RESERVED if (!defined($arg{'proto'}));
 
     # Create the various PDUs
-    my $Ethernet_hdr = new NF2::Ethernet_hdr(%arg);
+    my $Ethernet_hdr;
+    if (defined ($arg{'VLAN_ID'})) {
+        $Ethernet_hdr = new NF2::VLAN_hdr(%arg);
+    } else {
+        $Ethernet_hdr = new NF2::Ethernet_hdr(%arg);
+    }
     my $IP_hdr = new NF2::IP_hdr(%arg);
     my $payload = new NF2::PDU($payloadLen);
     $payload->set_bytes(map {int(rand(256))} (0..($payloadLen - 1)) );
@@ -1538,10 +1556,10 @@ sub set {
 
   # Change the IP header if appropriate options are set
   if (defined($arg{'len'}) || defined($arg{'dgram_len'})) {
-    $arg{'len'} = $arg{'dgram_len'} + ETH_HDR_LEN if (!defined($arg{'len'}));
-    $arg{'dgram_len'} = $arg{'len'} - ETH_HDR_LEN if (!$force && !defined($arg{'dgram_len'}));
+    $arg{'len'} = $arg{'dgram_len'} + ETH_HDR_LEN(%arg) if (!defined($arg{'len'}));
+    $arg{'dgram_len'} = $arg{'len'} - ETH_HDR_LEN(%arg) if (!$force && !defined($arg{'dgram_len'}));
     if ($arg{'dgram_len'} < IP_HDR_LEN && !$force) {
-      die "IP packet length $arg{'length'} is too small. Must be at least " . MIN_LEN . " bytes\n";
+      die "IP packet length $arg{'length'} is too small. Must be at least " . MIN_LEN(%arg) . " bytes\n";
     }
     my $payloadLen = $arg{'dgram_len'} - IP_HDR_LEN;
     $payloadLen = 0 if ($payloadLen < 0);
@@ -1835,7 +1853,7 @@ sub new   # Ethernet_hdr
     my $ICMP_pdu = new NF2::ICMP(%arg);
 
     # Calculate the length of the packet
-    $arg{'len'} = NF2::IP_pkt::MIN_LEN() + $ICMP_pdu->length_in_bytes() if 
+    $arg{'len'} = NF2::IP_pkt::MIN_LEN(%arg) + $ICMP_pdu->length_in_bytes() if 
         (!$force || !defined($arg{'len'}));
     $arg{'frag'} = 0x4000 if (!$force && !defined($arg{'frag'}));
     $arg{'ttl'} = 64 if (!$force || !defined($arg{'ttl'}));
@@ -1912,7 +1930,7 @@ sub new_dest_unreach
 
       # Get the data that should be part of the reply
       my $data = $req->packed();
-      $data = substr($data, NF2::IP_pkt::ETH_HDR_LEN, DEST_UNREACH_DATA_LEN);
+      $data = substr($data, NF2::IP_pkt::ETH_HDR_LEN(%arg), DEST_UNREACH_DATA_LEN);
 
       my @data = ( unpack('C*', $data) , ( 0 ) x (DEST_UNREACH_DATA_LEN - length($data)));
       $arg{'SA'} = $req->get('DA');
@@ -1956,7 +1974,7 @@ sub new_time_exceeded
 
       # Get the data that should be part of the reply
       my $data = $req->packed();
-      $data = substr($data, NF2::IP_pkt::ETH_HDR_LEN, DEST_UNREACH_DATA_LEN);
+      $data = substr($data, NF2::IP_pkt::ETH_HDR_LEN(%arg), DEST_UNREACH_DATA_LEN);
 
       my @data = ( unpack('C*', $data) , ( 0 ) x (DEST_UNREACH_DATA_LEN - length($data)));
       $arg{'SA'} = $req->get('DA');
@@ -1977,7 +1995,7 @@ sub new_icmp_test_pkt
   {
     my ($class, %arg) = @_;
 
-    my $data_len = $arg{'len'} - NF2::IP_pkt::MIN_LEN() - 8;
+    my $data_len = $arg{'len'} - NF2::IP_pkt::MIN_LEN(%arg) - 8;
 
     $arg{'Type'} = NF2::ICMP->ECHO_REQ;
     $arg{'Code'} = 0xa5;  # value for test
@@ -2006,8 +2024,8 @@ sub set {
   # Update the length if the data has changed
   if (defined $arg{'Data'}) {
     # Calculate the length of the packet
-    $arg{'len'} = NF2::IP_pkt::MIN_LEN() + ${$self->{ICMP_pdu}}->length_in_bytes();
-    $arg{'dgram_len'} = $arg{'len'} - NF2::IP_pkt::ETH_HDR_LEN;
+    $arg{'len'} = NF2::IP_pkt::MIN_LEN(%arg) + ${$self->{ICMP_pdu}}->length_in_bytes();
+    $arg{'dgram_len'} = $arg{'len'} - NF2::IP_pkt::ETH_HDR_LEN(%arg);
   }
 
   # Change allowable IP header options
@@ -2059,6 +2077,8 @@ use constant PROTO_UDP => 17;
 use constant DEFAULT_DATA_LEN => 20;
 use constant UDP_HDR_LEN => 8;
 
+use Data::Dumper;
+use Data::HexDump;
 
 sub new   # Ethernet_hdr
   {
@@ -2103,9 +2123,9 @@ sub new   # Ethernet_hdr
     # Calculate the length of the packet
     if (!$force || !defined($arg{'len'})) {
         if (defined($arg{'ip_options'})) {
-            $arg{'len'} = NF2::IP_pkt::MIN_LEN() + $ip_options_Length +$UDP_pdu->length_in_bytes();
+            $arg{'len'} = NF2::IP_pkt::MIN_LEN(%arg) + $ip_options_Length +$UDP_pdu->length_in_bytes();
         } else {
-            $arg{'len'} = NF2::IP_pkt::MIN_LEN() + $UDP_pdu->length_in_bytes();
+            $arg{'len'} = NF2::IP_pkt::MIN_LEN(%arg) + $UDP_pdu->length_in_bytes();
         }
     }
 
@@ -2153,8 +2173,8 @@ sub set {
   # Update the length if the data has changed
   if (defined $arg{'data'}) {
     # Calculate the length of the packet
-    $arg{'len'} = NF2::IP_pkt::MIN_LEN() + ${$self->{UDP_pdu}}->length_in_bytes();
-    $arg{'dgram_len'} = $arg{'len'} - NF2::IP_pkt::ETH_HDR_LEN;
+    $arg{'len'} = NF2::IP_pkt::MIN_LEN(%arg) + ${$self->{UDP_pdu}}->length_in_bytes();
+    $arg{'dgram_len'} = $arg{'len'} - NF2::IP_pkt::ETH_HDR_LEN(%arg);
   }
 
   # Change allowable IP header options
@@ -2195,6 +2215,3 @@ sub decrement_ttl {
 
 __END__
 
-
-
--

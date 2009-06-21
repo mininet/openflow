@@ -31,7 +31,7 @@ sub send_expect_multi_flow {
 	# Give OF switch time to process the flow mod
 	usleep($$options_ref{'send_delay'});
 	
-	$wildcards = 0x03ff;    # wildcard everything
+	$wildcards = 0x1fffff;    # wildcard everything
 
 	# (send to controller)
 	$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port,

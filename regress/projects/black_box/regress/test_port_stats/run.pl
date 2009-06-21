@@ -47,7 +47,7 @@ sub my_test {
 	};
 	
 #	my $match_args = {
-#		wildcards => 0x3ff,
+#		wildcards => 0x1fffff,
 #		in_port   => 0,
 #		dl_src    => 0,
 #		dl_dst    => 0,
@@ -105,7 +105,7 @@ sub my_test {
 	# TODO: Look at each received port_stats field, to ensure they equal zero...
 
 	# Send packets
-	for_all_port_pairs( $ofp, $sock, $options_ref, \&forward_any, 0x3ff);
+	for_all_port_pairs( $ofp, $sock, $options_ref, \&forward_any, 0x1fffff);
 	
 	# TODO: Look at each received port_stats field, to ensure correct counters
 	

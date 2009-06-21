@@ -52,6 +52,7 @@ sub create_flow_mod_from_ip {
 		dl_src    => \@src_mac_subarray,
 		dl_dst    => \@dst_mac_subarray,
 		dl_vlan   => 0xffff,
+		dl_vlan_pcp => 0x00,
 		dl_type   => 0x0800,
 		nw_src    => $src_ip,
 		nw_dst    => $dst_ip,
