@@ -301,6 +301,8 @@ Controller/switch messages are initiated by the controller and may or may not re
 \textbf{Read-State:} Read-State messages are used by the controller to collect statistics from the switch’s flow-tables, ports and the individual flow entries.
 \\\\\
 \textbf{Send-Packet}:  These are used by the controller to send packets out of a specified port on the switch.
+\\\\
+\textbf{Barrier}: Barrier request/reply messages are used by the controller to ensure message dependencies have been met or to receive notifications for completed operations.  
 
 \subsubsection{Asynchronous}
 Asynchronous messages are sent without solicitation from the switch to the controller and denote a change in switch or network state.  The four main asynchronous message types are described below.

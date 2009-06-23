@@ -237,6 +237,9 @@ When the controller wishes to send a packet out through the datapath, it uses th
 \input{struct/ofp_packet_out}
 The \verb|buffer_id| is the same given in the \verb|ofp_packet_in| message.  If the \verb|buffer_id| is -1, then the packet data is included in the data array. If \verb|OFPP_TABLE| is specified as the output port of an action, the \verb|in_port| in the \verb|packet_out| message is used in the flow table lookup.
 
+\subsubsection{Barrier Message}
+When the controller wants to ensure message dependencies have been met or wants to receive notifications for completed operations, it may use an \verb|OFPT_BARRIER_REQUEST| message.  This message has no body.  Upon receipt, the switch must finish processing all previously-received messages before executing any messages beyond the Barrier Request.  When such processing is complete, the switch must send an \verb|OFPT_BARRIER_REPLY| message with the \verb|xid| of the original request.
+
 \subsection{Asynchronous Messages}
 \subsubsection{Packet-In Message}
 When packets are received by the datapath and sent to the controller, they use the \verb|OFPT_PACKET_IN| message:
