@@ -570,7 +570,7 @@ struct ofp_flow_expired {
     uint8_t pad[1];           /* Align to 32-bits. */
 
     uint32_t duration;        /* Time flow was alive in seconds. */
-    uint16_t idle_timeout;    /* Idle time before discarding (seconds). */
+    uint16_t idle_timeout;    /* Idle timeout from original flow mod. */
     uint8_t pad2[2];          /* Align to 64-bits. */
     uint64_t packet_count;    
     uint64_t byte_count;
