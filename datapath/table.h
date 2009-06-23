@@ -64,6 +64,12 @@ struct sw_table {
 			uint16_t priority, int strict,
 			const struct ofp_action_header *actions, size_t actions_len);
 
+	/* Checks whether 'table' has an equal priotiry  entry of thethat conflicts
+	 * with 'key'.  If 'strict' is set, wildcards must match.
+	 * Returns the number of flows that were modified. */
+	int (*has_conflict)(struct sw_table *table, const struct sw_flow_key *key,
+			    uint16_t priority, int strict);
+
 	/* Deletes from 'table' any and all flows that match 'key' from
 	 * 'table'.  If 'out_port' is not OFPP_NONE, then matching entries
 	 * must have that port as an argument for an output action.  If 

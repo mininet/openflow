@@ -548,8 +548,8 @@ dp_output_port(struct datapath *dp, struct ofpbuf *buffer,
 
     case OFPP_TABLE: {
         struct sw_port *p = lookup_port(dp, in_port);
-		if (run_flow_through_tables(dp, buffer, p)) {
-			ofpbuf_delete(buffer);
+                if (run_flow_through_tables(dp, buffer, p)) {
+                        ofpbuf_delete(buffer);
         }
         break;
     }
@@ -833,13 +833,13 @@ int run_flow_through_tables(struct datapath *dp, struct ofpbuf *buffer,
         ofpbuf_delete(buffer);
         return 0;
     }
-	if (p && p->config & (OFPPC_NO_RECV | OFPPC_NO_RECV_STP)
+
+    if (p && p->config & (OFPPC_NO_RECV | OFPPC_NO_RECV_STP)
         && p->config & (!eth_addr_equals(key.flow.dl_dst, stp_eth_addr)
                        ? OFPPC_NO_RECV : OFPPC_NO_RECV_STP)) {
-		ofpbuf_delete(buffer);
-		return 0;
-	}
-
+        ofpbuf_delete(buffer);
+        return 0;
+    }
 
     flow = chain_lookup(dp->chain, &key, 0);
     if (flow != NULL) {
@@ -931,7 +931,7 @@ recv_packet_out(struct datapath *dp, const struct sender *sender,
             return -ESRCH; 
         }
     }
- 
+
     flow_extract(buffer, ntohs(opo->in_port), &key.flow);
 
     v_code = validate_actions(dp, &key, opo->actions, actions_len);
@@ -969,6 +969,7 @@ add_flow(struct datapath *dp, const struct sender *sender,
     uint16_t v_code;
     struct sw_flow *flow; 
     size_t actions_len = ntohs(ofm->header.length) - sizeof *ofm;
+    int overlap;
 
     /* Allocate memory. */
     flow = flow_alloc(actions_len);
@@ -984,11 +985,23 @@ add_flow(struct datapath *dp, const struct sender *sender,
         goto error_free_flow;
     }
 
-    /* Fill out flow. */
     flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
+
+    if (ntohs(ofm->flags) & OFPFF_CHECK_OVERLAP) {
+        /* check whether there is any conflict */
+        overlap = chain_has_conflict(dp->chain, &flow->key, flow->priority,
+                                     false);
+        if (overlap){
+            dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED,
+                              OFPFMFC_OVERLAP, ofm, ntohs(ofm->header.length));
+            goto error_free_flow;
+        }
+    }
+
+    /* Fill out flow. */
     flow->idle_timeout = ntohs(ofm->idle_timeout);
     flow->hard_timeout = ntohs(ofm->hard_timeout);
-
+    flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_EXP) ? 1 : 0;
     flow_setup_actions(flow, ofm->actions, actions_len);
 
     /* Act. */
@@ -1032,30 +1045,52 @@ mod_flow(struct datapath *dp, const struct sender *sender,
 {
     int error = -ENOMEM;
     uint16_t v_code;
-    size_t actions_len;
-    struct sw_flow_key key;
-    uint16_t priority;
+    size_t actions_len = ntohs(ofm->header.length) - sizeof *ofm;
+    struct sw_flow *flow;
     int strict;
 
-    flow_extract_match(&key, &ofm->match);
- 
-    actions_len = ntohs(ofm->header.length) - sizeof *ofm;
- 
-    v_code = validate_actions(dp, &key, ofm->actions, actions_len);
+    /* Allocate memory. */
+    flow = flow_alloc(actions_len);
+    if (flow == NULL)
+        goto error;
+
+    flow_extract_match(&flow->key, &ofm->match);
+
+    v_code = validate_actions(dp, &flow->key, ofm->actions, actions_len);
     if (v_code != ACT_VALIDATION_OK) {
         dp_send_error_msg(dp, sender, OFPET_BAD_ACTION, v_code,
-                  ofm, ntohs(ofm->header.length));
+                          ofm, ntohs(ofm->header.length));
         goto error;
     }
 
-    priority = key.wildcards ? ntohs(ofm->priority) : -1;
+    flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
     strict = (ofm->command == htons(OFPFC_MODIFY_STRICT)) ? 1 : 0;
-    chain_modify(dp->chain, &key, priority, strict, ofm->actions, actions_len,
-                 (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
+
+    /* First try to modify existing flows if any */
+    /* if there is no matching flow, add it */
+    if (!chain_modify(dp->chain, &flow->key, flow->priority,
+                      strict, ofm->actions, actions_len,
+                      (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0)) {
+        /* Fill out flow. */
+        flow->idle_timeout = ntohs(ofm->idle_timeout);
+        flow->hard_timeout = ntohs(ofm->hard_timeout);
+        flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_EXP) ? 1 : 0;
+        flow_setup_actions(flow, ofm->actions, actions_len);
+        error = chain_insert(dp->chain, flow,
+                             (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
+        if (error == -ENOBUFS) {
+            dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED,
+                              OFPFMFC_ALL_TABLES_FULL, ofm,
+                              ntohs(ofm->header.length));
+            goto error;
+        } else if (error) {
+            goto error;
+        }
+    }
 
     if (ntohl(ofm->buffer_id) != UINT32_MAX) {
-        struct ofpbuf *buffer = retrieve_buffer(ntohl(ofm->buffer_id));
-        if (buffer) {
+      struct ofpbuf *buffer = retrieve_buffer(ntohl(ofm->buffer_id));
+      if (buffer) {
             struct sw_flow_key skb_key;
             uint16_t in_port = ntohs(ofm->match.in_port);
             flow_extract(buffer, in_port, &skb_key.flow);
@@ -1355,47 +1390,47 @@ static void port_stats_done(void *state)
  */
 static int
 vendor_stats_init(const void *body, int body_len,
-		  void **state)
+                  void **state)
 {
-	/* min_body was checked, this should be safe */
-	const uint32_t vendor = ntohl(*((uint32_t *)body));
-	int err;
+        /* min_body was checked, this should be safe */
+        const uint32_t vendor = ntohl(*((uint32_t *)body));
+        int err;
 
-	switch (vendor) {
-	default:
-		err = -EINVAL;
-	}
+        switch (vendor) {
+        default:
+                err = -EINVAL;
+        }
 
-	return err;
+        return err;
 }
 
 static int
 vendor_stats_dump(struct datapath *dp, void *state, struct ofpbuf *buffer)
 {
-	const uint32_t vendor = *((uint32_t *)state);
-	int err;
+        const uint32_t vendor = *((uint32_t *)state);
+        int err;
 
-	switch (vendor) {
-	default:
-		/* Should never happen */
-		err = 0;
-	}
+        switch (vendor) {
+        default:
+                /* Should never happen */
+                err = 0;
+        }
 
-	return err;
+        return err;
 }
 
 static void
 vendor_stats_done(void *state)
 {
-	const uint32_t vendor = *((uint32_t *) state);
+        const uint32_t vendor = *((uint32_t *) state);
 
-	switch (vendor) {
-	default:
-		/* Should never happen */
-		free(state);
-	}
+        switch (vendor) {
+        default:
+                /* Should never happen */
+                free(state);
+        }
 
-	return;
+        return;
 }
 
 struct stats_type {
@@ -1466,12 +1501,12 @@ static const struct stats_type stats[] = {
         port_stats_done
     },
     {
-	OFPST_VENDOR,
-	8,             /* vendor + subtype */
-	32,            /* whatever */
-	vendor_stats_init,
-	vendor_stats_dump,
-	vendor_stats_done
+        OFPST_VENDOR,
+        8,             /* vendor + subtype */
+        32,            /* whatever */
+        vendor_stats_init,
+        vendor_stats_dump,
+        vendor_stats_done
     },
 };
 
@@ -1718,7 +1753,7 @@ uint32_t save_buffer(struct ofpbuf *buffer)
         /* Don't buffer packet if existing entry is less than
          * OVERWRITE_SECS old. */
         if (time_now() < p->timeout) { /* FIXME */
-		return (uint32_t)-1;
+                return (uint32_t)-1;
         } else {
             ofpbuf_delete(p->buffer); 
         }

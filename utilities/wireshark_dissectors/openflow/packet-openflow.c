@@ -53,13 +53,13 @@ static dissector_handle_t data_ethernet;
 /* AM=Async message, CSM=Control/Switch Message, SM=Symmetric Message */
 /** names to bind to various values in the type field */
 static const value_string names_ofp_type[] = {
-	/* Immutable messages. */
-	{ OFPT_HELLO,               "Hello (SM)" },
-	{ OFPT_ERROR,               "Error (SM)" },
-	{ OFPT_ECHO_REQUEST,        "Echo Request (SM)" },
-	{ OFPT_ECHO_REPLY,          "Echo Reply (SM)" },
-	{ OFPT_VENDOR,              "Vendor (SM)" },
-	
+    /* Immutable messages. */
+    { OFPT_HELLO,               "Hello (SM)" },
+    { OFPT_ERROR,               "Error (SM)" },
+    { OFPT_ECHO_REQUEST,        "Echo Request (SM)" },
+    { OFPT_ECHO_REPLY,          "Echo Reply (SM)" },
+    { OFPT_VENDOR,              "Vendor (SM)" },
+
     /* Switch configuration messages. */
     { OFPT_FEATURES_REQUEST,    "Features Request (CSM)" },
     { OFPT_FEATURES_REPLY,      "Features Reply (CSM)" },
@@ -80,6 +80,7 @@ static const value_string names_ofp_type[] = {
     /* Statistics messages. */
     { OFPT_STATS_REQUEST,       "Stats Request (CSM)" },
     { OFPT_STATS_REPLY,         "Stats Reply (CSM)" },
+
     { 0,                        NULL }
 };
 #define OFP_TYPE_MAX_VALUE OFPT_STATS_REPLY
@@ -105,7 +106,7 @@ static const value_string names_ofp_action_type[] = {
 #define NUM_PORT_FEATURES_FLAGS 12
 #define NUM_WILDCARDS 11
 #define NUM_CAPABILITIES_FLAGS 6
-#define NUM_FLOW_MOD_FLAGS 1
+#define NUM_FLOW_MOD_FLAGS 3
 #define NUM_SF_REPLY_FLAGS 1
 
 /** yes/no for bitfields field */
@@ -267,7 +268,8 @@ static const gchar *bad_action_err_str[] = {"Unknown action type",
 
 #define N_BADACTION     (sizeof bad_action_err_str / sizeof bad_action_err_str[0])
 
-static const gchar *flow_mod_failed_err_str[] = {"Flow not added because of full tables"};
+static const gchar *flow_mod_failed_err_str[] = {"Flow not added because of full tables",
+						 "Flow not added because of conflicting entry in tables"};
 
 #define N_FLOWMODFAILED (sizeof flow_mod_failed_err_str / sizeof flow_mod_failed_err_str[0])
 
@@ -664,7 +666,7 @@ void proto_register_openflow()
         ofp_port_mod_mask[i] = -1;
     }
     for( i=0; i<NUM_PORT_STATE_FLAGS; i++ ) {
-        ofp_phy_port_state[i] = -1;	
+        ofp_phy_port_state[i] = -1;
     }
     for( i=0; i<NUM_PORT_FEATURES_FLAGS; i++ ) {
         ofp_phy_port_curr[i] = -1;
@@ -676,6 +678,9 @@ void proto_register_openflow()
     for( i=0; i<NUM_WILDCARDS; i++ ) {
         ofp_match_wildcards[i] = -1;
         ofp_table_stats_wildcards[i] = -1;
+    }
+    for (i=0; i<NUM_FLOW_MOD_FLAGS; i++) {
+         ofp_flow_mod_flags[i] = -1;
     }
     for( i=0; i<NUM_SF_REPLY_FLAGS; i++ ) {
         ofp_stats_reply_flag[i] = -1;
@@ -1266,7 +1271,13 @@ void proto_register_openflow()
           { "Out Port (delete* only)", "of.fm_out_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Out Port (delete* only)", HFILL } },
 
         { &ofp_flow_mod_flags[0],
-          { "  Send flow expirations", "of.fm_flags_send_flow_exp", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_SEND_FLOW_EXP, "Send flow expirations", HFILL }},
+          { "Send flow expirations", "of.fm_flags", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_SEND_FLOW_EXP, "Send flow expirations", HFILL }},
+
+        { &ofp_flow_mod_flags[1],
+          { "Check for overlap before adding flow", "of.fm_flags", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_CHECK_OVERLAP, "Check for overlap before adding flow", HFILL } },
+
+        { &ofp_flow_mod_flags[2],
+          { "Install flow into emergecy flow table", "of.fm_flags", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_EMERG, "Install flow into emergency flow table", HFILL } },
 
         { &ofp_flow_mod_reserved,
           { "Reserved", "of.fm_reserved", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Reserved", HFILL } },
@@ -2347,11 +2358,12 @@ static void dissect_error_code(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32
 static void dissect_flow_mod_flags(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint *offset) {
     proto_item *fm_flags_item = proto_tree_add_item(tree, ofp_switch_config_flags_hdr, tvb, *offset, 2, FALSE);
     proto_tree *fm_flags_tree = proto_item_add_subtree(fm_flags_item, ett_ofp_flow_mod_flags_hdr);
+    int i;
 
-    add_child_const(fm_flags_tree, ofp_flow_mod_flags[0], tvb, *offset, 2);
+  for (i = 0; i < NUM_FLOW_MOD_FLAGS; i++)
+    add_child_const(fm_flags_tree, ofp_flow_mod_flags[i], tvb, *offset, 2);
 
     *offset += 2;
-
 }
 
 
@@ -2438,7 +2450,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
         case OFPT_HELLO: {
             /* nothing else in this packet type */
-            break;        	
+            break;
         }
 
         case OFPT_ERROR: {

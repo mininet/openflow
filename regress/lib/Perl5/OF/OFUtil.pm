@@ -896,7 +896,7 @@ sub create_flow_mod_from_udp_action {
         if (   $mod_type ne 'drop' 
                 && $mod_type ne 'OFPFC_ADD'
                 && $mod_type ne 'OFPFC_DELETE'
-                && $mod_type ne 'OFPFC_DELETE_STRICT' )
+                && $mod_type ne 'OFPFC_DELETE_STRICT')
         {
                 die "Undefined flow mod type: $mod_type\n";
         }
@@ -972,7 +972,8 @@ sub create_flow_mod_from_udp_action {
                 flags  => $flags,
                 priority => 0,
                 buffer_id => -1,
-                out_port => $enums{'OFPP_NONE'}
+                out_port => $enums{'OFPP_NONE'},
+				flags => $enums{"$fm_flags"}
         };
         my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
         my $flow_mod_pkt = combine_args($flow_mod, $mod_type, $out_port, $chg_field, $chg_val);

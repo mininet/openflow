@@ -434,7 +434,7 @@ enum ofp_flow_mod_command {
     OFPFC_MODIFY,           /* Modify all matching flows. */
     OFPFC_MODIFY_STRICT,    /* Modify entry strictly matching wildcards */
     OFPFC_DELETE,           /* Delete all matching flows. */
-    OFPFC_DELETE_STRICT     /* Strictly match wildcards and priority. */
+    OFPFC_DELETE_STRICT    /* Strictly match wildcards and priority. */
 };
 
 /* Flow wildcards. */
@@ -614,7 +614,9 @@ enum ofp_bad_action_code {
 /* ofp_error_msg 'code' values for OFPET_FLOW_MOD_FAILED.  'data' contains 
  * at least the first 64 bytes of the failed request. */
 enum ofp_flow_mod_failed_code {
-    OFPFMFC_ALL_TABLES_FULL    /* Flow not added because of full tables. */
+    OFPFMFC_ALL_TABLES_FULL,    /* Flow not added because of full tables. */
+    OFPFMFC_OVERLAP             /* Attempted to add overlapping flow with 
+                                * CHECK_OVERLAP flag set. */
 };
 
 /* OFPT_ERROR: Error message (datapath -> controller). */

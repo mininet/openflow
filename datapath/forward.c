@@ -202,13 +202,14 @@ recv_echo_reply(struct sw_chain *chain, const struct sender *sender,
 }
 
 static int
-add_flow(struct sw_chain *chain, const struct sender *sender, 
+add_flow(struct sw_chain *chain, const struct sender *sender,
 		const struct ofp_flow_mod *ofm)
 {
 	int error = -ENOMEM;
 	uint16_t v_code;
 	struct sw_flow *flow;
 	size_t actions_len = ntohs(ofm->header.length) - sizeof *ofm;
+	int overlap;
 
 	/* Allocate memory. */
 	flow = flow_alloc(actions_len, GFP_ATOMIC);
@@ -224,8 +225,21 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 		goto error_free_flow;
 	}
 
-	/* Fill out flow. */
 	flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
+	if (ntohs(ofm->flags) & OFPFF_CHECK_OVERLAP) {
+		/* check whether there is any conflict */
+		overlap = chain_has_conflict(chain, &flow->key, flow->priority,
+					     false);
+		if (overlap){
+			dp_send_error_msg(chain->dp, sender,
+					  OFPET_FLOW_MOD_FAILED,
+					  OFPFMFC_OVERLAP,
+					  ofm, ntohs(ofm->header.length));
+			goto error_free_flow;
+		}
+	}
+
+	/* Fill out flow. */
 	flow->idle_timeout = ntohs(ofm->idle_timeout);
 	flow->hard_timeout = ntohs(ofm->hard_timeout);
         flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_EXP) ? 1 : 0;
@@ -240,6 +254,7 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 		goto error_free_flow;
 	} else if (error)
 		goto error_free_flow;
+
 	error = 0;
 	if (ntohl(ofm->buffer_id) != (uint32_t) -1) {
 		struct sk_buff *skb = retrieve_skb(ntohl(ofm->buffer_id));
@@ -269,27 +284,52 @@ mod_flow(struct sw_chain *chain, const struct sender *sender,
 {
 	int error = -ENOMEM;
 	uint16_t v_code;
-	size_t actions_len;
-	struct sw_flow_key key;
-	uint16_t priority;
+	size_t actions_len = ntohs(ofm->header.length) - sizeof *ofm;
+	struct sw_flow *flow;
 	int strict;
 
-	flow_extract_match(&key, &ofm->match);
+	/* Allocate memory. */
+	flow = flow_alloc(actions_len,GFP_ATOMIC);
+	if (flow == NULL)
+		goto error;
 
-	actions_len = ntohs(ofm->header.length) - sizeof *ofm;
+	flow_extract_match(&flow->key, &ofm->match);
 
-	v_code = validate_actions(chain->dp, &key, ofm->actions, actions_len);
+	v_code = validate_actions(chain->dp, &flow->key, ofm->actions, actions_len);
 	if (v_code != ACT_VALIDATION_OK) {
 		dp_send_error_msg(chain->dp, sender, OFPET_BAD_ACTION, v_code,
 				  ofm, ntohs(ofm->header.length));
-		goto error;
+		goto error_free_flow;
 	}
 
-	priority = key.wildcards ? ntohs(ofm->priority) : -1;
+	flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
 	strict = (ofm->command == htons(OFPFC_MODIFY_STRICT)) ? 1 : 0;
-	chain_modify(chain, &key, priority, strict, ofm->actions, actions_len,
-		     (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
 
+	/* First try to modify existing flows if any */
+	/* if there is no matching flow, add it */ 
+	if (!chain_modify(chain, &flow->key, flow->priority, strict,
+			  ofm->actions, actions_len,
+			  (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0)) {
+		/* Fill out flow. */
+		flow->idle_timeout = ntohs(ofm->idle_timeout);
+		flow->hard_timeout = ntohs(ofm->hard_timeout);
+		flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_EXP)
+			? 1 : 0;
+		flow_setup_actions(flow, ofm->actions, actions_len);
+		error = chain_insert(chain, flow,
+				     (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
+		if (error == -ENOBUFS) {
+			dp_send_error_msg(chain->dp, sender,
+					  OFPET_FLOW_MOD_FAILED,
+					  OFPFMFC_ALL_TABLES_FULL,
+					  ofm, ntohs(ofm->header.length));
+			goto error_free_flow;
+		} else if (error) {
+			goto error_free_flow;
+		}
+	}
+
+	error = 0;
 	if (ntohl(ofm->buffer_id) != (uint32_t) -1) {
 		struct sk_buff *skb = retrieve_skb(ntohl(ofm->buffer_id));
 		if (skb) {
@@ -303,6 +343,8 @@ mod_flow(struct sw_chain *chain, const struct sender *sender,
 	}
 	return error;
 
+error_free_flow:
+	flow_free(flow);
 error:
 	if (ntohl(ofm->buffer_id) != (uint32_t) -1)
 		discard_skb(ntohl(ofm->buffer_id));

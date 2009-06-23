@@ -742,10 +742,10 @@ ofp_print_flow_mod(struct ds *string, const void *oh, size_t len,
     default:
         ds_put_format(string, " cmd:%d ", ntohs(ofm->command));
     }
-    ds_put_format(string, "idle:%d hard:%d pri:%d buf:%#x", 
+    ds_put_format(string, "idle:%d hard:%d pri:%d buf:%#x flg:%#x",
             ntohs(ofm->idle_timeout), ntohs(ofm->hard_timeout),
             ofm->match.wildcards ? ntohs(ofm->priority) : (uint16_t)-1,
-            ntohl(ofm->buffer_id));
+            ntohl(ofm->buffer_id), ntohs(ofm->flags));
     ofp_print_actions(string, ofm->actions,
                       len - offsetof(struct ofp_flow_mod, actions));
     ds_put_char(string, '\n');

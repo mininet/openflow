@@ -124,6 +124,34 @@ static int table_hash_modify(struct sw_table *swt,
     return count;
 }
 
+static int table_hash_has_conflict(struct sw_table *swt,
+                                   const struct sw_flow_key *key,
+                                   uint16_t priority, int strict)
+{
+    struct sw_table_hash *th = (struct sw_table_hash *) swt;
+
+    if (key->wildcards == 0) {
+        struct sw_flow **bucket = find_bucket(swt, key);
+        struct sw_flow *flow = *bucket;
+        if (flow && flow_matches_desc(&flow->key, key,strict)
+                && (flow->priority == priority)) {
+            return true;
+        }
+    } else {
+        unsigned int i;
+
+        for (i = 0; i <= th->bucket_mask; i++) {
+            struct sw_flow **bucket = &th->buckets[i];
+            struct sw_flow *flow = *bucket;
+            if (flow && flow_matches_desc(&flow->key, key, strict)
+                    && (flow->priority == priority)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /* Caller must update n_flows. */
 static void
 do_delete(struct sw_flow **bucket)
@@ -272,6 +300,7 @@ struct sw_table *table_hash_create(unsigned int polynomial,
     swt->lookup = table_hash_lookup;
     swt->insert = table_hash_insert;
     swt->modify = table_hash_modify;
+    swt->has_conflict = table_hash_has_conflict;
     swt->delete = table_hash_delete;
     swt->timeout = table_hash_timeout;
     swt->destroy = table_hash_destroy;
@@ -322,6 +351,15 @@ static int table_hash2_modify(struct sw_table *swt,
                     actions, actions_len)
             + table_hash_modify(t2->subtable[1], key, priority, strict,
                     actions, actions_len));
+}
+
+static int table_hash2_has_conflict(struct sw_table *swt, 
+                                    const struct sw_flow_key *key,
+                                    uint16_t priority, int strict)
+{
+    struct sw_table_hash2 *t2 = (struct sw_table_hash2 *) swt;
+    return (table_hash_has_conflict(t2->subtable[0], key, priority, strict) ||
+            table_hash_has_conflict(t2->subtable[1], key, priority, strict));
 }
 
 static int table_hash2_delete(struct datapath *dp, struct sw_table *swt,
@@ -414,6 +452,7 @@ struct sw_table *table_hash2_create(unsigned int poly0, unsigned int buckets0,
     swt->lookup = table_hash2_lookup;
     swt->insert = table_hash2_insert;
     swt->modify = table_hash2_modify;
+    swt->has_conflict = table_hash2_has_conflict;
     swt->delete = table_hash2_delete;
     swt->timeout = table_hash2_timeout;
     swt->destroy = table_hash2_destroy;

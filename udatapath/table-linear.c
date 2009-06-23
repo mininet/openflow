@@ -119,6 +119,22 @@ static int table_linear_modify(struct sw_table *swt,
     return count;
 }
 
+static int table_linear_has_conflict(struct sw_table *swt,
+                                     const struct sw_flow_key *key,
+                                     uint16_t priority, int strict)
+{
+    struct sw_table_linear *tl = (struct sw_table_linear *) swt;
+    struct sw_flow *flow;
+
+    LIST_FOR_EACH (flow, struct sw_flow, node, &tl->flows) {
+        if (flow_matches_desc(&flow->key, key, strict)
+                && (flow->priority == priority)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void
 do_delete(struct sw_flow *flow) 
 {
@@ -229,6 +245,7 @@ struct sw_table *table_linear_create(unsigned int max_flows)
     swt->lookup = table_linear_lookup;
     swt->insert = table_linear_insert;
     swt->modify = table_linear_modify;
+    swt->has_conflict = table_linear_has_conflict;
     swt->delete = table_linear_delete;
     swt->timeout = table_linear_timeout;
     swt->destroy = table_linear_destroy;

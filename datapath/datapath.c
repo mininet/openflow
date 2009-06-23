@@ -54,18 +54,10 @@ static char hw_desc[DESC_STR_LEN] = "Reference Data plane Kernel Extension for L
 static char sw_desc[DESC_STR_LEN] = VERSION BUILDNR;
 static char serial_num[SERIAL_NUM_LEN] = "None";
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
 module_param_string(mfr_desc, mfr_desc, sizeof mfr_desc, 0444);
 module_param_string(hw_desc, hw_desc, sizeof hw_desc, 0444);
 module_param_string(sw_desc, sw_desc, sizeof sw_desc, 0444);
 module_param_string(serial_num, serial_num, sizeof serial_num, 0444);
-#else
-MODULE_PARM(mfr_desc, "s");
-MODULE_PARM(hw_desc, "s");
-MODULE_PARM(sw_desc, "s");
-MODULE_PARM(serial_num, "s");
-#endif
-
 
 int (*dp_ioctl_hook)(struct net_device *dev, struct ifreq *rq, int cmd);
 EXPORT_SYMBOL(dp_ioctl_hook);
@@ -544,28 +536,16 @@ do_port_input(struct net_bridge_port *p, struct sk_buff *skb)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
 /* Called with rcu_read_lock. */
 static struct sk_buff *dp_frame_hook(struct net_bridge_port *p,
-					 struct sk_buff *skb)
+				     struct sk_buff *skb)
 {
 	do_port_input(p, skb);
 	return NULL;
 }
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
+#else
 static int dp_frame_hook(struct net_bridge_port *p, struct sk_buff **pskb)
 {
 	do_port_input(p, *pskb);
 	return 1;
-}
-#else
-/* NB: This has only been tested on 2.4.35 */
-static void dp_frame_hook(struct sk_buff *skb)
-{
-	struct net_bridge_port *p = skb->dev->br_port;
-	if (p) {
-		rcu_read_lock();
-		do_port_input(p, skb);
-		rcu_read_unlock();
-	} else
-		kfree_skb(skb);
 }
 #endif
 

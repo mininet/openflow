@@ -78,9 +78,11 @@ protection_callback(struct sw_flow *flow, void *private_)
 	memset(&match, 0, sizeof(match));
 	flow_fill_match(&match, &flow->key.flow, flow->key.wildcards);
 	flow_extract_match(&tgtflow->key, &match);
+        /* Fill out flow. */
 	tgtflow->priority = flow->priority;
 	tgtflow->idle_timeout = 0;
 	tgtflow->hard_timeout = 0;
+        tgtflow->send_flow_exp = flow->send_flow_exp;
 	flow_setup_actions(tgtflow, actions->actions, actions->actions_len);
 
 	error = chain_insert(private->dp->chain, tgtflow, 0);

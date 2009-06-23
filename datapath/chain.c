@@ -153,6 +153,27 @@ chain_modify(struct sw_chain *chain, const struct sw_flow_key *key,
 	return count;
 }
 
+/* Checks whether the chain has an entry with the same priority which conflicts
+ * with 'key'. If 'strict' set, wildcards should also match. If 'strict' is not
+ * set, comparison is done 'module wildcards'.
+ *
+ * Returns 'true' if such an entry exists, 'false' otherwise. */
+int
+chain_has_conflict(struct sw_chain *chain, const struct sw_flow_key *key,
+		   uint16_t priority, int strict)
+{
+	int i;
+
+	for (i = 0; i < chain->n_tables; i++) {
+		struct sw_table *t = chain->tables[i];
+		if (t->has_conflict(t, key, priority, strict)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 /* Deletes from 'chain' any and all flows that match 'key'.  If 'out_port' 
  * is not OFPP_NONE, then matching entries must have that port as an 
  * argument for an output action.  If 'strict" is set, then wildcards and 
