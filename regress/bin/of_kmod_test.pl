@@ -22,6 +22,6 @@ sub INT_Handler {
 	exit(1);
 }
 
-push (@ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=kmod");
+push (@ARGV, "--root=$ENV{'OFT_ROOT'}", "--port_base=1", "--common-st-args=kmod");
 
 run_regress_test( \&INT_Handler, @ARGV );

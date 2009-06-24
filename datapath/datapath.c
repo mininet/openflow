@@ -367,7 +367,7 @@ err_unlock:
 static int find_portno(struct datapath *dp)
 {
 	int i;
-	for (i = 0; i < DP_MAX_PORTS; i++)
+	for (i = 1; i < DP_MAX_PORTS; i++)
 		if (dp->ports[i] == NULL)
 			return i;
 	return -EXFULL;

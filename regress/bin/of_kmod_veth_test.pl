@@ -22,6 +22,6 @@ sub INT_Handler {
 	exit(1);
 }
 
-push (@ARGV, "--map=$ENV{'OFT_ROOT'}/bin/veth.map", "--root=$ENV{'OFT_ROOT'}", "--common-st-args=kmod_veth");
+push (@ARGV, "--map=$ENV{'OFT_ROOT'}/bin/veth.map", "--root=$ENV{'OFT_ROOT'}", "--port_base=1", "--common-st-args=kmod_veth");
 
 run_regress_test( \&INT_Handler, @ARGV );

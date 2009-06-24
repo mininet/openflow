@@ -246,7 +246,7 @@ int
 dp_add_port(struct datapath *dp, const char *netdev)
 {
     int port_no;
-    for (port_no = 0; port_no < DP_MAX_PORTS; port_no++) {
+    for (port_no = 1; port_no < DP_MAX_PORTS; port_no++) {
         struct sw_port *port = &dp->ports[port_no];
         if (!port->netdev) {
             return new_port(dp, port, port_no, netdev, NULL);
