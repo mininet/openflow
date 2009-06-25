@@ -7,10 +7,6 @@
 
 #include "compat26.h"
 
-#else
-
-#include "compat24.h"
-
 #endif
 
 #endif /* compat.h */
