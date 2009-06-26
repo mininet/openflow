@@ -78,6 +78,9 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &create_flow_mod_from_icmp_action
   &create_flow_mod_from_icmp
   &wait_for_two_flow_expired
+  &get_dpinst
+  &wait_for_echo_request
+  &del_flows
 );
 
 my $nf2_kernel_module_path        = 'datapath/linux-2.6';
@@ -172,13 +175,16 @@ sub setup_pcap_interfaces {
 
 sub start_ofprotocol {
 
-        my ( $dpinst, $controller ) = @_;
-        if ( !$controller) { $controller = nftest_default_controllers(); }
-
-        my $cmd = "${openflow_dir}/secchan/ofprotocol $dpinst $controller --inactivity-probe=999999 &";
-
-        print "about to run $cmd\n";
-        system($cmd);
+	my ( $dpinst, $controller, $emerg ) = @_;
+	if ( !$controller) { $controller = nftest_default_controllers(); }
+	my $cmd;
+	if (defined $emerg) {
+		$cmd = "${openflow_dir}/secchan/ofprotocol $dpinst $controller --emerg-flow --inactivity-probe=10 &";
+	} else {
+		$cmd = "${openflow_dir}/secchan/ofprotocol $dpinst $controller --inactivity-probe=999999 &";
+	}
+	print "about to run $cmd\n";
+	system($cmd);
 }
 
 sub setup_kmod {
@@ -1056,7 +1062,7 @@ sub create_flow_mod_from_udp_action {
                 flags  => $flags,
                 priority => 0,
                 buffer_id => -1,
-                out_port => $enums{'OFPP_NONE'},
+                out_port => $enums{'OFPP_NONE'}
         };
         my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
         my $flow_mod_pkt = combine_args($flow_mod, $mod_type, $out_port, $chg_field, $chg_val);
@@ -1914,6 +1920,63 @@ sub wait_for_two_flow_expired {
         #compare( "byte_count",     $$msg{'byte_count'},        '==', $bytes );
         #compare( "packet_count",   $$msg{'packet_count'},      '==', $pkt_total_size );
         sleep 3;
+}
+
+sub wait_for_echo_request {
+
+        my ( $ofp, $sock, $options_ref, $read_size_ ) = @_;
+        my $read_size;
+
+        if ( defined $read_size_ ) {
+                $read_size = $read_size_;
+        } else {
+                $read_size = 1512;
+        }
+
+        my $recvd_mesg;
+        sysread( $sock, $recvd_mesg, $read_size )
+          || die "Failed to receive ofp_echo_request message: $!";
+
+        #print HexDump ($recvd_mesg);
+
+        # Inspect  message
+        my $msg_size      = length($recvd_mesg);
+        my $expected_size = $ofp->sizeof('ofp_header');
+        compare( "ofp_echo_reply msg size", length($recvd_mesg), '==', $expected_size );
+
+        my $msg = $ofp->unpack( 'ofp_header', $recvd_mesg );
+
+        #print Dumper($msg);
+        # Verify fields
+        compare( "header version", $$msg{'version'}, '==', $of_ver );
+        compare( "header type",    $$msg{'type'},    '==', $enums{'OFPT_ECHO_REQUEST'} );
+        compare( "header length",  $$msg{'length'},  '==', $msg_size );
+
+        return $$msg{'xid'};
+}
+
+sub get_dpinst {
+        my ($options_ref) = @_;
+
+        my $platform = $$options_ref{'common-st-args'};
+        my $kmod_dpinst = "nl:0";
+        my $user_dpinst = "unix:/var/run/test";
+        my $dpinst;
+
+        if (($platform eq 'user') or ($platform eq 'user_veth')) {
+                $dpinst = $user_dpinst;
+        } else {
+                $dpinst = $kmod_dpinst;
+        }
+
+        return $dpinst;
+}
+
+sub del_flows {
+        my ($options_ref) = @_;
+
+        my $dpinst = get_dpinst($options_ref);
+        `dpctl del-flows $dpinst`;
 }
 
 # Always end library in 1

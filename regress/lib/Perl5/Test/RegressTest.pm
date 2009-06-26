@@ -527,6 +527,10 @@ sub runTest {
 		$args .= " --less_ports";
 	}
 
+        if ( defined($commonSTArgs) ) {
+                $args .= " --common-st-args=$commonSTArgs";
+	}
+
 	if ( -d "$_ROOT_DIR/$projectRoot/$project/$regressRoot/$test" ) {
 		return runScript( $project, $test, $run, REQUIRED, $args );
 	}

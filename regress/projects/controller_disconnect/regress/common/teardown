@@ -1,0 +1,47 @@
+#!/usr/bin/perl -w
+
+use Getopt::Long;
+
+use Test::TestLib;
+use OF::OFUtil;
+
+my $mapFile;
+my $platform;
+my $args;
+ 
+# Process command line options
+unless ( 
+	GetOptions (
+		"map=s" => \$mapFile,
+		"common-st-args=s" => \$platform,
+	)
+)
+{ 
+	print "invalid command format\n";
+	exit(1);
+}
+
+if (defined($mapFile)) {
+        $args = "--map=$mapFile";
+}
+
+if (!defined($platform)) {
+	print "no platform defined\n";
+	exit(1);
+} 
+else {
+	print "platform = $platform\n";
+}
+
+my $filename = "of_${platform}_teardown.pl";
+
+# exit if of_${platform}_setup.pl not in path
+if (-e "$ENV{'OFT_ROOT'}/bin/$filename") {
+	#system("$filename " . $args . " 2> /dev/null > /dev/null");
+	system("$ENV{'OFT_ROOT'}/bin/$filename " . $args );
+	#teardown_kmod();
+	exit (0);
+} else {
+	print "couldn't find setup file $filename\n";
+	exit (1);
+}

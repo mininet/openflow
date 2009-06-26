@@ -229,6 +229,7 @@ sub nftest_init {
 			"base_idle=i",
 			"ignore_byte_count",
 			"num_ports=i",
+			"common-st-args=s",
 			"less_ports"
 			)
 		) 

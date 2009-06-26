@@ -9,6 +9,7 @@ my ($mapFile, $controller);
 
 # Process command line options
 unless ( GetOptions( "map=s" => \$mapFile,
+                     "emerg" => \$emerg,
                      "controller=s", \$controller) ) {
 	print "unrecognized option\n";
 	exit 1;
@@ -22,4 +23,4 @@ else {
 	nftest_process_iface_map("$ENV{'OFT_ROOT'}/bin/veth.map");
 }
 
-setup_user($controller);
+setup_user($controller, $emerg);
