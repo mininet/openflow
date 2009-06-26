@@ -864,6 +864,24 @@ void fwd_port_input(struct datapath *dp, struct ofpbuf *buffer,
     }
 }
 
+static struct ofpbuf *
+make_barrier_reply(const struct ofp_header *req)
+{
+    size_t size = ntohs(req->length);
+    struct ofpbuf *buf = ofpbuf_new(size);
+    struct ofp_header *reply = ofpbuf_put(buf, req, size);
+
+    reply->type = OFPT_BARRIER_REPLY;
+    return buf;
+}
+
+static int
+recv_barrier_request(struct datapath *dp, const struct sender *sender,
+                     const void *ofph)
+{
+    return send_openflow_buffer(dp, make_barrier_reply(ofph), sender);
+}
+
 static int
 recv_features_request(struct datapath *dp, const struct sender *sender,
                       const void *msg UNUSED)
@@ -1677,6 +1695,10 @@ fwd_control_input(struct datapath *dp, const struct sender *sender,
 
     /* Figure out how to handle it. */
     switch (oh->type) {
+    case OFPT_BARRIER_REQUEST:
+        min_size = sizeof(struct ofp_header);
+        handler = recv_barrier_request;
+        break;
     case OFPT_FEATURES_REQUEST:
         min_size = sizeof(struct ofp_header);
         handler = recv_features_request;

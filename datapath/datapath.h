@@ -107,6 +107,8 @@ int dp_send_echo_reply(struct datapath *, const struct sender *,
 		       const struct ofp_header *);
 int dp_send_hello(struct datapath *, const struct sender *,
 		  const struct ofp_header *);
+int dp_send_barrier_reply(struct datapath *, const struct sender *,
+			  const struct ofp_header *);
 
 /* Should hold at least RCU read lock when calling */
 struct datapath *dp_get_by_idx(int dp_idx);

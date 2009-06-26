@@ -81,9 +81,13 @@ static const value_string names_ofp_type[] = {
     { OFPT_STATS_REQUEST,       "Stats Request (CSM)" },
     { OFPT_STATS_REPLY,         "Stats Reply (CSM)" },
 
+    /* Barrier messages. */
+    { OFPT_BARRIER_REQUEST,     "Barrier Request (CSM)" },
+    { OFPT_BARRIER_REPLY,       "Barrier Reply (CSM)" },
+
     { 0,                        NULL }
 };
-#define OFP_TYPE_MAX_VALUE OFPT_STATS_REPLY
+#define OFP_TYPE_MAX_VALUE OFPT_BARRIER_REPLY
 
 /** names from ofp_action_type */
 static const value_string names_ofp_action_type[] = {
@@ -2452,6 +2456,11 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             /* nothing else in this packet type */
             break;
         }
+
+        case OFPT_BARRIER_REQUEST:
+        case OFPT_BARRIER_REPLY:
+            /* nothing else in this packet type */
+            break;
 
         case OFPT_ERROR: {
             type_item = proto_tree_add_item(ofp_tree, ofp_error_msg, tvb, offset, -1, FALSE);

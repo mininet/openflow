@@ -742,7 +742,7 @@ ofp_print_flow_mod(struct ds *string, const void *oh, size_t len,
     default:
         ds_put_format(string, " cmd:%d ", ntohs(ofm->command));
     }
-    ds_put_format(string, "idle:%d hard:%d pri:%d buf:%#x flg:%#x",
+    ds_put_format(string, "idle:%d hard:%d pri:%d buf:%#x flg:%#x ",
             ntohs(ofm->idle_timeout), ntohs(ofm->hard_timeout),
             ofm->match.wildcards ? ntohs(ofm->priority) : (uint16_t)-1,
             ntohl(ofm->buffer_id), ntohs(ofm->flags));
@@ -1416,6 +1416,18 @@ static const struct openflow_packet packets[] = {
         ofp_stats_reply,
     },
     {
+        OFPT_BARRIER_REQUEST,
+        "barrier_request",
+        sizeof (struct ofp_header),
+        NULL,
+    },
+    {
+        OFPT_BARRIER_REPLY,
+        "barrier_reply",
+        sizeof (struct ofp_header),
+        NULL,
+    },
+    {
         OFPT_ECHO_REQUEST,
         "echo_request",
         sizeof (struct ofp_header),
@@ -1467,7 +1479,7 @@ ofp_to_string(const void *oh_, size_t len, int verbosity)
         }
     }
 
-    ds_put_format(&string, "%s (xid=0x%"PRIx32"):", pkt->name, oh->xid);
+    ds_put_format(&string, "%s (xid=0x%"PRIx32"):", pkt->name, ntohl(oh->xid));
 
     if (ntohs(oh->length) > len)
         ds_put_format(&string, " (***truncated to %zu bytes from %"PRIu16"***)",

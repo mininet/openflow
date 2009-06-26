@@ -999,6 +999,21 @@ dp_send_hello(struct datapath *dp, const struct sender *sender,
 }
 
 int
+dp_send_barrier_reply(struct datapath *dp, const struct sender *sender,
+		      const struct ofp_header *request)
+{
+	struct sk_buff *skb;
+	struct ofp_header *reply;
+
+	reply = alloc_openflow_skb(dp, sizeof *reply,
+				   OFPT_BARRIER_REPLY, sender, &skb);
+	if (!reply)
+		return -ENOMEM;
+
+	return send_openflow_skb(dp, skb, sender);
+}
+
+int
 dp_update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm)
 {
 	unsigned long int flags;

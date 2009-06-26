@@ -40,6 +40,10 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &create_controller_socket
   &run_learning_switch_test
   &do_hello_sequence
+  &enter_barrier
+  &wait_for_barrier_exit
+  &send_get_config_request
+  &wait_for_get_config_reply
   &get_switch_features
   &get_config
   &set_config
@@ -63,7 +67,7 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &for_all_wildcards
   &for_all_port_triplets
   &forward_simple
-  &flow_mod_length 
+  &flow_mod_length
   &combine_args 
   &get_original_value
   &generate_expect_packet
@@ -549,6 +553,86 @@ sub do_hello_sequence {
 	print "received Hello\n";
 }
 
+sub enter_barrier {
+    my ($ofp, $sock, $xid) = @_;
+
+    my $hdr_args = {
+	version => $of_ver,
+	type => $enums{'OFPT_BARRIER_REQUEST'},
+	length => $ofp->sizeof('ofp_header'),
+	xid => $xid
+    };
+    my $request = $ofp->pack('ofp_header', $hdr_args);
+
+    syswrite($sock, $request);
+
+    print "Sent barrier request, xid:$xid\n";
+}
+
+sub wait_for_barrier_exit {
+    my ($ofp, $sock, $xid) = @_;
+
+    my $rcvd_msg;
+
+    print "Receiving barrier reply, xid = $xid\n";
+
+    sysread($sock, $rcvd_msg, 256)
+	|| die "Failed to receive message: $!";
+
+    my $num_read = length($rcvd_msg);
+    my $msg_size = $ofp->sizeof('ofp_header');
+    my $msg = $ofp->unpack('ofp_hello', $rcvd_msg);
+
+    print Dumper($msg);
+    compare("MsgVer", $$msg{'header'}{'version'}, '==', get_of_ver());
+    compare("MsgType", $$msg{'header'}{'type'}, '==', $enums{'OFPT_BARRIER_REPLY'});
+    compare("MsgLen", $$msg{'header'}{'length'}, '==', $msg_size);
+
+    print "Received barrier reply, xid:$xid\n";
+
+    return $msg;
+}
+
+sub send_get_config_request {
+    my ($ofp, $sock, $xid) = @_;
+
+    my $hdr_args = {
+	version => $of_ver,
+	type    => $enums{'OFPT_GET_CONFIG_REQUEST'},
+	length  => $ofp->sizeof('ofp_header'),
+	xid     => $xid
+    };
+    my $request = $ofp->pack('ofp_header', $hdr_args);
+
+    syswrite($sock, $request);
+
+    print "Sent get config request, xid:$xid\n";
+}
+
+sub wait_for_get_config_reply {
+    my ($ofp, $sock, $xid) = @_;
+
+    my $rcvd_msg;
+
+    print "Receiving get config reply, xid = $xid\n";
+
+    sysread($sock, $rcvd_msg, 256)
+	|| die "Failed to receive message: $!";
+
+    my $num_read = length($rcvd_msg);
+    my $msg_size = $ofp->sizeof('ofp_switch_config');
+    my $msg = $ofp->unpack('ofp_switch_config', $rcvd_msg);
+
+    print Dumper($msg);
+    compare("MsgVer", $$msg{'header'}{'version'}, '==', get_of_ver());
+    compare("MsgType", $$msg{'header'}{'type'}, '==', $enums{'OFPT_GET_CONFIG_REPLY'});
+    compare("MsgLen", $$msg{'header'}{'length'}, '==', $msg_size);
+
+    print "Received get config reply, xid = $xid\n";
+
+    return $msg;
+}
+
 sub get_switch_features {
 
 	my ( $ofp, $sock ) = @_;
@@ -961,7 +1045,7 @@ sub create_flow_mod_from_udp_action {
                 tp_src    => ${ $udp_pkt->{UDP_pdu} }->SrcPort,
                 tp_dst    => ${ $udp_pkt->{UDP_pdu} }->DstPort
         };
-        
+
         # organize flow_mod packet
         my $flow_mod_args = {
                 header => $hdr_args,
@@ -973,7 +1057,6 @@ sub create_flow_mod_from_udp_action {
                 priority => 0,
                 buffer_id => -1,
                 out_port => $enums{'OFPP_NONE'},
-				flags => $enums{"$fm_flags"}
         };
         my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
         my $flow_mod_pkt = combine_args($flow_mod, $mod_type, $out_port, $chg_field, $chg_val);
@@ -1360,27 +1443,6 @@ sub replace_sending_pkt {
 	                ${$test_pkt->{Ethernet_hdr}}->VLAN_ID(0x6000 | $vlan_vid_val);
 		}
         }
-
-	print HexDump ( $test_pkt->packed );
-
-	my $flow_mod_pkt;
-	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
-	if ($type eq 'drop') {
-		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $flags, $wildcards, 'drop' );
-	} else {
-		$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, 
-		                $flags, $wildcards, $chg_field, $chg_val );
-	}
-
-	print HexDump($flow_mod_pkt);
-	#print Dumper($flow_mod_pkt);
-
-	# Send 'flow_mod' message
-	syswrite( $sock, $flow_mod_pkt );
-	print "sent flow_mod message\n";
-	
-	# Give OF switch time to process the flow mod
-	usleep($$options_ref{'send_delay'});
 	return $test_pkt;
 }
 
@@ -1436,10 +1498,10 @@ sub forward_simple {
 		$out_port = $enums{'OFPP_ALL'};    # all physical ports except the input
 	}
 	elsif ($type eq 'controller') {
-		$out_port = $enums{'OFPP_CONTROLLER'};	 #send to the secure channel		
+		$out_port = $enums{'OFPP_CONTROLLER'};	 #send to the secure channel
 	}
 	else {
-		$out_port = $out_port_offset + $$options_ref{'port_base'};		
+		$out_port = $out_port_offset + $$options_ref{'port_base'};
 	}
 
 	my $test_pkt = get_default_black_box_pkt_len( $in_port, $out_port, $$options_ref{'pkt_len'}, $vlan_id );
@@ -1467,12 +1529,13 @@ sub forward_simple {
 	}
 
 	my $flow_mod_pkt;
+	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
 	if ($type eq 'drop') {
 		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port,
-		                   $$options_ref{'max_idle'}, $wildcards, 'drop', $vlan_id );
+		                   $$options_ref{'max_idle'}, $flags, $wildcards, 'drop', $vlan_id );
 	} else {
 		$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
-		                   $$options_ref{'max_idle'}, $wildcards, $chg_field, $chg_val, $vlan_id );
+		                   $$options_ref{'max_idle'}, $flags, $wildcards, $chg_field, $chg_val, $vlan_id );
 	}
 
 	print HexDump($flow_mod_pkt);

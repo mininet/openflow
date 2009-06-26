@@ -2,6 +2,7 @@
 
 # Basic Tests
 test_hello/run.pl
+test_barrier/run.pl
 test_packet_in/run.pl
 test_packet_out/run.pl
 test_switch_config/run.pl

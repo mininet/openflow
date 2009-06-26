@@ -85,6 +85,13 @@ recv_hello(struct sw_chain *chain, const struct sender *sender,
 }
 
 static int
+recv_barrier_request(struct sw_chain *chain, const struct sender *sender,
+		     const void *msg)
+{
+	return dp_send_barrier_reply(chain->dp, sender, msg);
+}
+
+static int
 recv_features_request(struct sw_chain *chain, const struct sender *sender,
 		      const void *msg) 
 {
@@ -419,6 +426,10 @@ fwd_control_input(struct sw_chain *chain, const struct sender *sender,
 		[OFPT_HELLO] = {
 			sizeof (struct ofp_header),
 			recv_hello,
+		},
+		[OFPT_BARRIER_REQUEST] = {
+			sizeof (struct ofp_header),
+			recv_barrier_request,
 		},
 		[OFPT_ECHO_REQUEST] = {
 			sizeof (struct ofp_header),
