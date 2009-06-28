@@ -242,7 +242,11 @@ The \verb|buffer_id| is the same given in the \verb|ofp_packet_in| message.  If 
 When packets are received by the datapath and sent to the controller, they use the \verb|OFPT_PACKET_IN| message:
 
 \input{struct/ofp_packet_in}
-The \verb|buffer_id| is an opaque value used by the datapath to identify a buffered packet.  When a packet is buffered, some number of bytes from the message will be included in the data portion of the message.  If the packet is sent because of a “send to controller” action, then \verb|max_len| bytes from the flow setup request are sent.  If the packet is sent because of a flow table miss, then at least \verb|miss_send_len| from the \verb|OFPT_SET_CONFIG| message are sent.  If the value was never sent, the default is 128 bytes.  If packet is not buffered, the entire packet is included in the data portion, and the \verb|buffer_id| is -1.  The reason field can be any of these values:
+The \verb|buffer_id| is an opaque value used by the datapath to identify a buffered packet.  When a packet is buffered, some number of bytes from the message will be included in the data portion of the message.  If the packet is sent because of a ``send to controller'' action, then \verb|max_len| bytes from the \verb|action_output| of the flow setup request are sent.  If the packet is sent because of a flow table miss, then at least \verb|miss_send_len| bytes from the \verb|OFPT_SET_CONFIG| message are sent.  The default \verb|miss_send_len| is \input{define/OFP_DEFAULT_MISS_SEND_LEN}bytes.  If the packet is not buffered, the entire packet is included in the data portion, and the \verb|buffer_id| is -1.  
+\\\\
+Switches that implement buffering are expected to expose, through documentation, both the amount of available buffering, and the length of time before buffers may be reused.  A switch must gracefully handle the case where a buffered \verb|packet_in| message yields no response from the controller.  A switch should prevent a buffer from being reused until it has been handled by the controller, or some amount of time (indicated in documentation) has passed.
+\\\\
+The reason field can be any of these values:
 
 \input{enum/ofp_packet_in_reason}
  
