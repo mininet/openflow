@@ -356,12 +356,13 @@ Switches that do not support 802.1D spanning tree must allow the controller to s
 \label{flow_table:sec_chan:flow_removal}
 Flow table modification messages can have the following types:
 \input{enum/ofp_flow_mod_command}
-For ADD requests with set wildcard fields, the switch must first check for any already-inserted entries that conflict with the incoming entry (i.e., same priority and there exists an entry that could match both).   If a conflict is found, the switch should refuse the addition and may respond with an \verb|OFPEFM_ADD_OVERLAP| error message.  For valid (non-conflicting) ADD requests, the new flow should be added to the lowest numbered table for which the switch supports all  wildcards set in the \verb|flow_match| struct, and for which the priority would be observed during the matching process.    
-If a flow entry with identical header fields and priority already resides in any table, then that entry, including its counters, must be removed, and the new flow entry added.  
+For ADD requests with the \verb|OFPFF_CHECK_OVERLAP| flag set, the switch must first check for any overlapping flow entries.  An overlapping entry is one with same priority as the request and at least one wildcard field, such that some flow entry exists that could match both.  If an overlap conflict is found, the switch must refuse the addition and respond with an \verb|ofp_error_msg| with \verb|OFPET_FLOW_MOD_FAILED| type and \verb|OFPFMFC_OVERLAP| code.
 \\\\
-If a switch cannot find any table in which to add the incoming flow entry, the switch should send an \verb|OFPT_ERROR_MSG| with \verb|OFPET_FLOW_MOD_FAILED| type and \verb|OFPFMFC_ALL_TABLES_FULL| type.
+For valid (non-overlapping) ADD requests, or those with no overlap checking, the switch must insert the flow entry at the lowest numbered table for which the switch supports all wildcards set in the \verb|flow_match| struct, and for which the priority would be observed during the matching process.  If a flow entry with identical header fields and priority already resides in any table, then that entry, including its counters, must be removed, and the new flow entry added.
 \\\\
-For MODIFY requests, if a flow entry with identical header fields does not current reside in any table, the new flow entry must be inserted with zeroed counters.  Otherwise, the actions field is changed on the existing entry and its counters and idle time fields are left unchanged.
+If a switch cannot find any table in which to add the incoming flow entry, the switch should send an \verb|ofp_error_msg| with \verb|OFPET_FLOW_MOD_FAILED| type and \verb|OFPFMFC_ALL_TABLES_FULL| code.
+\\\\
+For MODIFY requests, if a flow entry with identical header fields does not current reside in any table, the MODIFY acts like an ADD, and the new flow entry must be inserted with zeroed counters.  Otherwise, the actions field is changed on the existing entry and its counters and idle time fields are left unchanged.
 \\\\
 For DELETE requests, if no flow entry matches, no error is recorded, and no flow table modification occurs.  If flow entries match, and must be deleted, then each entry with the \verb|OFPFF_SEND_FLOW_EXP| flag set should generate a flow expiration message.
 \\\\
