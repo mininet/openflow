@@ -5,6 +5,8 @@
 \usepackage{graphicx}
 \usepackage{tabularx}
 
+\hbadness=10000 % No "underfull hbox" messages
+
 \begin{document}
 
 %\lstset{language=C}
@@ -69,13 +71,14 @@ Each flow table entry (see Table \ref{table:flow entry}) contains:
 \begin{table}[hbp]
 \centering
 \footnotesize
-\begin{tabularx}{\textwidth}{ |X|X|X|X|X|X|X|X|X|X| }
+\begin{tabularx}{\textwidth}{ |X|X|X|X|X|X|X|X|X|X|X| }
 \hline
 Ingress Port &
 Ether source &
 Ether dst &
 Ether type &
 VLAN id &
+VLAN priority &
 IP src &
 IP dst &
 IP proto &
@@ -88,7 +91,7 @@ TCP/ UDP dst port
 \label{table:header fields}
 \end{table}
 
-Table 2 shows the header fields an incoming packet is compared against. Each entry contains a specific value, or ANY, which matches any value. If the switch supports subnet masks on the IP source and/or destination fields, these can more precisely specify matches.  The fields in the OpenFlow 10-tuple are listed in Table \ref{table:header fields} and details on the properties of each field are described in Table \ref{table:header field details}.  
+Table 2 shows the header fields an incoming packet is compared against. Each entry contains a specific value, or ANY, which matches any value. If the switch supports subnet masks on the IP source and/or destination fields, these can more precisely specify matches.  The fields in the OpenFlow 11-tuple are listed in Table \ref{table:header fields} and details on the properties of each field are described in Table \ref{table:header field details}.  
 
 \begin{table}[hbp]
 \centering
@@ -100,6 +103,7 @@ Table 2 shows the header fields an incoming packet is compared against. Each ent
 \hline Ethernet destination address & 48 & All packets on enabled ports & \\ 
 \hline Ethernet type & 16 & All packets on enabled ports & An OpenFlow switch is required to match the type in both standard Ethernet and 802.2 with a SNAP header and OUI of 0x000000.  The special value of 0x05FF is used to match all 802.3 packets without SNAP headers. \\
 \hline VLAN id & 12 & All packets of Ethernet type 0x8100 & \\
+\hline VLAN priority & 3 & All packets of Ethernet type 0x8100 & VLAN PCP field \\
 \hline IP source address & 32 & All IP packets & Can be subnet masked \\
 \hline IP destination address & 32 & All IP packets & Can be subnet masked \\
 \hline IP protocol & 8 & All IP packets & \\
@@ -267,7 +271,7 @@ The flow table is checked for a matching flow entry.  The header fields used for
 \begin{itemize}
 \item Rules specifying an ingress port are matched against the physical port that received the packet.
 \item The Ethernet headers as specified in Table \ref{table:header fields} are used for all packets.
-\item If the packet is a VLAN (Ethernet type 0x8100), the VLAN ID is used in the lookup.
+\item If the packet is a VLAN (Ethernet type 0x8100), the VLAN ID and PCP fields are used in the lookup.
 \item For IP packets (Ethernet type equal to 0x0800), the lookup fields also include those in the IP header.
 \item For IP packets that are TCP or UDP (IP protocol is equal to 6 or 17), the lookup includes the transport ports.
 \item For IP packets that are ICMP (IP prototcol is equal to 1), the lookup includes the Type and Code fields.  
