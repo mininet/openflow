@@ -131,6 +131,12 @@ struct rconn {
 #define MAX_MONITORS 8
     struct vconn *monitors[8];
     size_t n_monitors;
+
+    /* Protocol statistical informaition. */
+    struct ofpstat ofps_rcvd;
+    struct ofpstat ofps_sent;
+
+    uint32_t idle_echo_xid;
 };
 
 static unsigned int elapsed_in_this_state(const struct rconn *);
@@ -211,9 +217,14 @@ rconn_create(int probe_interval, int max_backoff)
     rc->questionable_connectivity = false;
     rc->last_questioned = time_now();
 
-    rc->probe_interval = probe_interval ? MAX(5, probe_interval) : 0;
+    rc->probe_interval = probe_interval ? MAX(1, probe_interval) : 0;
 
     rc->n_monitors = 0;
+
+    memset(&rc->ofps_rcvd, 0, sizeof(rc->ofps_rcvd));
+    memset(&rc->ofps_sent, 0, sizeof(rc->ofps_sent));
+
+    rc->idle_echo_xid = 0;
 
     return rc;
 }
@@ -474,7 +485,18 @@ rconn_recv(struct rconn *rc)
             rc->last_received = time_now();
             rc->packets_received++;
             if (rc->state == S_IDLE) {
-                state_transition(rc, S_ACTIVE);
+                /* Check liveliness of a peer. */
+                if (h->type == OFPT_ECHO_REPLY) {
+                    if (rc->idle_echo_xid == 0) {
+                        state_transition(rc, S_ACTIVE);
+                    } else {
+                        if (rc->idle_echo_xid == h->xid)
+                            state_transition(rc, S_ACTIVE);
+                        rc->idle_echo_xid = 0;
+                    }
+                } else {
+                    state_transition(rc, S_ACTIVE);
+                }
             }
             return buffer;
         } else if (error != EAGAIN) {
@@ -721,8 +743,11 @@ try_send(struct rconn *rc)
     int retval = 0;
     struct ofpbuf *next = rc->txq.head->next;
     int *n_queued = rc->txq.head->private;
+    ofpstat_inc_protocol_stat(&rc->ofps_sent, h);
+    rc->idle_echo_xid = h->xid;
     retval = vconn_send(rc->vconn, rc->txq.head);
     if (retval) {
+        rc->idle_echo_xid = 0;
         if (retval != EAGAIN) {
             disconnect(rc, retval);
         }
@@ -765,7 +790,7 @@ disconnect(struct rconn *rc, int error)
             rc->backoff = 1;
         } else {
             rc->backoff = MIN(rc->max_backoff, MAX(1, 2 * rc->backoff));
-            VLOG_INFO("%s: waiting %d seconds before reconnect\n",
+            VLOG_INFO("%s: waiting %d seconds before reconnect",
                       rc->name, rc->backoff);
         }
         rc->backoff_deadline = now + rc->backoff;

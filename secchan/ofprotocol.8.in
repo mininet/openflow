@@ -6,7 +6,7 @@ ofprotocol \- secure channel connecting an OpenFlow datapath to a controller
 
 .SH SYNOPSIS
 .B ofprotocol
-[\fIoptions\fR] \fIdatapath\fR [\fIcontroller\fR]
+[\fIoptions\fR] \fIdatapath\fR controller[,\fIcontroller\fR...]
 
 .SH DESCRIPTION
 The \fBofprotocol\fR program sets up a secure channel between a local
@@ -30,8 +30,9 @@ The \fIfile\fR argument must the same one specified on the
 \fBofdatapath\fR command line.
 
 .PP
-The optional \fIcontroller\fR argument specifies how to connect to
-the OpenFlow controller.  It takes one of the following forms:
+The optional \fIcontroller\fR argument specifies how to connect to 
+an OpenFlow controller. Up to four controllers may be specified, 
+using the following forms:
 
 .TP
 \fBssl:\fIhost\fR[\fB:\fIport\fR]
@@ -49,6 +50,10 @@ The specified TCP \fIport\fR (default: 6633) on the given remote
 The Unix domain server socket named \fIfile\fR.
 
 .PP
+If multiple controllers are specified, \fBofprotocol\fR will attempt to
+connect to a new controller when a controller connection fails, times
+out, or is closed, or when a controller stops responding to echo requests.
+
 If \fIcontroller\fR is omitted, \fBofprotocol\fR attempts to discover the
 location of the controller automatically (see below).
 
@@ -262,7 +267,7 @@ channel waits for a message to be received from the controller for
 controller.  After sending the inactivity probe, if no response is
 received for an additional \fIsecs\fR seconds, the secure channel
 assumes that the connection has been broken and attempts to reconnect.
-The default is 15 seconds, and the minimum value is 5 seconds.
+The default is 15 seconds, and the minimum value is 1 seconds.
 
 When fail-open mode is configured, changing the inactivity probe
 interval also changes the interval before entering fail-open mode (see

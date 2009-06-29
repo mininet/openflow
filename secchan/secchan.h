@@ -51,6 +51,8 @@ enum fail_mode {
 /* Maximum number of management connection listeners. */
 #define MAX_MGMT 8
 
+#define MAX_CONTROLLERS 3
+
 /* Settings that may be configured by the user. */
 struct settings {
     /* Overall mode of operation. */
@@ -59,7 +61,8 @@ struct settings {
 
     /* Related vconns and network devices. */
     const char *dp_name;        /* Local datapath. */
-    const char *controller_name; /* Controller (if not discovery mode). */
+    int num_controllers;        /* Number of configured controllers. */
+    const char *controller_names[MAX_CONTROLLERS]; /* Controllers (if not discovery mode). */
     const char *listener_names[MAX_MGMT]; /* Listen for mgmt connections. */
     size_t n_listeners;          /* Number of mgmt connection listeners. */
     const char *monitor_name;   /* Listen for traffic monitor connections. */

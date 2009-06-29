@@ -980,7 +980,7 @@ make_echo_request(void)
     rq->version = OFP_VERSION;
     rq->type = OFPT_ECHO_REQUEST;
     rq->length = htons(sizeof *rq);
-    rq->xid = 0;
+    rq->xid = alloc_xid();
     return out;
 }
 

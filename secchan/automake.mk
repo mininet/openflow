@@ -8,6 +8,8 @@ secchan_ofprotocol_SOURCES = \
 	secchan/executer.h \
 	secchan/fail-open.c \
 	secchan/fail-open.h \
+	secchan/failover.c \
+	secchan/failover.h \
 	secchan/flow-end.c \
 	secchan/flow-end.h \
 	secchan/in-band.c \

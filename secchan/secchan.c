@@ -48,6 +48,7 @@
 #include "discovery.h"
 #include "executer.h"
 #include "fail-open.h"
+#include "failover.h"
 #include "fault.h"
 #include "in-band.h"
 #include "leak-checker.h"
@@ -159,7 +160,7 @@ main(int argc, char *argv[])
 
     /* Check datapath name, to try to catch command-line invocation errors. */
     if (strncmp(s.dp_name, "nl:", 3) && strncmp(s.dp_name, "unix:", 5)
-        && !s.controller_name) {
+        && !s.controller_names[0]) {
         VLOG_WARN("Controller not specified and datapath is not nl: or "
                   "unix:.  (Did you forget to specify the datapath?)");
     }
@@ -194,10 +195,10 @@ main(int argc, char *argv[])
 
     /* Connect to controller. */
     remote_rconn = rconn_create(s.probe_interval, s.max_backoff);
-    if (s.controller_name) {
-        retval = rconn_connect(remote_rconn, s.controller_name);
+    if (s.controller_names[0]) {
+        retval = rconn_connect(remote_rconn, s.controller_names[0]);
         if (retval == EAFNOSUPPORT) {
-            ofp_fatal(0, "No support for %s vconn", s.controller_name);
+            ofp_fatal(0, "No support for %s vconn", s.controller_names[0]);
         }
     }
     switch_status_register_category(switch_status, "remote",
@@ -224,6 +225,9 @@ main(int argc, char *argv[])
     if (s.fail_mode == FAIL_OPEN) {
         fail_open_start(&secchan, &s, switch_status,
                         local_rconn, remote_rconn);
+    }
+    if (s.num_controllers > 1) {
+        failover_start(&secchan, &s, switch_status, remote_rconn);
     }
     if (s.rate_limit) {
         rate_limit_start(&secchan, &s, switch_status, remote_rconn);
@@ -673,8 +677,8 @@ parse_options(int argc, char *argv[], struct settings *s)
 
         case OPT_INACTIVITY_PROBE:
             s->probe_interval = atoi(optarg);
-            if (s->probe_interval < 5) {
-                ofp_fatal(0, "--inactivity-probe argument must be at least 5");
+            if (s->probe_interval < 1) {
+                ofp_fatal(0, "--inactivity-probe argument must be at least 1");
             }
             break;
 
@@ -806,7 +810,23 @@ parse_options(int argc, char *argv[], struct settings *s)
 
     /* Local and remote vconns. */
     s->dp_name = argv[0];
-    s->controller_name = argc > 1 ? xstrdup(argv[1]) : NULL;
+    {
+        char *curr;
+        char *save;
+        int i;
+
+        s->num_controllers = 0;
+        for (i = 0; i < MAX_CONTROLLERS; ++i)
+            s->controller_names[i] = NULL;
+        if (argc > 1) {
+            for (curr = strtok_r(argv[1], ",,", &save), i = 0;
+                 curr && i < MAX_CONTROLLERS;
+                 curr = strtok_r(NULL, ",,", &save), ++i) {
+                s->controller_names[i] = xstrdup(curr);
+                ++s->num_controllers;
+            }
+        }
+    }
 
     /* Set accept_controller_regex. */
     if (!accept_re) {
@@ -823,7 +843,7 @@ parse_options(int argc, char *argv[], struct settings *s)
     s->accept_controller_re = accept_re;
 
     /* Mode of operation. */
-    s->discovery = s->controller_name == NULL;
+    s->discovery = s->controller_names[0] == NULL;
     if (s->discovery && !s->in_band) {
         ofp_fatal(0, "Cannot perform discovery with out-of-band control");
     }
