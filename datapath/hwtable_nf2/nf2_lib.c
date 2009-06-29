@@ -366,7 +366,7 @@ populate_action_output(nf2_of_action_wrap *action, nf2_of_entry_wrap *entry,
 
 	port = ntohs(actout->port);
 	NF2DEBUGMSG("Action Type: %i Output Port: %i\n",
-		    ntohs(acth->type), port);
+		    ntohs(actout->type), port);
 
 	if (port < 4) {
 		// Bitmask for output port(s), evens are phys odds cpu

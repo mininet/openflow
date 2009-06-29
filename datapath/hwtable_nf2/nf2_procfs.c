@@ -51,12 +51,14 @@
 #include "hwtable_nf2/nf2_procfs.h"
 
 #define NF2_PROCFS_NAME "net/openflow-netfpga"
+#define CLK_CYCLE 8
 
 static struct semaphore proc_sem;
 
 static int disp_dev_info(char *);
 static int disp_port_info(char *);
 static int disp_match_info(char *);
+static int disp_watchdog_info(char *);
 static int proc_read(char *, char **, off_t, int, int *, void *);
 
 static int
@@ -167,6 +169,34 @@ disp_match_info(char *page)
 }
 
 static int
+disp_watchdog_info(char *page)
+{
+	struct net_device *netdev;
+	unsigned int nf2wdtinfo;
+	unsigned int elapsed_time;
+	int len = 0;
+
+#ifndef NF2_WATCHDOG
+	return 0;
+#endif
+
+	netdev = nf2_get_net_device();
+	if (netdev == NULL)
+		return 0;
+	nf2wdtinfo = nf2_get_watchdog_info(netdev);
+	nf2_free_net_device(netdev);
+
+	elapsed_time = nf2wdtinfo * CLK_CYCLE / 1000000;
+
+	len += sprintf(page + len,
+		       "%u (msec) passed since the watchdog counter has been cleared last time\n",
+		       elapsed_time);
+	len += sprintf(page + len, "\n");
+
+	return len;
+}
+
+static int
 proc_read(char *page, char **start, off_t offset, int count, int *eof,
 	  void *data)
 {
@@ -180,6 +210,7 @@ proc_read(char *page, char **start, off_t offset, int count, int *eof,
 		len += disp_dev_info(page + len);
 		len += disp_port_info(page + len);
 		len += disp_match_info(page + len);
+		len += disp_watchdog_info(page + len);
 		buf_pos = 0;
 	}
 	up(&proc_sem);

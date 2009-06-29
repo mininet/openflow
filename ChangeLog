@@ -1,12 +1,18 @@
-v0.9.0-alpha4 - 08 May 2009
----------------------------
+0.9.0-alpha5 - 12 May 2009
+--------------------------
+    - Added watchdog mechanism to flush flow tabel on NetFPGA (BUG#45)
+    - Added simple failover mechanism to handle multiple controllers (BUG#47)
+    - Removed Linux 2.4 kerel support for kernel extensions.
+    - Fixed bugs: #46
 
+0.9.0-alpha4 - 08 May 2009
+--------------------------
     - Changed binary forms name (BUG#40)
     - Added MAC address rewrite manipulation in dpctl (BUG#42)
     - Added proc file for NetFPGA to monitor statistical information (BUG#44)
 
-v0.9.0-alpha3 - 28 Apr 2009
----------------------------
+0.9.0-alpha3 - 28 Apr 2009
+--------------------------
     - Removed monolithic daemon called switch
     - Added userspace datapath daemon named udatapath
     - Improved regression test suite for MAC address rewrite testing (BUG#38)

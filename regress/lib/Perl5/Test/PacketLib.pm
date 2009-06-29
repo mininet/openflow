@@ -474,6 +474,8 @@ use Socket;
 use vars qw(@ISA);
 @ISA = qw(NF2::PDU);
 
+use constant IP_HDR_LEN_WORD => 5;
+
 sub new   # IP_hdr
   {
     my ($class,%arg) = @_;
@@ -709,7 +711,7 @@ sub calc_checksum
     my $checksum = 0;
     my $word;
 
-    for my $i (0..(2*$self->ip_hdr_len - 1)) {
+    for my $i (0..(2*IP_HDR_LEN_WORD - 1)) {
       $word = ( @{$self->{'bytes'}}[2*$i] << 8 ) | @{$self->{'bytes'}}[2*$i+1] ;
       $checksum += $word;
       if ($checksum & 0xffff0000) {
@@ -2067,14 +2069,24 @@ sub new   # Ethernet_hdr
     # Set various arguments
     $arg{'proto'} = PROTO_UDP if (!$force || !defined($arg{'proto'}));
 
-    # Create either payload or the udp_len if the other is defined
-    if (!defined($arg{'udp_len'}) && !defined($arg{'data'}) && defined($arg{'len'})) {
-      $arg{'udp_len'} = $arg{'len'} - NF2::IP_pkt::MIN_LEN();
-    }
+    my $ip_options_ArrayAddr;
+    my @ip_options_Array;
+    my $ip_options_Length;
 
-    if (defined($arg{'udp_len'}) && $arg{'udp_len'} < UDP_HDR_LEN) {
+    # Create either payload or the udp_len if the other is defined
+    if (!defined($arg{'udp_len'}) && !defined($arg{'data'})
+        && defined($arg{'len'}) && defined($arg{'ip_options'})) {
+      $ip_options_ArrayAddr = $arg{'ip_options'};
+      @ip_options_Array     = @$ip_options_ArrayAddr;
+      $ip_options_Length    = @ip_options_Array;
+      $arg{'udp_len'} = $arg{'len'} - NF2::IP_pkt::MIN_LEN() - $ip_options_Length;
+    } elsif (!defined($arg{'udp_len'}) && !defined($arg{'data'})
+        && defined($arg{'len'}) && !defined($arg{'ip_options'})) {
+      $arg{'udp_len'} = $arg{'len'} - NF2::IP_pkt::MIN_LEN();
+    } elsif (defined($arg{'udp_len'}) && $arg{'udp_len'} < UDP_HDR_LEN) {
       $arg{'udp_len'} = UDP_HDR_LEN;
     }
+
     if (defined($arg{'udp_len'}) && !defined($arg{'data'}) &&
         $arg{'udp_len'} > UDP_HDR_LEN) {
       $arg{'data'} = [ map {int(rand(256))} (1..($arg{'udp_len'} - UDP_HDR_LEN)) ];
@@ -2089,8 +2101,13 @@ sub new   # Ethernet_hdr
     }
 
     # Calculate the length of the packet
-    $arg{'len'} = NF2::IP_pkt::MIN_LEN() + $UDP_pdu->length_in_bytes() if 
-        (!$force || !defined($arg{'len'}));
+    if (!$force || !defined($arg{'len'})) {
+        if (defined($arg{'ip_options'})) {
+            $arg{'len'} = NF2::IP_pkt::MIN_LEN() + $ip_options_Length +$UDP_pdu->length_in_bytes();
+        } else {
+            $arg{'len'} = NF2::IP_pkt::MIN_LEN() + $UDP_pdu->length_in_bytes();
+        }
+    }
 
     $arg{'frag'} = 0x4000 if (!$force && !defined($arg{'frag'}));
     $arg{'ttl'} = 64 if (!$force || !defined($arg{'ttl'}));

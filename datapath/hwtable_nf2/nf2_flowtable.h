@@ -58,4 +58,6 @@ enum nf2_of_table_type {
 #define NF2DEBUGMSG(f, s...)
 #endif
 
+/* #define NF2_WATCHDOG 1 */
+
 #endif

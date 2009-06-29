@@ -234,6 +234,8 @@ nf2_flow_timeout(struct datapath *dpinst, struct sw_table *flowtab)
 	}
 	mutex_unlock(&dp_mutex);
 
+	nf2_clear_watchdog(netdev);
+
 	nf2_free_net_device(netdev);
 
 	if (num_uninst_flows != 0)

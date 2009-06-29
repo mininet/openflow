@@ -34,6 +34,8 @@
 #define HATABLE_NF2_NF2_OPENFLOW_H_
 
 #define OPENFLOW_NF2_EXACT_TABLE_SIZE	32768
+#define WATCHDOG_ENABLE 1
+#define WATCHDOG_DISABLE 0
 
 #pragma pack(push)		/* push current alignment to stack */
 #pragma pack(1)			/* set alignment to 1 byte boundary */
@@ -145,6 +147,7 @@ struct nf2_match_info {
 #pragma pack(pop)		/* XXX: Restore original alignment from stack */
 
 void nf2_reset_card(struct net_device *);
+void nf2_clear_watchdog(struct net_device *);
 int nf2_write_of_wildcard(struct net_device *, int, nf2_of_entry_wrap *,
 			  nf2_of_mask_wrap *, nf2_of_action_wrap *);
 int nf2_write_of_exact(struct net_device *, int, nf2_of_entry_wrap *,
@@ -159,7 +162,8 @@ unsigned int nf2_get_wildcard_byte_count(struct net_device *, int);
 unsigned long int nf2_get_matched_count(struct net_device *);
 unsigned long int nf2_get_missed_count(struct net_device *);
 struct nf2_device_info *nf2_get_device_info(struct net_device *);
-struct nf2_all_ports_info *nf2_get_all_ports_info(struct net_device *);
 struct nf2_match_info *nf2_get_match_info(struct net_device *);
+unsigned int nf2_get_watchdog_info(struct net_device *);
+struct nf2_all_ports_info *nf2_get_all_ports_info(struct net_device *);
 
 #endif

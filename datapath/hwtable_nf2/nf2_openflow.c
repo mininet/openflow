@@ -267,6 +267,28 @@ nf2_reset_card(struct net_device *dev)
 	ssleep(2);
 }
 
+void
+nf2_clear_watchdog(struct net_device *dev)
+{
+	volatile unsigned int enable_status;
+
+#ifndef NF2_WATCHDOG
+	return;
+#endif
+	if (dev == NULL) {
+		return;
+	}
+
+	nf2k_reg_read(dev, WDT_ENABLE_FLG_REG, (void *)&enable_status);
+	enable_status &= 0x1;
+
+	if (enable_status == WATCHDOG_DISABLE) {
+		enable_status = WATCHDOG_ENABLE;
+		nf2k_reg_write(dev, WDT_ENABLE_FLG_REG, (void *)&enable_status);
+	}
+	return;
+}
+
 /* Write a wildcard entry to the specified device and row. The row consists of
  * the actual entry, its mask that specifies wildcards, as well as the action(s)
  * to be taken if the row is matched
@@ -648,6 +670,15 @@ nf2_get_match_info(struct net_device *dev)
 		      &(nf2matchinfo->exact_hits));
 
 	return nf2matchinfo;
+}
+
+unsigned int
+nf2_get_watchdog_info(struct net_device *dev)
+{
+	unsigned int nf2wdtinfo = 0;
+
+	nf2k_reg_read(dev, WDT_COUNTER_REG, &nf2wdtinfo);
+	return nf2wdtinfo;
 }
 
 static struct nf2_all_ports_info_addr *
