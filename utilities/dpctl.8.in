@@ -187,6 +187,12 @@ tables.  Each line in \fIfile\fR is a flow entry in the format
 described in \fBFLOW SYNTAX\fR, below.
 
 .TP
+\fBadd-emerg-flow \fIswitch flow\fR
+Add the emergency flow entry as described by \fIflow\fR to the datapath 
+\fIswitch\fR's tables.  The flow entry is in the format described in 
+\fBFLOW SYNTAX\fR, below.
+
+.TP
 \fBmod-flows \fIswitch flow\fR
 Modify the actions in entries from the datapath \fIswitch\fR's tables 
 that match \fIflow\fR.  When invoked with the \fB--strict\fR option,
@@ -196,6 +202,15 @@ wildcards are not treated as active for matching purposes.  See
 .TP
 \fBdel-flows \fIswitch \fR[\fIflow\fR]
 Deletes entries from the datapath \fIswitch\fR's tables that match
+\fIflow\fR.  When invoked with the \fB--strict\fR option, wildcards are 
+not treated as active for matching purposes.  If \fIflow\fR is 
+omitted and the \fB--strict\fR option is not used, all flows in the 
+datapath's tables are removed.  See \fBFLOW SYNTAX\fR, below, for the 
+syntax of \fIflows\fR.
+
+.TP
+\fBdel-emerg-flows \fIswitch \fR[\fIflow\fR]
+Deletes emergency entries from the datapath \fIswitch\fR's tables that match
 \fIflow\fR.  When invoked with the \fB--strict\fR option, wildcards are 
 not treated as active for matching purposes.  If \fIflow\fR is 
 omitted and the \fB--strict\fR option is not used, all flows in the 
@@ -339,7 +354,8 @@ Same as \fBdl_type=0x0800,nw_proto=17\fR.
 Same as \fBdl_type=0x0806\fR.
 
 .PP
-The \fBadd-flow\fR and \fBadd-flows\fR commands require an additional field:
+The \fBadd-flow\fR, \fBadd-flows\fR and \fBadd-emerg-flow\fR commands 
+require an additional field:
 
 .IP \fIactions\fB=\fItarget\fR[\fB,\fItarget\fR...]\fR
 Specifies a comma-separated list of actions to take on a packet when the 
@@ -403,8 +419,8 @@ Strips the VLAN tag from a packet if it is present.
 not yet expose to the user.)
 
 .PP
-The \fBadd-flow\fR, \fBadd-flows\fR, and \fBdel-flows\fR commands
-support an additional optional field:
+The \fBadd-flow\fR, \fBadd-flows\fR, \fBadd-emerg-flow\fR, \fBdel-flows\fR, 
+and \fBdel-emerg-flows\fR commands support an additional optional field:
 
 .IP \fBpriority=\fIvalue\fR
 Sets the priority of the flow to be added or deleted to \fIvalue\fR,
@@ -412,8 +428,8 @@ which should be a number between 0 and 65535, inclusive.  If this
 field is not specified, it defaults to 32768.
 
 .PP
-The \fBadd-flow\fR and \fBadd-flows\fR commands support additional
-optional fields:
+The \fBadd-flow\fR, \fBadd-flows\fR and \fBadd-emerg-flow\fR commands support 
+additional optional fields:
 
 .TP
 \fBidle_timeout=\fIseconds\fR
@@ -427,8 +443,8 @@ regardless of activity.  A value of 0 (the default) gives the flow no
 hard expiration deadline.
 
 .PP
-The \fBdump-flows\fR, \fBdump-aggregate\fR, \fBdel-flow\fR 
-and \fBdel-flows\fR commands support the additional optional field:
+The \fBdump-flows\fR, \fBdump-aggregate\fR, \fBdel-flows\fR 
+and \fBdel-emerg-flows\fR commands support the additional optional field:
 
 .TP
 \fBout_port=\fIport\fR

@@ -520,6 +520,12 @@ OFP_ASSERT(sizeof(struct ofp_match) == 36);
 /* By default, choose a priority in the middle. */
 #define OFP_DEFAULT_PRIORITY 0x8000
 
+enum ofp_flow_mod_flags {
+    OFPFF_SEND_FLOW_EXP = 1 << 0,  /* Send expiration message when flow expires. */
+    OFPFF_CHECK_OVERLAP = 1 << 1,  /* Check for overlapping entries first. */
+    OFPFF_EMERG         = 1 << 2   /* Ramark this is for emergency. */
+};
+
 /* Flow setup and teardown (controller -> datapath). */
 struct ofp_flow_mod {
     struct ofp_header header;
@@ -536,7 +542,7 @@ struct ofp_flow_mod {
                                      matching entries to include this as an 
                                      output port.  A value of OFPP_NONE 
                                      indicates no restriction. */
-    uint8_t pad[2];               /* Align to 32-bits. */
+    uint16_t flags;               /* One of OFPFF_*. */
     uint32_t reserved;            /* Reserved for future use. */
     struct ofp_action_header actions[0]; /* The action length is inferred 
                                             from the length field in the 
@@ -689,8 +695,8 @@ OFP_ASSERT(sizeof(struct ofp_desc_stats) == 800);
 /* Body for ofp_stats_request of type OFPST_FLOW. */
 struct ofp_flow_stats_request {
     struct ofp_match match;   /* Fields to match. */
-    uint8_t table_id;         /* ID of table to read (from ofp_table_stats)
-                                 or 0xff for all tables. */
+    uint8_t table_id;         /* ID of table to read (from ofp_table_stats),
+                                 0xff for all tables or 0xfe for emergency. */
     uint8_t pad;              /* Align to 32 bits. */
     uint16_t out_port;        /* Require matching entries to include this 
                                  as an output port.  A value of OFPP_NONE 
@@ -720,7 +726,7 @@ OFP_ASSERT(sizeof(struct ofp_flow_stats) == 72);
 struct ofp_aggregate_stats_request {
     struct ofp_match match;   /* Fields to match. */
     uint8_t table_id;         /* ID of table to read (from ofp_table_stats)
-                                 or 0xff for all tables. */
+                                 0xff for all tables or 0xfe for emergency. */
     uint8_t pad;              /* Align to 32 bits. */
     uint16_t out_port;        /* Require matching entries to include this 
                                  as an output port.  A value of OFPP_NONE 

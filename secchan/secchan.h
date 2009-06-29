@@ -91,6 +91,9 @@ struct settings {
 
     /* NetFlow logging. */
     char *netflow_dst;          /* Host and port to send NetFlow traffic. */
+
+    /* Emergency flow protection/restoration behavior. */
+    bool emerg_flow;
 };
 
 struct half {

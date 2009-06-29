@@ -1467,6 +1467,8 @@ struct flow_stats_state {
 	int bytes_used, bytes_allocated;
 };
 
+#define EMERG_TABLE_ID_FOR_STATS 0xfe
+
 static int flow_stats_init(struct datapath *dp, const void *body, int body_len,
 			   void **state)
 {
@@ -1541,18 +1543,27 @@ static int flow_stats_dump(struct datapath *dp, void *state,
 	s->body = body;
 
 	flow_extract_match(&match_key, &s->rq->match);
-	while (s->table_idx < dp->chain->n_tables
-	       && (s->rq->table_id == 0xff || s->rq->table_id == s->table_idx))
-	{
-		struct sw_table *table = dp->chain->tables[s->table_idx];
+	if (s->rq->table_id == EMERG_TABLE_ID_FOR_STATS) {
+		struct sw_table *table = dp->chain->emerg_table;
 
-		error = table->iterate(table, &match_key, s->rq->out_port, 
-				&s->position, flow_stats_dump_callback, s);
-		if (error)
-			break;
+		error = table->iterate(table, &match_key, s->rq->out_port,
+				       &s->position, flow_stats_dump_callback,
+				       s);
+	} else {
+		while (s->table_idx < dp->chain->n_tables
+		       && (s->rq->table_id == 0xff
+			   || s->rq->table_id == s->table_idx)) {
+			struct sw_table *table = dp->chain->tables[s->table_idx];
 
-		s->table_idx++;
-		memset(&s->position, 0, sizeof s->position);
+			error = table->iterate(table, &match_key,
+					       s->rq->out_port, &s->position,
+					       flow_stats_dump_callback, s);
+			if (error)
+				break;
+
+			s->table_idx++;
+			memset(&s->position, 0, sizeof s->position);
+		}
 	}
 	*body_len = s->bytes_used;
 
@@ -1594,6 +1605,7 @@ static int aggregate_stats_dump(struct datapath *dp, void *state,
 	struct sw_table_position position;
 	struct sw_flow_key match_key;
 	int table_idx;
+	int error = 0;
 
 	if (*body_len < sizeof *rpy)
 		return -ENOBUFS;
@@ -1605,19 +1617,30 @@ static int aggregate_stats_dump(struct datapath *dp, void *state,
 	flow_extract_match(&match_key, &rq->match);
 	table_idx = rq->table_id == 0xff ? 0 : rq->table_id;
 	memset(&position, 0, sizeof position);
-	while (table_idx < dp->chain->n_tables
-	       && (rq->table_id == 0xff || rq->table_id == table_idx))
-	{
-		struct sw_table *table = dp->chain->tables[table_idx];
-		int error;
 
-		error = table->iterate(table, &match_key, rq->out_port, &position,
+	if (rq->table_id == EMERG_TABLE_ID_FOR_STATS) {
+		struct sw_table *table = dp->chain->emerg_table;
+
+		error = table->iterate(table, &match_key, rq->out_port,
+				       &position,
 				       aggregate_stats_dump_callback, rpy);
 		if (error)
 			return error;
+	} else {
+		while (table_idx < dp->chain->n_tables
+		       && (rq->table_id == 0xff || rq->table_id == table_idx)) {
+			struct sw_table *table = dp->chain->tables[table_idx];
 
-		table_idx++;
-		memset(&position, 0, sizeof position);
+			error = table->iterate(table, &match_key, rq->out_port,
+					       &position,
+					       aggregate_stats_dump_callback,
+					       rpy);
+			if (error)
+				return error;
+
+			table_idx++;
+			memset(&position, 0, sizeof position);
+		}
 	}
 
 	rpy->packet_count = cpu_to_be64(rpy->packet_count);

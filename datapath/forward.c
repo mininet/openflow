@@ -16,6 +16,7 @@
 #include "openflow/private-ext.h"
 #include "dp_act.h"
 #include "nx_msg.h"
+#include "private-msg.h"
 #include "chain.h"
 #include "flow.h"
 
@@ -51,7 +52,7 @@ int run_flow_through_tables(struct sw_chain *chain, struct sk_buff *skb,
 		return 0;
 	}
 
-	flow = chain_lookup(chain, &key);
+	flow = chain_lookup(chain, &key, 0);
 	if (likely(flow != NULL)) {
 		struct sw_flow_actions *sf_acts = rcu_dereference(flow->sf_acts);
 		flow_used(flow, skb);
@@ -230,7 +231,8 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 	flow_setup_actions(flow, ofm->actions, actions_len);
 
 	/* Act. */
-	error = chain_insert(chain, flow);
+	error = chain_insert(chain, flow,
+			     (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
 	if (error == -ENOBUFS) {
 		dp_send_error_msg(chain->dp, sender, OFPET_FLOW_MOD_FAILED, 
 				OFPFMFC_ALL_TABLES_FULL, ofm, ntohs(ofm->header.length));
@@ -284,7 +286,8 @@ mod_flow(struct sw_chain *chain, const struct sender *sender,
 
 	priority = key.wildcards ? ntohs(ofm->priority) : -1;
 	strict = (ofm->command == htons(OFPFC_MODIFY_STRICT)) ? 1 : 0;
-	chain_modify(chain, &key, priority, strict, ofm->actions, actions_len);
+	chain_modify(chain, &key, priority, strict, ofm->actions, actions_len,
+		     (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
 
 	if (ntohl(ofm->buffer_id) != (uint32_t) -1) {
 		struct sk_buff *skb = retrieve_skb(ntohl(ofm->buffer_id));
@@ -318,14 +321,17 @@ recv_flow(struct sw_chain *chain, const struct sender *sender, const void *msg)
 	}  else if (command == OFPFC_DELETE) {
 		struct sw_flow_key key;
 		flow_extract_match(&key, &ofm->match);
-		return chain_delete(chain, &key, ofm->out_port, 0, 0) ? 0 : -ESRCH;
+		return chain_delete(chain, &key, ofm->out_port, 0, 0,
+				    (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0)
+			? 0 : -ESRCH;
 	} else if (command == OFPFC_DELETE_STRICT) {
 		struct sw_flow_key key;
 		uint16_t priority;
 		flow_extract_match(&key, &ofm->match);
 		priority = key.wildcards ? ntohs(ofm->priority) : -1;
-		return chain_delete(chain, &key, ofm->out_port, 
-				priority, 1) ? 0 : -ESRCH;
+		return chain_delete(chain, &key, ofm->out_port,	priority, 1,
+				    (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0)
+			? 0 : -ESRCH;
 	} else {
 		return -ENOTSUPP;
 	}
@@ -342,6 +348,7 @@ recv_vendor(struct sw_chain *chain, const struct sender *sender,
 	case NX_VENDOR_ID:
 		return nx_recv_msg(chain, sender, msg);
 	case PRIVATE_VENDOR_ID:
+		return private_recv_msg(chain, sender, msg);
 	default:
 		if (net_ratelimit())
 			printk(KERN_NOTICE "%s: unknown vendor: 0x%x\n",

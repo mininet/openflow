@@ -237,8 +237,10 @@ usage(void)
            "  dump-aggregate SWITCH FLOW  print aggregate stats for FLOWs\n"
            "  add-flow SWITCH FLOW        add flow described by FLOW\n"
            "  add-flows SWITCH FILE       add flows from FILE\n"
+           "  add-emerg-flow SWITCH FLOW  add emergency flow described by FLOW\n"
            "  mod-flows SWITCH FLOW       modify actions of matching FLOWs\n"
            "  del-flows SWITCH [FLOW]     delete matching FLOWs\n"
+           "  del-emerg-flows SWITCH [FLOW] delete matching emergency FLOWs\n"
            "  monitor SWITCH              print packets received from SWITCH\n"
            "  execute SWITCH CMD [ARG...] execute CMD with ARGS on SWITCH\n"
            "\nFor local datapaths, remote switches, and controllers:\n"
@@ -1079,6 +1081,36 @@ do_add_flow(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 }
 
 static void
+do_add_emerg_flow(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
+{
+    struct vconn *vconn;
+    struct ofpbuf *buffer;
+    struct ofp_flow_mod *ofm;
+    uint16_t priority, idle_timeout, hard_timeout, flags;
+    struct ofp_match match;
+
+    /* Parse and send.  str_to_flow() will expand and reallocate the data in
+     * 'buffer', so we can't keep pointers to across the str_to_flow() call. */
+    make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
+    str_to_flow(argv[2], &match, buffer,
+                NULL, NULL, &priority, &idle_timeout, &hard_timeout);
+    ofm = buffer->data;
+    ofm->match = match;
+    ofm->command = htons(OFPFC_ADD);
+    ofm->idle_timeout = htons(idle_timeout);
+    ofm->hard_timeout = htons(hard_timeout);
+    ofm->buffer_id = htonl(UINT32_MAX);
+    ofm->priority = htons(priority);
+    flags = OFPFF_EMERG;
+    ofm->flags = htons(flags);
+    ofm->reserved = htonl(0);
+
+    open_vconn(argv[1], &vconn);
+    send_openflow_buffer(vconn, buffer);
+    vconn_close(vconn);
+}
+
+static void
 do_add_flows(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
     struct vconn *vconn;
@@ -1188,6 +1220,37 @@ static void do_del_flows(const struct settings *s, int argc, char *argv[])
     vconn_close(vconn);
 }
 
+static void do_del_emerg_flows(const struct settings *s, int argc, char *argv[])
+{
+    struct vconn *vconn;
+    uint16_t priority;
+    uint16_t out_port;
+    uint16_t flags;
+    struct ofpbuf *buffer;
+    struct ofp_flow_mod *ofm;
+
+    /* Parse and send. */
+    ofm = make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
+    str_to_flow(argc > 2 ? argv[2] : "", &ofm->match, NULL, NULL, 
+                &out_port, &priority, NULL, NULL);
+    if (s->strict) {
+        ofm->command = htons(OFPFC_DELETE_STRICT);
+    } else {
+        ofm->command = htons(OFPFC_DELETE);
+    }
+    ofm->idle_timeout = htons(0);
+    ofm->hard_timeout = htons(0);
+    ofm->buffer_id = htonl(UINT32_MAX);
+    ofm->out_port = htons(out_port);
+    ofm->priority = htons(priority);
+    flags = OFPFF_EMERG;
+    ofm->flags = htons(flags);
+    ofm->reserved = htonl(0);
+
+    open_vconn(argv[1], &vconn);
+    send_openflow_buffer(vconn, buffer);
+    vconn_close(vconn);
+}
 
 static void
 do_monitor(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
@@ -1498,8 +1561,10 @@ static struct command all_commands[] = {
     { "dump-aggregate", 1, 2, do_dump_aggregate },
     { "add-flow", 2, 2, do_add_flow },
     { "add-flows", 2, 2, do_add_flows },
+    { "add-emerg-flow", 2, 2, do_add_emerg_flow },
     { "mod-flows", 2, 2, do_mod_flows },
     { "del-flows", 1, 2, do_del_flows },
+    { "del-emerg-flows", 1, 2, do_del_emerg_flows },
     { "dump-ports", 1, 1, do_dump_ports },
     { "mod-port", 3, 3, do_mod_port },
     { "probe", 1, 1, do_probe },

@@ -20,8 +20,9 @@ ofdatapath_sources = \
 	forward.c \
 	nx_act.c \
 	nx_msg.c \
+	private-msg.c \
 	table-hash.c \
-	table-linear.c 
+	table-linear.c
 
 ofdatapath_headers = \
 	chain.h \
@@ -34,7 +35,8 @@ ofdatapath_headers = \
 	dp_act.h \
 	nx_act.h \
 	nx_msg.h \
-	table.h 
+	private-msg.h \
+	table.h
 
 dist_sources = $(foreach module,$(dist_modules),$($(module)_sources))
 dist_headers = $(foreach module,$(dist_modules),$($(module)_headers))

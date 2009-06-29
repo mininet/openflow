@@ -375,6 +375,13 @@ The default will change to \fB--stp\fR at some point in the future.
 When flows end on the switch, send NetFlow v5 messages to
 \fIhost\fR on UDP \fIport\fR.
 
+.TP
+\fB--emerg-flow\fR
+Enable emergecny flow protection and restration at the switch.  If emergency
+flow enabled, \fBofprotocol\fR will attempt to switch flow table to emergency's
+one when a controller connection fails.  The default is disabled in this 
+distribution.
+
 .SS "Rate-Limiting Options"
 
 These options configure how the switch applies a ``token bucket'' to

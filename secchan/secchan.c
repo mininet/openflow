@@ -47,6 +47,7 @@
 #include "dirs.h"
 #include "discovery.h"
 #include "executer.h"
+#include "emerg-flow.h"
 #include "fail-open.h"
 #include "failover.h"
 #include "fault.h"
@@ -232,6 +233,9 @@ main(int argc, char *argv[])
     }
     if (s.command_acl[0]) {
         executer_start(&secchan, &s);
+    }
+    if (s.emerg_flow) {
+        emerg_flow_start(&secchan, &s, switch_status, local_rconn, remote_rconn);
     }
 
     while (s.discovery || rconn_is_alive(remote_rconn)) {
@@ -593,6 +597,7 @@ parse_options(int argc, char *argv[], struct settings *s)
         OPT_COMMAND_ACL,
         OPT_COMMAND_DIR,
         OPT_NETFLOW,
+        OPT_EMERG_FLOW,
         VLOG_OPTION_ENUMS,
         LEAK_CHECKER_OPTION_ENUMS
     };
@@ -614,6 +619,7 @@ parse_options(int argc, char *argv[], struct settings *s)
         {"command-acl", required_argument, 0, OPT_COMMAND_ACL},
         {"command-dir", required_argument, 0, OPT_COMMAND_DIR},
         {"netflow",     required_argument, 0, OPT_NETFLOW},
+        {"emerg-flow",  no_argument, 0, OPT_EMERG_FLOW},
         {"verbose",     optional_argument, 0, 'v'},
         {"help",        no_argument, 0, 'h'},
         {"version",     no_argument, 0, 'V'},
@@ -645,6 +651,7 @@ parse_options(int argc, char *argv[], struct settings *s)
     s->command_acl = "";
     s->command_dir = xasprintf("%s/commands", ofp_pkgdatadir);
     s->netflow_dst = NULL;
+    s->emerg_flow = false;
     for (;;) {
         int c;
 
@@ -750,6 +757,10 @@ parse_options(int argc, char *argv[], struct settings *s)
                 ofp_fatal(0, "--netflow may only be specified once");
             }
             s->netflow_dst = optarg;
+            break;
+
+        case OPT_EMERG_FLOW:
+            s->emerg_flow = true;
             break;
 
         case 'l':
@@ -889,6 +900,7 @@ usage(void)
            "  --stp                   enable 802.1D Spanning Tree Protocol\n"
            "  --no-stp                disable 802.1D Spanning Tree Protocol\n"
            "  --netflow=HOST:PORT     send NetFlow v5 messages when flows end\n"
+           "  --emerg-flow            enable emergency flow protection/restoration\n"
            "\nRate-limiting of \"packet-in\" messages to the controller:\n"
            "  --rate-limit[=PACKETS]  max rate, in packets/s (default: 1000)\n"
            "  --burst-limit=BURST     limit on packet credit for idle time\n"

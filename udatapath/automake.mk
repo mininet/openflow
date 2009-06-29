@@ -15,6 +15,8 @@ udatapath_ofdatapath_SOURCES = \
 	udatapath/nx_msg.c \
 	udatapath/nx_msg.h \
 	udatapath/udatapath.c \
+	udatapath/private-msg.c \
+	udatapath/private-msg.h \
 	udatapath/switch-flow.c \
 	udatapath/switch-flow.h \
 	udatapath/table.h \

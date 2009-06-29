@@ -55,6 +55,7 @@
 #include "vconn.h"
 #include "xtoxll.h"
 #include "nx_msg.h"
+#include "private-msg.h"
 #include "dp_act.h"
 
 #define THIS_MODULE VLM_datapath
@@ -835,7 +836,8 @@ int run_flow_through_tables(struct datapath *dp, struct ofpbuf *buffer,
 		return 0;
 	}
 
-    flow = chain_lookup(dp->chain, &key);
+
+    flow = chain_lookup(dp->chain, &key, 0);
     if (flow != NULL) {
         flow_used(flow, buffer);
         execute_actions(dp, buffer, &key, flow->sf_acts->actions, 
@@ -986,14 +988,16 @@ add_flow(struct datapath *dp, const struct sender *sender,
     flow_setup_actions(flow, ofm->actions, actions_len);
 
     /* Act. */
-    error = chain_insert(dp->chain, flow);
+    error = chain_insert(dp->chain, flow,
+                         (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
     if (error == -ENOBUFS) {
         dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED, 
                 OFPFMFC_ALL_TABLES_FULL, ofm, ntohs(ofm->header.length));
         goto error_free_flow;
     } else if (error) {
-        goto error_free_flow; 
+        goto error_free_flow;
     }
+
     error = 0;
     if (ntohl(ofm->buffer_id) != UINT32_MAX) {
         struct ofpbuf *buffer = retrieve_buffer(ntohl(ofm->buffer_id));
@@ -1042,7 +1046,8 @@ mod_flow(struct datapath *dp, const struct sender *sender,
 
     priority = key.wildcards ? ntohs(ofm->priority) : -1;
     strict = (ofm->command == htons(OFPFC_MODIFY_STRICT)) ? 1 : 0;
-    chain_modify(dp->chain, &key, priority, strict, ofm->actions, actions_len);
+    chain_modify(dp->chain, &key, priority, strict, ofm->actions, actions_len,
+                 (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
 
     if (ntohl(ofm->buffer_id) != UINT32_MAX) {
         struct ofpbuf *buffer = retrieve_buffer(ntohl(ofm->buffer_id));
@@ -1078,14 +1083,17 @@ recv_flow(struct datapath *dp, const struct sender *sender,
     }  else if (command == OFPFC_DELETE) {
         struct sw_flow_key key;
         flow_extract_match(&key, &ofm->match);
-        return chain_delete(dp->chain, &key, ofm->out_port, 0, 0) ? 0 : -ESRCH;
+        return chain_delete(dp->chain, &key, ofm->out_port, 0, 0,
+                            (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0)
+                            ? 0 : -ESRCH;
     } else if (command == OFPFC_DELETE_STRICT) {
         struct sw_flow_key key;
         uint16_t priority;
         flow_extract_match(&key, &ofm->match);
         priority = key.wildcards ? ntohs(ofm->priority) : -1;
-        return chain_delete(dp->chain, &key, ofm->out_port, 
-                priority, 1) ? 0 : -ESRCH;
+        return chain_delete(dp->chain, &key, ofm->out_port, priority, 1,
+                            (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0)
+                            ? 0 : -ESRCH;
     } else {
         return -ENODEV;
     }
@@ -1115,6 +1123,7 @@ struct flow_stats_state {
 };
 
 #define MAX_FLOW_STATS_BYTES 4096
+#define EMERG_TABLE_ID_FOR_STATS 0xfe
 
 static int
 flow_stats_init(const void *body, int body_len UNUSED, void **state)
@@ -1144,17 +1153,25 @@ static int flow_stats_dump(struct datapath *dp, void *state,
     flow_extract_match(&match_key, &s->rq.match);
     s->buffer = buffer;
     s->now = time_msec();
-    while (s->table_idx < dp->chain->n_tables
-           && (s->rq.table_id == 0xff || s->rq.table_id == s->table_idx))
-    {
-        struct sw_table *table = dp->chain->tables[s->table_idx];
 
-        if (table->iterate(table, &match_key, s->rq.out_port, 
-                    &s->position, flow_stats_dump_callback, s))
-            break;
+    if (s->rq.table_id == EMERG_TABLE_ID_FOR_STATS) {
+        struct sw_table *table = dp->chain->emerg_table;
 
-        s->table_idx++;
-        memset(&s->position, 0, sizeof s->position);
+        table->iterate(table, &match_key, s->rq.out_port,
+                       &s->position, flow_stats_dump_callback, s);
+    } else {
+        while (s->table_idx < dp->chain->n_tables
+               && (s->rq.table_id == 0xff || s->rq.table_id == s->table_idx))
+        {
+            struct sw_table *table = dp->chain->tables[s->table_idx];
+
+            if (table->iterate(table, &match_key, s->rq.out_port, 
+                               &s->position, flow_stats_dump_callback, s))
+                break;
+
+            s->table_idx++;
+            memset(&s->position, 0, sizeof s->position);
+        }
     }
     return s->buffer->size >= MAX_FLOW_STATS_BYTES;
 }
@@ -1196,6 +1213,7 @@ static int aggregate_stats_dump(struct datapath *dp, void *state,
     struct sw_table_position position;
     struct sw_flow_key match_key;
     int table_idx;
+    int error;
 
     rpy = ofpbuf_put_uninit(buffer, sizeof *rpy);
     memset(rpy, 0, sizeof *rpy);
@@ -1203,19 +1221,28 @@ static int aggregate_stats_dump(struct datapath *dp, void *state,
     flow_extract_match(&match_key, &rq->match);
     table_idx = rq->table_id == 0xff ? 0 : rq->table_id;
     memset(&position, 0, sizeof position);
-    while (table_idx < dp->chain->n_tables
-           && (rq->table_id == 0xff || rq->table_id == table_idx))
-    {
-        struct sw_table *table = dp->chain->tables[table_idx];
-        int error;
 
-        error = table->iterate(table, &match_key, rq->out_port, &position, 
+    if (rq->table_id == EMERG_TABLE_ID_FOR_STATS) {
+        struct sw_table *table = dp->chain->emerg_table;
+
+        error = table->iterate(table, &match_key, rq->out_port, &position,
                                aggregate_stats_dump_callback, rpy);
         if (error)
             return error;
+    } else {
+        while (table_idx < dp->chain->n_tables
+               && (rq->table_id == 0xff || rq->table_id == table_idx))
+        {
+            struct sw_table *table = dp->chain->tables[table_idx];
 
-        table_idx++;
-        memset(&position, 0, sizeof position);
+            error = table->iterate(table, &match_key, rq->out_port, &position, 
+                                   aggregate_stats_dump_callback, rpy);
+            if (error)
+                return error;
+
+            table_idx++;
+            memset(&position, 0, sizeof position);
+        }
     }
 
     rpy->packet_count = htonll(rpy->packet_count);
@@ -1582,6 +1609,8 @@ recv_vendor(struct datapath *dp, const struct sender *sender,
         return nx_recv_msg(dp, sender, oh);
 
     case PRIVATE_VENDOR_ID:
+        return private_recv_msg(dp, sender, oh);
+
     default:
         VLOG_WARN_RL(&rl, "unknown vendor: 0x%x\n", ntohl(ovh->vendor));
         dp_send_error_msg(dp, sender, OFPET_BAD_REQUEST,

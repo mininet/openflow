@@ -20,7 +20,7 @@ static DEFINE_SPINLOCK(hook_lock);
 /* Attempts to append 'table' to the set of tables in 'chain'.  Returns 0 or
  * negative error.  If 'table' is null it is assumed that table creation failed
  * due to out-of-memory. */
-static int add_table(struct sw_chain *chain, struct sw_table *table)
+static int add_table(struct sw_chain *chain, struct sw_table *table, int emerg)
 {
 	if (table == NULL)
 		return -ENOMEM;
@@ -30,7 +30,10 @@ static int add_table(struct sw_chain *chain, struct sw_table *table)
 		table->destroy(table);
 		return -ENOBUFS;
 	}
-	chain->tables[chain->n_tables++] = table;
+	if (emerg)
+		chain->emerg_table = table;
+	else
+		chain->tables[chain->n_tables++] = table;
 	return 0;
 }
 
@@ -45,13 +48,15 @@ struct sw_chain *chain_create(struct datapath *dp)
 	chain->owner = try_module_get(hw_table_owner) ? hw_table_owner : NULL;
 	if (chain->owner && create_hw_table_hook) {
 		struct sw_table *hwtable = create_hw_table_hook();
-		if (!hwtable || add_table(chain, hwtable))
+		if (!hwtable || add_table(chain, hwtable, 0))
 			goto error;
 	}
 
 	if (add_table(chain, table_hash2_create(0x1EDC6F41, TABLE_HASH_MAX_FLOWS,
-						0x741B8CD7, TABLE_HASH_MAX_FLOWS))
-	    || add_table(chain, table_linear_create(TABLE_LINEAR_MAX_FLOWS)))
+						0x741B8CD7, TABLE_HASH_MAX_FLOWS),
+		      0)
+	    || add_table(chain, table_linear_create(TABLE_LINEAR_MAX_FLOWS), 0)
+	    || add_table(chain, table_linear_create(TABLE_LINEAR_MAX_FLOWS), 1))
 		goto error;
 	return chain;
 
@@ -66,18 +71,28 @@ error:
  *
  * Caller must hold rcu_read_lock or dp_mutex. */
 struct sw_flow *chain_lookup(struct sw_chain *chain,
-			 const struct sw_flow_key *key)
+			     const struct sw_flow_key *key, int emerg)
 {
 	int i;
 
 	BUG_ON(key->wildcards);
-	for (i = 0; i < chain->n_tables; i++) {
-		struct sw_table *t = chain->tables[i];
+	if (emerg) {
+		struct sw_table *t = chain->emerg_table;
 		struct sw_flow *flow = t->lookup(t, key);
 		t->n_lookup++;
 		if (flow) {
 			t->n_matched++;
 			return flow;
+		}
+	} else {
+		for (i = 0; i < chain->n_tables; i++) {
+			struct sw_table *t = chain->tables[i];
+			struct sw_flow *flow = t->lookup(t, key);
+			t->n_lookup++;
+			if (flow) {
+				t->n_matched++;
+				return flow;
+			}
 		}
 	}
 	return NULL;
@@ -90,17 +105,22 @@ struct sw_flow *chain_lookup(struct sw_chain *chain,
  * by the caller.
  *
  * Caller must hold dp_mutex. */
-int chain_insert(struct sw_chain *chain, struct sw_flow *flow)
+int chain_insert(struct sw_chain *chain, struct sw_flow *flow, int emerg)
 {
 	int i;
 
 	might_sleep();
-	for (i = 0; i < chain->n_tables; i++) {
-		struct sw_table *t = chain->tables[i];
+	if (emerg) {
+		struct sw_table *t = chain->emerg_table;
 		if (t->insert(t, flow))
 			return 0;
+	} else {
+		for (i = 0; i < chain->n_tables; i++) {
+			struct sw_table *t = chain->tables[i];
+			if (t->insert(t, flow))
+				return 0;
+		}
 	}
-
 	return -ENOBUFS;
 }
 
@@ -111,18 +131,25 @@ int chain_insert(struct sw_chain *chain, struct sw_flow *flow)
  * iterating through the entire contents of each table for keys that contain
  * wildcards.  Relatively cheap for fully specified keys. */
 int
-chain_modify(struct sw_chain *chain, const struct sw_flow_key *key, 
-		uint16_t priority, int strict,
-		const struct ofp_action_header *actions, size_t actions_len)
+chain_modify(struct sw_chain *chain, const struct sw_flow_key *key,
+	     uint16_t priority, int strict,
+	     const struct ofp_action_header *actions, size_t actions_len,
+	     int emerg)
 {
 	int count = 0;
 	int i;
 
-	for (i = 0; i < chain->n_tables; i++) {
-		struct sw_table *t = chain->tables[i];
-		count += t->modify(t, key, priority, strict, actions, actions_len);
+	if (emerg) {
+		struct sw_table *t = chain->emerg_table;
+		count += t->modify(t, key, priority, strict,
+				   actions, actions_len);
+	} else {
+		for (i = 0; i < chain->n_tables; i++) {
+			struct sw_table *t = chain->tables[i];
+			count += t->modify(t, key, priority, strict,
+					   actions, actions_len);
+		}
 	}
-
 	return count;
 }
 
@@ -137,17 +164,23 @@ chain_modify(struct sw_chain *chain, const struct sw_flow_key *key,
  *
  * Caller must hold dp_mutex. */
 int chain_delete(struct sw_chain *chain, const struct sw_flow_key *key, 
-		uint16_t out_port, uint16_t priority, int strict)
+		 uint16_t out_port, uint16_t priority, int strict, int emerg)
 {
 	int count = 0;
 	int i;
 
 	might_sleep();
-	for (i = 0; i < chain->n_tables; i++) {
-		struct sw_table *t = chain->tables[i];
-		count += t->delete(chain->dp, t, key, out_port, priority, strict);
+	if (emerg) {
+		struct sw_table *t = chain->emerg_table;
+		count += t->delete(chain->dp, t, key,
+				   out_port, priority, strict);
+	} else {
+		for (i = 0; i < chain->n_tables; i++) {
+			struct sw_table *t = chain->tables[i];
+			count += t->delete(chain->dp, t, key,
+					   out_port, priority, strict);
+		}
 	}
-
 	return count;
 }
 
@@ -176,13 +209,17 @@ int chain_timeout(struct sw_chain *chain)
 void chain_destroy(struct sw_chain *chain)
 {
 	int i;
+	struct sw_table *t = NULL;
 
 	synchronize_rcu();
 	for (i = 0; i < chain->n_tables; i++) {
-		struct sw_table *t = chain->tables[i];
+		t = chain->tables[i];
 		if (t->destroy)
 			t->destroy(t);
 	}
+	t = chain->emerg_table;
+	if (t->destroy)
+		t->destroy(t);
 	module_put(chain->owner);
 	kfree(chain);
 }

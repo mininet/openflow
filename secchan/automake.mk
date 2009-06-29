@@ -6,6 +6,8 @@ secchan_ofprotocol_SOURCES = \
 	secchan/discovery.h \
 	secchan/executer.c \
 	secchan/executer.h \
+	secchan/emerg-flow.c \
+	secchan/emerg-flow.h \
 	secchan/fail-open.c \
 	secchan/fail-open.h \
 	secchan/failover.c \
