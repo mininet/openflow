@@ -312,7 +312,6 @@ Controller/switch messages are initiated by the controller and may or may not re
 Asynchronous messages are sent without solicitation from the switch to the controller and denote a change in switch or network state.  The four main asynchronous message types are described below.
 \\\\
 \textbf{Packet-in:} For all packets that do not have a matching flow entry, a packet-in event is sent to the controller (or if a packet matches an entry with a ``send to controller" action).  If the switch has sufficient memory to buffer packets that are sent to the controller, the packet-in events contain some fraction of the packet header (by default \input{define/OFP_DEFAULT_MISS_SEND_LEN} bytes) and a buffer ID to be used by the controller when it is ready for the switch to forward the packet.  Switches that do not support internal buffering (or have run out of internal buffering) must send the full packet to the controller as part of the event.
-
 \\\\
 \textbf{Flow Expiration:} When a flow entry is added to the switch by a flow modify message, an idle timeout value indicates when the entry should be removed due to a lack of activity, as well as a hard timeout value that indicates when the entry should be removed, regardless of activity.  The flow modify message also specifies whether the switch should send an expiration message to the controller when the flow expires.
 \\\\
