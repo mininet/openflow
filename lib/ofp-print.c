@@ -263,6 +263,10 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
             sizeof(struct ofp_action_nw_addr),
             sizeof(struct ofp_action_nw_addr),
         },
+        [OFPAT_SET_NW_TOS] = {
+            sizeof(struct ofp_action_nw_tos),
+            sizeof(struct ofp_action_nw_tos),
+        },
         [OFPAT_SET_TP_SRC] = {
             sizeof(struct ofp_action_tp_port),
             sizeof(struct ofp_action_tp_port),
@@ -360,6 +364,12 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
     case OFPAT_SET_NW_DST: {
         struct ofp_action_nw_addr *na = (struct ofp_action_nw_addr *)ah;
         ds_put_format(string, "mod_nw_dst:"IP_FMT, IP_ARGS(&na->nw_addr));
+        break;
+    }
+
+    case OFPAT_SET_NW_TOS: {
+       struct ofp_action_nw_tos *nt = (struct ofp_action_nw_tos *)ah;
+       ds_put_format(string, "mod_ip_tos:%d", nt->nw_tos);
         break;
     }
 

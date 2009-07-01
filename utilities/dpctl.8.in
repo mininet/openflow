@@ -410,6 +410,9 @@ Modifies the destination mac address on a packet, e.g., actions=mod_dl_dst:12:34
 .IP \fBmod_dl_src\fR:\fIsrc_mac\fR
 Modifies the source mac address on a packet, e.g., actions=mod_dl_src:12:34:56:78:9a:bc
 
+.IP \fBmod_nw_tos\fR:\fItos/dscp\fR
+Modifies the ToS/DSCP (only 6-bits, not modify reserved 2-bits for future use) field of IPv4 header on a packet.
+
 .IP \fBstrip_vlan\fR
 Strips the VLAN tag from a packet if it is present.
 .RE

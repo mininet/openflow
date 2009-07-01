@@ -198,6 +198,33 @@ set_nw_addr(struct ofpbuf *buffer, struct sw_flow_key *key,
 }
 
 static void
+set_nw_tos(struct ofpbuf *buffer, struct sw_flow_key *key, 
+           const struct ofp_action_header *ah)
+{
+    struct ofp_action_nw_tos *nt = (struct ofp_action_nw_tos *)ah;
+    uint16_t eth_proto = ntohs(key->flow.dl_type);
+
+   if (eth_proto == ETH_TYPE_IP) {
+       struct ip_header *nh = buffer->l3;
+       uint8_t new, *field;
+
+       /* JeanII : Set only 6 bits, don't clobber ECN */
+       new = (nt->nw_tos & 0xFC) | (nh->ip_tos & 0x03);
+
+       /* Get address of field */
+       field = &nh->ip_tos;
+
+        /* jklee : ip tos field is not included in TCP pseudo header.
+         * Need magic as update_csum() don't work with 8 bits. */
+       nh->ip_csum = recalc_csum32(nh->ip_csum, htons((uint16_t)*field),
+                                   htons((uint16_t)new));
+
+       /* Change the IP ToS bits */
+       *field = new;
+    }
+}
+
+static void
 set_tp_port(struct ofpbuf *buffer, struct sw_flow_key *key, 
         const struct ofp_action_header *ah)
 {
@@ -282,6 +309,12 @@ static const struct openflow_action of_actions[] = {
         sizeof(struct ofp_action_nw_addr),
         NULL,
         set_nw_addr
+    },
+    [OFPAT_SET_NW_TOS] = {
+        sizeof(struct ofp_action_nw_tos),
+        sizeof(struct ofp_action_nw_tos),
+        NULL,
+        set_nw_tos
     },
     [OFPAT_SET_TP_SRC] = {
         sizeof(struct ofp_action_tp_port),

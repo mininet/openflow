@@ -1,6 +1,6 @@
 /* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
  * Junior University
- * 
+ *
  * We are making the OpenFlow specification and associated documentation
  * (Software) available for public use and benefit with the expectation
  * that others will use, modify and enhance the Software and contribute
@@ -13,10 +13,10 @@
  * distribute, sublicense, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -25,7 +25,7 @@
  * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
+ *
  * The name and trademarks of copyright holder(s) may NOT be used in
  * advertising or publicity pertaining to the Software or any
  * derivatives without specific, written prior permission.
@@ -61,7 +61,7 @@
 #endif
 
 /* The most significant bit being set in the version field indicates an
- * experimental OpenFlow version.  
+ * experimental OpenFlow version.
  */
 #define OFP_VERSION   0x97
 
@@ -79,18 +79,18 @@ enum ofp_port {
     OFPP_MAX = 0xff00,
 
     /* Fake output "ports". */
-    OFPP_IN_PORT    = 0xfff8,  /* Send the packet out the input port.  This 
-                                  virtual port must be explicitly used 
-                                  in order to send back out of the input 
+    OFPP_IN_PORT    = 0xfff8,  /* Send the packet out the input port.  This
+                                  virtual port must be explicitly used
+                                  in order to send back out of the input
                                   port. */
-    OFPP_TABLE      = 0xfff9,  /* Perform actions in flow table.  
+    OFPP_TABLE      = 0xfff9,  /* Perform actions in flow table.
                                   NB: This can only be the destination
                                   port for packet-out messages. */
     OFPP_NORMAL     = 0xfffa,  /* Process with normal L2/L3 switching. */
-    OFPP_FLOOD      = 0xfffb,  /* All physical ports except input port and 
+    OFPP_FLOOD      = 0xfffb,  /* All physical ports except input port and
                                   those disabled by STP. */
     OFPP_ALL        = 0xfffc,  /* All physical ports except input port. */
-    OFPP_CONTROLLER = 0xfffd,  /* Send to controller. */ 
+    OFPP_CONTROLLER = 0xfffd,  /* Send to controller. */
     OFPP_LOCAL      = 0xfffe,  /* Local openflow "port". */
     OFPP_NONE       = 0xffff   /* Not associated with a physical port. */
 };
@@ -178,7 +178,7 @@ enum ofp_capabilities {
 
 /* Flags to indicate behavior of the physical port.  These flags are
  * used in ofp_phy_port to describe the current configuration.  They are
- * used in the ofp_port_mod message to configure the port's behavior. 
+ * used in the ofp_port_mod message to configure the port's behavior.
  */
 enum ofp_port_config {
     OFPPC_PORT_DOWN    = 1 << 0,  /* Port is administratively down. */
@@ -286,15 +286,15 @@ struct ofp_port_mod {
     struct ofp_header header;
     uint16_t port_no;
     uint8_t hw_addr[OFP_ETH_ALEN]; /* The hardware address is not 
-                                      configurable.  This is used to 
-                                      sanity-check the request, so it must 
+                                      configurable.  This is used to
+                                      sanity-check the request, so it must
                                       be the same as returned in an
                                       ofp_phy_port struct. */
 
     uint32_t config;        /* Bitmap of OFPPC_* flags. */
     uint32_t mask;          /* Bitmap of OFPPC_* flags to be changed. */
 
-    uint32_t advertise;     /* Bitmap of "ofp_port_features"s.  Zero all 
+    uint32_t advertise;     /* Bitmap of "ofp_port_features"s.  Zero all
                                bits to prevent any action taking place. */
     uint8_t pad[4];         /* Pad to 64-bits. */
 };
@@ -315,7 +315,7 @@ struct ofp_packet_in {
     uint8_t reason;         /* Reason packet is being sent (one of OFPR_*) */
     uint8_t pad;
     uint8_t data[0];        /* Ethernet frame, halfway through 32-bit word,
-                               so the IP header is 32-bit aligned.  The 
+                               so the IP header is 32-bit aligned.  The
                                amount of data is inferred from the length
                                field in the header.  Because of padding,
                                offsetof(struct ofp_packet_in, data) ==
@@ -338,9 +338,9 @@ enum ofp_action_type {
     OFPAT_VENDOR = 0xffff
 };
 
-/* Action structure for OFPAT_OUTPUT, which sends packets out 'port'.  
- * When the 'port' is the OFPP_CONTROLLER, 'max_len' indicates the max 
- * number of bytes to send.  A 'max_len' of zero means the entire packet 
+/* Action structure for OFPAT_OUTPUT, which sends packets out 'port'.
+ * When the 'port' is the OFPP_CONTROLLER, 'max_len' indicates the max
+ * number of bytes to send.  A 'max_len' of zero means the entire packet
  * should be sent. */
 struct ofp_action_output {
     uint16_t type;                  /* OFPAT_OUTPUT. */
@@ -406,25 +406,25 @@ struct ofp_action_nw_tos {
     uint8_t nw_tos;                 /* IP ToS/DSCP (6 bits). */
     uint8_t pad[3];
 };
-OFP_ASSERT(sizeof(struct ofp_action_nw_addr) == 8);
+OFP_ASSERT(sizeof(struct ofp_action_nw_tos) == 8);
 
 /* Action header for OFPAT_VENDOR. The rest of the body is vendor-defined. */
 struct ofp_action_vendor_header {
     uint16_t type;                  /* OFPAT_VENDOR. */
     uint16_t len;                   /* Length is 8. */
-    uint32_t vendor;                /* Vendor ID, which takes the same form 
-                                       as in "struct ofp_vendor_header". */ 
+    uint32_t vendor;                /* Vendor ID, which takes the same form
+                                       as in "struct ofp_vendor_header". */
 };
 OFP_ASSERT(sizeof(struct ofp_action_vendor_header) == 8);
 
 /* Action header that is common to all actions.  The length includes the 
- * header and any padding used to make the action 64-bit aligned.  
+ * header and any padding used to make the action 64-bit aligned.
  * NB: The length of an action *must* always be a multiple of eight. */
 struct ofp_action_header {
     uint16_t type;                  /* One of OFPAT_*. */
-    uint16_t len;                   /* Length of action, including this 
-                                       header.  This is the length of action, 
-                                       including any padding to make it 
+    uint16_t len;                   /* Length of action, including this
+                                       header.  This is the length of action,
+                                       including any padding to make it
                                        64-bit aligned. */
     uint8_t pad[4];
 };
@@ -437,8 +437,8 @@ struct ofp_packet_out {
     uint16_t in_port;             /* Packet's input port (OFPP_NONE if none). */
     uint16_t actions_len;         /* Size of action array in bytes. */
     struct ofp_action_header actions[0]; /* Actions. */
-    /* uint8_t data[0]; */        /* Packet data.  The length is inferred 
-                                     from the length field in the header.  
+    /* uint8_t data[0]; */        /* Packet data.  The length is inferred
+                                     from the length field in the header.
                                      (Only meaningful if buffer_id == -1.) */
 };
 OFP_ASSERT(sizeof(struct ofp_packet_out) == 16);
@@ -483,7 +483,7 @@ enum ofp_flow_wildcards {
     OFPFW_ALL = ((1 << 21) - 1)
 };
 
-/* The wildcards for ICMP type and code fields use the transport source 
+/* The wildcards for ICMP type and code fields use the transport source
  * and destination port fields, respectively. */
 #define OFPFW_ICMP_TYPE OFPFW_TP_SRC
 #define OFPFW_ICMP_CODE OFPFW_TP_DST
@@ -521,7 +521,7 @@ struct ofp_match {
 };
 OFP_ASSERT(sizeof(struct ofp_match) == 36);
 
-/* The match fields for ICMP type and code use the transport source and 
+/* The match fields for ICMP type and code use the transport source and
  * destination port fields, respectively. */
 #define icmp_type tp_src
 #define icmp_code tp_dst
@@ -549,16 +549,16 @@ struct ofp_flow_mod {
     uint16_t idle_timeout;        /* Idle time before discarding (seconds). */
     uint16_t hard_timeout;        /* Max time before discarding (seconds). */
     uint16_t priority;            /* Priority level of flow entry. */
-    uint32_t buffer_id;           /* Buffered packet to apply to (or -1). 
+    uint32_t buffer_id;           /* Buffered packet to apply to (or -1).
                                      Not meaningful for OFPFC_DELETE*. */
     uint16_t out_port;            /* For OFPFC_DELETE* commands, require 
-                                     matching entries to include this as an 
-                                     output port.  A value of OFPP_NONE 
+                                     matching entries to include this as an
+                                     output port.  A value of OFPP_NONE
                                      indicates no restriction. */
     uint16_t flags;               /* One of OFPFF_*. */
     uint32_t reserved;            /* Reserved for future use. */
-    struct ofp_action_header actions[0]; /* The action length is inferred 
-                                            from the length field in the 
+    struct ofp_action_header actions[0]; /* The action length is inferred
+                                            from the length field in the
                                             header. */
 };
 OFP_ASSERT(sizeof(struct ofp_flow_mod) == 64);
@@ -582,7 +582,7 @@ struct ofp_flow_expired {
     uint32_t duration;        /* Time flow was alive in seconds. */
     uint16_t idle_timeout;    /* Idle timeout from original flow mod. */
     uint8_t pad2[2];          /* Align to 64-bits. */
-    uint64_t packet_count;    
+    uint64_t packet_count;
     uint64_t byte_count;
 };
 OFP_ASSERT(sizeof(struct ofp_flow_expired) == 72);
@@ -610,13 +610,13 @@ enum ofp_bad_request_code {
     OFPBRC_BAD_VERSION,         /* ofp_header.version not supported. */
     OFPBRC_BAD_TYPE,            /* ofp_header.type not supported. */
     OFPBRC_BAD_STAT,            /* ofp_stats_request.type not supported. */
-    OFPBRC_BAD_VENDOR,          /* Vendor not supported (in ofp_vendor_header 
+    OFPBRC_BAD_VENDOR,          /* Vendor not supported (in ofp_vendor_header
                                  * or ofp_stats_request or ofp_stats_reply). */
     OFPBRC_BAD_SUBTYPE,         /* Vendor subtype not supported. */
     OFPBRC_EPERM                /* Permissions error. */
 };
 
-/* ofp_error_msg 'code' values for OFPET_BAD_ACTION.  'data' contains at least 
+/* ofp_error_msg 'code' values for OFPET_BAD_ACTION.  'data' contains at least
  * the first 64 bytes of the failed request. */
 enum ofp_bad_action_code {
     OFPBAC_BAD_TYPE,           /* Unknown action type. */
@@ -628,11 +628,11 @@ enum ofp_bad_action_code {
     OFPBAC_EPERM               /* Permissions error. */
 };
 
-/* ofp_error_msg 'code' values for OFPET_FLOW_MOD_FAILED.  'data' contains 
+/* ofp_error_msg 'code' values for OFPET_FLOW_MOD_FAILED.  'data' contains
  * at least the first 64 bytes of the failed request. */
 enum ofp_flow_mod_failed_code {
     OFPFMFC_ALL_TABLES_FULL,    /* Flow not added because of full tables. */
-    OFPFMFC_OVERLAP,            /* Attempted to add overlapping flow with 
+    OFPFMFC_OVERLAP,            /* Attempted to add overlapping flow with
                                  * CHECK_OVERLAP flag set. */
     OFPFMFC_EPERM               /* Permissions error. */
 };
@@ -643,13 +643,13 @@ struct ofp_error_msg {
 
     uint16_t type;
     uint16_t code;
-    uint8_t data[0];          /* Variable-length data.  Interpreted based 
+    uint8_t data[0];          /* Variable-length data.  Interpreted based
                                  on the type and code. */
 };
 OFP_ASSERT(sizeof(struct ofp_error_msg) == 12);
 
 enum ofp_stats_types {
-    /* Description of this OpenFlow switch. 
+    /* Description of this OpenFlow switch.
      * The request body is empty.
      * The reply body is struct ofp_desc_stats. */
     OFPST_DESC,
@@ -676,7 +676,7 @@ enum ofp_stats_types {
 
     /* Vendor extension.
      * The request and reply bodies begin with a 32-bit vendor ID, which takes
-     * the same form as in "struct ofp_vendor_header".  The request and reply 
+     * the same form as in "struct ofp_vendor_header".  The request and reply
      * bodies are otherwise vendor-defined. */
     OFPST_VENDOR = 0xffff
 };
@@ -703,7 +703,7 @@ OFP_ASSERT(sizeof(struct ofp_stats_reply) == 12);
 
 #define DESC_STR_LEN   256
 #define SERIAL_NUM_LEN 32
-/* Body of reply to OFPST_DESC request.  Each entry is a NULL-terminated 
+/* Body of reply to OFPST_DESC request.  Each entry is a NULL-terminated
  * ASCII string. */
 struct ofp_desc_stats {
     char mfr_desc[DESC_STR_LEN];       /* Manufacturer description. */
@@ -719,8 +719,8 @@ struct ofp_flow_stats_request {
     uint8_t table_id;         /* ID of table to read (from ofp_table_stats),
                                  0xff for all tables or 0xfe for emergency. */
     uint8_t pad;              /* Align to 32 bits. */
-    uint16_t out_port;        /* Require matching entries to include this 
-                                 as an output port.  A value of OFPP_NONE 
+    uint16_t out_port;        /* Require matching entries to include this
+                                 as an output port.  A value of OFPP_NONE
                                  indicates no restriction. */
 };
 OFP_ASSERT(sizeof(struct ofp_flow_stats_request) == 40);
@@ -749,8 +749,8 @@ struct ofp_aggregate_stats_request {
     uint8_t table_id;         /* ID of table to read (from ofp_table_stats)
                                  0xff for all tables or 0xfe for emergency. */
     uint8_t pad;              /* Align to 32 bits. */
-    uint16_t out_port;        /* Require matching entries to include this 
-                                 as an output port.  A value of OFPP_NONE 
+    uint16_t out_port;        /* Require matching entries to include this
+                                 as an output port.  A value of OFPP_NONE
                                  indicates no restriction. */
 };
 OFP_ASSERT(sizeof(struct ofp_aggregate_stats_request) == 40);
@@ -770,7 +770,7 @@ struct ofp_table_stats {
                                 are consulted first. */
     uint8_t pad[3];          /* Align to 32-bits. */
     char name[OFP_MAX_TABLE_NAME_LEN];
-    uint32_t wildcards;      /* Bitmap of OFPFW_* wildcards that are 
+    uint32_t wildcards;      /* Bitmap of OFPFW_* wildcards that are
                                 supported by the table. */
     uint32_t max_entries;    /* Max number of entries supported. */
     uint32_t active_count;   /* Number of active entries. */
@@ -788,20 +788,20 @@ struct ofp_port_stats {
     uint64_t tx_packets;     /* Number of transmitted packets. */
     uint64_t rx_bytes;       /* Number of received bytes. */
     uint64_t tx_bytes;       /* Number of transmitted bytes. */
-    uint64_t rx_dropped;     /* Number of packets dropped by RX. */ 
-    uint64_t tx_dropped;     /* Number of packets dropped by TX. */ 
+    uint64_t rx_dropped;     /* Number of packets dropped by RX. */
+    uint64_t tx_dropped;     /* Number of packets dropped by TX. */
     uint64_t rx_errors;      /* Number of receive errors.  This is a super-set
                                 of more specific receive errors and should be
-                                greater than or equal to the sum of all 
+                                greater than or equal to the sum of all
                                 rx_*_err values. */
     uint64_t tx_errors;      /* Number of transmit errors.  This is a super-set
                                 of more specific transmit errors and should be
                                 greater than or equal to the sum of all
                                 tx_*_err values (none currently defined.) */
-    uint64_t rx_frame_err;   /* Number of frame alignment errors. */ 
-    uint64_t rx_over_err;    /* Number of packets with RX overrun. */ 
-    uint64_t rx_crc_err;     /* Number of CRC errors. */ 
-    uint64_t collisions;     /* Number of collisions. */ 
+    uint64_t rx_frame_err;   /* Number of frame alignment errors. */
+    uint64_t rx_over_err;    /* Number of packets with RX overrun. */
+    uint64_t rx_crc_err;     /* Number of CRC errors. */
+    uint64_t collisions;     /* Number of collisions. */
 };
 OFP_ASSERT(sizeof(struct ofp_port_stats) == 104);
 

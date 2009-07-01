@@ -694,9 +694,8 @@ do_dump_tables(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
   dump_trivial_stats_transaction(argv[1], OFPST_TABLE);
 }
 
-
 static uint32_t
-str_to_u32(const char *str) 
+str_to_u32(const char *str)
 {
     char *tail;
     uint32_t value;
@@ -806,7 +805,11 @@ str_to_action(char *str, struct ofpbuf *b)
             arg++;
         }
 
-        if (!strcasecmp(act, "mod_vlan_vid")) {
+        if (!strcasecmp(act, "mod_nw_tos")) {
+            struct ofp_action_nw_tos *va;
+            va = put_action(b, sizeof *va, OFPAT_SET_NW_TOS);
+            va->nw_tos = str_to_u32(arg);
+        } else if (!strcasecmp(act, "mod_vlan_vid")) {
             struct ofp_action_vlan_vid *va;
             va = put_action(b, sizeof *va, OFPAT_SET_VLAN_VID);
             va->vlan_vid = htons(str_to_u32(arg));

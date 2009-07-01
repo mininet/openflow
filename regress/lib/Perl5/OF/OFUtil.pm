@@ -271,20 +271,19 @@ sub setup_NF2 {
 
 
 sub setup_user {
+    setup_pcap_interfaces();
 
-	setup_pcap_interfaces();
+    # create openflow switch on four ports
+    my $if_string = '';
+    for (my $i = 5 ; $i <= 7 ; $i++) {
+	$if_string .= nftest_get_iface("eth$i") . ',';
+    }
+    $if_string .= nftest_get_iface("eth8");
 
-	# create openflow switch on four ports
-	my $if_string = '';
-	for ( my $i = 5 ; $i <= 7 ; $i++ ) {
-		$if_string .= nftest_get_iface("eth$i") . ',';
-	}
-	$if_string .= nftest_get_iface("eth8");
+    print "about to create ofdatapath` punix:/var/run/test -i $if_string \& \n";
+    system("${openflow_dir}/udatapath/ofdatapath punix:/var/run/test -i $if_string \&");
 
-	print "about to create ofdatapath` punix:/var/run/test -i $if_string \& \n";	
-        system("${openflow_dir}/udatapath/ofdatapath punix:/var/run/test -i $if_string \&");
-
-        start_ofprotocol("unix:/var/run/test", @_);
+    start_ofprotocol("unix:/var/run/test", @_);
 }
 
 sub teardown_kmod {
@@ -815,168 +814,173 @@ sub create_flow_mod_from_udp {
 }
 
 sub flow_mod_length {
-	my ( $mod_type, $chg_field ) = @_;
+    my ($mod_type, $chg_field) = @_;
 
-	my $action_length;
-	if ($mod_type eq 'drop') {
-		$action_length = 0;
-	} elsif (defined $chg_field) {
-		if (($chg_field eq 'dl_src') || ($chg_field eq 'dl_dst')) {
-			$action_length = $ofp->sizeof('ofp_action_dl_addr') + 
-			                 $ofp->sizeof('ofp_action_output');
-		} elsif (($chg_field eq 'nw_src') || ($chg_field eq 'nw_dst')) {
-			$action_length = $ofp->sizeof('ofp_action_nw_addr') +
-			                 $ofp->sizeof('ofp_action_output');
-		} elsif (($chg_field eq 'tp_src') || ($chg_field eq 'tp_dst')) {
-			$action_length = $ofp->sizeof('ofp_action_tp_port') +
-			                 $ofp->sizeof('ofp_action_output');
-		} elsif ($chg_field eq 'strip_vlan') {
-			$action_length = $ofp->sizeof('ofp_action_header') +
-			                 $ofp->sizeof('ofp_action_output');
-		} elsif ($chg_field eq 'vlan_vid') {
-			$action_length = $ofp->sizeof('ofp_action_vlan_vid') +
-			                 $ofp->sizeof('ofp_action_output');
-		} elsif ($chg_field eq 'vlan_pcp') {
-			$action_length = $ofp->sizeof('ofp_action_vlan_pcp') +
-			                 $ofp->sizeof('ofp_action_output');
-		} else {
-			$action_length = $ofp->sizeof('ofp_action_output');
-		}
+    my $action_length = 0;
+
+    if ($mod_type eq 'drop') {
+	$action_length = 0;
+    } elsif (defined $chg_field) {
+	if (($chg_field eq 'dl_src') || ($chg_field eq 'dl_dst')) {
+	    $action_length = $ofp->sizeof('ofp_action_dl_addr')
+		+ $ofp->sizeof('ofp_action_output');
+	} elsif (($chg_field eq 'nw_src') || ($chg_field eq 'nw_dst')) {
+	    $action_length = $ofp->sizeof('ofp_action_nw_addr')
+		+ $ofp->sizeof('ofp_action_output');
+	} elsif ($chg_field eq 'nw_tos') {
+	    $action_length = $ofp->sizeof('ofp_action_nw_tos')
+		+ $ofp->sizeof('ofp_action_output');
+	} elsif (($chg_field eq 'tp_src') || ($chg_field eq 'tp_dst')) {
+	    $action_length = $ofp->sizeof('ofp_action_tp_port')
+		+ $ofp->sizeof('ofp_action_output');
+	} elsif ($chg_field eq 'strip_vlan') {
+	    $action_length = $ofp->sizeof('ofp_action_header')
+		+ $ofp->sizeof('ofp_action_output');
+	} elsif ($chg_field eq 'vlan_vid') {
+	    $action_length = $ofp->sizeof('ofp_action_vlan_vid')
+		+ $ofp->sizeof('ofp_action_output');
+	} elsif ($chg_field eq 'vlan_pcp') {
+	    $action_length = $ofp->sizeof('ofp_action_vlan_pcp')
+		+ $ofp->sizeof('ofp_action_output');
 	} else {
-		$action_length = $ofp->sizeof('ofp_action_output');
+	    $action_length = $ofp->sizeof('ofp_action_output');
 	}
-	my $length = $ofp->sizeof('ofp_flow_mod') + $action_length;
-	return $length;
+    } else {
+	$action_length = $ofp->sizeof('ofp_action_output');
+    }
+
+    my $length = $ofp->sizeof('ofp_flow_mod') + $action_length;
+    return $length;
 }
 
 sub combine_args {
-	my ($flow_mod, $mod_type, $out_port, $chg_field, $chg_val) = @_;
+    my ($flow_mod, $mod_type, $out_port, $chg_field, $chg_val) = @_;
 
-	my @pad_6 = (0,0,0,0,0,0);
-	my @pad_4 = (0,0,0,0);
-	my @pad_3 = (0,0,0);
-	my @pad_2 = (0,0);
+    my @pad_6 = (0,0,0,0,0,0);
+    my @pad_4 = (0,0,0,0);
+    my @pad_3 = (0,0,0);
+    my @pad_2 = (0,0);
 
-	my $nw_addr_org;
-	my $ok_org;	
+    my $nw_addr_org;
+    my $ok_org;
 
-	my @dl_addr_org;
-	my $chg_vlan_pcp_val;
+    my @dl_addr_org;
+    my $chg_vlan_pcp_val;
 
-	#OUTPUT
-	#and No action for drops
-	my $action_output_args;
-	my $action_output;
-	if ($mod_type ne 'drop') {
-		$action_output_args = {
-			type => $enums{'OFPAT_OUTPUT'},
-			len => $ofp->sizeof('ofp_action_output'),
-			port => $out_port,
-			max_len => 0,                 # send entire packet  
-		};
-		$action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
-	}
+    #OUTPUT
+    #and No action for drops
+    my $action_output_args;
+    my $action_output;
+    if ($mod_type ne 'drop') {
+	$action_output_args = {
+	    type => $enums{'OFPAT_OUTPUT'},
+	    len => $ofp->sizeof('ofp_action_output'),
+	    port => $out_port,
+	    max_len => 0,	# send entire packet
+	};
+	$action_output = $ofp->pack('ofp_action_output', $action_output_args);
+    }
 
-	#MODIFY ACTION
-	my $action_mod_args;
-	my $action_mod;
-	if (defined $chg_field) {
-		#SET_DL_SRC
-		if ($chg_field eq 'dl_src') {
-			@dl_addr_org = NF2::PDU::get_MAC_address($chg_val);
-        		$action_mod_args = {
-                		type => $enums{'OFPAT_SET_DL_SRC'},
-                		len  => $ofp->sizeof('ofp_action_dl_addr'),
-                		dl_addr => \@dl_addr_org,
-                		pad  => \@pad_6,
-        		};
-			$action_mod = $ofp->pack('ofp_action_dl_addr', $action_mod_args);
-        	#SET_DL_DST
-		} elsif ($chg_field eq 'dl_dst') {
-			@dl_addr_org = NF2::PDU::get_MAC_address($chg_val);
-        		$action_mod_args = {
-                		type => $enums{'OFPAT_SET_DL_DST'},
-                		len  => $ofp->sizeof('ofp_action_dl_addr'),
-               			dl_addr => \@dl_addr_org,
-                		pad  => \@pad_6,
-        		};
-        		$action_mod = $ofp->pack('ofp_action_dl_addr', $action_mod_args);
-		#SET_NW_SRC
-		} elsif ($chg_field eq 'nw_src') {
-			($nw_addr_org, $ok_org) = NF2::IP_hdr::getIP($chg_val);
-        		$action_mod_args = {
-               			type => $enums{'OFPAT_SET_NW_SRC'},
-                		len  => $ofp->sizeof('ofp_action_nw_addr'),
-                		nw_addr => $nw_addr_org,
-        		};
-        		$action_mod = $ofp->pack('ofp_action_nw_addr', $action_mod_args);
-		#SET_NW_DST
-		} elsif ($chg_field eq 'nw_dst') {
-			($nw_addr_org, $ok_org) = NF2::IP_hdr::getIP($chg_val);
-        		$action_mod_args = {
-                		type => $enums{'OFPAT_SET_NW_DST'},
-                		len  => $ofp->sizeof('ofp_action_nw_addr'),
-                		nw_addr => $nw_addr_org,
-        		};
-        		$action_mod = $ofp->pack('ofp_action_nw_addr', $action_mod_args);
-		#SET_TP_SRC
-		} elsif ($chg_field eq 'tp_src') {
-        		$action_mod_args = {
-                		type => $enums{'OFPAT_SET_TP_SRC'},
-                		len  => $ofp->sizeof('ofp_action_tp_port'),
-                		tp_port => $chg_val,
-                		pad  => \@pad_2,
-        		};
-        		$action_mod = $ofp->pack('ofp_action_tp_port', $action_mod_args);
-		#SET_TP_DST
-		} elsif ($chg_field eq 'tp_dst') {
-        		$action_mod_args = {
-                		type => $enums{'OFPAT_SET_TP_DST'},
-                		len  => $ofp->sizeof('ofp_action_tp_port'),
-                		tp_port => $chg_val,
-                		pad  => \@pad_2,
-        		};
-        		$action_mod = $ofp->pack('ofp_action_tp_port', $action_mod_args);
-		#STRIP_VLAN
-		} elsif ($chg_field eq 'strip_vlan') {
-			$action_mod_args = {
-				type => $enums{'OFPAT_STRIP_VLAN'},
-				len => $ofp->sizeof('ofp_action_header'),
-				pad => \@pad_4,
-			};
-			$action_mod = $ofp->pack('ofp_action_header', $action_mod_args);
-        	#SET_VLAN_VID
-		} elsif ($chg_field eq 'vlan_vid') {
-        		$action_mod_args = {
-                		type => $enums{'OFPAT_SET_VLAN_VID'},
-                		len => $ofp->sizeof('ofp_action_vlan_vid'),
-				vlan_vid => $chg_val,
-                		pad => \@pad_2,
-        		};
-        		$action_mod = $ofp->pack('ofp_action_vlan_vid', $action_mod_args);
-        	#SET_VLAN_PCP
-		} elsif ($chg_field eq 'vlan_pcp') {
-			$chg_vlan_pcp_val = ($chg_val>>13) & 0x0007;
-        		$action_mod_args = {
-                		type => $enums{'OFPAT_SET_VLAN_PCP'},
-                		len => $ofp->sizeof('ofp_action_vlan_pcp'),
-				vlan_pcp => $chg_vlan_pcp_val,
-                		pad => \@pad_3,
-        		};
-        		$action_mod = $ofp->pack('ofp_action_vlan_pcp', $action_mod_args);
-		} else {
-			$action_mod = undef;
-		}
+    #MODIFY ACTION
+    my $action_mod_args;
+    my $action_mod;
+    if (defined $chg_field) {
+	if ($chg_field eq 'dl_src') { #SET_DL_SRC
+	    @dl_addr_org = NF2::PDU::get_MAC_address($chg_val);
+	    $action_mod_args = {
+		type => $enums{'OFPAT_SET_DL_SRC'},
+		len  => $ofp->sizeof('ofp_action_dl_addr'),
+		dl_addr => \@dl_addr_org,
+		pad  => \@pad_6,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_dl_addr', $action_mod_args);
+	} elsif ($chg_field eq 'dl_dst') { #SET_DL_DST
+	    @dl_addr_org = NF2::PDU::get_MAC_address($chg_val);
+	    $action_mod_args = {
+		type => $enums{'OFPAT_SET_DL_DST'},
+		len  => $ofp->sizeof('ofp_action_dl_addr'),
+		dl_addr => \@dl_addr_org,
+		pad  => \@pad_6,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_dl_addr', $action_mod_args);
+	} elsif ($chg_field eq 'nw_src') { #SET_NW_SRC
+	    ($nw_addr_org, $ok_org) = NF2::IP_hdr::getIP($chg_val);
+	    $action_mod_args = {
+		type => $enums{'OFPAT_SET_NW_SRC'},
+		len  => $ofp->sizeof('ofp_action_nw_addr'),
+		nw_addr => $nw_addr_org,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_nw_addr', $action_mod_args);
+	} elsif ($chg_field eq 'nw_dst') { #SET_NW_DST
+	    ($nw_addr_org, $ok_org) = NF2::IP_hdr::getIP($chg_val);
+	    $action_mod_args = {
+		type => $enums{'OFPAT_SET_NW_DST'},
+		len  => $ofp->sizeof('ofp_action_nw_addr'),
+		nw_addr => $nw_addr_org,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_nw_addr', $action_mod_args);
+	} elsif ($chg_field eq 'nw_tos') { #SET_NW_TOS
+	    $action_mod_args = {
+		type => $enums{'OFPAT_SET_NW_TOS'},
+		len  => $ofp->sizeof('ofp_action_nw_tos'),
+		nw_tos => $chg_val,
+		pad => \@pad_3,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_nw_tos', $action_mod_args);
+	} elsif ($chg_field eq 'tp_src') { #SET_TP_SRC
+	    $action_mod_args = {
+		type => $enums{'OFPAT_SET_TP_SRC'},
+		len  => $ofp->sizeof('ofp_action_tp_port'),
+		tp_port => $chg_val,
+		pad  => \@pad_2,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_tp_port', $action_mod_args);
+	} elsif ($chg_field eq 'tp_dst') { #SET_TP_DST
+	    $action_mod_args = {
+		type => $enums{'OFPAT_SET_TP_DST'},
+		len  => $ofp->sizeof('ofp_action_tp_port'),
+		tp_port => $chg_val,
+		pad  => \@pad_2,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_tp_port', $action_mod_args);
+	} elsif ($chg_field eq 'strip_vlan') { #STRIP_VLAN
+	    $action_mod_args = {
+		type => $enums{'OFPAT_STRIP_VLAN'},
+		len => $ofp->sizeof('ofp_action_header'),
+		pad => \@pad_4,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_header', $action_mod_args);
+	} elsif ($chg_field eq 'vlan_vid') { #SET_VLAN_VID
+	    $action_mod_args = {
+		type => $enums{'OFPAT_SET_VLAN_VID'},
+		len => $ofp->sizeof('ofp_action_vlan_vid'),
+		vlan_vid => $chg_val,
+		pad => \@pad_2,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_vlan_vid', $action_mod_args);
+	} elsif ($chg_field eq 'vlan_pcp') { #SET_VLAN_PCP
+	    $chg_vlan_pcp_val = ($chg_val>>13) & 0x0007;
+	    $action_mod_args = {
+		type => $enums{'OFPAT_SET_VLAN_PCP'},
+		len => $ofp->sizeof('ofp_action_vlan_pcp'),
+		vlan_pcp => $chg_vlan_pcp_val,
+		pad => \@pad_3,
+	    };
+	    $action_mod = $ofp->pack('ofp_action_vlan_pcp', $action_mod_args);
 	} else {
-		$action_mod = undef;
+	    $action_mod = undef;
 	}
+    } else {
+	$action_mod = undef;
+    }
 
-	if (defined $action_mod) {
-                $flow_mod_pkt = $flow_mod . $action_mod . $action_output;
-        } else {
-                $flow_mod_pkt = $flow_mod . $action_output;
-        }
-	return $flow_mod_pkt;
+    if (defined $action_mod) {
+	$flow_mod_pkt = $flow_mod . $action_mod . $action_output;
+    } else {
+	$flow_mod_pkt = $flow_mod . $action_output;
+    }
+
+    return $flow_mod_pkt;
 }
 
 sub create_flow_mod_from_udp_action {

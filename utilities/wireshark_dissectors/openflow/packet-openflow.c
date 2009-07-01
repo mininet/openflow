@@ -99,12 +99,13 @@ static const value_string names_ofp_action_type[] = {
     { OFPAT_SET_DL_DST,   "Ethernet destination address" },
     { OFPAT_SET_NW_SRC,   "IP source address" },
     { OFPAT_SET_NW_DST,   "IP destination address" },
+	{ OFPAT_SET_NW_TOS,   "Set IP TOS field" },
     { OFPAT_SET_TP_SRC,   "TCP/UDP source port" },
     { OFPAT_SET_TP_DST,   "TCP/UDP destination port"},
     { OFPAT_VENDOR,       "Vendor-defined action"},
     { 0,                  NULL }
 };
-#define NUM_ACTIONS_FLAGS 10
+#define NUM_ACTIONS_FLAGS 11
 #define NUM_PORT_CONFIG_FLAGS 7
 #define NUM_PORT_STATE_FLAGS 1
 #define NUM_PORT_FEATURES_FLAGS 12
@@ -414,6 +415,7 @@ static gint ofp_action_vlan_vid = -1;
 static gint ofp_action_vlan_pcp = -1;
 static gint ofp_action_dl_addr = -1;
 static gint ofp_action_nw_addr = -1;
+static gint ofp_action_nw_tos  = -1;
 static gint ofp_action_tp_port = -1;
 static gint ofp_action_vendor  = -1;
 static gint ofp_action_unknown = -1;
@@ -1076,6 +1078,9 @@ void proto_register_openflow()
         { &ofp_action_nw_addr,
           { "IP Addr", "of.action_nw_addr", FT_IPv4, BASE_NONE, NO_STRINGS, NO_MASK, "IP Addr", HFILL }},
 
+        { &ofp_action_nw_tos,
+          { "IP TOS bits", "of.action_vlan_pcp", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "IP TOS bits", HFILL }},
+
         { &ofp_action_tp_port,
           { "Port", "of.action_tp_port", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Port", HFILL }},
 
@@ -1169,9 +1174,12 @@ void proto_register_openflow()
           { "  IP destination address", "of.sf_actions_ip_dst_addr", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_SET_NW_DST, "IP destination address", HFILL }},
 
         { &ofp_switch_features_actions[8],
-          { "  TCP/UDP source", "of.sf_actions_src_port", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_SET_TP_SRC, "TCP/UDP source port", HFILL }},
+          { "  Set IP TOS bits", "of.sf_actions_ip_tos", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_SET_NW_TOS, "Set IP TOS bits", HFILL }},
 
         { &ofp_switch_features_actions[9],
+          { "  TCP/UDP source", "of.sf_actions_src_port", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_SET_TP_SRC, "TCP/UDP source port", HFILL }},
+
+        { &ofp_switch_features_actions[10],
           { "  TCP/UDP destination", "of.sf_actions_dst_port", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_SET_TP_DST, "TCP/UDP destination port", HFILL }},
 
         { &ofp_switch_features_ports_hdr,
@@ -2220,6 +2228,11 @@ static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pa
     case OFPAT_SET_NW_DST:
         add_child( action_tree, ofp_action_nw_addr, tvb, offset, 4 );
         break;
+
+	case OFPAT_SET_NW_TOS:
+	  add_child( action_tree, ofp_action_nw_tos, tvb, offset, 1);
+	  dissect_pad(action_tree, offset, 3);
+	  break;
 
     case OFPAT_SET_TP_SRC:
     case OFPAT_SET_TP_DST:
