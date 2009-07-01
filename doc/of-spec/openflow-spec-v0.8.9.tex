@@ -336,7 +336,11 @@ When an OpenFlow connection is first established, each side of the connection mu
 If the negotiated version is supported by the recipient, then the connection proceeds. Otherwise, the recipient must reply with an \verb|OFPT_ERROR| message with a \verb|type| field of \verb|OFPET_HELLO_FAILED|, a \verb|code| field of \verb| OFPHFC_COMPATIBLE|, and optionally an ASCII string explaining the situation in \verb|data|, and then terminate the connection.
 
 \subsection{Connection Interruption}
-In the case that the switch loses contact with the controller, the default behavior must be to do nothing - to let flows timeout naturally.  Other behaviors can be implemented via vendor-specific command line interface or vendor extension OpenFlow messages.  
+In the case that a switch loses contact with the controller, as a result of a echo request timeout, SSL session timeout, or other disconnection, it should attempt to contact one or more backup controllers.  The ordering of the controller IP addresses is not specified by the protocol.
+\\\\
+If some number of attempts to contact a controller fail, the switch must enter ``emergency mode''.  In this mode, the matching process is dictated by the emergency flow table entries (those marked with the emergency bit when added to the switch).  All normal entries must be ignored in emergency mode.
+\\\\
+Upon connecting to a controller again, the matching process is dictated by the normal flow tables entries, and emergency entries are ignored.  The controller then has the option of resetting the flow cache, if needed.
 
 \subsection{Encryption}
 The switch and controller communicate through an SSL connection.  The SSL connection is initiated by the switch on startup to the controller’s server, which is located by default on TCP port \input{define/OFP_TCP_PORT}.   The switch and controller mutually authenticate by exchanging certificates signed by a site-specific private key.  Each switch must be user-configurable with one certificate for authenticating the controller (controller certificate) and the other for authenticating to the controller (switch certificate).
