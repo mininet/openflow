@@ -332,6 +332,7 @@ enum ofp_action_type {
     OFPAT_SET_DL_DST,       /* Ethernet destination address. */
     OFPAT_SET_NW_SRC,       /* IP source address. */
     OFPAT_SET_NW_DST,       /* IP destination address. */
+    OFPAT_SET_NW_TOS,       /* IP ToS/DSCP field (6 bits). */
     OFPAT_SET_TP_SRC,       /* TCP/UDP source port. */
     OFPAT_SET_TP_DST,       /* TCP/UDP destination port. */
     OFPAT_VENDOR = 0xffff
@@ -397,6 +398,15 @@ struct ofp_action_tp_port {
     uint8_t pad[2];
 };
 OFP_ASSERT(sizeof(struct ofp_action_tp_port) == 8);
+
+/* Action structure for OFPAT_SET_NW_TOS. */
+struct ofp_action_nw_tos {
+    uint16_t type;                  /* OFPAT_SET_TW_SRC/DST. */
+    uint16_t len;                   /* Length is 8. */
+    uint8_t nw_tos;                 /* IP ToS/DCSP (6 bits). */
+    uint8_t pad[3];
+};
+OFP_ASSERT(sizeof(struct ofp_action_nw_addr) == 8);
 
 /* Action header for OFPAT_VENDOR. The rest of the body is vendor-defined. */
 struct ofp_action_vendor_header {

@@ -217,7 +217,7 @@ Replace the existing Ethernet source MAC address with the new value \\
 \hline
 Modify Ethernet destination MAC address &
 48 bits: Value with which to replace existing destination MAC address &
-Replace the existing Ethernet destination MAC address with the new value \\
+Replace the existing Ethernet destination MAC address with the new value. \\
 \hline
 Modify IPv4 source address & 
 32 bits: Value with which to replace existing IPv4 source address &
@@ -230,6 +230,11 @@ Modify IPv4 destination address &
 32 bits: Value with which to replace existing IPv4 destination address &
 Replace the existing IP destination address with new value and update the IP checksum (and TCP/UDP checksum if applicable).
 
+This action is only applied to IPv4 packets. \\
+\hline
+Modify IPv4 ToS bits &
+6 bits: Value with which to replace existing IPv4 ToS field &
+Replace the existing IP ToS field.
 This action is only applied to IPv4 packets. \\
 \hline
 Modify transport source port &

@@ -90,6 +90,11 @@ An \verb|action_nw_addr| has the following fields:
 \input{struct/ofp_action_nw_addr}
 The \verb|nw_addr| field is the IP address to set.
 \\\\
+An \verb|action_nw_tos| has the following fields:
+
+\input{struct/ofp_action_nw_tos}
+The \verb|nw_tos| field is the 6 upper bits of the ToS field to set, in the original bit positions (shifted to the left by 2).
+\\\\
 An \verb|action_tp_port| has the following fields:
 
 \input{struct/ofp_action_tp_port}
