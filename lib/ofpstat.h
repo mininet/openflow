@@ -48,17 +48,22 @@ struct ofpstat {
 	} ofps_error_type;
 	struct {
 		uint64_t hf_incompat;
+		uint64_t hf_eperm;
 		uint64_t br_bad_version;
 		uint64_t br_bad_type;
 		uint64_t br_bad_stat;
 		uint64_t br_bad_vendor;
+		uint64_t br_eperm;
 		uint64_t ba_bad_type;
 		uint64_t ba_bad_len;
 		uint64_t ba_bad_vendor;
 		uint64_t ba_bad_vendor_type;
 		uint64_t ba_bad_out_port;
 		uint64_t ba_bad_argument;
+		uint64_t ba_eperm;
 		uint64_t fmf_all_tables_full;
+		uint64_t fmf_overlap;
+		uint64_t fmf_eperm;
 		uint64_t unknown;
 	} ofps_error_code;
 	uint64_t ofps_echo_request;
@@ -85,6 +90,8 @@ struct ofpstat {
 	uint64_t ofps_port_mod;
 	uint64_t ofps_stats_request;
 	uint64_t ofps_stats_reply;
+	uint64_t ofps_barrier_request;
+	uint64_t ofps_barrier_reply;
 };
 
 void ofpstat_inc_protocol_stat(struct ofpstat *, struct ofp_header *);

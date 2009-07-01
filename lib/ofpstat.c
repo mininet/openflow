@@ -100,6 +100,12 @@ inc_protocol_message(struct ofpstat *ifps, struct ofp_header *hdr)
 	case OFPT_STATS_REPLY:
 		INC_IFP_STAT(ifps, ofps_stats_reply);
 		break;
+	case OFPT_BARRIER_REQUEST:
+		INC_IFP_STAT(ifps, ofps_barrier_request);
+		break;
+	case OFPT_BARRIER_REPLY:
+		INC_IFP_STAT(ifps, ofps_barrier_reply);
+		break;
 	default:
 		INC_IFP_STAT(ifps, ofps_unknown);
 		break;
@@ -120,6 +126,9 @@ inc_error_notification(struct ofpstat *ifps, struct ofp_header *hdr)
 		case OFPHFC_INCOMPATIBLE:
 			INC_IFP_STAT(ifps, ofps_error_code.hf_incompat);
 			break;
+		case OFPHFC_EPERM:
+			INC_IFP_STAT(ifps, ofps_error_code.hf_eperm);
+			break;
 		default:
 			INC_IFP_STAT(ifps, ofps_error_code.unknown);
 			break;
@@ -139,6 +148,9 @@ inc_error_notification(struct ofpstat *ifps, struct ofp_header *hdr)
 			break;
 		case OFPBRC_BAD_VENDOR:
 			INC_IFP_STAT(ifps, ofps_error_code.br_bad_vendor);
+			break;
+		case OFPBRC_EPERM:
+			INC_IFP_STAT(ifps, ofps_error_code.br_eperm);
 			break;
 		default:
 			INC_IFP_STAT(ifps, ofps_error_code.unknown);
@@ -166,6 +178,9 @@ inc_error_notification(struct ofpstat *ifps, struct ofp_header *hdr)
 		case OFPBAC_BAD_ARGUMENT:
 			INC_IFP_STAT(ifps, ofps_error_code.ba_bad_argument);
 			break;
+		case OFPBAC_EPERM:
+			INC_IFP_STAT(ifps, ofps_error_code.ba_eperm);
+			break;
 		default:
 			INC_IFP_STAT(ifps, ofps_error_code.unknown);
 			break;
@@ -176,6 +191,12 @@ inc_error_notification(struct ofpstat *ifps, struct ofp_header *hdr)
 		switch (errcode) {
 		case OFPFMFC_ALL_TABLES_FULL:
 			INC_IFP_STAT(ifps, ofps_error_code.fmf_all_tables_full);
+			break;
+		case OFPFMFC_OVERLAP:
+			INC_IFP_STAT(ifps, ofps_error_code.fmf_overlap);
+			break;
+		case OFPFMFC_EPERM:
+			INC_IFP_STAT(ifps, ofps_error_code.fmf_eperm);
 			break;
 		default:
 			INC_IFP_STAT(ifps, ofps_error_code.unknown);

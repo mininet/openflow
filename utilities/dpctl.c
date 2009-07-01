@@ -573,9 +573,12 @@ print_protocol_stat(struct ofpstat *ofps_rcvd, struct ofpstat *ofps_sent)
                 ntohll(ifps->ofps_port_mod));
         fprintf(stdout,
                 PREFIX_STR
-                "%"PRIu64" stats, %"PRIu64" stats reply\n",
+                "%"PRIu64" stats, %"PRIu64" stats reply, "
+                "%"PRIu64" barrier, %"PRIu64" barrier reply\n",
                 ntohll(ifps->ofps_stats_request),
-                ntohll(ifps->ofps_stats_reply));
+                ntohll(ifps->ofps_stats_reply),
+                ntohll(ifps->ofps_barrier_request),
+                ntohll(ifps->ofps_barrier_reply));
     }
     fprintf(stdout, "\n");
 
@@ -603,37 +606,45 @@ print_protocol_stat(struct ofpstat *ofps_rcvd, struct ofpstat *ofps_sent)
         ifps = i == 0 ? ofps_rcvd : ofps_sent;
         fprintf(stdout,
                 "%s"
-                "%"PRIu64" hello fail: %"PRIu64" incompat\n",
+                "%"PRIu64" hello fail: %"PRIu64" incompat, %"PRIu64" eperm\n",
                 i == 0 ? PREFIX_RCVD : PREFIX_SENT,
                 ntohll(ifps->ofps_error_type.hello_fail),
-                ntohll(ifps->ofps_error_code.hf_incompat));
+                ntohll(ifps->ofps_error_code.hf_incompat),
+                ntohll(ifps->ofps_error_code.hf_eperm));
         fprintf(stdout,
                 PREFIX_STR
-                "%"PRIu64" bad request: %"PRIu64" version, %"PRIu64" type, %"PRIu64" stat\n"
+                "%"PRIu64" bad request: %"PRIu64" version, %"PRIu64" type, "
+                "%"PRIu64" stat, %"PRIu64" vendor\n"
                 PREFIX_STR
-                "  %"PRIu64" vendor\n",
+                "    %"PRIu64" eperm\n",
                 ntohll(ifps->ofps_error_type.bad_request),
                 ntohll(ifps->ofps_error_code.br_bad_version),
                 ntohll(ifps->ofps_error_code.br_bad_type),
                 ntohll(ifps->ofps_error_code.br_bad_stat),
-                ntohll(ifps->ofps_error_code.br_bad_vendor));
+                ntohll(ifps->ofps_error_code.br_bad_vendor),
+                ntohll(ifps->ofps_error_code.br_eperm));
         fprintf(stdout,
                 PREFIX_STR
-                "%"PRIu64" bad action: %"PRIu64" type, %"PRIu64" len, %"PRIu64" vendor, %"PRIu64" vendor type\n"
+                "%"PRIu64" bad action: %"PRIu64" type, %"PRIu64" len, "
+                "%"PRIu64" vendor, %"PRIu64" vendor type\n"
                 PREFIX_STR
-                "  %"PRIu64" out port, %"PRIu64" argument\n",
+                "    %"PRIu64" out port, %"PRIu64" argument, %"PRIu64" eperm\n",
                 ntohll(ifps->ofps_error_type.bad_action),
                 ntohll(ifps->ofps_error_code.ba_bad_type),
                 ntohll(ifps->ofps_error_code.ba_bad_len),
                 ntohll(ifps->ofps_error_code.ba_bad_vendor),
                 ntohll(ifps->ofps_error_code.ba_bad_vendor_type),
                 ntohll(ifps->ofps_error_code.ba_bad_out_port),
-                ntohll(ifps->ofps_error_code.ba_bad_argument));
+                ntohll(ifps->ofps_error_code.ba_bad_argument),
+                ntohll(ifps->ofps_error_code.ba_eperm));
         fprintf(stdout,
                 PREFIX_STR
-                "%"PRIu64" flow mod fail: %"PRIu64" all tables full\n",
+                "%"PRIu64" flow mod fail: %"PRIu64" all tables full, "
+                "%"PRIu64" overlap, %"PRIu64" eperm\n",
                 ntohll(ifps->ofps_error_type.flow_mod_fail),
-                ntohll(ifps->ofps_error_code.fmf_all_tables_full));
+                ntohll(ifps->ofps_error_code.fmf_all_tables_full),
+                ntohll(ifps->ofps_error_code.fmf_overlap),
+                ntohll(ifps->ofps_error_code.fmf_eperm));
         fprintf(stdout,
                 PREFIX_STR
                 "%"PRIu64" unknown type, %"PRIu64" unknown code\n",

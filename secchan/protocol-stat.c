@@ -82,6 +82,8 @@ do {								\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_port_mod);		\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_stats_request);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_stats_reply);	\
+	COPY_OFPS(dst_ofps, src_ofps, ofps_barrier_request);	\
+	COPY_OFPS(dst_ofps, src_ofps, ofps_barrier_reply);	\
 								\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_type.hello_fail);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_type.bad_request);	\
@@ -90,16 +92,21 @@ do {								\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_type.unknown);	\
 								\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.hf_incompat);	\
+	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.hf_eperm);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.br_bad_version);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.br_bad_type);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.br_bad_stat);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.br_bad_vendor);	\
+	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.br_eperm);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.ba_bad_type);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.ba_bad_len);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.ba_bad_vendor);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.ba_bad_vendor_type); \
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.ba_bad_out_port);	\
+	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.ba_eperm);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.fmf_all_tables_full); \
+	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.fmf_overlap);	\
+	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.fmf_eperm);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_error_code.unknown);	\
 								\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_flow_mod_ops.add);	\
