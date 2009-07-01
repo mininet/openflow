@@ -403,7 +403,7 @@ OFP_ASSERT(sizeof(struct ofp_action_tp_port) == 8);
 struct ofp_action_nw_tos {
     uint16_t type;                  /* OFPAT_SET_TW_SRC/DST. */
     uint16_t len;                   /* Length is 8. */
-    uint8_t nw_tos;                 /* IP ToS/DCSP (6 bits). */
+    uint8_t nw_tos;                 /* IP ToS/DSCP (6 bits). */
     uint8_t pad[3];
 };
 OFP_ASSERT(sizeof(struct ofp_action_nw_addr) == 8);
