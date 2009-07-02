@@ -7,13 +7,8 @@
  * brandonh  2008-Nov-25 updated to 0x96 + bugfixes
  * tyabe     2009-May-20 added vlan_pcp_match
  *
- * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x97.
+ * Defines a Wireshark 1.0.0+ dissector for the OpenFlow protocol version 0x98.
  */
-
-/** the version of openflow this dissector was written for */
-#define DISSECTOR_OPENFLOW_MIN_VERSION 0x97
-#define DISSECTOR_OPENFLOW_MAX_VERSION 0x97
-#define DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD 0x97
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
@@ -32,6 +27,11 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <openflow/openflow.h>
+
+/** the version of openflow this dissector was written for */
+#define DISSECTOR_OPENFLOW_MIN_VERSION OFP_VERSION
+#define DISSECTOR_OPENFLOW_MAX_VERSION OFP_VERSION
+#define DISSECTOR_OPENFLOW_VERSION_DRAFT_THRESHOLD OFP_VERSION
 
 /** if 0, padding bytes will not be shown in the dissector */
 #define SHOW_PADDING 0

@@ -1,27 +1,19 @@
-0.9.0-alpha5 - 12 May 2009
---------------------------
-    - Added watchdog mechanism to flush flow tabel on NetFPGA (BUG#45)
-    - Added simple failover mechanism to handle multiple controllers (BUG#47)
-    - Removed Linux 2.4 kerel support for kernel extensions.
-    - Fixed bugs: #46
-
-0.9.0-alpha4 - 08 May 2009
---------------------------
-    - Changed binary forms name (BUG#40)
-    - Added MAC address rewrite manipulation in dpctl (BUG#42)
-    - Added proc file for NetFPGA to monitor statistical information (BUG#44)
-
-0.9.0-alpha3 - 28 Apr 2009
---------------------------
-    - Removed monolithic daemon called switch
-    - Added userspace datapath daemon named udatapath
-    - Improved regression test suite for MAC address rewrite testing (BUG#38)
-    - Added MAC address rewrite feature for NetFPGA enabled switch (BUG#33)
-    - Fixed bugs: #32, #13, #39, #30, #31 and #34
-
-v0.8.9~2 - ?? Jan 2009
-----------------------
-    - Added support to secchan for sending NetFlow v5 events
+0.9.0-rc1 - 02 Jul 2009
+-----------------------
+    - Removed monolithic switch process called switch
+    - Added userspace data plane process named ofdatapath
+    - Changed userspace control plane process name to ofprotocol
+    - Changed kernelspace data plane extension name to ofdatapath.ko
+    - Changed NetFPGA kernelspace extestion name to ofdatapath_netfpga.ko
+    - Removed Linux 2.4 kerel support
+    - Added simple controller failover feature
+    - Added emergency flow cache feature
+    - Added barrier command
+    - Added 802.1Q VLAN priority bits match feature
+    - Clarified flow expiration, renamed flow expiration to flow removed
+    - Added protocol statistics collector
+    - Added IP ToS/DSCP rewrite feature
+    - Changed port enumeration at 1 instead of 0
 
 v0.8.9 r2 - 23 Jan 2009
 -----------------------
