@@ -318,7 +318,7 @@ Asynchronous messages are sent without solicitation from the switch to the contr
 \\\\
 \textbf{Packet-in:} For all packets that do not have a matching flow entry, a packet-in event is sent to the controller (or if a packet matches an entry with a ``send to controller" action).  If the switch has sufficient memory to buffer packets that are sent to the controller, the packet-in events contain some fraction of the packet header (by default \input{define/OFP_DEFAULT_MISS_SEND_LEN} bytes) and a buffer ID to be used by the controller when it is ready for the switch to forward the packet.  Switches that do not support internal buffering (or have run out of internal buffering) must send the full packet to the controller as part of the event.
 \\\\
-\textbf{Flow Expiration:} When a flow entry is added to the switch by a flow modify message, an idle timeout value indicates when the entry should be removed due to a lack of activity, as well as a hard timeout value that indicates when the entry should be removed, regardless of activity.  The flow modify message also specifies whether the switch should send an expiration message to the controller when the flow expires.
+\textbf{Flow-Removed:} When a flow entry is added to the switch by a flow modify message, an idle timeout value indicates when the entry should be removed due to a lack of activity, as well as a hard timeout value that indicates when the entry should be removed, regardless of activity.  The flow modify message also specifies whether the switch should send a flow removed message to the controller when the flow expires.  Delete messages may also cause flow removed messages.
 \\\\
 \textbf{Port-status:} The switch is expected to send port-status messages to the controller as port configuration state changes.  These events include change in port status (for example, if it was brought down directly by a user) or a change in port status as specified by 802.1D (see Section \ref{flow_table:stp_support} for a description of 802.1D support requirements).
 \\\\
@@ -372,7 +372,7 @@ If a switch cannot find any table in which to add the incoming flow entry, the s
 \\\\
 For MODIFY requests, if a flow entry with identical header fields does not current reside in any table, the MODIFY acts like an ADD, and the new flow entry must be inserted with zeroed counters.  Otherwise, the actions field is changed on the existing entry and its counters and idle time fields are left unchanged.
 \\\\
-For DELETE requests, if no flow entry matches, no error is recorded, and no flow table modification occurs.  If flow entries match, and must be deleted, then each entry with the \verb|OFPFF_SEND_FLOW_EXP| flag set should generate a flow expiration message.
+For DELETE requests, if no flow entry matches, no error is recorded, and no flow table modification occurs.  If flow entries match, and must be deleted, then each entry with the \verb|OFPFF_SEND_FLOW_REM| flag set should generate a flow removed message.
 \\\\
 MODIFY and DELETE flow mod commands have corresponding \_STRICT versions.   Without \_STRICT appended, the wildcards are active and all flows that match the description are modified or removed.  If \_STRICT is appended, all fields, including the wildcards and priority, are strictly matched against the entry, and only an identical flow is modified or removed.  For example, if a message to remove entries is sent that has all the wildcard flags set, the DELETE command would delete all flows from all tables, while the DELETE\_STRICT command would only delete a rule that applies to all packets at the specified priority.
 \\\\
@@ -382,7 +382,7 @@ DELETE and DELETE\_STRICT commands can be optionally filtered by output port.  I
 
 \subsection{Flow Removal}
 
-Each flow entry has an \verb|idle_timeout| and a \verb|hard_timeout| associated with it.  If no packet has matched the rule in the last \verb|idle_timeout| seconds, or it has been \verb|hard_timeout| seconds since the flow was inserted, the switch removes the entry and sends a flow expiration message.  In addition, the controller is able to actively remove entries by sending a flow message with the \verb|DELETE| or \verb|DELETE_STRICT| command.  Like the message used to add the entry, a removal message contains a description, which may include wild cards.
+Each flow entry has an \verb|idle_timeout| and a \verb|hard_timeout| associated with it.  If no packet has matched the rule in the last \verb|idle_timeout| seconds, or it has been \verb|hard_timeout| seconds since the flow was inserted, the switch removes the entry and sends a flow removed message.  In addition, the controller is able to actively remove entries by sending a flow message with the \verb|DELETE| or \verb|DELETE_STRICT| command.  Like the message used to add the entry, a removal message contains a description, which may include wild cards.
 
 \input{appendix}
  

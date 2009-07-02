@@ -157,7 +157,7 @@ The \verb|out_port| field optionally filters the scope of DELETE and DELETE\_STR
 The \verb|flags| field may include the follow flags:
 
 \input{enum/ofp_flow_mod_flags}
-When the \verb|OFPFF_SEND_FLOW_EXP| flag is set, the switch must send a flow expiration message when the flow expires.  The default is for the switch to not send flow expirations.  
+When the \verb|OFPFF_SEND_FLOW_REM| flag is set, the switch must send a flow removed message when the flow expires.  The default is for the switch to not send flow removed messages for newly added flows.  
 \\\\
 When the \verb|OFPFF_CHECK_OVERLAP| flag is set, the switch must check that there are no conflicting entries with the same priority. If there is one, the flow mod fails and an error code is returned.
 \\\\
@@ -262,15 +262,15 @@ The reason field can be any of these values:
 
 \input{enum/ofp_packet_in_reason}
  
-\subsubsection{Flow Expiration Message}
-If the controller has requested to be notified when flows time out, the datapath does this with the \verb|OFPT_FLOW_EXPIRED| message:
+\subsubsection{Flow Removed Message}
+If the controller has requested to be notified when flows time out, the datapath does this with the \verb|OFPT_FLOW_REMOVED| message:
 
-\input{struct/ofp_flow_expired}
+\input{struct/ofp_flow_removed}
 The \verb|match| and \verb|priority| fields are the same as those used in the flow setup request.  
 \\\\
 The \verb|reason| field is one of the following:
 
-\input{enum/ofp_flow_expired_reason}
+\input{enum/ofp_flow_removed_reason}
 The \verb|duration| field indicates the number of seconds the flow was alive (present in the flow table).
 \\\\
 The \verb|idle_timeout| field is directly copied from the flow mod that created this entry. 
