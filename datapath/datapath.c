@@ -49,8 +49,8 @@
 
 /* Strings to describe the manufacturer, hardware, and software.  This data 
  * is queriable through the switch description stats message. */
-static char mfr_desc[DESC_STR_LEN] = "Stanford University (developed by Nicira Networks, Inc.)";
-static char hw_desc[DESC_STR_LEN] = "Reference Data plane Kernel Extension for Linux";
+static char mfr_desc[DESC_STR_LEN] = "Stanford University";
+static char hw_desc[DESC_STR_LEN] = "Reference Kernelspace Switch";
 static char sw_desc[DESC_STR_LEN] = VERSION BUILDNR;
 static char serial_num[SERIAL_NUM_LEN] = "None";
 
@@ -2151,6 +2151,6 @@ static void dp_cleanup(void)
 module_init(dp_init);
 module_exit(dp_cleanup);
 
-MODULE_DESCRIPTION("OpenFlow switching datapath");
+MODULE_DESCRIPTION("OpenFlow Switching Datapath");
 MODULE_AUTHOR("Copyright (c) 2007, 2008 The Board of Trustees of The Leland Stanford Junior University");
 MODULE_LICENSE("GPL");
