@@ -29,7 +29,7 @@ sub my_test {
 	}
 	
       	# Create a flow mod with expiry
-	$flags = $enums{'OFPFF_SEND_FLOW_EXP'}; # want flow expiry
+	$flags = $enums{'OFPFF_SEND_FLOW_REM'}; # want flow expiry
 	$flow_mod_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards );
 	print $sock $flow_mod_pkt;

@@ -388,7 +388,7 @@ vconn_name_without_subscription(const char *vconn_name)
     if (sscanf(vconn_name, "nl:%d", &nl_index) == 1) {
         /* nl:123 or nl:123:1 opens a netlink connection to local datapath 123.
          * nl:123:0 opens a netlink connection to local datapath 123 without
-         * obtaining a subscription for ofp_packet_in or ofp_flow_expired
+         * obtaining a subscription for ofp_packet_in or ofp_flow_removed
          * messages. */
         return xasprintf("nl:%d:0", nl_index);
     } else {

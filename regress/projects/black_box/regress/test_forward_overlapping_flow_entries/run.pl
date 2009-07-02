@@ -16,7 +16,7 @@ sub send_expect_multi_flow {
 	#print HexDump ( $test_pkt->packed );
 
 	my $wildcards = 0x0;    # exact match
-	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
+	my $flags = $enums{'OFPFF_SEND_FLOW_REM'};
 
 	my $flow_mod_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port,

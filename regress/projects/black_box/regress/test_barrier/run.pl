@@ -25,7 +25,7 @@ sub my_test {
     print $sock $packet;
 
     my $wildcards = 0x03fe;
-    my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
+    my $flags = $enums{'OFPFF_SEND_FLOW_REM'};
     my $packet = create_flow_mod_from_udp($ofp, $base_packet, $in_port, $out_port, $max_idle, $flags, $wildcards);
 
     # BAR

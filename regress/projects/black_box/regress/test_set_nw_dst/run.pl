@@ -47,7 +47,7 @@ sub send_expect_exact {
     #print HexDump ($test_pkt->packed);
 
     my $wildcards = 0x0;		       # exact match
-    my $flags = $enums{'OFPFF_SEND_FLOW_EXP'}; # want flow expiry
+    my $flags = $enums{'OFPFF_SEND_FLOW_REM'}; # want flow expiry
 
     # Get to the IP address in the expected packet - Jean II
     my $ref_to_ip_hdr = ( $expect_pkt->{'IP_hdr'} );

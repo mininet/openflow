@@ -560,10 +560,10 @@ print_protocol_stat(struct ofpstat *ofps_rcvd, struct ofpstat *ofps_sent)
                 ntohll(ifps->ofps_set_config));
         fprintf(stdout,
                 PREFIX_STR
-                "%"PRIu64" packet in, %"PRIu64" flow expried, "
+                "%"PRIu64" packet in, %"PRIu64" flow removed, "
                 "%"PRIu64" port status\n",
                 ntohll(ifps->ofps_packet_in),
-                ntohll(ifps->ofps_flow_expired),
+                ntohll(ifps->ofps_flow_removed),
                 ntohll(ifps->ofps_port_status));
         fprintf(stdout,
                 PREFIX_STR

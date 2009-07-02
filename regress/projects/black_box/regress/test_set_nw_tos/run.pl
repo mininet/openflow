@@ -49,7 +49,7 @@ sub send_expect_exact {
     #print HexDump ($test_pkt->packed);
 
     my $wildcards = 0x0;	# exact match
-    my $flags = $enums{'OFPFF_SEND_FLOW_EXP'}; # want flow expiry
+    my $flags = $enums{'OFPFF_SEND_FLOW_REM'}; # want flow expiry
     my $nw_tos = 0x56;
 
     my $flow_mod_pkt = create_flow_mod_from_udp_action($ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', 'nw_tos', $nw_tos);

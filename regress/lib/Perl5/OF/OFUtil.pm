@@ -1092,7 +1092,7 @@ sub wait_for_flow_expired_readone {
 	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout ) = @_;
 
 	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout,
-		$ofp->sizeof('ofp_flow_expired') );
+		$ofp->sizeof('ofp_flow_removed') );
 }
 
 sub wait_for_flow_expired_readsize {
@@ -1116,32 +1116,32 @@ sub wait_for_flow_expired_total_bytes {
 
 	my $recvd_mesg;
 	sysread( $sock, $recvd_mesg, $read_size )
-	  || die "Failed to receive ofp_flow_expired message: $!";
+	  || die "Failed to receive ofp_flow_removed message: $!";
 
 	#print HexDump ($recvd_mesg);
 
 	# Inspect  message
 	my $msg_size      = length($recvd_mesg);
-	my $expected_size = $ofp->sizeof('ofp_flow_expired');
-	compare( "ofp_flow_expired msg size", length($recvd_mesg), '==', $expected_size );
+	my $expected_size = $ofp->sizeof('ofp_flow_removed');
+	compare( "ofp_flow_removed msg size", length($recvd_mesg), '==', $expected_size );
 
-	my $msg = $ofp->unpack( 'ofp_flow_expired', $recvd_mesg );
+	my $msg = $ofp->unpack( 'ofp_flow_removed', $recvd_mesg );
 
 	#print Dumper($msg);
 
 	# Verify fields
-	compare( "ofp_flow_expired header version", $$msg{'header'}{'version'}, '==', $of_ver );
-	compare( "ofp_flow_expired header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_EXPIRED'} );
-	compare( "ofp_flow_expired header length",  $$msg{'header'}{'length'},  '==', $msg_size );
+	compare( "ofp_flow_removed header version", $$msg{'header'}{'version'}, '==', $of_ver );
+	compare( "ofp_flow_removed header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_REMOVED'} );
+	compare( "ofp_flow_removed header length",  $$msg{'header'}{'length'},  '==', $msg_size );
 
 	# Disable for platforms that don't have byte counts... - Jean II
 	if ( not defined( $$options_ref{'ignore_byte_count'} ) ) {
-	    compare( "ofp_flow_expired byte_count",     $$msg{'byte_count'},        '==', $bytes );
+	    compare( "ofp_flow_removed byte_count",     $$msg{'byte_count'},        '==', $bytes );
 	}
-	compare( "ofp_flow_expired packet_count",   $$msg{'packet_count'},      '==', $pkt_total );
+	compare( "ofp_flow_removed packet_count",   $$msg{'packet_count'},      '==', $pkt_total );
 
 	if ( defined $idle_timeout ) {
-		compare( "ofp_flow_expired idle_timeout",   $$msg{'idle_timeout'},      '==', $idle_timeout );
+		compare( "ofp_flow_removed idle_timeout",   $$msg{'idle_timeout'},      '==', $idle_timeout );
 	}
 }
 
@@ -1539,7 +1539,7 @@ sub forward_simple {
 	}
 
 	my $flow_mod_pkt;
-	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
+	my $flags = $enums{'OFPFF_SEND_FLOW_REM'};
 	if ($type eq 'drop') {
 		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port,
 		                   $$options_ref{'max_idle'}, $flags, $wildcards, 'drop', $vlan_id );
@@ -1776,7 +1776,7 @@ sub forward_simple_icmp {
         my $fool_port = 0;
         my $flow_mod_pkt_fool;
 
-	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
+	my $flags = $enums{'OFPFF_SEND_FLOW_REM'};
 
         if ($type eq 'all') {
                 $out_port = $enums{'OFPP_ALL'};    # all physical ports except the input
@@ -1910,16 +1910,16 @@ sub wait_for_two_flow_expired {
 
         # Inspect  message
         my $msg_size      = length($recvd_mesg);
-        my $expected_size = $ofp->sizeof('ofp_flow_expired');
+        my $expected_size = $ofp->sizeof('ofp_flow_removed');
         #compare( "msg size", length($recvd_mesg), '==', $expected_size );
 
-        my $msg = $ofp->unpack( 'ofp_flow_expired', $recvd_mesg );
+        my $msg = $ofp->unpack( 'ofp_flow_removed', $recvd_mesg );
 
         #print Dumper($msg);
 
         # Verify fields
         #compare( "header version", $$msg{'header'}{'version'}, '==', $of_ver );
-        #compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_EXPIRED'} );
+        #compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_FLOW_REMOVED'} );
         #compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
         #compare( "byte_count",     $$msg{'byte_count'},        '==', $bytes );
         #compare( "packet_count",   $$msg{'packet_count'},      '==', $pkt_total_size );

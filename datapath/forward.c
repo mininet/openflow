@@ -249,7 +249,7 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 	/* Fill out flow. */
 	flow->idle_timeout = ntohs(ofm->idle_timeout);
 	flow->hard_timeout = ntohs(ofm->hard_timeout);
-        flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_EXP) ? 1 : 0;
+        flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM) ? 1 : 0;
 	flow_setup_actions(flow, ofm->actions, actions_len);
 
 	/* Act. */
@@ -320,7 +320,7 @@ mod_flow(struct sw_chain *chain, const struct sender *sender,
 		/* Fill out flow. */
 		flow->idle_timeout = ntohs(ofm->idle_timeout);
 		flow->hard_timeout = ntohs(ofm->hard_timeout);
-		flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_EXP)
+		flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM)
 			? 1 : 0;
 		flow_setup_actions(flow, ofm->actions, actions_len);
 		error = chain_insert(chain, flow,

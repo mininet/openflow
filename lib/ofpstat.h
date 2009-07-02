@@ -75,7 +75,7 @@ struct ofpstat {
 	uint64_t ofps_get_config_reply;
 	uint64_t ofps_set_config;
 	uint64_t ofps_packet_in;
-	uint64_t ofps_flow_expired;
+	uint64_t ofps_flow_removed;
 	uint64_t ofps_port_status;
 	uint64_t ofps_packet_out;
 	uint64_t ofps_flow_mod;

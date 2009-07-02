@@ -75,7 +75,7 @@ do {								\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_get_config_reply);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_set_config);		\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_packet_in);		\
-	COPY_OFPS(dst_ofps, src_ofps, ofps_flow_expired);	\
+	COPY_OFPS(dst_ofps, src_ofps, ofps_flow_removed);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_port_status);	\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_packet_out);		\
 	COPY_OFPS(dst_ofps, src_ofps, ofps_flow_mod);		\

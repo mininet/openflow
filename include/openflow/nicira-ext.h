@@ -46,7 +46,7 @@ enum nicira_type {
     NXT_FLOW_END_CONFIG,
 
     /* Sent by switch when a flow ends.  These messages are turned into
-     * ofp_flow_expired and NetFlow messages in user-space. */
+     * ofp_flow_removed and NetFlow messages in user-space. */
     NXT_FLOW_END
 };
 

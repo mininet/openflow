@@ -79,8 +79,8 @@ inc_protocol_message(struct ofpstat *ifps, struct ofp_header *hdr)
 	case OFPT_PACKET_IN:
 		INC_IFP_STAT(ifps, ofps_packet_in);
 		break;
-	case OFPT_FLOW_EXPIRED:
-		INC_IFP_STAT(ifps, ofps_flow_expired);
+	case OFPT_FLOW_REMOVED:
+		INC_IFP_STAT(ifps, ofps_flow_removed);
 		break;
 	case OFPT_PORT_STATUS:
 		INC_IFP_STAT(ifps, ofps_port_status);

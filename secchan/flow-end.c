@@ -187,7 +187,7 @@ send_netflow_msg(const struct nx_flow_end *nfe, struct flow_end_data *fe)
 static void 
 send_ofp_expired(const struct nx_flow_end *nfe, const struct flow_end_data *fe)
 {
-    struct ofp_flow_expired *ofe;
+    struct ofp_flow_removed *ofe;
     struct ofpbuf *b;
 
     if ((nfe->reason != NXFER_IDLE_TIMEOUT) 
@@ -196,15 +196,15 @@ send_ofp_expired(const struct nx_flow_end *nfe, const struct flow_end_data *fe)
         return;
     }
 
-    ofe = make_openflow(sizeof(*ofe), OFPT_FLOW_EXPIRED, &b);
+    ofe = make_openflow(sizeof(*ofe), OFPT_FLOW_REMOVED, &b);
     ofe->match = nfe->match;
     ofe->priority = nfe->priority;
     if (nfe->reason == NXFER_IDLE_TIMEOUT) {
-        ofe->reason = OFPER_IDLE_TIMEOUT;
+        ofe->reason = OFPRR_IDLE_TIMEOUT;
     } else if (nfe->reason == NXFER_HARD_TIMEOUT) {
-        ofe->reason = OFPER_HARD_TIMEOUT;
+        ofe->reason = OFPRR_HARD_TIMEOUT;
     } else {
-        ofe->reason = OFPER_DELETE;
+        ofe->reason = OFPRR_DELETE;
     }
     /* 'duration' is in seconds, but we keeping track of milliseconds. */
     ofe->duration = htonl((ntohll(nfe->end_time)-ntohll(nfe->init_time))/1000);

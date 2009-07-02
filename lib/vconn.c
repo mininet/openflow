@@ -492,7 +492,7 @@ again:
         {
             if (vconn->version < 0) {
                 if (oh->type == OFPT_PACKET_IN
-                    || oh->type == OFPT_FLOW_EXPIRED
+                    || oh->type == OFPT_FLOW_REMOVED
                     || oh->type == OFPT_PORT_STATUS) {
                     /* The kernel datapath is stateless and doesn't really
                      * support version negotiation, so it can end up sending

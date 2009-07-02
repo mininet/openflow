@@ -29,7 +29,7 @@ sub test_emergency_cache_first {
 	# 1st flow entry -- exact match, normal flow table
 	my $max_idle_no_expire = 0;
 	my $normal_wildcards = 0x0;    # exact match
-	my $normal_flags = $enums{'OFPFF_SEND_FLOW_EXP'}; # want flow expiry
+	my $normal_flags = $enums{'OFPFF_SEND_FLOW_REM'}; # want flow expiry
 	my $flow_mod_normal_pkt =
           create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle_no_expire, $normal_flags, $normal_wildcards );
 

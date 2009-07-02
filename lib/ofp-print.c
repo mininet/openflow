@@ -761,21 +761,21 @@ ofp_print_flow_mod(struct ds *string, const void *oh, size_t len,
     ds_put_char(string, '\n');
 }
 
-/* Pretty-print the OFPT_FLOW_EXPIRED packet of 'len' bytes at 'oh' to 'string'
+/* Pretty-print the OFPT_FLOW_REMOVED packet of 'len' bytes at 'oh' to 'string'
  * at the given 'verbosity' level. */
 static void
-ofp_print_flow_expired(struct ds *string, const void *oh, size_t len UNUSED, 
+ofp_print_flow_removed(struct ds *string, const void *oh, size_t len UNUSED, 
                        int verbosity)
 {
-    const struct ofp_flow_expired *ofe = oh;
+    const struct ofp_flow_removed *ofe = oh;
 
     ofp_print_match(string, &ofe->match, verbosity);
     ds_put_cstr(string, " reason=");
     switch (ofe->reason) {
-    case OFPER_IDLE_TIMEOUT:
+    case OFPRR_IDLE_TIMEOUT:
         ds_put_cstr(string, "idle");
         break;
-    case OFPER_HARD_TIMEOUT:
+    case OFPRR_HARD_TIMEOUT:
         ds_put_cstr(string, "hard");
         break;
     default:
@@ -1390,10 +1390,10 @@ static const struct openflow_packet packets[] = {
         ofp_print_flow_mod,
     },
     {
-        OFPT_FLOW_EXPIRED,
-        "flow_expired",
-        sizeof (struct ofp_flow_expired),
-        ofp_print_flow_expired,
+        OFPT_FLOW_REMOVED,
+        "flow_removed",
+        sizeof (struct ofp_flow_removed),
+        ofp_print_flow_removed,
     },
     {
         OFPT_PORT_MOD,

@@ -293,8 +293,8 @@ lswitch_process_packet(struct lswitch *sw, struct rconn *rconn,
             process_stats_reply
         },
         {
-            OFPT_FLOW_EXPIRED,
-            sizeof(struct ofp_flow_expired),
+            OFPT_FLOW_REMOVED,
+            sizeof(struct ofp_flow_removed),
             NULL
         },
     };

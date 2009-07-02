@@ -69,7 +69,7 @@ static const value_string names_ofp_type[] = {
 
     /* Asynchronous messages. */
     { OFPT_PACKET_IN,           "Packet In (AM)" },
-    { OFPT_FLOW_EXPIRED,        "Flow Expired (AM)" },
+    { OFPT_FLOW_REMOVED,        "Flow Removed (AM)" },
     { OFPT_PORT_STATUS,         "Port Status (AM)" },
 
     /* Controller command messages. */
@@ -171,15 +171,15 @@ static const value_string names_ofp_packet_in_reason[] = {
     { 0,             NULL }
 };
 
-/** names from ofp_flow_expired_reason */
-static const value_string names_ofp_flow_expired_reason[] = {
-    { OFPER_IDLE_TIMEOUT, "Flow idle time exceeded idle_timeout" },
-    { OFPER_HARD_TIMEOUT, "Time exceeded hard_timeout" },
-    { OFPER_DELETE,       "Evicted by a DELETE flow mod." },
+/** names from ofp_flow_removed_reason */
+static const value_string names_ofp_flow_removed_reason[] = {
+    { OFPRR_IDLE_TIMEOUT, "Flow idle time exceeded idle_timeout" },
+    { OFPRR_HARD_TIMEOUT, "Time exceeded hard_timeout" },
+    { OFPRR_DELETE,       "Evicted by a DELETE flow mod." },
     { 0,                  NULL }
 };
 
-/** names from ofp_flow_expired_reason */
+/** names from ofp_flow_removed_reason */
 static const value_string names_ip_frag[] = {
     { OFPC_FRAG_NORMAL, "No special handling for fragments." },
     { OFPC_FRAG_DROP,   "Drop fragments." },
@@ -557,14 +557,14 @@ static gint ofp_packet_in_in_port   = -1;
 static gint ofp_packet_in_reason = -1;
 static gint ofp_packet_in_data_hdr  = -1;
 
-static gint ofp_flow_expired              = -1;
+static gint ofp_flow_removed              = -1;
 /* field: ofp_match */
-static gint ofp_flow_expired_priority     = -1;
-static gint ofp_flow_expired_reason       = -1;
-static gint ofp_flow_expired_duration     = -1;
-static gint ofp_flow_expired_idle_timeout = -1;
-static gint ofp_flow_expired_packet_count = -1;
-static gint ofp_flow_expired_byte_count   = -1;
+static gint ofp_flow_removed_priority     = -1;
+static gint ofp_flow_removed_reason       = -1;
+static gint ofp_flow_removed_duration     = -1;
+static gint ofp_flow_removed_idle_timeout = -1;
+static gint ofp_flow_removed_packet_count = -1;
+static gint ofp_flow_removed_byte_count   = -1;
 
 static gint ofp_port_status        = -1;
 static gint ofp_port_status_reason = -1;
@@ -631,7 +631,7 @@ static gint ett_ofp_packet_out_data_hdr  = -1;
 /* Asynchronous Messages */
 static gint ett_ofp_packet_in = -1;
 static gint ett_ofp_packet_in_data_hdr = -1;
-static gint ett_ofp_flow_expired = -1;
+static gint ett_ofp_flow_removed = -1;
 static gint ett_ofp_port_status = -1;
 static gint ett_ofp_error_msg = -1;
 static gint ett_ofp_error_msg_data = -1;
@@ -1283,7 +1283,7 @@ void proto_register_openflow()
           { "Out Port (delete* only)", "of.fm_out_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Out Port (delete* only)", HFILL } },
 
         { &ofp_flow_mod_flags[0],
-          { "Send flow expirations", "of.fm_flags", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_SEND_FLOW_EXP, "Send flow expirations", HFILL }},
+          { "Send flow expirations", "of.fm_flags", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_SEND_FLOW_REM, "Send flow expirations", HFILL }},
 
         { &ofp_flow_mod_flags[1],
           { "Check for overlap before adding flow", "of.fm_flags", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_CHECK_OVERLAP, "Check for overlap before adding flow", HFILL } },
@@ -1295,26 +1295,26 @@ void proto_register_openflow()
           { "Reserved", "of.fm_reserved", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Reserved", HFILL } },
 
 
-        /* AM:  Flow Expired */
-        { &ofp_flow_expired,
-          { "Flow Expired", "of.fe", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flow Expired", HFILL } },
+        /* AM:  Flow Removed */
+        { &ofp_flow_removed,
+          { "Flow Removed", "of.fe", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Flow Removed", HFILL } },
 
-        { &ofp_flow_expired_priority,
+        { &ofp_flow_removed_priority,
           { "Priority", "of.fe_priority", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Priority", HFILL } },
 
-        { &ofp_flow_expired_reason,
-          { "Reason", "of.fe_reason", FT_UINT8, BASE_DEC, VALS(names_ofp_flow_expired_reason), NO_MASK, "Reason", HFILL } },
+        { &ofp_flow_removed_reason,
+          { "Reason", "of.fe_reason", FT_UINT8, BASE_DEC, VALS(names_ofp_flow_removed_reason), NO_MASK, "Reason", HFILL } },
 
-        { &ofp_flow_expired_duration,
+        { &ofp_flow_removed_duration,
           { "Flow Duration (sec)", "of.fe_duration", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Time Flow was Alive (sec)", HFILL } },
 
-        { &ofp_flow_expired_idle_timeout,
+        { &ofp_flow_removed_idle_timeout,
           { "Idle Time (sec) Before Discarding", "of.fe_idle_timeout", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Idle Time (sec) Before Discarding", HFILL } },
 
-        { &ofp_flow_expired_packet_count,
+        { &ofp_flow_removed_packet_count,
           { "Packet Count", "of.fe_packet_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Packet Cout", HFILL } },
 
-        { &ofp_flow_expired_byte_count,
+        { &ofp_flow_removed_byte_count,
           { "Byte Count", "of.fe_byte_count", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Byte Count", HFILL } },
 
 
@@ -1660,7 +1660,7 @@ void proto_register_openflow()
         &ett_ofp_packet_out_actions_hdr,
         &ett_ofp_packet_in,
         &ett_ofp_packet_in_data_hdr,
-        &ett_ofp_flow_expired,
+        &ett_ofp_flow_removed,
         &ett_ofp_port_status,
         &ett_ofp_error_msg,
         &ett_ofp_error_msg_data,
@@ -2623,19 +2623,19 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             break;
         }
 
-        case OFPT_FLOW_EXPIRED: {
-            type_item = proto_tree_add_item(ofp_tree, ofp_flow_expired, tvb, offset, -1, FALSE);
-            type_tree = proto_item_add_subtree(type_item, ett_ofp_flow_expired);
+        case OFPT_FLOW_REMOVED: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_flow_removed, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_flow_removed);
 
             dissect_match(type_tree, type_item, tvb, pinfo, &offset);
-            add_child(type_tree, ofp_flow_expired_priority, tvb, &offset, 2);
-            add_child(type_tree, ofp_flow_expired_reason, tvb, &offset, 1);
+            add_child(type_tree, ofp_flow_removed_priority, tvb, &offset, 2);
+            add_child(type_tree, ofp_flow_removed_reason, tvb, &offset, 1);
             dissect_pad(type_tree, &offset, 1);
-            add_child(type_tree, ofp_flow_expired_duration, tvb, &offset, 4);
-            add_child(type_tree, ofp_flow_expired_idle_timeout, tvb, &offset, 2);
+            add_child(type_tree, ofp_flow_removed_duration, tvb, &offset, 4);
+            add_child(type_tree, ofp_flow_removed_idle_timeout, tvb, &offset, 2);
             dissect_pad(type_tree, &offset, 2);
-            add_child(type_tree, ofp_flow_expired_packet_count, tvb, &offset, 8);
-            add_child(type_tree, ofp_flow_expired_byte_count, tvb, &offset, 8);
+            add_child(type_tree, ofp_flow_removed_packet_count, tvb, &offset, 8);
+            add_child(type_tree, ofp_flow_removed_byte_count, tvb, &offset, 8);
             break;
         }
 

@@ -129,7 +129,7 @@ sub send_tcp_op_expect_exact {
 		$enums{'OFPFW_TP_DST'};# | 
 	#	$enums{'OFPFW_NW_PROTO'};     # wildcard match (don't care udp src/dst ports)
 
-	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
+	my $flags = $enums{'OFPFF_SEND_FLOW_REM'};
 	my $flow_mod_pkt =
 	  create_flow_mod_from_ip( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards,
 		$src_tcp_port, $dst_tcp_port );

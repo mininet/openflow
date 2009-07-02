@@ -15,7 +15,7 @@ sub my_test {
 	
 	my $max_idle = 0x1; # second before flow expiration
 	my $wildcards = 0x0;    # exact match
-	my $flags = $enums{'OFPFF_SEND_FLOW_EXP'};
+	my $flags = $enums{'OFPFF_SEND_FLOW_REM'};
 	my $flow_mod_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards );
 
