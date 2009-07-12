@@ -185,7 +185,7 @@ flow_setup_actions(struct sw_flow *                    flow,
 	if (actions_len > flow->sf_acts->actions_len)
 		ofp_fatal(0,
 			  "flow_setup_actions: actions_len is too big (%d > %lu)",
-			  actions_len, flow->sf_acts->actions_len);
+			  actions_len, (unsigned long)flow->sf_acts->actions_len);
 
 	flow->used = flow->created = time_msec();
 	flow->sf_acts->actions_len = actions_len;

@@ -252,7 +252,8 @@ static const value_string sc_frag_choices[] = {
 
 
 /* Error strings for the various error types */
-static const gchar *hello_failed_err_str[] = {"No compatible version"};
+static const gchar *hello_failed_err_str[] = {"No compatible version",
+					      "Permissions error"};
 
 #define N_HELLOFAILED   (sizeof hello_failed_err_str / sizeof hello_failed_err_str[0])
 
@@ -260,7 +261,8 @@ static const gchar *bad_request_err_str[] = {"ofp_header.version not supported",
                                              "ofp_header.type not supported",
                                              "ofp_stats_request.type not supported",
                                              "Vendor not supported (in ofp_vendor or ofp_stats_request or ofp_stats_reply)",
-                                             "Vendor subtype not supported"};
+                                             "Vendor subtype not supported",
+					     "Permissions error"};
 
 #define N_BADREQUEST    (sizeof bad_request_err_str / sizeof bad_request_err_str[0])
 
@@ -269,12 +271,15 @@ static const gchar *bad_action_err_str[] = {"Unknown action type",
                                             "Unknown vendor id specified",
                                             "Unknown action type for vendor id",
                                             "Problem validating output action",
-                                            "Bad action argument"};
+                                            "Bad action argument",
+					    "Permissions error"};
 
 #define N_BADACTION     (sizeof bad_action_err_str / sizeof bad_action_err_str[0])
 
 static const gchar *flow_mod_failed_err_str[] = {"Flow not added because of full tables",
-						 "Flow not added because of conflicting entry in tables"};
+						 "Flow not added because of conflicting entry in tables",
+						 "Permissions error",
+						 "Flow not added because of non-zero idle/hard timeout"};
 
 #define N_FLOWMODFAILED (sizeof flow_mod_failed_err_str / sizeof flow_mod_failed_err_str[0])
 
@@ -1283,7 +1288,7 @@ void proto_register_openflow()
           { "Out Port (delete* only)", "of.fm_out_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Out Port (delete* only)", HFILL } },
 
         { &ofp_flow_mod_flags[0],
-          { "Send flow expirations", "of.fm_flags", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_SEND_FLOW_REM, "Send flow expirations", HFILL }},
+          { "Send flow removed", "of.fm_flags", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_SEND_FLOW_REM, "Send flow removed", HFILL }},
 
         { &ofp_flow_mod_flags[1],
           { "Check for overlap before adding flow", "of.fm_flags", FT_UINT16, BASE_DEC, VALS(names_choice), OFPFF_CHECK_OVERLAP, "Check for overlap before adding flow", HFILL } },

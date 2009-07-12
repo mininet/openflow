@@ -79,7 +79,8 @@ protection_callback(struct sw_flow *flow, void *private_)
 	tgtflow->priority = flow->priority;
 	tgtflow->idle_timeout = 0;
 	tgtflow->hard_timeout = 0;
-	tgtflow->send_flow_exp = flow->send_flow_exp;
+	tgtflow->send_flow_rem = flow->send_flow_rem;
+	tgtflow->emerg_flow = 0;
 	flow_setup_actions(tgtflow, actions->actions, actions->actions_len);
 
 	error = chain_insert(private->chain, tgtflow, 0);

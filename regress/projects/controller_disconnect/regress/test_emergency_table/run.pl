@@ -37,7 +37,7 @@ sub test_emergency_cache_first {
 	my $emergency_wildcards =  $enums{'OFPFW_ALL'};     # wildcard match all to the all ports
 	my $emergency_flags = $enums{'OFPFF_EMERG'};
 	my $flow_mod_emergency_pkt =
-	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $enums{'OFPP_ALL'}, $max_idle, $emergency_flags, $emergency_wildcards );
+	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $enums{'OFPP_ALL'}, $max_idle_no_expire, $emergency_flags, $emergency_wildcards );
 
 	#print HexDump($flow_mod_normal_pkt);
 	#print HexDump($flow_mod_emergency_pkt);

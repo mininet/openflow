@@ -33,6 +33,8 @@
 #ifndef OFPSTAT_H_
 #define OFPSTAT_H_
 
+struct ofp_header;
+
 struct ofpstat {
 	uint64_t ofps_total;
 	uint64_t ofps_unknown;
@@ -64,6 +66,7 @@ struct ofpstat {
 		uint64_t fmf_all_tables_full;
 		uint64_t fmf_overlap;
 		uint64_t fmf_eperm;
+		uint64_t fmf_emerg;
 		uint64_t unknown;
 	} ofps_error_code;
 	uint64_t ofps_echo_request;

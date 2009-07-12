@@ -78,11 +78,12 @@ protection_callback(struct sw_flow *flow, void *private_)
 	memset(&match, 0, sizeof(match));
 	flow_fill_match(&match, &flow->key.flow, flow->key.wildcards);
 	flow_extract_match(&tgtflow->key, &match);
-        /* Fill out flow. */
+	/* Fill out flow. */
 	tgtflow->priority = flow->priority;
 	tgtflow->idle_timeout = 0;
 	tgtflow->hard_timeout = 0;
-        tgtflow->send_flow_exp = flow->send_flow_exp;
+	tgtflow->send_flow_rem = flow->send_flow_rem;
+	tgtflow->emerg_flow = 0;
 	flow_setup_actions(tgtflow, actions->actions, actions->actions_len);
 
 	error = chain_insert(private->dp->chain, tgtflow, 0);
@@ -112,11 +113,11 @@ do_protection(struct datapath *dp)
 }
 
 int
-private_recv_msg(struct datapath *dp, const struct sender *sender,
+private_recv_msg(struct datapath *dp, const struct sender *sender UNUSED,
 		 const void *ofph)
 {
-	struct private_vxhdr *vxhdr = ofph;
-	struct private_vxopt *vxopt = (vxhdr + 1);
+	struct private_vxhdr *vxhdr = (struct private_vxhdr *)ofph;
+	struct private_vxopt *vxopt = (struct private_vxopt *)(vxhdr + 1);
 	int error = 0;
 
 	switch (ntohs(vxopt->pvo_type)) {

@@ -1095,7 +1095,10 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 	struct sk_buff *skb;
 	struct nx_flow_end *nfe;
 
-	if (!dp->send_flow_end && !flow->send_flow_exp)
+	if (!dp->send_flow_end && !flow->send_flow_rem)
+		return 0;
+
+	if (flow->emerg_flow)
 		return 0;
 
 	nfe = alloc_openflow_skb(dp, sizeof *nfe, OFPT_VENDOR, 0, &skb);
@@ -1113,7 +1116,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 	nfe->tcp_flags = flow->tcp_flags;
 	nfe->ip_tos = flow->ip_tos;
 
-	nfe->send_flow_exp = flow->send_flow_exp;
+	nfe->send_flow_exp = flow->send_flow_rem;
 
 	nfe->idle_timeout = htons(flow->idle_timeout);
 

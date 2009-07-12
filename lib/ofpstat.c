@@ -198,6 +198,9 @@ inc_error_notification(struct ofpstat *ifps, struct ofp_header *hdr)
 		case OFPFMFC_EPERM:
 			INC_IFP_STAT(ifps, ofps_error_code.fmf_eperm);
 			break;
+		case OFPFMFC_EMERG:
+			INC_IFP_STAT(ifps, ofps_error_code.fmf_emerg);
+			break;
 		default:
 			INC_IFP_STAT(ifps, ofps_error_code.unknown);
 			break;

@@ -635,7 +635,9 @@ enum ofp_flow_mod_failed_code {
     OFPFMFC_ALL_TABLES_FULL,    /* Flow not added because of full tables. */
     OFPFMFC_OVERLAP,            /* Attempted to add overlapping flow with
                                  * CHECK_OVERLAP flag set. */
-    OFPFMFC_EPERM               /* Permissions error. */
+    OFPFMFC_EPERM,              /* Permissions error. */
+    OFPFMFC_EMERG               /* Flow not added because of non-zero idle/hard
+                                 * timeout. */
 };
 
 /* OFPT_ERROR: Error message (datapath -> controller). */

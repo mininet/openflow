@@ -64,8 +64,9 @@ struct sw_flow {
     uint64_t created;           /* When the flow was created. */
     uint64_t packet_count;      /* Number of packets seen. */
     uint64_t byte_count;        /* Number of bytes seen. */
-    uint8_t reason;             /* Reason flow expired (one of NXFER_*). */
-    uint8_t send_flow_exp;      /* Send a flow expiry to the controller */
+    uint8_t reason;             /* Reason flow removed (one of NXFER_*). */
+    uint8_t send_flow_rem;      /* Send a flow removed to the controller */
+    uint8_t emerg_flow;         /* Emergency flow indicator */
 
     uint8_t tcp_flags;          /* Union of seen TCP flags. */
     uint8_t ip_tos;             /* IP TOS value. */

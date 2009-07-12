@@ -537,7 +537,7 @@ output_packet(struct datapath *dp, struct ofpbuf *buffer, uint16_t out_port)
  */
 void
 dp_output_port(struct datapath *dp, struct ofpbuf *buffer,
-               int in_port, int out_port, bool ignore_no_fwd)
+               int in_port, int out_port, bool ignore_no_fwd UNUSED)
 {
 
     assert(buffer);
@@ -735,7 +735,11 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
     struct ofpbuf *buffer;
     struct nx_flow_end *nfe;
 
-    if (!dp->send_flow_end && !flow->send_flow_exp) {
+    if (!dp->send_flow_end && !flow->send_flow_rem) {
+        return;
+    }
+
+    if (flow->emerg_flow) {
         return;
     }
 
@@ -754,7 +758,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
     nfe->tcp_flags = flow->tcp_flags;
     nfe->ip_tos = flow->ip_tos;
 
-    nfe->send_flow_exp = flow->send_flow_exp;
+    nfe->send_flow_exp = flow->send_flow_rem;
 
     nfe->idle_timeout = htons(flow->idle_timeout);
 
@@ -1016,10 +1020,19 @@ add_flow(struct datapath *dp, const struct sender *sender,
         }
     }
 
+    if (ntohs(ofm->flags) & OFPFF_EMERG) {
+        if (ntohs(ofm->idle_timeout) != 0 || ntohs(ofm->hard_timeout) != 0) {
+            dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED,
+                              OFPFMFC_EMERG, ofm, ntohs(ofm->header.length));
+            goto error_free_flow;
+        }
+    }
+
     /* Fill out flow. */
     flow->idle_timeout = ntohs(ofm->idle_timeout);
     flow->hard_timeout = ntohs(ofm->hard_timeout);
-    flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM) ? 1 : 0;
+    flow->send_flow_rem = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM) ? 1 : 0;
+    flow->emerg_flow = (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0;
     flow_setup_actions(flow, ofm->actions, actions_len);
 
     /* Act. */
@@ -1092,7 +1105,8 @@ mod_flow(struct datapath *dp, const struct sender *sender,
         /* Fill out flow. */
         flow->idle_timeout = ntohs(ofm->idle_timeout);
         flow->hard_timeout = ntohs(ofm->hard_timeout);
-        flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM) ? 1 : 0;
+        flow->send_flow_rem = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM) ? 1 : 0;
+        flow->emerg_flow = (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0;
         flow_setup_actions(flow, ofm->actions, actions_len);
         error = chain_insert(dp->chain, flow,
                              (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
@@ -1407,8 +1421,8 @@ static void port_stats_done(void *state)
  * };
  */
 static int
-vendor_stats_init(const void *body, int body_len,
-                  void **state)
+vendor_stats_init(const void *body, int body_len UNUSED,
+                  void **state UNUSED)
 {
         /* min_body was checked, this should be safe */
         const uint32_t vendor = ntohl(*((uint32_t *)body));
@@ -1423,7 +1437,8 @@ vendor_stats_init(const void *body, int body_len,
 }
 
 static int
-vendor_stats_dump(struct datapath *dp, void *state, struct ofpbuf *buffer)
+vendor_stats_dump(struct datapath *dp UNUSED, void *state,
+                  struct ofpbuf *buffer UNUSED)
 {
         const uint32_t vendor = *((uint32_t *)state);
         int err;

@@ -237,10 +237,8 @@ usage(void)
            "  dump-aggregate SWITCH FLOW  print aggregate stats for FLOWs\n"
            "  add-flow SWITCH FLOW        add flow described by FLOW\n"
            "  add-flows SWITCH FILE       add flows from FILE\n"
-           "  add-emerg-flow SWITCH FLOW  add emergency flow described by FLOW\n"
            "  mod-flows SWITCH FLOW       modify actions of matching FLOWs\n"
            "  del-flows SWITCH [FLOW]     delete matching FLOWs\n"
-           "  del-emerg-flows SWITCH [FLOW] delete matching emergency FLOWs\n"
            "  monitor SWITCH              print packets received from SWITCH\n"
            "  execute SWITCH CMD [ARG...] execute CMD with ARGS on SWITCH\n"
            "\nFor local datapaths, remote switches, and controllers:\n"
@@ -640,11 +638,12 @@ print_protocol_stat(struct ofpstat *ofps_rcvd, struct ofpstat *ofps_sent)
         fprintf(stdout,
                 PREFIX_STR
                 "%"PRIu64" flow mod fail: %"PRIu64" all tables full, "
-                "%"PRIu64" overlap, %"PRIu64" eperm\n",
+                "%"PRIu64" overlap, %"PRIu64" eperm, %"PRIu64" emerg\n",
                 ntohll(ifps->ofps_error_type.flow_mod_fail),
                 ntohll(ifps->ofps_error_code.fmf_all_tables_full),
                 ntohll(ifps->ofps_error_code.fmf_overlap),
-                ntohll(ifps->ofps_error_code.fmf_eperm));
+                ntohll(ifps->ofps_error_code.fmf_eperm),
+                ntohll(ifps->ofps_error_code.fmf_emerg));
         fprintf(stdout,
                 PREFIX_STR
                 "%"PRIu64" unknown type, %"PRIu64" unknown code\n",
@@ -939,7 +938,7 @@ parse_field(const char *name, const struct field **f_out)
 
 static void
 str_to_flow(char *string, struct ofp_match *match, struct ofpbuf *actions,
-            uint8_t *table_idx, uint16_t *out_port, uint16_t *priority, 
+            uint8_t *table_idx, uint16_t *out_port, uint16_t *priority,
             uint16_t *idle_timeout, uint16_t *hard_timeout)
 {
     char *save_ptr = NULL;
@@ -962,7 +961,7 @@ str_to_flow(char *string, struct ofp_match *match, struct ofpbuf *actions,
         *hard_timeout = OFP_FLOW_PERMANENT;
     }
     if (actions) {
-        char *act_str = strstr(string, "action");
+        char *act_str = strstr(string, "actions");
         if (!act_str) {
             ofp_fatal(0, "must specify an action");
         }
@@ -998,7 +997,7 @@ str_to_flow(char *string, struct ofp_match *match, struct ofpbuf *actions,
             if (!value) {
                 ofp_fatal(0, "field %s missing value", name);
             }
-        
+
             if (table_idx && !strcmp(name, "table")) {
                 *table_idx = atoi(value);
             } else if (out_port && !strcmp(name, "out_port")) {
@@ -1067,6 +1066,8 @@ do_dump_aggregate(const struct settings *s UNUSED, int argc, char *argv[])
     dump_stats_transaction(argv[1], request);
 }
 
+#define EMERG_TABLE_ID 0xfe
+
 static void
 do_add_flow(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 {
@@ -1074,50 +1075,24 @@ do_add_flow(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
     struct ofpbuf *buffer;
     struct ofp_flow_mod *ofm;
     uint16_t priority, idle_timeout, hard_timeout;
+    uint8_t table_id;
     struct ofp_match match;
 
     /* Parse and send.  str_to_flow() will expand and reallocate the data in
      * 'buffer', so we can't keep pointers to across the str_to_flow() call. */
     make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
     str_to_flow(argv[2], &match, buffer,
-                NULL, NULL, &priority, &idle_timeout, &hard_timeout);
+                &table_id, NULL, &priority, &idle_timeout, &hard_timeout);
     ofm = buffer->data;
     ofm->match = match;
     ofm->command = htons(OFPFC_ADD);
-    ofm->idle_timeout = htons(idle_timeout);
-    ofm->hard_timeout = htons(hard_timeout);
+    ofm->idle_timeout = table_id == EMERG_TABLE_ID ? 0 : htons(idle_timeout);
+    ofm->hard_timeout = table_id == EMERG_TABLE_ID ? 0 : htons(hard_timeout);
     ofm->buffer_id = htonl(UINT32_MAX);
     ofm->priority = htons(priority);
-    ofm->reserved = htonl(0);
-
-    open_vconn(argv[1], &vconn);
-    send_openflow_buffer(vconn, buffer);
-    vconn_close(vconn);
-}
-
-static void
-do_add_emerg_flow(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
-{
-    struct vconn *vconn;
-    struct ofpbuf *buffer;
-    struct ofp_flow_mod *ofm;
-    uint16_t priority, idle_timeout, hard_timeout, flags;
-    struct ofp_match match;
-
-    /* Parse and send.  str_to_flow() will expand and reallocate the data in
-     * 'buffer', so we can't keep pointers to across the str_to_flow() call. */
-    make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
-    str_to_flow(argv[2], &match, buffer,
-                NULL, NULL, &priority, &idle_timeout, &hard_timeout);
-    ofm = buffer->data;
-    ofm->match = match;
-    ofm->command = htons(OFPFC_ADD);
-    ofm->idle_timeout = htons(idle_timeout);
-    ofm->hard_timeout = htons(hard_timeout);
-    ofm->buffer_id = htonl(UINT32_MAX);
-    ofm->priority = htons(priority);
-    flags = OFPFF_EMERG;
-    ofm->flags = htons(flags);
+    ofm->flags = htons(OFPFF_SEND_FLOW_REM);
+    if (table_id == EMERG_TABLE_ID)
+        ofm->flags |= htons(OFPFF_EMERG);
     ofm->reserved = htonl(0);
 
     open_vconn(argv[1], &vconn);
@@ -1142,6 +1117,7 @@ do_add_flows(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
         struct ofpbuf *buffer;
         struct ofp_flow_mod *ofm;
         uint16_t priority, idle_timeout, hard_timeout;
+        uint8_t table_id;
         struct ofp_match match;
 
         char *comment;
@@ -1162,14 +1138,17 @@ do_add_flows(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
          * call. */
         ofm = make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
         str_to_flow(line, &match, buffer,
-                    NULL, NULL, &priority, &idle_timeout, &hard_timeout);
+                    &table_id, NULL, &priority, &idle_timeout, &hard_timeout);
         ofm = buffer->data;
         ofm->match = match;
         ofm->command = htons(OFPFC_ADD);
-        ofm->idle_timeout = htons(idle_timeout);
-        ofm->hard_timeout = htons(hard_timeout);
+        ofm->idle_timeout = table_id == EMERG_TABLE_ID ? 0 : htons(idle_timeout);
+        ofm->hard_timeout = table_id == EMERG_TABLE_ID ? 0 : htons(hard_timeout);
         ofm->buffer_id = htonl(UINT32_MAX);
         ofm->priority = htons(priority);
+        ofm->flags = htons(OFPFF_SEND_FLOW_REM);
+        if (table_id == EMERG_TABLE_ID)
+            ofm->flags |= htons(OFPFF_EMERG);
         ofm->reserved = htonl(0);
 
         send_openflow_buffer(vconn, buffer);
@@ -1182,6 +1161,7 @@ static void
 do_mod_flows(const struct settings *s, int argc UNUSED, char *argv[])
 {
     uint16_t priority, idle_timeout, hard_timeout;
+    uint8_t table_id;
     struct vconn *vconn;
     struct ofpbuf *buffer;
     struct ofp_flow_mod *ofm;
@@ -1189,15 +1169,17 @@ do_mod_flows(const struct settings *s, int argc UNUSED, char *argv[])
     /* Parse and send. */
     ofm = make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
     str_to_flow(argv[2], &ofm->match, buffer,
-                NULL, NULL, &priority, &idle_timeout, &hard_timeout);
+                &table_id, NULL, &priority, &idle_timeout, &hard_timeout);
     if (s->strict) {
         ofm->command = htons(OFPFC_MODIFY_STRICT);
     } else {
         ofm->command = htons(OFPFC_MODIFY);
     }
-    ofm->idle_timeout = htons(idle_timeout);
-    ofm->hard_timeout = htons(hard_timeout);
+    ofm->idle_timeout = table_id == EMERG_TABLE_ID ? 0 : htons(idle_timeout);
+    ofm->hard_timeout = table_id == EMERG_TABLE_ID ? 0 : htons(hard_timeout);
     ofm->buffer_id = htonl(UINT32_MAX);
+    if (table_id == EMERG_TABLE_ID)
+        ofm->flags = htons(OFPFF_EMERG);
     ofm->priority = htons(priority);
     ofm->reserved = htonl(0);
 
@@ -1211,13 +1193,14 @@ static void do_del_flows(const struct settings *s, int argc, char *argv[])
     struct vconn *vconn;
     uint16_t priority;
     uint16_t out_port;
+    uint8_t table_id;
     struct ofpbuf *buffer;
     struct ofp_flow_mod *ofm;
 
     /* Parse and send. */
     ofm = make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
-    str_to_flow(argc > 2 ? argv[2] : "", &ofm->match, NULL, NULL, 
-                &out_port, &priority, NULL, NULL);
+    str_to_flow(argc > 2 ? argv[2] : "", &ofm->match, NULL,
+                &table_id, &out_port, &priority, NULL, NULL);
     if (s->strict) {
         ofm->command = htons(OFPFC_DELETE_STRICT);
     } else {
@@ -1226,40 +1209,10 @@ static void do_del_flows(const struct settings *s, int argc, char *argv[])
     ofm->idle_timeout = htons(0);
     ofm->hard_timeout = htons(0);
     ofm->buffer_id = htonl(UINT32_MAX);
+    if (table_id == EMERG_TABLE_ID)
+        ofm->flags = htons(OFPFF_EMERG);
     ofm->out_port = htons(out_port);
     ofm->priority = htons(priority);
-    ofm->reserved = htonl(0);
-
-    open_vconn(argv[1], &vconn);
-    send_openflow_buffer(vconn, buffer);
-    vconn_close(vconn);
-}
-
-static void do_del_emerg_flows(const struct settings *s, int argc, char *argv[])
-{
-    struct vconn *vconn;
-    uint16_t priority;
-    uint16_t out_port;
-    uint16_t flags;
-    struct ofpbuf *buffer;
-    struct ofp_flow_mod *ofm;
-
-    /* Parse and send. */
-    ofm = make_openflow(sizeof *ofm, OFPT_FLOW_MOD, &buffer);
-    str_to_flow(argc > 2 ? argv[2] : "", &ofm->match, NULL, NULL, 
-                &out_port, &priority, NULL, NULL);
-    if (s->strict) {
-        ofm->command = htons(OFPFC_DELETE_STRICT);
-    } else {
-        ofm->command = htons(OFPFC_DELETE);
-    }
-    ofm->idle_timeout = htons(0);
-    ofm->hard_timeout = htons(0);
-    ofm->buffer_id = htonl(UINT32_MAX);
-    ofm->out_port = htons(out_port);
-    ofm->priority = htons(priority);
-    flags = OFPFF_EMERG;
-    ofm->flags = htons(flags);
     ofm->reserved = htonl(0);
 
     open_vconn(argv[1], &vconn);
@@ -1576,10 +1529,8 @@ static struct command all_commands[] = {
     { "dump-aggregate", 1, 2, do_dump_aggregate },
     { "add-flow", 2, 2, do_add_flow },
     { "add-flows", 2, 2, do_add_flows },
-    { "add-emerg-flow", 2, 2, do_add_emerg_flow },
     { "mod-flows", 2, 2, do_mod_flows },
     { "del-flows", 1, 2, do_del_flows },
-    { "del-emerg-flows", 1, 2, do_del_emerg_flows },
     { "dump-ports", 1, 1, do_dump_ports },
     { "mod-port", 3, 3, do_mod_port },
     { "probe", 1, 1, do_probe },

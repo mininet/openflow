@@ -233,6 +233,7 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 	}
 
 	flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
+
 	if (ntohs(ofm->flags) & OFPFF_CHECK_OVERLAP) {
 		/* check whether there is any conflict */
 		overlap = chain_has_conflict(chain, &flow->key, flow->priority,
@@ -246,10 +247,22 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 		}
 	}
 
+	if (ntohs(ofm->flags) & OFPFF_EMERG) {
+		if (ntohs(ofm->idle_timeout) != 0
+		    || ntohs(ofm->hard_timeout) != 0) {
+			dp_send_error_msg(chain->dp, sender,
+					  OFPET_FLOW_MOD_FAILED,
+					  OFPFMFC_EMERG,
+					  ofm, ntohs(ofm->header.length));
+			goto error_free_flow;
+		}
+	}
+
 	/* Fill out flow. */
 	flow->idle_timeout = ntohs(ofm->idle_timeout);
 	flow->hard_timeout = ntohs(ofm->hard_timeout);
-        flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM) ? 1 : 0;
+        flow->send_flow_rem = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM) ? 1 : 0;
+        flow->emerg_flow = (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0;
 	flow_setup_actions(flow, ofm->actions, actions_len);
 
 	/* Act. */
@@ -320,8 +333,9 @@ mod_flow(struct sw_chain *chain, const struct sender *sender,
 		/* Fill out flow. */
 		flow->idle_timeout = ntohs(ofm->idle_timeout);
 		flow->hard_timeout = ntohs(ofm->hard_timeout);
-		flow->send_flow_exp = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM)
+		flow->send_flow_rem = (ntohs(ofm->flags) & OFPFF_SEND_FLOW_REM)
 			? 1 : 0;
+		flow->emerg_flow = (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0;
 		flow_setup_actions(flow, ofm->actions, actions_len);
 		error = chain_insert(chain, flow,
 				     (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
