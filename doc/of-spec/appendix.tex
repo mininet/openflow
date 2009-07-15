@@ -66,7 +66,7 @@ Output actions are described in Section \ref{ft:actions}, while Field-Modify act
 An \verb|action_output| has the following fields:
 
 \input{struct/ofp_action_output}
-The \verb|max_len| indicates the maximum amount of data from a packet that should be sent when the port is \verb|OFPP_CONTROLLER|.  If \verb|max_len| is zero, then the entire packet should be sent.  The \verb|port| specifies the physical port from which packet packets should be sent. 
+The \verb|max_len| indicates the maximum amount of data from a packet that should be sent when the port is \verb|OFPP_CONTROLLER|.  If \verb|max_len| is zero, the switch must send a zero-size packet_in message.  The \verb|port| specifies the physical port from which packets should be sent. 
  \\\\
 An \verb|action_vlan_vid| has the following fields:
 
