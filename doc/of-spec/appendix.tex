@@ -112,6 +112,8 @@ The \verb|vendor| field is the Vendor ID, which takes the same form as in struct
 Upon SSL session establishment, the controller sends an \verb|OFPT_FEATURES_REQUEST| message.  This message does not contain a body beyond the OpenFlow header.  The switch responds with an \verb|OFPT_FEATURES_REPLY| message:
 
 \input{struct/ofp_switch_features}
+The \verb|datapath_id| field uniquely identifies a datapath.  The lower 48 bits are intended for the switch MAC address, while the top 16 bits are up to the implementer.  An example use of the top 16 bits would be a VLAN ID to distinguish multiple virtual switch instances on a single physical switch.  This field should be treated as an opaque bit string by controllers.
+\\\\
 The \verb|n_tables| field describes the number of tables supported by the switch, each of which can have a different set of supported wildcard bits and number of entries.  When the controller and switch first communicate, the controller will find out how many tables the switch supports from the Features Reply. If it wishes to understand the size, types, and order in which tables are consulted, the controller sends a \verb|OFPST_TABLE| stats request. A switch must return these tables in the order the packets traverse the tables, with all exact-match tables listed before all tables with wildcards.
 \\\\
 The \verb|capabilities| field uses the following flags:
