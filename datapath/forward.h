@@ -20,6 +20,7 @@ struct sender;
 
 #define PKT_COOKIE_BITS (32 - PKT_BUFFER_BITS)
 
+#define PKTSIZ_ENOUGH_TO_CARRY_ENTIRE_PACKET 65535
 
 void fwd_port_input(struct sw_chain *, struct sk_buff *,
 		    struct net_bridge_port *);

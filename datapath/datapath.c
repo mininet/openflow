@@ -659,7 +659,9 @@ int dp_output_port(struct datapath *dp, struct sk_buff *skb, int out_port,
 		return output_all(dp, skb, 0);
 
 	case OFPP_CONTROLLER:
-		return dp_output_control(dp, skb, 0, OFPR_ACTION);
+		return dp_output_control(dp, skb, 
+					 PKTSIZ_ENOUGH_TO_CARRY_ENTIRE_PACKET,
+					 OFPR_ACTION);
 
 	case OFPP_LOCAL: {
 		struct net_device *dev = dp->netdev;
@@ -750,8 +752,8 @@ out:
 
 /* Takes ownership of 'skb' and transmits it to 'dp''s control path.  'reason'
  * indicates why 'skb' is being sent. 'max_len' sets the maximum number of
- * bytes that the caller wants to be sent; a value of 0 indicates the entire
- * packet should be sent. */
+ * bytes that the caller wants to be sent.
+ */
 int
 dp_output_control(struct datapath *dp, struct sk_buff *skb,
 		  size_t max_len, int reason)
@@ -783,7 +785,7 @@ dp_output_control(struct datapath *dp, struct sk_buff *skb,
 	buffer_id = fwd_save_skb(skb);
 
 	fwd_len = skb->len;
-	if ((buffer_id != (uint32_t) -1) && max_len)
+	if (buffer_id != (uint32_t) -1)
 		fwd_len = min(fwd_len, max_len);
 
 	opi_len = offsetof(struct ofp_packet_in, data) + fwd_len;

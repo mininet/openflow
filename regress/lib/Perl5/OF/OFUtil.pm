@@ -871,12 +871,19 @@ sub combine_args {
     #and No action for drops
     my $action_output_args;
     my $action_output;
+
+    my $max_len;
+    if ($out_port != $enums{'OFPP_CONTROLLER'}) {
+        $max_len = 0;
+    } else {
+        $max_len = 65535;
+    }
     if ($mod_type ne 'drop') {
 	$action_output_args = {
 	    type => $enums{'OFPAT_OUTPUT'},
 	    len => $ofp->sizeof('ofp_action_output'),
 	    port => $out_port,
-	    max_len => 0,	# send entire packet
+	    max_len => $max_len,
 	};
 	$action_output = $ofp->pack('ofp_action_output', $action_output_args);
     }
@@ -1737,11 +1744,17 @@ sub create_flow_mod_from_icmp_action {
                 tp_dst    => $icmp_code
         };
 
+        my $max_len;
+        if ($out_port != $enums{'OFPP_CONTROLLER'}) {
+            $max_len = 0;
+        } else {
+            $max_len = 65535;
+        }
         my $action_output_args = {
                 type => $enums{'OFPAT_OUTPUT'},
                 len => $ofp->sizeof('ofp_action_output'),
                 port => $out_port,
-                max_len => 0,                                     # send entire packet
+                max_len => $max_len,
         };
 
         my $action_output = $ofp->pack( 'ofp_action_output', $action_output_args );

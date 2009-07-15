@@ -2175,14 +2175,10 @@ static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offs
     dissect_port( tree, ofp_action_output_port, tvb, offset );
 
     /* determine the maximum number of bytes to send (0 =>  no limit) */
-	guint16 max_len = tvb_get_ntohs( tvb, *offset );
-    if( max_len ) {
-        char str[11];
-        snprintf( str, 11, "%u", max_len );
-        add_child_str( tree, ofp_action_output_max_len, tvb, offset, 2, str );
-    }
-    else
-        add_child_str( tree, ofp_action_output_max_len, tvb, offset, 2, "entire packet (no limit)" );
+    guint16 max_len = tvb_get_ntohs( tvb, *offset );
+    char str[11];
+    snprintf( str, 11, "%u", max_len );
+    add_child_str( tree, ofp_action_output_max_len, tvb, offset, 2, str );
 }
 
 /** returns the number of bytes dissected (-1 if an unknown action type is
@@ -2614,18 +2610,18 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             add_child(type_tree, ofp_packet_in_reason, tvb, &offset, 1);
             dissect_pad(type_tree, &offset, 1);
 
-            /* continue the dissection with the Ethernet dissector */
-            if( data_ethernet ) {
-                proto_item *data_item = proto_tree_add_item(type_tree, ofp_packet_in_data_hdr, tvb, offset, -1, FALSE);
-                proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_packet_in_data_hdr);
-                tvbuff_t *next_tvb = tvb_new_subset(tvb, offset, -1, total_len);
-                dissect_ethernet(next_tvb, pinfo, data_tree);
+            if (len > sizeof(struct ofp_packet_in)) {
+                /* continue the dissection with the Ethernet dissector */
+                if (data_ethernet) {
+                    proto_item *data_item = proto_tree_add_item(type_tree, ofp_packet_in_data_hdr, tvb, offset, -1, FALSE);
+                    proto_tree *data_tree = proto_item_add_subtree(data_item, ett_ofp_packet_in_data_hdr);
+                    tvbuff_t *next_tvb = tvb_new_subset(tvb, offset, -1, total_len);
+                    dissect_ethernet(next_tvb, pinfo, data_tree);
+                } else {
+                    /* if we couldn't load the ethernet dissector, just display the bytes */
+                    add_child(type_tree, ofp_packet_in_data_hdr, tvb, &offset, total_len);
+                }
             }
-            else {
-                /* if we couldn't load the ethernet dissector, just display the bytes */
-                add_child(type_tree, ofp_packet_in_data_hdr, tvb, &offset, total_len);
-            }
-
             break;
         }
 

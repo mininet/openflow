@@ -63,6 +63,8 @@ struct sw_port {
 #define DP_MAX_PORTS 255
 BUILD_ASSERT_DECL(DP_MAX_PORTS <= OFPP_MAX);
 
+#define PKTSIZ_ENOUGH_TO_CARRY_ENTIRE_PACKET 65535
+
 struct datapath {
     /* Remote connections. */
     struct list remotes;        /* All connections (including controller). */

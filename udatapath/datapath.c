@@ -563,7 +563,8 @@ dp_output_port(struct datapath *dp, struct ofpbuf *buffer,
         break;
 
     case OFPP_CONTROLLER:
-        dp_output_control(dp, buffer, in_port, 0, OFPR_ACTION);
+        dp_output_control(dp, buffer, in_port,
+                          PKTSIZ_ENOUGH_TO_CARRY_ENTIRE_PACKET, OFPR_ACTION);
         break;
 
     case OFPP_LOCAL:
@@ -627,8 +628,7 @@ send_openflow_buffer(struct datapath *dp, struct ofpbuf *buffer,
  * packet can be saved in a buffer, then only the first max_len bytes of
  * 'buffer' are sent; otherwise, all of 'buffer' is sent.  'reason' indicates
  * why 'buffer' is being sent. 'max_len' sets the maximum number of bytes that
- * the caller wants to be sent; a value of 0 indicates the entire packet should
- * be sent. */
+ * the caller wants to be sent. */
 void
 dp_output_control(struct datapath *dp, struct ofpbuf *buffer, int in_port,
                   size_t max_len, int reason)
@@ -639,7 +639,7 @@ dp_output_control(struct datapath *dp, struct ofpbuf *buffer, int in_port,
 
     buffer_id = save_buffer(buffer);
     total_len = buffer->size;
-    if (buffer_id != UINT32_MAX && max_len && buffer->size > max_len) {
+    if (buffer_id != UINT32_MAX && buffer->size > max_len) {
         buffer->size = max_len;
     }
 

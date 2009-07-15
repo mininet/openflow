@@ -923,6 +923,8 @@ make_add_simple_flow(const struct flow *flow,
     oao->type = htons(OFPAT_OUTPUT);
     oao->len = htons(sizeof *oao);
     oao->port = htons(out_port);
+    if (oao->port == htons(OFPP_CONTROLLER))
+        oao->max_len = htons(65535); /* Enough to carry entire packet */
     return buffer;
 }
 
