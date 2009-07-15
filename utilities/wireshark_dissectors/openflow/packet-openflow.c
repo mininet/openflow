@@ -99,7 +99,7 @@ static const value_string names_ofp_action_type[] = {
     { OFPAT_SET_DL_DST,   "Ethernet destination address" },
     { OFPAT_SET_NW_SRC,   "IP source address" },
     { OFPAT_SET_NW_DST,   "IP destination address" },
-	{ OFPAT_SET_NW_TOS,   "Set IP TOS field" },
+    { OFPAT_SET_NW_TOS,   "Set IP TOS field" },
     { OFPAT_SET_TP_SRC,   "TCP/UDP source port" },
     { OFPAT_SET_TP_DST,   "TCP/UDP destination port"},
     { OFPAT_VENDOR,       "Vendor-defined action"},
@@ -2095,7 +2095,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     proto_item *match_item = proto_tree_add_item(tree, ofp_match, tvb, *offset, sizeof(struct ofp_match), FALSE);
     proto_tree *match_tree = proto_item_add_subtree(match_item, ett_ofp_match);
 
-	/* save wildcards field for later */
+    /* save wildcards field for later */
     guint32 wildcards = tvb_get_ntohl( tvb, *offset );
 
     dissect_wildcards(match_tree, match_item, tvb, pinfo, offset, ofp_match_wildcards);
@@ -2121,6 +2121,13 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 2;
 
+    if( ~wildcards & OFPFW_DL_VLAN_PCP )
+        add_child(match_tree, ofp_match_dl_vlan_pcp, tvb, offset, 1);
+    else
+        *offset += 1;
+
+    dissect_pad(match_tree, offset, 1);
+
     if( ~wildcards & OFPFW_DL_TYPE )
         dissect_dl_type(match_tree, ofp_match_dl_type, tvb, offset);
     else
@@ -2134,10 +2141,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 1;
 
-    if( ~wildcards & OFPFW_DL_VLAN_PCP )
-        add_child(match_tree, ofp_match_dl_vlan_pcp, tvb, offset, 1);
-    else
-        *offset += 1;
+    dissect_pad(match_tree, offset, 3);
 
     if( ~wildcards & OFPFW_NW_SRC_MASK )
         add_child(match_tree, ofp_match_nw_src, tvb, offset, 4);

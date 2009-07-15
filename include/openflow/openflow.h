@@ -511,15 +511,17 @@ struct ofp_match {
     uint8_t dl_src[OFP_ETH_ALEN]; /* Ethernet source address. */
     uint8_t dl_dst[OFP_ETH_ALEN]; /* Ethernet destination address. */
     uint16_t dl_vlan;          /* Input VLAN id. */
+    uint8_t dl_vlan_pcp;       /* Input VLAN priority. */
+    uint8_t pad1[1];           /* Align to 64-bits */
     uint16_t dl_type;          /* Ethernet frame type. */
     uint8_t nw_proto;          /* IP protocol. */
-    uint8_t dl_vlan_pcp;       /* Input VLAN priority. */
+    uint8_t pad2[3];           /* Align to 64-bits */
     uint32_t nw_src;           /* IP source address. */
     uint32_t nw_dst;           /* IP destination address. */
     uint16_t tp_src;           /* TCP/UDP source port. */
     uint16_t tp_dst;           /* TCP/UDP destination port. */
 };
-OFP_ASSERT(sizeof(struct ofp_match) == 36);
+OFP_ASSERT(sizeof(struct ofp_match) == 40);
 
 /* The match fields for ICMP type and code use the transport source and
  * destination port fields, respectively. */
@@ -562,7 +564,7 @@ struct ofp_flow_mod {
                                             from the length field in the
                                             header. */
 };
-OFP_ASSERT(sizeof(struct ofp_flow_mod) == 64);
+OFP_ASSERT(sizeof(struct ofp_flow_mod) == 68);
 
 /* Why was this flow removed? */
 enum ofp_flow_removed_reason {
@@ -586,7 +588,7 @@ struct ofp_flow_removed {
     uint64_t packet_count;
     uint64_t byte_count;
 };
-OFP_ASSERT(sizeof(struct ofp_flow_removed) == 72);
+OFP_ASSERT(sizeof(struct ofp_flow_removed) == 76);
 
 /* Values for 'type' in ofp_error_message.  These values are immutable: they
  * will not change in future versions of the protocol (although new values may
@@ -726,7 +728,7 @@ struct ofp_flow_stats_request {
                                  as an output port.  A value of OFPP_NONE
                                  indicates no restriction. */
 };
-OFP_ASSERT(sizeof(struct ofp_flow_stats_request) == 40);
+OFP_ASSERT(sizeof(struct ofp_flow_stats_request) == 44);
 
 /* Body of reply to OFPST_FLOW request. */
 struct ofp_flow_stats {
@@ -744,7 +746,7 @@ struct ofp_flow_stats {
     uint64_t byte_count;      /* Number of bytes in flow. */
     struct ofp_action_header actions[0]; /* Actions. */
 };
-OFP_ASSERT(sizeof(struct ofp_flow_stats) == 72);
+OFP_ASSERT(sizeof(struct ofp_flow_stats) == 76);
 
 /* Body for ofp_stats_request of type OFPST_AGGREGATE. */
 struct ofp_aggregate_stats_request {
@@ -756,7 +758,7 @@ struct ofp_aggregate_stats_request {
                                  as an output port.  A value of OFPP_NONE
                                  indicates no restriction. */
 };
-OFP_ASSERT(sizeof(struct ofp_aggregate_stats_request) == 40);
+OFP_ASSERT(sizeof(struct ofp_aggregate_stats_request) == 44);
 
 /* Body of reply to OFPST_AGGREGATE request. */
 struct ofp_aggregate_stats_reply {
