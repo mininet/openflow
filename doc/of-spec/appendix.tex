@@ -133,6 +133,8 @@ The configuration flags include the following:
 
 \input{enum/ofp_config_flags}
 The \verb|OFPC_FRAG_*| flags indicate whether IP fragments should be treated normally, dropped, or reassembled.  ``Normal" handling of fragments means that an attempt should be made to pass the fragments through the OpenFlow tables. If any field is not present (e.g., the TCP/UDP ports didn't fit), then the packet should not match any entry that has that field set.
+\\\\
+The \verb|miss_send_len| field defines the number of bytes of each packet sent to the controller as a result of both flow table misses and flow table hits with the controller as the destination.  If this field equals 0, the switch must send a zero-size \verb|packet_in| message.
 
 \subsubsection{Modify State Messages}
 \paragraph{Modify Flow Entry Message}
