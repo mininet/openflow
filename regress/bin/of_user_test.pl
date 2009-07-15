@@ -22,6 +22,6 @@ sub INT_Handler {
 	exit(1);
 }
 
-push (@ARGV, "--root=$ENV{'OFT_ROOT'}", "--port_base=1", "--common-st-args=user");
+push (@ARGV, "--root=$ENV{'OFT_ROOT'}", "--map=$ENV{'OFT_ROOT'}/bin/eth.map", "--port_base=1", "--common-st-args=user");
 
 run_regress_test( \&INT_Handler, @ARGV );
