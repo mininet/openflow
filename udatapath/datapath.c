@@ -1023,7 +1023,8 @@ add_flow(struct datapath *dp, const struct sender *sender,
     if (ntohs(ofm->flags) & OFPFF_EMERG) {
         if (ntohs(ofm->idle_timeout) != 0 || ntohs(ofm->hard_timeout) != 0) {
             dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED,
-                              OFPFMFC_EMERG, ofm, ntohs(ofm->header.length));
+                              OFPFMFC_BAD_EMERG_TIMEOUT, ofm,
+                              ntohs(ofm->header.length));
             goto error_free_flow;
         }
     }

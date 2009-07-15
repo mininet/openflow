@@ -252,7 +252,7 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 		    || ntohs(ofm->hard_timeout) != 0) {
 			dp_send_error_msg(chain->dp, sender,
 					  OFPET_FLOW_MOD_FAILED,
-					  OFPFMFC_EMERG,
+					  OFPFMFC_BAD_EMERG_TIMEOUT,
 					  ofm, ntohs(ofm->header.length));
 			goto error_free_flow;
 		}

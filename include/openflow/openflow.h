@@ -636,7 +636,7 @@ enum ofp_flow_mod_failed_code {
     OFPFMFC_OVERLAP,            /* Attempted to add overlapping flow with
                                  * CHECK_OVERLAP flag set. */
     OFPFMFC_EPERM,              /* Permissions error. */
-    OFPFMFC_EMERG               /* Flow not added because of non-zero idle/hard
+    OFPFMFC_BAD_EMERG_TIMEOUT   /* Flow not added because of non-zero idle/hard
                                  * timeout. */
 };
 
