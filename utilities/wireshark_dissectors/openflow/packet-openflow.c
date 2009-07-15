@@ -1746,9 +1746,6 @@ static void dissect_port(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offs
     /* get the port number */
     guint16 port = tvb_get_ntohs( tvb, *offset );
 
-    /* save the numeric searchable field, but don't show it on the GUI */
-    proto_tree_add_item_hidden( tree, ofp_port, tvb, *offset, 2, FALSE );
-
     /* check to see if the port is special (e.g. the name of a fake output ports defined by ofp_port) */
     const char* str_port = NULL;
     char str_num[6];
