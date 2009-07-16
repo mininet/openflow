@@ -50,8 +50,7 @@
         extern int (*build_assert(void))[ sizeof(struct {               \
                     unsigned int build_assert_failed : (EXPR) ? 1 : -1; })]
 #else /* __cplusplus */
-#include <boost/static_assert.hpp>
-#define OFP_ASSERT BOOST_STATIC_ASSERT
+#define OFP_ASSERT(_EXPR) typedef int build_assert_failed[(_EXPR) ? 1 : -1]
 #endif /* __cplusplus */
 
 #ifndef SWIG
