@@ -470,7 +470,7 @@ void execute_actions(struct datapath *dp, struct ofpbuf *buffer,
      * freeing the original buffer is wasteful.  So the following code is
      * slightly obscure just to avoid that. */
     int prev_port;
-    size_t max_len = PKTSIZ_ENOUGH_TO_CARRY_ENTIRE_PACKET;
+    size_t max_len = UINT16_MAX;
     uint16_t in_port = ntohs(key->flow.in_port);
     uint8_t *p = (uint8_t *)actions;
 

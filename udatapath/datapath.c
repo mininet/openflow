@@ -563,8 +563,7 @@ dp_output_port(struct datapath *dp, struct ofpbuf *buffer,
         break;
 
     case OFPP_CONTROLLER:
-        dp_output_control(dp, buffer, in_port,
-                          PKTSIZ_ENOUGH_TO_CARRY_ENTIRE_PACKET, OFPR_ACTION);
+        dp_output_control(dp, buffer, in_port, UINT16_MAX, OFPR_ACTION);
         break;
 
     case OFPP_LOCAL:
@@ -1019,7 +1018,8 @@ add_flow(struct datapath *dp, const struct sender *sender,
     }
 
     if (ntohs(ofm->flags) & OFPFF_EMERG) {
-        if (ntohs(ofm->idle_timeout) != 0 || ntohs(ofm->hard_timeout) != 0) {
+        if (ntohs(ofm->idle_timeout) != OFP_FLOW_PERMANENT
+            || ntohs(ofm->hard_timeout) != OFP_FLOW_PERMANENT) {
             dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED,
                               OFPFMFC_BAD_EMERG_TIMEOUT, ofm,
                               ntohs(ofm->header.length));

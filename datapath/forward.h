@@ -20,7 +20,9 @@ struct sender;
 
 #define PKT_COOKIE_BITS (32 - PKT_BUFFER_BITS)
 
-#define PKTSIZ_ENOUGH_TO_CARRY_ENTIRE_PACKET 65535
+#define UINT32_MAX                        4294967295U
+#define UINT16_MAX                        65535
+#define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
 
 void fwd_port_input(struct sw_chain *, struct sk_buff *,
 		    struct net_bridge_port *);

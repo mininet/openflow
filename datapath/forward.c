@@ -248,8 +248,8 @@ add_flow(struct sw_chain *chain, const struct sender *sender,
 	}
 
 	if (ntohs(ofm->flags) & OFPFF_EMERG) {
-		if (ntohs(ofm->idle_timeout) != 0
-		    || ntohs(ofm->hard_timeout) != 0) {
+		if (ntohs(ofm->idle_timeout) != OFP_FLOW_PERMANENT
+		    || ntohs(ofm->hard_timeout) != OFP_FLOW_PERMANENT) {
 			dp_send_error_msg(chain->dp, sender,
 					  OFPET_FLOW_MOD_FAILED,
 					  OFPFMFC_BAD_EMERG_TIMEOUT,

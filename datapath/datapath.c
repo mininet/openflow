@@ -77,10 +77,6 @@ EXPORT_SYMBOL(dp_del_if_hook);
 /* Number of milliseconds between runs of the maintenance thread. */
 #define MAINT_SLEEP_MSECS 1000
 
-#define UINT32_MAX			  4294967295U
-#define UINT16_MAX			  65535
-#define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
-
 static struct genl_family dp_genl_family;
 
 /*
@@ -659,9 +655,7 @@ int dp_output_port(struct datapath *dp, struct sk_buff *skb, int out_port,
 		return output_all(dp, skb, 0);
 
 	case OFPP_CONTROLLER:
-		return dp_output_control(dp, skb, 
-					 PKTSIZ_ENOUGH_TO_CARRY_ENTIRE_PACKET,
-					 OFPR_ACTION);
+		return dp_output_control(dp, skb, UINT16_MAX, OFPR_ACTION);
 
 	case OFPP_LOCAL: {
 		struct net_device *dev = dp->netdev;

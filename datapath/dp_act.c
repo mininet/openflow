@@ -480,7 +480,7 @@ void execute_actions(struct datapath *dp, struct sk_buff *skb,
 	 * then freeing the original skbuff is wasteful.  So the following code
 	 * is slightly obscure just to avoid that. */
 	int prev_port;
-	size_t max_len = PKTSIZ_ENOUGH_TO_CARRY_ENTIRE_PACKET;
+	size_t max_len = UINT16_MAX;
 	uint8_t *p = (uint8_t *)actions;
 
 	prev_port = -1;

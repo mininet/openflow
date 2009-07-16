@@ -77,8 +77,8 @@ protection_callback(struct sw_flow *flow, void *private_)
 	flow_extract_match(&tgtflow->key, &match);
 	/* Fill out flow. */
 	tgtflow->priority = flow->priority;
-	tgtflow->idle_timeout = 0;
-	tgtflow->hard_timeout = 0;
+	tgtflow->idle_timeout = OFP_FLOW_PERMANENT;
+	tgtflow->hard_timeout = OFP_FLOW_PERMANENT;
 	tgtflow->send_flow_rem = flow->send_flow_rem;
 	tgtflow->emerg_flow = 0;
 	flow_setup_actions(tgtflow, actions->actions, actions->actions_len);
