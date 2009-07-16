@@ -762,8 +762,6 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 
     nfe->idle_timeout = htons(flow->idle_timeout);
 
-    memset(nfe->pad, 0, sizeof nfe->pad);
-
     nfe->init_time = htonll(flow->created);
     nfe->used_time = htonll(flow->used);
     nfe->end_time = htonll(time_msec());
@@ -813,7 +811,7 @@ fill_flow_stats(struct ofpbuf *buffer, struct sw_flow *flow,
     ofs->priority        = htons(flow->priority);
     ofs->idle_timeout    = htons(flow->idle_timeout);
     ofs->hard_timeout    = htons(flow->hard_timeout);
-    memset(ofs->pad2, 0, sizeof ofs->pad2);
+    memset(&ofs->pad2, 0, sizeof ofs->pad2);
     ofs->packet_count    = htonll(flow->packet_count);
     ofs->byte_count      = htonll(flow->byte_count);
     memcpy(ofs->actions, flow->sf_acts->actions, flow->sf_acts->actions_len);

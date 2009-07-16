@@ -584,11 +584,11 @@ struct ofp_flow_removed {
 
     uint32_t duration;        /* Time flow was alive in seconds. */
     uint16_t idle_timeout;    /* Idle timeout from original flow mod. */
-    uint8_t pad2[2];          /* Align to 64-bits. */
+    uint8_t pad2[6];          /* Align to 64-bits. */
     uint64_t packet_count;
     uint64_t byte_count;
 };
-OFP_ASSERT(sizeof(struct ofp_flow_removed) == 76);
+OFP_ASSERT(sizeof(struct ofp_flow_removed) == 80);
 
 /* Values for 'type' in ofp_error_message.  These values are immutable: they
  * will not change in future versions of the protocol (although new values may
@@ -741,12 +741,12 @@ struct ofp_flow_stats {
                                  when this is not an exact-match entry. */
     uint16_t idle_timeout;    /* Number of seconds idle before expiration. */
     uint16_t hard_timeout;    /* Number of seconds before expiration. */
-    uint16_t pad2[3];         /* Pad to 64 bits. */
+    uint16_t pad2;            /* Pad to 64 bits. */
     uint64_t packet_count;    /* Number of packets in flow. */
     uint64_t byte_count;      /* Number of bytes in flow. */
     struct ofp_action_header actions[0]; /* Actions. */
 };
-OFP_ASSERT(sizeof(struct ofp_flow_stats) == 76);
+OFP_ASSERT(sizeof(struct ofp_flow_stats) == 72);
 
 /* Body for ofp_stats_request of type OFPST_AGGREGATE. */
 struct ofp_aggregate_stats_request {

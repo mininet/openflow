@@ -182,8 +182,6 @@ struct nx_flow_end {
 
     uint16_t idle_timeout;    /* Idle time before discarding (seconds). */
 
-    uint8_t pad[4];           /* Align to 64-bits. */
-
     uint64_t init_time;       /* Time flow started in milliseconds. */
     uint64_t used_time;       /* Time entry was last used in milliseconds. */
     uint64_t end_time;        /* Time flow ended in milliseconds. */
@@ -191,6 +189,6 @@ struct nx_flow_end {
     uint64_t packet_count;
     uint64_t byte_count;
 };
-OFP_ASSERT(sizeof(struct nx_flow_end) == 108);
+OFP_ASSERT(sizeof(struct nx_flow_end) == 104);
 
 #endif /* openflow/nicira-ext.h */

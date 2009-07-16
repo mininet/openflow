@@ -1122,8 +1122,6 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 
 	nfe->idle_timeout = htons(flow->idle_timeout);
 
-	memset(nfe->pad, 0, sizeof nfe->pad);
-
 	nfe->init_time = cpu_to_be64(jiffies_64_to_msecs(flow->created));
 	nfe->used_time = cpu_to_be64(jiffies_64_to_msecs(flow->used));
 	nfe->end_time = cpu_to_be64(jiffies_64_to_msecs(get_jiffies_64()));
@@ -1526,7 +1524,7 @@ static int flow_stats_dump_callback(struct sw_flow *flow, void *private)
 	ofs->priority        = htons(flow->priority);
 	ofs->idle_timeout    = htons(flow->idle_timeout);
 	ofs->hard_timeout    = htons(flow->hard_timeout);
-	memset(ofs->pad2, 0, sizeof ofs->pad2);
+	memset(&ofs->pad2, 0, sizeof ofs->pad2);
 	ofs->packet_count    = cpu_to_be64(flow->packet_count);
 	ofs->byte_count      = cpu_to_be64(flow->byte_count);
 	memcpy(ofs->actions, sf_acts->actions, sf_acts->actions_len);
