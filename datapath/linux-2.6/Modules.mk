@@ -26,15 +26,6 @@ ofdatapath_headers += \
 	linux-2.6/compat-2.6/include/net/genetlink.h \
 	linux-2.6/compat-2.6/include/net/netlink.h
 
-#both_modules += brcompat
-brcompat_sources = \
-	linux-2.6/compat-2.6/genetlink-brcompat.c \
-	brcompat.c \
-	brc_sysfs_dp.c \
-	brc_sysfs_if.c 
-brcompat_headers = \
-	brc_sysfs.h 
-
 #dist_modules += veth
 #build_modules += $(if $(BUILD_VETH),veth)
 veth_sources = linux-2.6/compat-2.6/veth.c

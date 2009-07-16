@@ -701,55 +701,6 @@ bad_port:
 	return -ENOENT;
 }
 
-#ifdef CONFIG_XEN
-/* This code is copied verbatim from net/dev/core.c in Xen's
- * linux-2.6.18-92.1.10.el5.xs5.0.0.394.644.  We can't call those functions
- * directly because they aren't exported. */
-static int skb_pull_up_to(struct sk_buff *skb, void *ptr)
-{
-	if (ptr < (void *)skb->tail)
-		return 1;
-	if (__pskb_pull_tail(skb,
-			     ptr - (void *)skb->data - skb_headlen(skb))) {
-		return 1;
-	} else {
-		return 0;
-	}
-}
-
-inline int skb_checksum_setup(struct sk_buff *skb)
-{
-	if (skb->proto_csum_blank) {
-		if (skb->protocol != htons(ETH_P_IP))
-			goto out;
-		if (!skb_pull_up_to(skb, skb->nh.iph + 1))
-			goto out;
-		skb->h.raw = (unsigned char *)skb->nh.iph + 4*skb->nh.iph->ihl;
-		switch (skb->nh.iph->protocol) {
-		case IPPROTO_TCP:
-			skb->csum = offsetof(struct tcphdr, check);
-			break;
-		case IPPROTO_UDP:
-			skb->csum = offsetof(struct udphdr, check);
-			break;
-		default:
-			if (net_ratelimit())
-				printk(KERN_ERR "Attempting to checksum a non-"
-				       "TCP/UDP packet, dropping a protocol"
-				       " %d packet", skb->nh.iph->protocol);
-			goto out;
-		}
-		if (!skb_pull_up_to(skb, skb->h.raw + skb->csum + 2))
-			goto out;
-		skb->ip_summed = CHECKSUM_HW;
-		skb->proto_csum_blank = 0;
-	}
-	return 0;
-out:
-	return -EPROTO;
-}
-#endif
-
 /* Takes ownership of 'skb' and transmits it to 'dp''s control path.  'reason'
  * indicates why 'skb' is being sent. 'max_len' sets the maximum number of
  * bytes that the caller wants to be sent.
@@ -767,20 +718,6 @@ dp_output_control(struct datapath *dp, struct sk_buff *skb,
 	int err;
 
 	WARN_ON_ONCE(skb_shared(skb));
-
-#ifdef CONFIG_XEN
- 	/* If a checksum-deferred packet is forwarded to the controller,
-	 * correct the pointers and checksum.
- 	 */
-	err = skb_checksum_setup(skb);
- 	if (err)
- 		goto out;
-	if (skb->ip_summed == CHECKSUM_HW) {
-		err = skb_checksum_help(skb, 0);
-		if (err)
-			goto out;
-	}
-#endif
 
 	buffer_id = fwd_save_skb(skb);
 
