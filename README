@@ -1,4 +1,4 @@
-	OpenFlow Reference Release <http://openflowswitch.org>
+        OpenFlow Reference Release <http://openflowswitch.org>
 
 What is OpenFlow?
 -----------------
@@ -35,15 +35,15 @@ OpenFlow switch.  The first implementation, which is closely tied to
 Linux because it is partially implemented in the Linux kernel, has the
 following components:
 
-	- A Linux kernel module that implements the flow table and
+        - A Linux kernel module that implements the flow table and
           OpenFlow protocol, in the datapath directory.
 
-	- ofprotocol, a program that implements the secure channel
+        - ofprotocol, a program that implements the secure channel
           component of the reference switch.
 
-	- dpctl, a tool for configuring the kernel module.
+        - dpctl, a tool for configuring the kernel module.
 
-	- Hardware acceleration support, see README.hwtables
+        - Hardware acceleration support, see README.hwtables
 
 The second implementation has the following components:
 
@@ -56,24 +56,24 @@ The second implementation has the following components:
 
 This distribution includes some additional software as well:
 
-	- controller, a simple program that connects to any number of
+        - controller, a simple program that connects to any number of
           OpenFlow switches, commanding them to act as regular MAC
           learning switches.
 
-	- vlogconf, a utility that can adjust the logging levels of a
+        - vlogconf, a utility that can adjust the logging levels of a
           running ofprotocol or controller.
 
-	- ofp-pki, a utility for creating and managing the public-key
+        - ofp-pki, a utility for creating and managing the public-key
           infrastructure for OpenFlow switches.
 
-	- A patch to tcpdump that enables it to parse OpenFlow
+        - A patch to tcpdump that enables it to parse OpenFlow
           messages.
 
-	- A regression suite that tests OpenFlow functionality, please
-	      see regress/README. 
+        - A regression suite that tests OpenFlow functionality, please
+          see regress/README. 
 
-	- A Wireshark dissector that can decode the OpenFlow wire 
-	      protocol. Please see utilities/wireshark_dissectors/README.
+        - A Wireshark dissector that can decode the OpenFlow wire 
+          protocol. Please see utilities/wireshark_dissectors/README.
 
 For installation instructions, read INSTALL.  Each userspace program
 is also accompanied by a manpage.
@@ -89,7 +89,7 @@ Please contact us with portability-related bug reports or patches.
 
 The Linux kernel module is, of course, Linux-specific, and the dpctl
 utility will not be useful without the kernel module.  The testing of
-the kernel module has focused on Linux 2.6.26.  Linux 2.6 releases
+the kernel module has focused on Linux 2.6.28.  Linux 2.6 releases
 from 2.6.15 onward should also work.
 
 The userspace datapath implementation should be easy to port to

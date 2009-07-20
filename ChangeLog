@@ -1,13 +1,5 @@
-0.9.0-rc2 - 16 Jul 2009
------------------------
-    - Clarified emergeency flow cache behavior
-    - Clarified definition of datapath ID
-    - Clarified meaning of a zero-size miss_send_len
-    - Clarified meaning of a zero-size max_len in output action
-    - Changed protocol structure alignment to ensure 64-bit
-
-0.9.0-rc1 - 02 Jul 2009
------------------------
+0.9.0 - 20 Jul 2009
+-------------------
     - Removed monolithic switch process called switch
     - Added userspace data plane process named ofdatapath
     - Changed userspace control plane process name to ofprotocol
@@ -22,6 +14,11 @@
     - Added protocol statistics collector
     - Added IP ToS/DSCP rewrite feature
     - Changed port enumeration at 1 instead of 0
+    - Clarified emergeency flow cache behavior
+    - Clarified definition of datapath ID
+    - Clarified meaning of a zero-size miss_send_len
+    - Clarified meaning of a zero-size max_len in output action
+    - Changed protocol structure alignment to ensure 64-bit
 
 v0.8.9 r2 - 23 Jan 2009
 -----------------------

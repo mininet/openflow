@@ -1,12 +1,12 @@
-	OpenFlow Reference Tests <http://openflowswitch.org>
+        OpenFlow Reference Tests <http://openflowswitch.org>
 
 What's here?
 ------------
 
 This distribution includes:
 
-    - 22 "black box" tests to verify that an OF switch conforms to the 
-      OF protocol v0.8.1
+    - 25+ "black box" tests to verify that an OF switch conforms to the 
+      OF protocol 0x98
 
     - 7 tests to verify that the reference controller acts as a learning
       Ethernet switch 
@@ -18,6 +18,9 @@ Please see INSTALL for instruction on installing and running the tests.
 
 Changelog
 ---------------
+0.9.0
+-all tests updated to OpenFlow wire protocol 0x98
+
 v0.8.2
 -Added support for the NetFPGA
 -Integrated the tests into the OpenFlow directory structure
