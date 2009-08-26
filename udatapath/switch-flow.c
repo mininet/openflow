@@ -45,7 +45,7 @@
 
 /* Internal function used to compare fields in flow. */
 static inline int
-flow_fields_match(const struct flow *a, const struct flow *b, uint16_t w,
+flow_fields_match(const struct flow *a, const struct flow *b, uint32_t w,
                   uint32_t src_mask, uint32_t dst_mask)
 {
     return ((w & OFPFW_IN_PORT || a->in_port == b->in_port)
