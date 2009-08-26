@@ -881,6 +881,7 @@ make_flow_mod(uint16_t command, const struct flow *flow, size_t actions_len)
     memcpy(ofm->match.dl_dst, flow->dl_dst, sizeof ofm->match.dl_dst);
     ofm->match.dl_vlan = flow->dl_vlan;
     ofm->match.dl_type = flow->dl_type;
+    ofm->match.dl_vlan_pcp = flow->dl_vlan_pcp;
     ofm->match.nw_src = flow->nw_src;
     ofm->match.nw_dst = flow->nw_dst;
     ofm->match.nw_proto = flow->nw_proto;
