@@ -1090,7 +1090,7 @@ mod_flow(struct datapath *dp, const struct sender *sender,
     if (v_code != ACT_VALIDATION_OK) {
         dp_send_error_msg(dp, sender, OFPET_BAD_ACTION, v_code,
                           ofm, ntohs(ofm->header.length));
-        goto error;
+        goto error_free_flow;
     }
 
     flow->priority = flow->key.wildcards ? ntohs(ofm->priority) : -1;
@@ -1113,12 +1113,13 @@ mod_flow(struct datapath *dp, const struct sender *sender,
             dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED,
                               OFPFMFC_ALL_TABLES_FULL, ofm,
                               ntohs(ofm->header.length));
-            goto error;
+            goto error_free_flow;
         } else if (error) {
-            goto error;
+            goto error_free_flow;
         }
     }
 
+    error = 0;
     if (ntohl(ofm->buffer_id) != UINT32_MAX) {
       struct ofpbuf *buffer = retrieve_buffer(ntohl(ofm->buffer_id));
       if (buffer) {
@@ -1128,11 +1129,13 @@ mod_flow(struct datapath *dp, const struct sender *sender,
             execute_actions(dp, buffer, &skb_key,
                             ofm->actions, actions_len, false);
         } else {
-            error = -ESRCH; 
+            error = -ESRCH;
         }
     }
     return error;
 
+error_free_flow:
+    flow_free(flow);
 error:
     if (ntohl(ofm->buffer_id) != (uint32_t) -1)
         discard_buffer(ntohl(ofm->buffer_id));
