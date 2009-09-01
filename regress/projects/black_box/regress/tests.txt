@@ -18,6 +18,7 @@ test_flow_stats/run.pl
 ## Forwarding Tests
 test_forward_any_port/run.pl
 test_forward_exact_port/run.pl
+test_forward_broadcast_exact_port/run.pl
 test_forward_exact_all/run.pl
 test_forward_exact_controller/run.pl
 test_forward_wildcard_port/run.pl
