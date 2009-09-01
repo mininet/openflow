@@ -22,6 +22,6 @@ sub INT_Handler {
 	exit(1);
 }
 
-push (@ARGV, "--root=$ENV{'OFT_ROOT'}", "--map=$ENV{'OFT_ROOT'}/bin/nf2.map", "--port_base=1", "--common-st-args=nf2", "--port_base=0");
+push (@ARGV, "--root=$ENV{'OFT_ROOT'}", "--map=$ENV{'OFT_ROOT'}/bin/nf2.map", "--port_base=1", "--common-st-args=nf2");
 
 run_regress_test( \&INT_Handler, @ARGV );

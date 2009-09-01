@@ -45,6 +45,7 @@
 #include "hwtable_nf2/nf2_lib.h"
 
 #define MAX_INT_32	0xFFFFFFFF
+#define PORT_BASE 1 
 
 #define VID_BITMASK 0x0FFF
 #define PCP_BITSHIFT 13
@@ -111,10 +112,10 @@ nf2_are_actions_supported(struct sw_flow *flow)
 				 ntohs(ah->type));
 			return 0;
 		}
-		// Only support ports 0-3(incl. IN_PORT), ALL, FLOOD.
+		// Only support ports 1-4(incl. IN_PORT), ALL, FLOOD.
 		// Let CONTROLLER/LOCAL fall through
 		if ((ntohs(ah->type) == OFPAT_OUTPUT)
-		    && (!(ntohs(oa->port) < 4)
+		    && (!((ntohs(oa->port) >= PORT_BASE) && (ntohs(oa->port) <= MAX_IFACE))
 			&& !(ntohs(oa->port) == OFPP_ALL)
 			&& !(ntohs(oa->port) == OFPP_FLOOD)
 			&& !(ntohs(oa->port) == OFPP_IN_PORT))) {
@@ -309,7 +310,7 @@ nf2_populate_of_entry(nf2_of_entry_wrap *key, struct sw_flow *flow)
 		key->entry.eth_src[i] = flow->key.dl_src[5 - i];
 	}
 
-	key->entry.src_port = ntohs(flow->key.in_port) * 2;
+	key->entry.src_port = (ntohs(flow->key.in_port) - PORT_BASE) * 2;
 
 	if (ntohs(flow->key.dl_vlan) == 0xffff) {
 		key->entry.vlan_id = 0xffff;
@@ -389,9 +390,9 @@ populate_action_output(nf2_of_action_wrap *action, nf2_of_entry_wrap *entry,
 	NF2DEBUGMSG("Action Type: %i Output Port: %i\n",
 		    ntohs(actout->type), port);
 
-	if (port < 4) {
+	if ((port >= PORT_BASE) && (port <= MAX_IFACE)) {
 		// Bitmask for output port(s), evens are phys odds cpu
-		action->action.forward_bitmask |= (1 << (port * 2));
+		action->action.forward_bitmask |= (1 << ((port - PORT_BASE) * 2));
 		NF2DEBUGMSG("Output Port: %i Forward Bitmask: %x\n",
 			    port, action->action.forward_bitmask);
 	} else if (port == OFPP_IN_PORT) {
