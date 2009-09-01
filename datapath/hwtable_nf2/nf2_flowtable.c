@@ -69,6 +69,8 @@ static void deferred_uninstall_callback(struct rcu_head *);
 static void do_deferred_uninstall(struct sw_flow *);
 static int do_uninstall(struct datapath *, struct sw_table *, struct sw_flow *,
                         enum nx_flow_end_reason);
+static int nf2_has_conflict(struct sw_table *, const struct sw_flow_key *,
+                            uint16_t, int);
 static int nf2_uninstall_flow(struct datapath *, struct sw_table *,
 			      const struct sw_flow_key *, uint16_t,
 			      uint16_t, int);
@@ -146,6 +148,22 @@ nf2_modify_flow(struct sw_table *flowtab, const struct sw_flow_key *key,
 	}
 
 	return count;
+}
+
+static int
+nf2_has_conflict(struct sw_table *flowtab, const struct sw_flow_key *key,
+                 uint16_t priority, int strict)
+{
+	struct nf2_flowtable *nf2flowtab = (struct nf2_flowtable *)flowtab;
+	struct sw_flow *flow;
+
+	list_for_each_entry(flow, &nf2flowtab->flows, node) {
+		if (flow_matches_desc(&flow->key, key, strict)
+		    && (flow->priority == priority)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 static void
@@ -389,6 +407,7 @@ nf2_create_flowtable(void)
 	flowtab->lookup = nf2_lookup_flowtable;
 	flowtab->insert = nf2_install_flow;
 	flowtab->modify = nf2_modify_flow;
+	flowtab->has_conflict = nf2_has_conflict;
 	flowtab->delete = nf2_uninstall_flow;
 	flowtab->timeout = nf2_flow_timeout;
 	flowtab->destroy = nf2_destroy_flowtable;
