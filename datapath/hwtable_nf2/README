@@ -1,5 +1,5 @@
 NetFPGA Hardware Table
-  Date - 04/28/09
+  Date - 09/04/09
 ----------------------------------------
 
 The NetFPGA Hardware Table creates a single software table that contains all
@@ -28,7 +28,7 @@ the OpenFlow root directory.
 Platform support
 ----------------
 
-OpenFlow v0.8.9 with hwtable_nf2 has been tested on CentOS 5.2(Linux 2.6.18),
+OpenFlow v0.9 with hwtable_nf2 has been tested on CentOS 5.2(Linux 2.6.18),
 which is the officially supported platform of NetFPGA.
 
 Running
@@ -37,7 +37,10 @@ Running
 Use nf2_download to download the openflow_switch.bit file that is located in
 the <openflow>/datapath/hwtable_nf2 folder:
 
-	% nf2_download <openflow>/datapath/hwtable_nf2/openflow_switch.bit
+	% nf2_download -r <openflow>/datapath/hwtable_nf2/openflow_switch.bit
+
+'-r' option enables PHY interrupt for its link status changing, and OpenFlow
+switch can detect it.
 
 Install the OpenFlow kernel module:
 
@@ -60,19 +63,17 @@ Add the NetFPGA interfaces to the datapath:
 
 At this point your OpenFlow switch should be ready to go.
 
-Fixed Bug
-----------------------------------------
-* On V.0.8.2, when "source port = wild and action = OFPP_ALL" entry is
-  written, it is not correctly written to NetFPGA and packets and bytes
-  are not correctly counted.
+While you are running OpenFlow switch, you can check the hardware information
+including its bitfile version as follows:
+
+	% cat /proc/net/openflow-netfpga
 
 Known Bugs
 ----------------------------------------
-* Link status detection is currently not supported.
 * There is currently no support for priority amongst wildcard-match entries.
 
 Contact
 -------
-e-mail: info@openflowswitch.org
+e-mail: openflow-discuss@lists.stanford.edu
 www: http://openflowswitch.org/
 
