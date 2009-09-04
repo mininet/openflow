@@ -53,7 +53,6 @@
 // DRAM address width
 #define DRAM_ADDR_WIDTH                           24
 
-
 // ===== File: lib/verilog/core/common/xml/nf_defines.xml =====
 
 // Clock period of 125 MHz clock in ns
@@ -71,11 +70,9 @@
 // Data path control width
 #define CTRL_WIDTH                                8
 
-
 // ===== File: projects/openflow_switch/include/output_port_lookup.xml =====
 
 #define FAST_CLOCK_PERIOD                         8
-
 
 // ===== File: projects/openflow_switch/include/vlan_remover.xml =====
 
@@ -83,11 +80,9 @@
 
 #define VLAN_ETHERTYPE                            0x8100
 
-
 // ===== File: lib/verilog/core/output_queues/bram_output_queues/xml/bram_output_queues.xml =====
 
 #define NUM_OUTPUT_QUEUES                         8
-
 
 // ===== File: projects/openflow_switch/include/opl_processor.xml =====
 
@@ -111,7 +106,6 @@
 
 #define NF2_OFPAT_SET_TP_DST                      0x0200
 
-
 // ===== File: projects/openflow_switch/include/wildcard_match.xml =====
 
 #define OPENFLOW_WILDCARD_TABLE_SIZE              32
@@ -119,7 +113,6 @@
 #define OPENFLOW_WILDCARD_NUM_DATA_WORDS_USED     10
 
 #define OPENFLOW_WILDCARD_NUM_CMP_WORDS_USED      8
-
 
 // ===== File: lib/verilog/core/utils/xml/device_id_reg.xml =====
 
@@ -148,7 +141,6 @@
 #define DEV_ID_MD5_VALUE_2                        0x4d55f629
 #define DEV_ID_MD5_VALUE_3                        0x89a73c95
 
-
 // ===== File: projects/openflow_switch/include/header_parser.xml =====
 
 #define ETH_TYPE_IP                               0x0800
@@ -159,11 +151,9 @@
 
 #define IP_PROTO_ICMP                             0x01
 
-
 // ===== File: projects/openflow_switch/include/watchdog.xml =====
 
 #define WDT_CPCI_REG_CTRL                         0x00000008
-
 
 // ===== File: lib/verilog/core/io_queues/ethernet_mac/xml/ethernet_mac.xml =====
 
@@ -193,7 +183,6 @@
 
 // MAC disable crc generate bit
 #define MAC_GRP_MAC_DIS_CRC_GEN_BIT_NUM           8
-
 
 // ===== File: projects/openflow_switch/include/match_arbiter.xml =====
 
@@ -291,7 +280,6 @@
 
 #define OPENFLOW_SET_TP_DST_POS                   232
 
-
 // ===== File: projects/openflow_switch/include/exact_match.xml =====
 
 #define OPENFLOW_EXACT_ENTRY_PKT_COUNTER_WIDTH    25
@@ -311,7 +299,6 @@
 #define OPENFLOW_EXACT_ENTRY_COUNTERS_POS         0x00000008
 
 #define OPENFLOW_EXACT_ENTRY_ACTION_BASE_POS      0x0000000a
-
 
 // -------------------------------------
 //   Modules
@@ -346,7 +333,6 @@
 
 #define CPU_QUEUE_OFFSET                  0x0040000
 #define MAC_GRP_OFFSET                    0x0040000
-
 
 /* ========== Registers ========== */
 
@@ -778,8 +764,4 @@
 // Name: DRAM (DRAM)
 // Description: DRAM
 
-
-
-
 #endif
-

@@ -68,9 +68,9 @@ static int nf2_modify_flow(struct sw_table *, const struct sw_flow_key *,
 static void deferred_uninstall_callback(struct rcu_head *);
 static void do_deferred_uninstall(struct sw_flow *);
 static int do_uninstall(struct datapath *, struct sw_table *, struct sw_flow *,
-                        enum nx_flow_end_reason);
+			enum nx_flow_end_reason);
 static int nf2_has_conflict(struct sw_table *, const struct sw_flow_key *,
-                            uint16_t, int);
+			    uint16_t, int);
 static int nf2_uninstall_flow(struct datapath *, struct sw_table *,
 			      const struct sw_flow_key *, uint16_t,
 			      uint16_t, int);
@@ -152,7 +152,7 @@ nf2_modify_flow(struct sw_table *flowtab, const struct sw_flow_key *key,
 
 static int
 nf2_has_conflict(struct sw_table *flowtab, const struct sw_flow_key *key,
-                 uint16_t priority, int strict)
+		 uint16_t priority, int strict)
 {
 	struct nf2_flowtable *nf2flowtab = (struct nf2_flowtable *)flowtab;
 	struct sw_flow *flow;
@@ -182,7 +182,7 @@ do_deferred_uninstall(struct sw_flow *flow)
 
 static int
 do_uninstall(struct datapath *dpinst, struct sw_table *flowtab,
-             struct sw_flow *flow, enum nx_flow_end_reason reason)
+	     struct sw_flow *flow, enum nx_flow_end_reason reason)
 {
 	if (flow != NULL && flow->private != NULL) {
 		if (dpinst != NULL)
@@ -219,12 +219,13 @@ nf2_uninstall_flow(struct datapath *dpinst, struct sw_table *flowtab,
 			nf2flow = flow->private;
 			if (nf2flow != NULL) {
 				flow->packet_count
-				    += nf2_get_packet_count(netdev, nf2flow);
-				flow->byte_count
-				    += nf2_get_byte_count(netdev, nf2flow);
+					+= nf2_get_packet_count(netdev,
+								nf2flow);
+				flow->byte_count += nf2_get_byte_count(netdev,
+								       nf2flow);
 			}
 			count += do_uninstall(dpinst, flowtab,
-		                              flow, NXFER_DELETE);
+					      flow, NXFER_DELETE);
 		}
 	}
 	if (count != 0)
@@ -266,7 +267,7 @@ nf2_flow_timeout(struct datapath *dpinst, struct sw_table *flowtab)
 		reason = flow_timeout(flow);
 		if (reason >= 0) {
 			num_uninst_flows += do_uninstall(dpinst, flowtab,
-			                                 flow, reason);
+							 flow, reason);
 		}
 	}
 	mutex_unlock(&dp_mutex);

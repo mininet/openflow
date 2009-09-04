@@ -330,9 +330,14 @@ nf2_write_of_wildcard(struct net_device *dev, int row,
 
 	// Reset the stats for the row
 	val = 0;
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_0_REG + (4 * row), &val);
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_0_REG + (4 * row), &val);
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_0_REG + (4 * row), &val);
+	nf2k_reg_write(dev,
+		       OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_0_REG + (4 * row),
+		       &val);
+	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_0_REG + (4 * row),
+		       &val);
+	nf2k_reg_write(dev,
+		       OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_0_REG + (4 * row),
+		       &val);
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_WRITE_ADDR_REG, &row);
 
 	do_gettimeofday(&t);
@@ -413,7 +418,8 @@ nf2_modify_write_of_wildcard(struct net_device *dev, int row,
 	nf2k_reg_read(dev,
 		      OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_0_REG + (4 * row),
 		      &pkts_reg_val);
-	nf2k_reg_read(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_0_REG + (4 * row),
+	nf2k_reg_read(dev,
+		      OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_0_REG + (4 * row),
 		      &last_reg_val);
 
 	for (i = 0; i < NF2_OF_ENTRY_WORD_LEN; ++i) {
@@ -431,11 +437,13 @@ nf2_modify_write_of_wildcard(struct net_device *dev, int row,
 			       + (4 * i), &(action->raw[i]));
 	}
 
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_0_REG + (4 * row),
+	nf2k_reg_write(dev,
+		       OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_0_REG + (4 * row),
 		       &bytes_reg_val);
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_0_REG + (4 * row),
 		       &pkts_reg_val);
-	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_0_REG + (4 * row),
+	nf2k_reg_write(dev,
+		       OPENFLOW_WILDCARD_LOOKUP_LAST_SEEN_TS_0_REG + (4 * row),
 		       &last_reg_val);
 	nf2k_reg_write(dev, OPENFLOW_WILDCARD_LOOKUP_WRITE_ADDR_REG, &row);
 
@@ -811,11 +819,11 @@ nf2_get_all_ports_info(struct net_device *dev)
 		nf2k_reg_read(dev, nf2addr->rx_q_num_pkts_stored_reg[i],
 			      &(nf2portinfo->port[i].rx_q_num_pkts_stored));
 		nf2k_reg_read(dev, nf2addr->rx_q_num_pkts_dropped_full_reg[i],
-			      &(nf2portinfo->port[i].
-				rx_q_num_pkts_dropped_full));
+			      &(nf2portinfo
+				->port[i].rx_q_num_pkts_dropped_full));
 		nf2k_reg_read(dev, nf2addr->rx_q_num_pkts_dropped_bad_reg[i],
-			      &(nf2portinfo->port[i].
-				rx_q_num_pkts_dropped_bad));
+			      &(nf2portinfo
+				->port[i].rx_q_num_pkts_dropped_bad));
 		nf2k_reg_read(dev, nf2addr->rx_q_num_words_pushed_reg[i],
 			      &(nf2portinfo->port[i].rx_q_num_words_pushed));
 		nf2k_reg_read(dev, nf2addr->rx_q_num_bytes_pushed_reg[i],

@@ -45,7 +45,7 @@
 #include "hwtable_nf2/nf2_lib.h"
 
 #define MAX_INT_32	0xFFFFFFFF
-#define PORT_BASE 1 
+#define PORT_BASE 1
 
 #define VID_BITMASK 0x0FFF
 #define PCP_BITSHIFT 13
@@ -115,7 +115,8 @@ nf2_are_actions_supported(struct sw_flow *flow)
 		// Only support ports 1-4(incl. IN_PORT), ALL, FLOOD.
 		// Let CONTROLLER/LOCAL fall through
 		if ((ntohs(ah->type) == OFPAT_OUTPUT)
-		    && (!((ntohs(oa->port) >= PORT_BASE) && (ntohs(oa->port) <= MAX_IFACE))
+		    && (!((ntohs(oa->port) >= PORT_BASE)
+			  && (ntohs(oa->port) <= MAX_IFACE))
 			&& !(ntohs(oa->port) == OFPP_ALL)
 			&& !(ntohs(oa->port) == OFPP_FLOOD)
 			&& !(ntohs(oa->port) == OFPP_IN_PORT))) {
@@ -314,11 +315,10 @@ nf2_populate_of_entry(nf2_of_entry_wrap *key, struct sw_flow *flow)
 
 	if (ntohs(flow->key.dl_vlan) == 0xffff) {
 		key->entry.vlan_id = 0xffff;
-	}
-	else {
+	} else {
 		vlan_vid = VID_BITMASK & ntohs(flow->key.dl_vlan);
-		vlan_pcp = PCP_BITMASK &
-		           ((uint16_t)(flow->key.dl_vlan_pcp) << PCP_BITSHIFT);
+		vlan_pcp = PCP_BITMASK
+			& ((uint16_t)(flow->key.dl_vlan_pcp) << PCP_BITSHIFT);
 		key->entry.vlan_id = vlan_pcp | vlan_vid;
 	}
 }
@@ -392,7 +392,8 @@ populate_action_output(nf2_of_action_wrap *action, nf2_of_entry_wrap *entry,
 
 	if ((port >= PORT_BASE) && (port <= MAX_IFACE)) {
 		// Bitmask for output port(s), evens are phys odds cpu
-		action->action.forward_bitmask |= (1 << ((port - PORT_BASE) * 2));
+		action->action.forward_bitmask
+			|= (1 << ((port - PORT_BASE) * 2));
 		NF2DEBUGMSG("Output Port: %i Forward Bitmask: %x\n",
 			    port, action->action.forward_bitmask);
 	} else if (port == OFPP_IN_PORT) {
