@@ -1,5 +1,11 @@
+0.9.0-rev1 - 04 Sep 2009
+------------------------
+    - Added NetFPGA hardware table support (wire protocol 0x98)
+    - Fixed a few userspace datapath bugs
+
 0.9.0 - 20 Jul 2009
 -------------------
+    - Changed wire protocol version to 0x98
     - Removed monolithic switch process called switch
     - Added userspace data plane process named ofdatapath
     - Changed userspace control plane process name to ofprotocol
@@ -22,7 +28,7 @@
 
 v0.8.9 r2 - 23 Jan 2009
 -----------------------
-    - Added NetFPGA hardware table support
+    - Added NetFPGA hardware table support (wire protocol 0x97)
     - Added regression tests on port_stats, flow_stats, drop, ICMP handling
     - Bug fixes
 
