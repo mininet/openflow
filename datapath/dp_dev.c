@@ -138,19 +138,48 @@ static struct ethtool_ops dp_ethtool_ops = {
 	.get_tso = ethtool_op_get_tso,
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+static const struct net_device_ops dp_netdev_ops = {
+	.ndo_init = NULL,
+	.ndo_uninit = NULL,
+	.ndo_open = dp_dev_open,
+	.ndo_stop = dp_dev_stop,
+	.ndo_start_xmit = dp_dev_xmit,
+	.ndo_select_queue = NULL,
+	.ndo_change_rx_flags = NULL,
+	.ndo_set_rx_mode = NULL,
+	.ndo_set_multicast_list = NULL,
+	.ndo_set_mac_address = dp_dev_mac_addr,
+	.ndo_validate_addr = NULL,
+	.ndo_do_ioctl = NULL,
+	.ndo_set_config = NULL,
+	.ndo_change_mtu = NULL,
+	.ndo_tx_timeout = NULL,
+	.ndo_get_stats = dp_dev_get_stats,
+	.ndo_vlan_rx_register = NULL,
+	.ndo_vlan_rx_add_vid = NULL,
+	.ndo_vlan_rx_kill_vid = NULL,
+	.ndo_poll_controller = NULL
+};
+#endif
+
 static void
 do_setup(struct net_device *netdev)
 {
 	ether_setup(netdev);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+	netdev->netdev_ops = &dp_netdev_ops;
+#else
 	netdev->do_ioctl = dp_ioctl_hook;
 	netdev->get_stats = dp_dev_get_stats;
 	netdev->hard_start_xmit = dp_dev_xmit;
 	netdev->open = dp_dev_open;
-	SET_ETHTOOL_OPS(netdev, &dp_ethtool_ops);
 	netdev->stop = dp_dev_stop;
-	netdev->tx_queue_len = 100;
 	netdev->set_mac_address = dp_dev_mac_addr;
+#endif
+	SET_ETHTOOL_OPS(netdev, &dp_ethtool_ops);
+	netdev->tx_queue_len = 100;
 
 	netdev->flags = IFF_BROADCAST | IFF_MULTICAST;
 
@@ -214,5 +243,10 @@ void dp_dev_destroy(struct datapath *dp)
 
 int is_dp_dev(struct net_device *netdev) 
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+	return netdev->netdev_ops->ndo_open == dp_dev_open;
+
+#else
 	return netdev->open == dp_dev_open;
+#endif
 }
