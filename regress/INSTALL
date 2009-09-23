@@ -106,7 +106,7 @@ Download and untar OpenFlow v0.8.1
  tar xzf openflow-v0.8.1.tar.gz
 Build OpenFlow user-space and kernel-space switches:
  cd openflow-v0.8.1
- ./configure --with-l26=/lib/modules/`uname -r`/build
+ ./configure --with-l26=/lib/modules/`uname -r`
  make
  sudo make install
 Now, download and untar the OpenFlow Test Suite:

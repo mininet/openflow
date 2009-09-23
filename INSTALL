@@ -227,7 +227,7 @@ argument to the configure script, as described under step 1 in that
 section.  Specify the location on --with-l26 for Linux 2.6.
 For example, to build for a running instance of Linux 2.6:
 
-      % ./configure --with-l26=/lib/modules/`uname -r`/build
+      % ./configure --with-l26=/lib/modules/`uname -r`
 
 If you wish to build OpenFlow for an architecture other than the
 architecture used for compilation, you may specify the kernel
@@ -245,7 +245,7 @@ switching table is in a directory named datapath/hwtable-foomatic, you
 could compile support for it with the running Linux 2.6 kernel like
 so:
 
-      % ./configure --with-l26=/lib/modules/`uname -r`/build \
+      % ./configure --with-l26=/lib/modules/`uname -r` \
                     --enable-hw-tables=foomatic
 
 For more information about hardware table modules, please read

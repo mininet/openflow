@@ -60,9 +60,7 @@ AC_CHECK_FUNCS([strsignal])
 
 AC_ARG_VAR(KARCH, [Kernel Architecture String])
 AC_SUBST(KARCH)
-OFP_CHECK_LINUX(l26, 2.6, KSRC26, L26_ENABLED)
-
-OFP_CHECK_DPKG_BUILDPACKAGE
+OFP_CHECK_LINUX(l26, 2.6, KBLD26, KSRC26, L26_ENABLED)
 
 OFP_ENABLE_OPTION([-Wall])
 OFP_ENABLE_OPTION([-Wno-sign-compare])
@@ -79,9 +77,6 @@ OFP_ENABLE_OPTION([-Wold-style-definition])
 OFP_ENABLE_OPTION([-Wmissing-prototypes])
 OFP_ENABLE_OPTION([-Wmissing-field-initializers])
 OFP_ENABLE_OPTION([-Wno-override-init])
-
-OFP_ENABLE_EXT
-m4_include([ext.m4])
 
 AC_CONFIG_FILES([Makefile 
 datapath/Makefile 

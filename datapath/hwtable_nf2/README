@@ -14,8 +14,7 @@ Installation
 First build OpenFlow ensuring you include the directive to build the
 openflow_netfpga2 hardware table in your configure statement:
 
-	% ./configure --with-l26=/lib/modules/`uname -r`/build 
-			--enable-hw-tables=nf2
+	% ./configure --with-l26=/lib/modules/`uname -r` --enable-hw-tables=nf2
 
 To get debugging output from the NetFPGA hardware table uncomment the following 
 line from within <openflow>/datapath/hwtable_nf2/nf2_flowtable.h, then recompile:

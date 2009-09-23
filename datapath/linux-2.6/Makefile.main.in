@@ -1,8 +1,10 @@
 # -*- makefile -*-
+
 export builddir = @abs_builddir@
 export srcdir = @abs_srcdir@
 export top_srcdir = @abs_top_srcdir@
 export KSRC = @KSRC26@
+export KBLD = @KBLD26@
 export VERSION = @VERSION@
 export BUILD_VETH = @BUILD_VETH@
 
@@ -33,7 +35,7 @@ else
   KOBJ := $(KSRC)
 endif
 
-ifneq ($(shell grep -c 'PATCHLEVEL = 6' $(KSRC)/Makefile),1)
+ifneq ($(shell grep -c 'PATCHLEVEL = 6' $(KSRC)/Makefile), 1)
   $(error Linux kernel source in $(KSRC) not 2.6)
 endif
 
@@ -42,13 +44,13 @@ ifeq (,$(wildcard $(VERSION_FILE)))
   $(error Linux kernel source not configured - missing version.h)
 endif
 
-CONFIG_FILE := $(KSRC)/include/linux/autoconf.h
+CONFIG_FILE := $(KBLD)/include/linux/autoconf.h
 ifeq (,$(wildcard $(CONFIG_FILE)))
   $(error Linux kernel source not configured - missing autoconf.h)
 endif
 
 default:
-	$(MAKE) -C $(KSRC) M=$(builddir) modules
+	$(MAKE) -C $(KBLD) M=$(builddir) modules
 endif
 
 # Much of the kernel build system in this file is derived from Intel's

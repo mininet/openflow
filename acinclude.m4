@@ -38,35 +38,42 @@ dnl Configure linux kernel source tree
 AC_DEFUN([OFP_CHECK_LINUX], [
   AC_ARG_WITH([$1],
               [AC_HELP_STRING([--with-$1=/path/to/linux-$2],
-                              [Specify the linux $2 kernel sources])],
+                              [Specify the linux $2 kernel module build envrionment and sources])],
               [path="$withval"], [path=])dnl
   if test -n "$path"; then
     path=`eval echo "$path"`
 
     AC_MSG_CHECKING([for $path directory])
-    if test -d "$path"; then
-	AC_MSG_RESULT([yes])
-	$3=$path
-	AC_SUBST($3)
+    if test -d "$path" && test -d "$path/build" ; then
+      AC_MSG_RESULT([yes])
+      if test -d "$path/source" ; then
+        $3=$path/build
+        $4=$path/source
+      else
+        $3=$path/build
+        $4=$path/build
+     fi
+     AC_SUBST($3)
+     AC_SUBST($4)
     else
-	AC_MSG_RESULT([no])
-	AC_ERROR([source dir $path doesn't exist])
+      AC_MSG_RESULT([no])
+      AC_ERROR([source dir $path doesn't exist])
     fi
 
     AC_MSG_CHECKING([for $path kernel version])
-    patchlevel=`sed -n 's/^PATCHLEVEL = //p' "$path/Makefile"`
-    sublevel=`sed -n 's/^SUBLEVEL = //p' "$path/Makefile"`
+    patchlevel=`sed -n 's/^PATCHLEVEL = //p' "$KBLD26/Makefile"`
+    sublevel=`sed -n 's/^SUBLEVEL = //p' "$KBLD26/Makefile"`
     AC_MSG_RESULT([2.$patchlevel.$sublevel])
     if test "2.$patchlevel" != '$2'; then
        AC_ERROR([Linux kernel source in $path is not version $2])
     fi
-    if ! test -e "$path"/include/linux/version.h || \
-       ! test -e "$path"/include/linux/autoconf.h; then
-	AC_MSG_ERROR([Linux kernel source in $path is not configured])
+    if ! test -e $KBLD26/include/linux/version.h || \
+       ! test -e $KBLD26/include/linux/autoconf.h; then
+       AC_MSG_ERROR([Linux kernel source in $path is not configured])
     fi
     m4_if($2, [2.6], [OFP_CHECK_LINUX26_COMPAT])
   fi
-  AM_CONDITIONAL($4, test -n "$path")
+  AM_CONDITIONAL($5, test -n "$path")
 ])
 
 dnl OFP_GREP_IFELSE(FILE, REGEX, IF-MATCH, IF-NO-MATCH)
@@ -172,45 +179,6 @@ AC_DEFUN([OFP_CHECK_IF_PACKET],
       AC_DEFINE([HAVE_IF_PACKET], [1],
                 [Define to 1 if net/if_packet.h is available.])
    fi])
-
-dnl Enable OpenFlow extension submodule.
-AC_DEFUN([OFP_ENABLE_EXT],
-  [AC_ARG_ENABLE([ext],
-     AS_HELP_STRING([--enable-ext], 
-                    [use OpenFlow extensions
-                     (default is yes if "ext" dir exists)]))
-   case "${enable_ext}" in
-     (yes)
-       HAVE_EXT=yes
-       ;;
-     (no)
-       HAVE_EXT=no
-       ;;
-     (*)
-       if test -e "$srcdir/ext/automake.mk"; then
-         HAVE_EXT=yes
-       else
-         HAVE_EXT=no
-       fi
-       ;;
-   esac
-   if test $HAVE_EXT = yes; then
-     if test -e "$srcdir/ext/automake.mk"; then
-       :
-     else
-       AC_MSG_ERROR([cannot configure extensions without "ext" directory])
-     fi
-     AC_DEFINE([HAVE_EXT], [1], 
-               [Whether the OpenFlow extensions submodule is available])
-   fi
-   AM_CONDITIONAL([HAVE_EXT], [test $HAVE_EXT = yes])])
-
-dnl Checks for dpkg-buildpackage.  If this is available then we check
-dnl that the Debian packaging is functional at "make distcheck" time.
-AC_DEFUN([OFP_CHECK_DPKG_BUILDPACKAGE],
-  [AC_CHECK_PROG([HAVE_DPKG_BUILDPACKAGE], [dpkg-buildpackage], [yes], [no])
-   AM_CONDITIONAL([HAVE_DPKG_BUILDPACKAGE], 
-                  [test $HAVE_DPKG_BUILDPACKAGE = yes])])
 
 dnl ----------------------------------------------------------------------
 dnl These macros are from GNU PSPP, with the following original license:
