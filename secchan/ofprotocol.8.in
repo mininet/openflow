@@ -371,11 +371,6 @@ because bugs in the STP implementation are still being worked out.
 The default will change to \fB--stp\fR at some point in the future.
 
 .TP
-\fB--netflow=\fIhost\fB:\fIport\fR
-When flows end on the switch, send NetFlow v5 messages to
-\fIhost\fR on UDP \fIport\fR.
-
-.TP
 \fB--emerg-flow\fR
 Enable emergecny flow protection and restration at the switch.  If emergency
 flow enabled, \fBofprotocol\fR will attempt to switch flow table to emergency's
@@ -442,11 +437,6 @@ Sets the directory searched for remote command execution to
 .so lib/daemon.man
 
 .SS "Public Key Infrastructure Options"
-
-.TP
-\fB--netflow=\fIhost\fB:\fIport\fR
-When flows end on the switch, send NetFlow v5 messages to
-\fIhost\fR on UDP \fIport\fR.
 
 .TP
 \fB-p\fR, \fB--private-key=\fIprivkey.pem\fR

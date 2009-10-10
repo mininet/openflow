@@ -16,7 +16,6 @@ secchan_ofprotocol_SOURCES = \
 	secchan/flow-end.h \
 	secchan/in-band.c \
 	secchan/in-band.h \
-	secchan/netflow.h \
 	secchan/port-watcher.c \
 	secchan/port-watcher.h \
 	secchan/protocol-stat.c \

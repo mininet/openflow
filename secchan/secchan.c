@@ -211,7 +211,7 @@ main(int argc, char *argv[])
     /* Set up hooks. */
     port_watcher_start(&secchan, local_rconn, remote_rconn, &pw);
     discovery = s.discovery ? discovery_init(&s, pw, switch_status) : NULL;
-    flow_end_start(&secchan, s.netflow_dst, local_rconn, remote_rconn);
+    flow_end_start(&secchan, local_rconn, remote_rconn);
     if (s.enable_stp) {
         stp_start(&secchan, pw, local_rconn, remote_rconn);
     }
@@ -596,7 +596,6 @@ parse_options(int argc, char *argv[], struct settings *s)
         OPT_IN_BAND,
         OPT_COMMAND_ACL,
         OPT_COMMAND_DIR,
-        OPT_NETFLOW,
         OPT_EMERG_FLOW,
         VLOG_OPTION_ENUMS,
         LEAK_CHECKER_OPTION_ENUMS
@@ -618,7 +617,6 @@ parse_options(int argc, char *argv[], struct settings *s)
         {"in-band",     no_argument, 0, OPT_IN_BAND},
         {"command-acl", required_argument, 0, OPT_COMMAND_ACL},
         {"command-dir", required_argument, 0, OPT_COMMAND_DIR},
-        {"netflow",     required_argument, 0, OPT_NETFLOW},
         {"emerg-flow",  no_argument, 0, OPT_EMERG_FLOW},
         {"verbose",     optional_argument, 0, 'v'},
         {"help",        no_argument, 0, 'h'},
@@ -650,7 +648,6 @@ parse_options(int argc, char *argv[], struct settings *s)
     s->in_band = true;
     s->command_acl = "";
     s->command_dir = xasprintf("%s/commands", ofp_pkgdatadir);
-    s->netflow_dst = NULL;
     s->emerg_flow = false;
     for (;;) {
         int c;
@@ -750,13 +747,6 @@ parse_options(int argc, char *argv[], struct settings *s)
 
         case OPT_COMMAND_DIR:
             s->command_dir = optarg;
-            break;
-
-        case OPT_NETFLOW:
-            if (s->netflow_dst) {
-                ofp_fatal(0, "--netflow may only be specified once");
-            }
-            s->netflow_dst = optarg;
             break;
 
         case OPT_EMERG_FLOW:
@@ -899,7 +889,6 @@ usage(void)
            "  --out-of-band           controller connection is out-of-band\n"
            "  --stp                   enable 802.1D Spanning Tree Protocol\n"
            "  --no-stp                disable 802.1D Spanning Tree Protocol\n"
-           "  --netflow=HOST:PORT     send NetFlow v5 messages when flows end\n"
            "  --emerg-flow            enable emergency flow protection/restoration\n"
            "\nRate-limiting of \"packet-in\" messages to the controller:\n"
            "  --rate-limit[=PACKETS]  max rate, in packets/s (default: 1000)\n"

@@ -37,6 +37,6 @@
 struct secchan;
 struct rconn;
 
-void flow_end_start(struct secchan *, char *, struct rconn *, struct rconn *);
+void flow_end_start(struct secchan *, struct rconn *, struct rconn *);
 
 #endif /* flow-end.h */

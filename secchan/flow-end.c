@@ -48,7 +48,6 @@
 #include "rconn.h"
 #include "socket-util.h"
 #include "xtoxll.h"
-#include "netflow.h"
 
 #define THIS_MODULE VLM_flow_end
 #include "vlog.h"
@@ -56,9 +55,6 @@
 struct flow_end_data {
     struct rconn *remote_rconn;
     struct rconn *local_rconn;
-
-    int netflow_fd;            /* Socket for NetFlow collector. */
-    uint32_t netflow_cnt;      /* Flow sequence number for NetFlow. */
 };
 
 static int
@@ -116,74 +112,6 @@ udp_open(char *dst)
     return fd;
 }
 
-static void
-send_netflow_msg(const struct nx_flow_end *nfe, struct flow_end_data *fe)
-{
-    struct netflow_v5_header *nf_hdr;
-    struct netflow_v5_record *nf_rec;
-    uint8_t buf[sizeof(*nf_hdr) + sizeof(*nf_rec)];
-    uint8_t *p = buf;
-    struct timeval now;
-
-    /* We only send NetFlow messages for fully specified IP flows; any 
-     * entry with a wildcard is ignored. */
-    if ((nfe->match.wildcards != 0) 
-            || (nfe->match.dl_type != htons(ETH_TYPE_IP))) {
-        return;
-    }
-
-    memset(&buf, 0, sizeof(buf));
-    gettimeofday(&now, NULL);
-
-    nf_hdr = (struct netflow_v5_header *)p;
-    p += sizeof(*nf_hdr);
-    nf_rec = (struct netflow_v5_record *)p;
-
-    nf_hdr->version = htons(NETFLOW_V5_VERSION);
-    nf_hdr->count = htons(1);
-    nf_hdr->sysuptime = htonl((uint32_t)ntohll(nfe->end_time));
-    nf_hdr->unix_secs = htonl(now.tv_sec);
-    nf_hdr->unix_nsecs = htonl(now.tv_usec * 1000);
-    nf_hdr->flow_seq = htonl(fe->netflow_cnt);
-    nf_hdr->engine_type = 0;
-    nf_hdr->engine_id = 0;
-    nf_hdr->sampling_interval = htons(0);
-
-    nf_rec->src_addr = nfe->match.nw_src;
-    nf_rec->dst_addr = nfe->match.nw_dst;
-    nf_rec->nexthop = htons(0);
-    nf_rec->input = nfe->match.in_port;
-    nf_rec->output = htons(0);
-    nf_rec->packet_count = htonl((uint32_t)ntohll(nfe->packet_count));
-    nf_rec->byte_count = htonl((uint32_t)ntohll(nfe->byte_count));
-    nf_rec->init_time = htonl((uint32_t)ntohll(nfe->init_time));
-    nf_rec->used_time = htonl((uint32_t)ntohll(nfe->used_time));
-
-    if (nfe->match.nw_proto == IP_TYPE_ICMP) {
-        /* In NetFlow, the ICMP type and code are concatenated and
-         * placed in the 'dst_port' field. */
-        uint8_t type = (uint8_t)ntohs(nfe->match.tp_src);
-        uint8_t code = (uint8_t)ntohs(nfe->match.tp_dst);
-        nf_rec->src_port = htons(0);
-        nf_rec->dst_port = htons((type << 8) | code);
-    } else {
-        nf_rec->src_port = nfe->match.tp_src;
-        nf_rec->dst_port = nfe->match.tp_dst;
-    }
-
-    nf_rec->tcp_flags = nfe->tcp_flags;
-    nf_rec->ip_proto = nfe->match.nw_proto;
-    nf_rec->ip_tos = nfe->ip_tos;
-
-    nf_rec->src_as = htons(0);
-    nf_rec->dst_as = htons(0);
-    nf_rec->src_mask = 0;
-    nf_rec->dst_mask = 0;
-
-    send(fe->netflow_fd, buf, sizeof(buf), 0);
-    fe->netflow_cnt++;
-}
-
 static void 
 send_ofp_expired(const struct nx_flow_end *nfe, const struct flow_end_data *fe)
 {
@@ -215,24 +143,6 @@ send_ofp_expired(const struct nx_flow_end *nfe, const struct flow_end_data *fe)
     rconn_send(fe->remote_rconn, b, NULL);
 }
 
-static void 
-send_nx_flow_end_config(const struct flow_end_data *fe)
-{
-    struct nx_flow_end_config *nfec;
-    struct ofpbuf *b;
-
-    nfec = make_openflow(sizeof(*nfec), OFPT_VENDOR, &b);
-    nfec->header.vendor  = htonl(NX_VENDOR_ID);
-    nfec->header.subtype = htonl(NXT_FLOW_END_CONFIG);
-    if (fe->netflow_fd < 0) {
-        nfec->enable = 0;
-    } else {
-        nfec->enable = 1;
-    }
-
-    rconn_send(fe->local_rconn, b, NULL);
-}
-
 static bool
 flow_end_local_packet_cb(struct relay *r, void *flow_end_)
 {
@@ -250,10 +160,6 @@ flow_end_local_packet_cb(struct relay *r, void *flow_end_)
         || request->vendor != htonl(NX_VENDOR_ID)
         || request->subtype != htonl(NXT_FLOW_END)) {
         return false;
-    }
-
-    if (fe->netflow_fd >= 0) {
-        send_netflow_msg(nfe, fe);
     }
 
     if (nfe->send_flow_exp) {
@@ -280,7 +186,7 @@ flow_end_remote_packet_cb(struct relay *r, void *flow_end_)
         return false;
     }
 
-    send_nx_flow_end_config(fe);
+    /* Perform any processing of set config messages here */
 
     return false;
 }
@@ -294,7 +200,7 @@ static struct hook_class flow_end_hook_class = {
 };
 
 void
-flow_end_start(struct secchan *secchan, char *netflow_dst,
+flow_end_start(struct secchan *secchan,
                struct rconn *local, struct rconn *remote)
 {
     struct flow_end_data *fe;
@@ -304,16 +210,5 @@ flow_end_start(struct secchan *secchan, char *netflow_dst,
     fe->remote_rconn = remote;
     fe->local_rconn = local;
 
-    if (netflow_dst) {
-        fe->netflow_fd = udp_open(netflow_dst);
-        if (fe->netflow_fd < 0) {
-            ofp_fatal(0, "NetFlow setup failed");
-        }
-    } else {
-        fe->netflow_fd = -1;
-    }
-
     add_hook(secchan, &flow_end_hook_class, fe);
-
-    send_nx_flow_end_config(fe);
 }
