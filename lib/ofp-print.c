@@ -930,6 +930,7 @@ ofp_desc_stats_reply(struct ds *string, const void *body, size_t len UNUSED,
     ds_put_format(string, "Manufacturer: %s\n", ods->mfr_desc);
     ds_put_format(string, "Hardware: %s\n", ods->hw_desc);
     ds_put_format(string, "Software: %s\n", ods->sw_desc);
+    ds_put_format(string, "Comment: %s\n", ods->dp_desc);
     ds_put_format(string, "Serial Num: %s\n", ods->serial_num);
 }
 

@@ -729,8 +729,9 @@ struct ofp_desc_stats {
     char hw_desc[DESC_STR_LEN];        /* Hardware description. */
     char sw_desc[DESC_STR_LEN];        /* Software description. */
     char serial_num[SERIAL_NUM_LEN];   /* Serial number. */
+    char dp_desc[DESC_STR_LEN];        /* Human readable description of datapath. */
 };
-OFP_ASSERT(sizeof(struct ofp_desc_stats) == 800);
+OFP_ASSERT(sizeof(struct ofp_desc_stats) == 1056);
 
 /* Body for ofp_stats_request of type OFPST_FLOW. */
 struct ofp_flow_stats_request {

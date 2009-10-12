@@ -47,6 +47,7 @@ struct datapath {
 
 	/* Data related to the "of" device of this datapath */
 	struct net_device *netdev;
+	char dp_desc[DESC_STR_LEN];	/* human readible comment to ID this DP */
 
 	/* Configuration set from controller */
 	uint16_t flags;

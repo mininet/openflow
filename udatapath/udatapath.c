@@ -63,6 +63,7 @@
 char mfr_desc[DESC_STR_LEN] = "Stanford University";
 char hw_desc[DESC_STR_LEN] = "Reference Userspace Switch";
 char sw_desc[DESC_STR_LEN] = VERSION BUILDNR;
+char dp_desc[DESC_STR_LEN] = "";
 char serial_num[SERIAL_NUM_LEN] = "None";
 
 static void parse_options(int argc, char *argv[]);
@@ -166,6 +167,7 @@ parse_options(int argc, char *argv[])
         OPT_MFR_DESC = UCHAR_MAX + 1,
         OPT_HW_DESC,
         OPT_SW_DESC,
+	OPT_DP_DESC,
         OPT_SERIAL_NUM,
         OPT_BOOTSTRAP_CA_CERT,
         OPT_NO_LOCAL_PORT
@@ -182,6 +184,7 @@ parse_options(int argc, char *argv[])
         {"mfr-desc",    required_argument, 0, OPT_MFR_DESC},
         {"hw-desc",     required_argument, 0, OPT_HW_DESC},
         {"sw-desc",     required_argument, 0, OPT_SW_DESC},
+        {"dp_desc",  required_argument, 0, OPT_DP_DESC},
         {"serial_num",  required_argument, 0, OPT_SERIAL_NUM},
         DAEMON_LONG_OPTIONS,
 #ifdef HAVE_OPENSSL
@@ -253,6 +256,10 @@ parse_options(int argc, char *argv[])
 
         case OPT_SW_DESC:
             strncpy(sw_desc, optarg, sizeof sw_desc);
+            break;
+
+        case OPT_DP_DESC:
+            strncpy(dp_desc, optarg, sizeof dp_desc);
             break;
 
         case OPT_SERIAL_NUM:

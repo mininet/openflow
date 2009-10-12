@@ -75,6 +75,7 @@ struct datapath {
 
     /* Unique identifier for this datapath */
     uint64_t  id;
+    char dp_desc[DESC_STR_LEN];	/* human readible comment to ID this DP */
 
     struct sw_chain *chain;  /* Forwarding rules. */
 

@@ -25,6 +25,7 @@
 #include <linux/version.h>
 #include <linux/ethtool.h>
 #include <linux/random.h>
+#include <linux/utsname.h>
 #include <asm/system.h>
 #include <asm/div64.h>
 #include <linux/netfilter_bridge.h>
@@ -284,6 +285,7 @@ int gen_dp_idx(void)
 static int new_dp(int dp_idx, const char *dp_name)
 {
 	struct datapath *dp;
+	struct new_utsname *u;
 	int err;
 
 	rtnl_lock();
@@ -310,6 +312,10 @@ static int new_dp(int dp_idx, const char *dp_name)
 		goto err_put;
 
 	dp->dp_idx = dp_idx;
+	/* copied from sys_gethostname() */
+	u = utsname();
+	/* shouldn't need to lock b/c no userspace interactions */
+	snprintf(dp->dp_desc, sizeof dp->dp_desc, "%s idx=%d", u->nodename, dp_idx);
 
 	/* Setup our datapath device */
 	err = dp_dev_setup(dp, dp_name);
@@ -1372,6 +1378,7 @@ static int desc_stats_dump(struct datapath *dp, void *state,
 	strncpy(ods->mfr_desc, mfr_desc, sizeof ods->mfr_desc);
 	strncpy(ods->hw_desc, hw_desc, sizeof ods->hw_desc);
 	strncpy(ods->sw_desc, sw_desc, sizeof ods->sw_desc);
+	strncpy(ods->dp_desc, dp->dp_desc, sizeof ods->dp_desc);
 	strncpy(ods->serial_num, serial_num, sizeof ods->serial_num);
 
 	return 0;

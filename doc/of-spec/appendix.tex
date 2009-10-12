@@ -187,10 +187,10 @@ In both the request and response, the \verb|type| field specifies the kind of in
 \input{enum/ofp_stats_types}
 
 \paragraph{Description Statistics}
-Information about the switch manufacturer, hardware revision, software revision, and serial number is available from the \verb|OFPST_DESC| stats request type:
+Information about the switch manufacturer, hardware revision, software revision, serial number, and a description field is available from the \verb|OFPST_DESC| stats request type:
 
 \input{struct/ofp_desc_stats}
-Each entry is ASCII formatted and padded on the right with 0 bytes.  \verb|DESC_STR_LEN| is \input{define/DESC_STR_LEN}and \verb|SERIAL_NUM_LEN| is \input{define/SERIAL_NUM_LEN}.  
+Each entry is ASCII formatted and padded on the right with 0 bytes.  \verb|DESC_STR_LEN| is \input{define/DESC_STR_LEN}and \verb|SERIAL_NUM_LEN| is \input{define/SERIAL_NUM_LEN}.  Note: \footnote{Added to address concerns raised in  \url{https://mailman.stanford.edu/pipermail/openflow-spec/2009-September/000504.html}} the dp\_desc field is a free-form string to describe the datapath for debugging purposes, e.g., ``switch3 in room 3120''.  As such, it is not guaranteed to be unique and should not be used as the primary identifier for the datapath---use the datapath\_id field from the switch features instead (\S~\ref{cts:handshake}).
 
 \paragraph{Individual Flow Statistics}
 Information about individual flows is requested with the \verb|OFPST_FLOW| stats request type:
