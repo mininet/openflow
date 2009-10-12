@@ -778,6 +778,9 @@ ofp_print_flow_removed(struct ds *string, const void *oh, size_t len UNUSED,
     case OFPRR_HARD_TIMEOUT:
         ds_put_cstr(string, "hard");
         break;
+    case OFPRR_DELETE:
+        ds_put_cstr(string, "delete");
+        break;
     default:
         ds_put_format(string, "**%"PRIu8"**", ofe->reason);
         break;
