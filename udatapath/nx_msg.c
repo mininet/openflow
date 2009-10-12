@@ -43,8 +43,6 @@ int nx_recv_msg(struct datapath *dp, const struct sender *sender,
 
     switch (ntohl(nh->subtype)) {
     case NXT_FLOW_END_CONFIG: {
-        const struct nx_flow_end_config *nfec = oh;
-        dp->send_flow_end = nfec->enable;
         return 0;
     }
 

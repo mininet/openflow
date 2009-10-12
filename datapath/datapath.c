@@ -1028,7 +1028,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 	struct sk_buff *skb;
 	struct nx_flow_end *nfe;
 
-	if (!dp->send_flow_end && !flow->send_flow_rem)
+	if (!flow->send_flow_rem)
 		return 0;
 
 	if (flow->emerg_flow)

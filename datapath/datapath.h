@@ -52,9 +52,6 @@ struct datapath {
 	uint16_t flags;
 	uint16_t miss_send_len;
 
-	/* Flag controlling whether Flow End messages are generated. */
-	uint8_t send_flow_end;
-
 	struct kobject ifobj;
 
 	/* Switch ports. */

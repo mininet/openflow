@@ -18,8 +18,6 @@ nx_recv_msg(struct sw_chain *chain, const struct sender *sender,
 	switch (ntohl(nh->subtype)) {
 
 	case NXT_FLOW_END_CONFIG: {
-		const struct nx_flow_end_config *nfec = msg;
-		chain->dp->send_flow_end = nfec->enable;
 		return 0;
 	}
 
