@@ -38,7 +38,6 @@
 #include "packets.h"
 #include "dp_act.h"
 #include "openflow/nicira-ext.h"
-#include "nx_act.h"
 
 
 static uint16_t
@@ -367,10 +366,6 @@ validate_vendor(struct datapath *dp, const struct sw_flow_key *key,
     avh = (struct ofp_action_vendor_header *)ah;
 
     switch(ntohl(avh->vendor)) {
-    case NX_VENDOR_ID: 
-        ret = nx_validate_act(dp, key, avh, len);
-        break;
-
     default:
         return OFPBAC_BAD_VENDOR;
     }
@@ -447,10 +442,6 @@ execute_vendor(struct ofpbuf *buffer, const struct sw_flow_key *key,
             = (struct ofp_action_vendor_header *)ah;
 
     switch(ntohl(avh->vendor)) {
-    case NX_VENDOR_ID: 
-        nx_execute_act(buffer, key, avh);
-        break;
-
     default:
         /* This should not be possible due to prior validation. */
         printf("attempt to execute action with unknown vendor: %#x\n", 

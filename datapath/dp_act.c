@@ -17,7 +17,6 @@
 #include "forward.h"
 #include "dp_act.h"
 #include "openflow/nicira-ext.h"
-#include "nx_act.h"
 #include "flow.h"
 
 
@@ -375,10 +374,6 @@ validate_vendor(struct datapath *dp, const struct sw_flow_key *key,
 	avh = (struct ofp_action_vendor_header *)ah;
 
 	switch(ntohl(avh->vendor)) {
-	case NX_VENDOR_ID: 
-		ret = nx_validate_act(dp, key, (struct nx_action_header *)avh, len);
-		break;
-
 	default:
 		return OFPBAC_BAD_VENDOR;
 	}
@@ -453,10 +448,6 @@ execute_vendor(struct sk_buff *skb, const struct sw_flow_key *key,
 	 * made to make_writable or its equivalent first. */
 
 	switch(ntohl(avh->vendor)) {
-	case NX_VENDOR_ID: 
-		skb = nx_execute_act(skb, key, (struct nx_action_header *)avh);
-		break;
-
 	default:
 		/* This should not be possible due to prior validation. */
 		if (net_ratelimit())

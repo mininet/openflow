@@ -18,7 +18,6 @@ ofdatapath_sources = \
 	dp_notify.c \
 	flow.c \
 	forward.c \
-	nx_act.c \
 	private-msg.c \
 	table-hash.c \
 	table-linear.c
@@ -32,7 +31,6 @@ ofdatapath_headers = \
 	flow.h \
 	forward.h \
 	dp_act.h \
-	nx_act.h \
 	private-msg.h \
 	table.h
 
