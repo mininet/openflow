@@ -64,7 +64,7 @@ struct sw_flow {
     uint64_t created;           /* When the flow was created. */
     uint64_t packet_count;      /* Number of packets seen. */
     uint64_t byte_count;        /* Number of bytes seen. */
-    uint8_t reason;             /* Reason flow removed (one of NXFER_*). */
+    uint8_t reason;             /* Reason flow removed (one of OFPRR_*). */
     uint8_t send_flow_rem;      /* Send a flow removed to the controller */
     uint8_t emerg_flow;         /* Emergency flow indicator */
 

@@ -154,11 +154,11 @@ int flow_timeout(struct sw_flow *flow)
 {
 	if (flow->idle_timeout != OFP_FLOW_PERMANENT
 	    && time_after64(get_jiffies_64(), flow->used + flow->idle_timeout * HZ))
-		return NXFER_IDLE_TIMEOUT;
+		return OFPRR_IDLE_TIMEOUT;
 	else if (flow->hard_timeout != OFP_FLOW_PERMANENT
 		 && time_after64(get_jiffies_64(),
 			       flow->created + flow->hard_timeout * HZ))
-		return NXFER_HARD_TIMEOUT;
+		return OFPRR_HARD_TIMEOUT;
 	else
 		return -1;
 }

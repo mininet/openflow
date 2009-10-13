@@ -164,7 +164,7 @@ tmpl_uninstall_flow(struct datapath *dpinst, struct sw_table *flowtab,
 		if (flow_matches_desc(&flow->key, key, strict)
 		    && (!strict || (flow->priority == priority)))
 			count += do_uninstall(dpinst, flowtab,
-					      flow, NXFER_DELETE);
+					      flow, OFPRR_DELETE);
 	}
 
 	if (count != 0)

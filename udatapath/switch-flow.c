@@ -259,11 +259,11 @@ bool flow_timeout(struct sw_flow *flow)
     uint64_t now = time_msec();
     if (flow->idle_timeout != OFP_FLOW_PERMANENT
             && now > flow->used + flow->idle_timeout * 1000) {
-        flow->reason = NXFER_IDLE_TIMEOUT;
+        flow->reason = OFPRR_IDLE_TIMEOUT;
         return true;
     } else if (flow->hard_timeout != OFP_FLOW_PERMANENT
             && now > flow->created + flow->hard_timeout * 1000) {
-        flow->reason = NXFER_HARD_TIMEOUT;
+        flow->reason = OFPRR_HARD_TIMEOUT;
         return true;
     } else {
         return false;

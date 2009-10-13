@@ -176,7 +176,7 @@ static int table_hash_delete(struct datapath *dp, struct sw_table *swt,
         struct sw_flow *flow = *bucket;
         if (flow && !flow_compare(&flow->key.flow, &key->flow)
                 && flow_has_out_port(flow, out_port)) {
-            dp_send_flow_end(dp, flow, NXFER_DELETE);
+            dp_send_flow_end(dp, flow, OFPRR_DELETE);
             do_delete(bucket);
             count = 1;
         }
@@ -188,7 +188,7 @@ static int table_hash_delete(struct datapath *dp, struct sw_table *swt,
             struct sw_flow *flow = *bucket;
             if (flow && flow_matches_desc(&flow->key, key, strict)
                     && flow_has_out_port(flow, out_port)) {
-                dp_send_flow_end(dp, flow, NXFER_DELETE);
+                dp_send_flow_end(dp, flow, OFPRR_DELETE);
                 do_delete(bucket);
                 count++;
             }

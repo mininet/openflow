@@ -225,7 +225,7 @@ nf2_uninstall_flow(struct datapath *dpinst, struct sw_table *flowtab,
 								       nf2flow);
 			}
 			count += do_uninstall(dpinst, flowtab,
-					      flow, NXFER_DELETE);
+					      flow, OFPRR_DELETE);
 		}
 	}
 	if (count != 0)

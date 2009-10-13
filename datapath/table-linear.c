@@ -127,7 +127,7 @@ static int table_linear_delete(struct datapath *dp, struct sw_table *swt,
 		if (flow_matches_desc(&flow->key, key, strict)
 				&& flow_has_out_port(flow, out_port)
 				&& (!strict || (flow->priority == priority)))
-			count += do_delete(dp, swt, flow, NXFER_DELETE);
+			count += do_delete(dp, swt, flow, OFPRR_DELETE);
 	}
 	tl->n_flows -= count;
 	return count;
