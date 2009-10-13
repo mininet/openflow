@@ -785,51 +785,6 @@ ofp_print_flow_removed(struct ds *string, const void *oh, size_t len UNUSED,
          ntohl(ofe->duration), ntohs(ofe->idle_timeout),
          ntohll(ofe->packet_count), ntohll(ofe->byte_count));
 }
-/* Pretty-print the NXT_FLOW_EXPIRED packet of 'len' bytes at 'oh' to 'string'
- * at the given 'verbosity' level. */
-static void
-nx_print_flow_end(struct ds *string, const void *oh, size_t len, 
-                       int verbosity)
-{
-    const struct nx_flow_end *nfe = oh;
-
-    ds_put_cstr(string, "nx_flow_end: ");
-
-    if (len < sizeof(*nfe)) {
-        ds_put_format(string, " (***length=%zu < min_size=%zu***)\n",
-                len, sizeof(*nfe));
-        return;
-    }
-
-    ofp_print_match(string, &nfe->match, verbosity);
-    ds_put_cstr(string, " reason=");
-    switch (nfe->reason) {
-    case NXFER_IDLE_TIMEOUT:
-        ds_put_cstr(string, "idle");
-        break;
-    case NXFER_HARD_TIMEOUT:
-        ds_put_cstr(string, "hard");
-        break;
-    case NXFER_DELETE:
-        ds_put_cstr(string, "delete");
-        break;
-    case NXFER_EJECT:
-        ds_put_cstr(string, "eject");
-        break;
-    default:
-        ds_put_format(string, "**%"PRIu8"**", nfe->reason);
-        break;
-    }
-    ds_put_format(string, 
-         " pri=%"PRIu16" init=%"PRIu64" used=%"PRIu64" end=%"PRIu64" idle=%"PRIu16,
-         nfe->match.wildcards ? ntohs(nfe->priority) : (uint16_t)-1,
-         ntohll(nfe->init_time), ntohll(nfe->used_time), 
-         ntohll(nfe->end_time), ntohs(nfe->idle_timeout));
-    ds_put_format(string, 
-         " tflags=0x%x tos=0x%x pkts=%"PRIu64" bytes=%"PRIu64"\n", 
-         nfe->tcp_flags, nfe->ip_tos, ntohll(nfe->packet_count), 
-         ntohll(nfe->byte_count));
-}
 
 static void
 nx_print_msg(struct ds *string, const void *oh, size_t len, int verbosity)
@@ -838,9 +793,6 @@ nx_print_msg(struct ds *string, const void *oh, size_t len, int verbosity)
 
     switch(ntohl(nh->subtype)) 
     {
-    case NXT_FLOW_END:
-        nx_print_flow_end(string, oh, len, verbosity);
-        return;
     }
 }
 

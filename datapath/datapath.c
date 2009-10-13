@@ -1026,7 +1026,10 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 		     enum ofp_flow_removed_reason reason)
 {
 	struct sk_buff *skb;
-	struct nx_flow_end *nfe;
+	struct ofp_flow_removed *ofr;
+
+        u64 end_time;
+        u64 init_time;
 
 	if (!flow->send_flow_rem)
 		return 0;
@@ -1034,31 +1037,23 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 	if (flow->emerg_flow)
 		return 0;
 
-	nfe = alloc_openflow_skb(dp, sizeof *nfe, OFPT_VENDOR, 0, &skb);
-	if (!nfe)
+	ofr = alloc_openflow_skb(dp, sizeof *ofr, OFPT_FLOW_REMOVED, 0, &skb);
+	if (!ofr)
 		return -ENOMEM;
 
-	nfe->header.vendor = htonl(NX_VENDOR_ID);
-	nfe->header.subtype = htonl(NXT_FLOW_END);
+	flow_fill_match(&ofr->match, &flow->key);
 
-	flow_fill_match(&nfe->match, &flow->key);
+	ofr->priority = htons(flow->priority);
+	ofr->reason = reason;
 
-	nfe->priority = htons(flow->priority);
-	nfe->reason = reason;
+	init_time = jiffies_64_to_msecs(flow->created);
+	end_time = jiffies_64_to_msecs(get_jiffies_64());
 
-	nfe->tcp_flags = flow->tcp_flags;
-	nfe->ip_tos = flow->ip_tos;
+	ofr->duration = htonl((end_time-init_time)/1000);
+	ofr->idle_timeout = htons(flow->idle_timeout);
 
-	nfe->send_flow_exp = flow->send_flow_rem;
-
-	nfe->idle_timeout = htons(flow->idle_timeout);
-
-	nfe->init_time = cpu_to_be64(jiffies_64_to_msecs(flow->created));
-	nfe->used_time = cpu_to_be64(jiffies_64_to_msecs(flow->used));
-	nfe->end_time = cpu_to_be64(jiffies_64_to_msecs(get_jiffies_64()));
-
-	nfe->packet_count = cpu_to_be64(flow->packet_count);
-	nfe->byte_count   = cpu_to_be64(flow->byte_count);
+	ofr->packet_count = cpu_to_be64(flow->packet_count);
+	ofr->byte_count   = cpu_to_be64(flow->byte_count);
 
 	return send_openflow_skb(dp, skb, NULL);
 }

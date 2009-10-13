@@ -12,8 +12,6 @@ secchan_ofprotocol_SOURCES = \
 	secchan/fail-open.h \
 	secchan/failover.c \
 	secchan/failover.h \
-	secchan/flow-end.c \
-	secchan/flow-end.h \
 	secchan/in-band.c \
 	secchan/in-band.h \
 	secchan/port-watcher.c \

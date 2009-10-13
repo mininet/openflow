@@ -731,7 +731,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
               enum ofp_flow_removed_reason reason)
 {
     struct ofpbuf *buffer;
-    struct nx_flow_end *nfe;
+    struct ofp_flow_removed *ofr;
 
     if (!flow->send_flow_rem) {
         return;
@@ -741,31 +741,21 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
         return;
     }
 
-    nfe = make_openflow_xid(sizeof *nfe, OFPT_VENDOR, 0, &buffer);
-    if (!nfe) {
+    ofr = make_openflow_xid(sizeof *ofr, OFPT_FLOW_REMOVED, 0, &buffer);
+    if (!ofr) {
         return;
     }
-    nfe->header.vendor = htonl(NX_VENDOR_ID);
-    nfe->header.subtype = htonl(NXT_FLOW_END);
 
-    flow_fill_match(&nfe->match, &flow->key.flow, flow->key.wildcards);
+    flow_fill_match(&ofr->match, &flow->key.flow, flow->key.wildcards);
 
-    nfe->priority = htons(flow->priority);
-    nfe->reason = reason;
+    ofr->priority = htons(flow->priority);
+    ofr->reason = reason;
 
-    nfe->tcp_flags = flow->tcp_flags;
-    nfe->ip_tos = flow->ip_tos;
+    ofr->duration = htonl((time_msec()-flow->created)/1000);
+    ofr->idle_timeout = htons(flow->idle_timeout);
 
-    nfe->send_flow_exp = flow->send_flow_rem;
-
-    nfe->idle_timeout = htons(flow->idle_timeout);
-
-    nfe->init_time = htonll(flow->created);
-    nfe->used_time = htonll(flow->used);
-    nfe->end_time = htonll(time_msec());
-
-    nfe->packet_count = htonll(flow->packet_count);
-    nfe->byte_count   = htonll(flow->byte_count);
+    ofr->packet_count = htonll(flow->packet_count);
+    ofr->byte_count   = htonll(flow->byte_count);
 
     send_openflow_buffer(dp, buffer, NULL);
 }
