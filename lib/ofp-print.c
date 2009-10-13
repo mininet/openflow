@@ -787,16 +787,6 @@ ofp_print_flow_removed(struct ds *string, const void *oh, size_t len UNUSED,
 }
 
 static void
-nx_print_msg(struct ds *string, const void *oh, size_t len, int verbosity)
-{
-    const struct nicira_header *nh = oh;
-
-    switch(ntohl(nh->subtype)) 
-    {
-    }
-}
-
-static void
 ofp_print_port_mod(struct ds *string, const void *oh, size_t len UNUSED,
                    int verbosity UNUSED)
 {
@@ -1278,9 +1268,6 @@ ofp_vendor(struct ds *string, const void *oh, size_t len, int verbosity)
 
     switch(ntohl(vh->vendor)) 
     {
-    case NX_VENDOR_ID:
-          return nx_print_msg(string, oh, len, verbosity);
-          break;
     }
 }
 
