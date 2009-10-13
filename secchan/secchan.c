@@ -46,7 +46,6 @@
 #include "daemon.h"
 #include "dirs.h"
 #include "discovery.h"
-#include "executer.h"
 #include "emerg-flow.h"
 #include "fail-open.h"
 #include "failover.h"
@@ -228,9 +227,6 @@ main(int argc, char *argv[])
     }
     if (s.rate_limit) {
         rate_limit_start(&secchan, &s, switch_status, remote_rconn);
-    }
-    if (s.command_acl[0]) {
-        executer_start(&secchan, &s);
     }
     if (s.emerg_flow) {
         emerg_flow_start(&secchan, &s, switch_status, local_rconn, remote_rconn);
@@ -592,8 +588,6 @@ parse_options(int argc, char *argv[], struct settings *s)
         OPT_NO_STP,
         OPT_OUT_OF_BAND,
         OPT_IN_BAND,
-        OPT_COMMAND_ACL,
-        OPT_COMMAND_DIR,
         OPT_EMERG_FLOW,
         VLOG_OPTION_ENUMS,
         LEAK_CHECKER_OPTION_ENUMS
@@ -613,8 +607,6 @@ parse_options(int argc, char *argv[], struct settings *s)
         {"no-stp",      no_argument, 0, OPT_NO_STP},
         {"out-of-band", no_argument, 0, OPT_OUT_OF_BAND},
         {"in-band",     no_argument, 0, OPT_IN_BAND},
-        {"command-acl", required_argument, 0, OPT_COMMAND_ACL},
-        {"command-dir", required_argument, 0, OPT_COMMAND_DIR},
         {"emerg-flow",  no_argument, 0, OPT_EMERG_FLOW},
         {"verbose",     optional_argument, 0, 'v'},
         {"help",        no_argument, 0, 'h'},
@@ -644,8 +636,6 @@ parse_options(int argc, char *argv[], struct settings *s)
     s->burst_limit = 0;
     s->enable_stp = false;
     s->in_band = true;
-    s->command_acl = "";
-    s->command_dir = xasprintf("%s/commands", ofp_pkgdatadir);
     s->emerg_flow = false;
     for (;;) {
         int c;
@@ -735,16 +725,6 @@ parse_options(int argc, char *argv[], struct settings *s)
 
         case OPT_IN_BAND:
             s->in_band = true;
-            break;
-
-        case OPT_COMMAND_ACL:
-            s->command_acl = (s->command_acl[0]
-                              ? xasprintf("%s,%s", s->command_acl, optarg)
-                              : optarg);
-            break;
-
-        case OPT_COMMAND_DIR:
-            s->command_dir = optarg;
             break;
 
         case OPT_EMERG_FLOW:
@@ -890,10 +870,7 @@ usage(void)
            "  --emerg-flow            enable emergency flow protection/restoration\n"
            "\nRate-limiting of \"packet-in\" messages to the controller:\n"
            "  --rate-limit[=PACKETS]  max rate, in packets/s (default: 1000)\n"
-           "  --burst-limit=BURST     limit on packet credit for idle time\n"
-           "\nRemote command execution options:\n"
-           "  --command-acl=[!]GLOB[,[!]GLOB...] set allowed/denied commands\n"
-           "  --command-dir=DIR       set command dir (default: %s/commands)\n",
+           "  --burst-limit=BURST     limit on packet credit for idle time\n",
            ofp_pkgdatadir);
     daemon_usage();
     vlog_usage();

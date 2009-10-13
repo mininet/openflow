@@ -4,8 +4,6 @@ man_MANS += secchan/ofprotocol.8
 secchan_ofprotocol_SOURCES = \
 	secchan/discovery.c \
 	secchan/discovery.h \
-	secchan/executer.c \
-	secchan/executer.h \
 	secchan/emerg-flow.c \
 	secchan/emerg-flow.h \
 	secchan/fail-open.c \
