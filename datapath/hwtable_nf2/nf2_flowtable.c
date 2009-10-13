@@ -68,7 +68,7 @@ static int nf2_modify_flow(struct sw_table *, const struct sw_flow_key *,
 static void deferred_uninstall_callback(struct rcu_head *);
 static void do_deferred_uninstall(struct sw_flow *);
 static int do_uninstall(struct datapath *, struct sw_table *, struct sw_flow *,
-			enum nx_flow_end_reason);
+			enum ofp_flow_removed_reason);
 static int nf2_has_conflict(struct sw_table *, const struct sw_flow_key *,
 			    uint16_t, int);
 static int nf2_uninstall_flow(struct datapath *, struct sw_table *,
@@ -182,7 +182,7 @@ do_deferred_uninstall(struct sw_flow *flow)
 
 static int
 do_uninstall(struct datapath *dpinst, struct sw_table *flowtab,
-	     struct sw_flow *flow, enum nx_flow_end_reason reason)
+	     struct sw_flow *flow, enum ofp_flow_removed_reason reason)
 {
 	if (flow != NULL && flow->private != NULL) {
 		if (dpinst != NULL)

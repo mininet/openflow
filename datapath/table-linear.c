@@ -106,7 +106,7 @@ static int table_linear_has_conflict(struct sw_table *swt,
 }
 
 static int do_delete(struct datapath *dp, struct sw_table *swt, 
-			struct sw_flow *flow, enum nx_flow_end_reason reason) 
+			struct sw_flow *flow, enum ofp_flow_removed_reason reason)
 {
 	dp_send_flow_end(dp, flow, reason);
 	list_del_rcu(&flow->node);

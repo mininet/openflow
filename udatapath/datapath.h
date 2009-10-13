@@ -97,7 +97,7 @@ void dp_wait(struct datapath *);
 void dp_send_error_msg(struct datapath *, const struct sender *,
                   uint16_t, uint16_t, const void *, size_t);
 void dp_send_flow_end(struct datapath *, struct sw_flow *,
-                      enum nx_flow_end_reason);
+                      enum ofp_flow_removed_reason);
 void dp_output_port(struct datapath *, struct ofpbuf *, int in_port, 
         int out_port, bool ignore_no_fwd);
 void dp_output_control(struct datapath *, struct ofpbuf *, int in_port,

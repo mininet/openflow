@@ -68,7 +68,7 @@ static int tmpl_modify_flow(struct sw_table *, const struct sw_flow_key *,
 			    uint16_t, int, const struct ofp_action_header *,
 			    size_t);
 static int do_uninstall(struct datapath *, struct sw_table *, struct sw_flow *,
-			enum nx_flow_end_reason);
+			enum ofp_flow_removed_reason);
 static int tmpl_uninstall_flow(struct datapath *, struct sw_table *,
 			       const struct sw_flow_key *,
 			       uint16_t, uint16_t, int);
@@ -139,7 +139,7 @@ tmpl_modify_flow(struct sw_table *flowtab, const struct sw_flow_key *key,
 
 static int
 do_uninstall(struct datapath *dpinst, struct sw_table *flowtab,
-	     struct sw_flow *flow, enum nx_flow_end_reason reason)
+	     struct sw_flow *flow, enum ofp_flow_removed_reason reason)
 {
 	/* XXX: Remove the entry from hardware.  If you need to do any other
 	 * clean-up associated with the entry, do it here.

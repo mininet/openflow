@@ -1023,7 +1023,7 @@ static u64 inline jiffies_64_to_msecs(const u64 j)
 
 int 
 dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
-		     enum nx_flow_end_reason reason)
+		     enum ofp_flow_removed_reason reason)
 {
 	struct sk_buff *skb;
 	struct nx_flow_end *nfe;

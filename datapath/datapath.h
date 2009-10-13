@@ -96,7 +96,7 @@ int dp_send_features_reply(struct datapath *, const struct sender *);
 int dp_send_config_reply(struct datapath *, const struct sender *);
 int dp_send_port_status(struct net_bridge_port *p, uint8_t status);
 int dp_send_flow_end(struct datapath *, struct sw_flow *,
-			 enum nx_flow_end_reason);
+			 enum ofp_flow_removed_reason);
 int dp_send_error_msg(struct datapath *, const struct sender *, 
 			uint16_t, uint16_t, const void *, size_t);
 int dp_update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm);

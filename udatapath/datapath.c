@@ -728,7 +728,7 @@ send_port_status(struct sw_port *p, uint8_t status)
 
 void
 dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
-              enum nx_flow_end_reason reason)
+              enum ofp_flow_removed_reason reason)
 {
     struct ofpbuf *buffer;
     struct nx_flow_end *nfe;
