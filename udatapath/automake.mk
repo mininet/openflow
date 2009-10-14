@@ -12,8 +12,6 @@ udatapath_ofdatapath_SOURCES = \
 	udatapath/dp_act.h \
 	udatapath/nx_act.c \
 	udatapath/nx_act.h \
-	udatapath/nx_msg.c \
-	udatapath/nx_msg.h \
 	udatapath/udatapath.c \
 	udatapath/private-msg.c \
 	udatapath/private-msg.h \

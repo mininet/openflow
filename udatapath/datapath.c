@@ -54,7 +54,6 @@
 #include "table.h"
 #include "vconn.h"
 #include "xtoxll.h"
-#include "nx_msg.h"
 #include "private-msg.h"
 #include "dp_act.h"
 
@@ -1682,9 +1681,6 @@ recv_vendor(struct datapath *dp, const struct sender *sender,
 
     switch (ntohl(ovh->vendor)) 
     {
-    case NX_VENDOR_ID:
-        return nx_recv_msg(dp, sender, oh);
-
     case PRIVATE_VENDOR_ID:
         return private_recv_msg(dp, sender, oh);
 

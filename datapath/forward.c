@@ -15,7 +15,6 @@
 #include "openflow/nicira-ext.h"
 #include "openflow/private-ext.h"
 #include "dp_act.h"
-#include "nx_msg.h"
 #include "private-msg.h"
 #include "chain.h"
 #include "flow.h"
@@ -409,8 +408,6 @@ recv_vendor(struct sw_chain *chain, const struct sender *sender,
 
 	switch(ntohl(ovh->vendor))
 	{
-	case NX_VENDOR_ID:
-		return nx_recv_msg(chain, sender, msg);
 	case PRIVATE_VENDOR_ID:
 		return private_recv_msg(chain, sender, msg);
 	default:
