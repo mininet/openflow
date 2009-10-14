@@ -211,13 +211,6 @@ static void ofp_print_port_name(struct ds *string, uint16_t port)
     ds_put_cstr(string, name);
 }
 
-static void
-ofp_print_nx_action(struct ds *string, const struct nx_action_header *nah)
-{
-    ds_put_format(string, "***unknown Nicira action:%d***\n", 
-            ntohl(nah->subtype));
-}
-
 static int
 ofp_print_action(struct ds *string, const struct ofp_action_header *ah, 
         size_t actions_len) 
@@ -392,8 +385,9 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
             ds_put_format(string, "***ofpat_vendor truncated***\n");
             return -1;
         }
-        if (avh->vendor == htonl(NX_VENDOR_ID)) {
-            ofp_print_nx_action(string, (struct nx_action_header *)avh);
+        /* Identify individual vendor actions */
+        if (1 == 0) {
+            /* Code to output vendor action */
         } else {
             ds_put_format(string, "vendor action:0x%x", ntohl(avh->vendor));
         }
