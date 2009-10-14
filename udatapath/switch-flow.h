@@ -68,9 +68,6 @@ struct sw_flow {
     uint8_t send_flow_rem;      /* Send a flow removed to the controller */
     uint8_t emerg_flow;         /* Emergency flow indicator */
 
-    uint8_t tcp_flags;          /* Union of seen TCP flags. */
-    uint8_t ip_tos;             /* IP TOS value. */
-
     struct sw_flow_actions *sf_acts;
 
     /* Private to table implementations. */

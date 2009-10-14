@@ -271,8 +271,6 @@ void flow_setup_actions(struct sw_flow *                       flow,
 	flow->used = flow->created = get_jiffies_64();
 	flow->byte_count = 0;
 	flow->packet_count = 0;
-	flow->tcp_flags = 0;
-	flow->ip_tos = 0;
 	spin_lock_init(&flow->lock);
 
 	/* Make sure we don't blow the allocation done earlier */

@@ -191,8 +191,6 @@ flow_setup_actions(struct sw_flow *                    flow,
 	flow->sf_acts->actions_len = actions_len;
 	flow->byte_count = 0;
 	flow->packet_count = 0;
-	flow->tcp_flags = 0;
-	flow->ip_tos = 0;
 	memcpy(flow->sf_acts->actions, actions, actions_len);
 }
 
@@ -301,16 +299,6 @@ int flow_has_out_port(struct sw_flow *flow, uint16_t out_port)
 void flow_used(struct sw_flow *flow, struct ofpbuf *buffer)
 {
     flow->used = time_msec();
-
-    if (flow->key.flow.dl_type == htons(ETH_TYPE_IP)) {
-        struct ip_header *nh = buffer->l3;
-        flow->ip_tos = nh->ip_tos;
-
-        if (flow->key.flow.nw_proto == IP_TYPE_TCP) {
-            struct tcp_header *th = buffer->l4;
-            flow->tcp_flags |= TCP_FLAGS(th->tcp_ctl);
-        }
-    }
 
     flow->packet_count++;
     flow->byte_count += buffer->size;

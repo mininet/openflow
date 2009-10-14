@@ -110,9 +110,6 @@ struct sw_flow {
 	uint64_t packet_count;   /* Number of packets associated with this entry */
 	uint64_t byte_count;     /* Number of bytes associated with this entry */
 
-	uint8_t tcp_flags;       /* Union of seen TCP flags. */
-	uint8_t ip_tos;          /* IP TOS value. */
-
 	struct rcu_head rcu;
 };
 
@@ -185,16 +182,6 @@ static inline void flow_used(struct sw_flow *flow, struct sk_buff *skb)
 	flow->used = get_jiffies_64();
 
 	spin_lock_irqsave(&flow->lock, flags);
-	if (flow->key.dl_type == htons(ETH_P_IP) && iphdr_ok(skb)) {
-		struct iphdr *nh = ip_hdr(skb);
-		flow->ip_tos = nh->tos;
-
-		if (flow->key.nw_proto == IPPROTO_TCP && tcphdr_ok(skb)) {
-			uint8_t *tcp = (uint8_t *)tcp_hdr(skb);
-			flow->tcp_flags |= *(tcp + TCP_FLAGS_OFFSET) & TCP_FLAG_MASK;
-		}
-	}
-
 	flow->packet_count++;
 	flow->byte_count += skb->len;
 	spin_unlock_irqrestore(&flow->lock, flags);
