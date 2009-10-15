@@ -141,6 +141,13 @@ The \verb|miss_send_len| field defines the number of bytes of each packet sent t
 Modifications to the flow table from the controller are done with the \verb|OFPT_FLOW_MOD| message:
 
 \input{struct/ofp_flow_mod}
+The \verb|cookie| field is an opaque data value that is set by the
+controller.  It is not used in any matching functions, and thus does not
+need to reside in hardware.  The value -1 (0xffffffffffffffff) is
+reserved and must not be used.  It is required that when \verb|command| is
+\verb|OFPC_MODIFY| or \verb|OFPC_MODIFY_STRICT| that matched flows have
+their \verb|cookie| field updated appropriately.
+\\\\
 The \verb|command| field must be one of the following:
 
 \input{enum/ofp_flow_mod_command}
@@ -272,7 +279,7 @@ The reason field can be any of these values:
 If the controller has requested to be notified when flows time out, the datapath does this with the \verb|OFPT_FLOW_REMOVED| message:
 
 \input{struct/ofp_flow_removed}
-The \verb|match| and \verb|priority| fields are the same as those used in the flow setup request.  
+The \verb|match|, \verb|cookie|, and \verb|priority| fields are the same as those used in the flow setup request.
 \\\\
 The \verb|reason| field is one of the following:
 
