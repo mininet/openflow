@@ -1009,16 +1009,13 @@ dp_send_port_status(struct net_bridge_port *p, uint8_t status)
 	return send_openflow_skb(p->dp, skb, NULL);
 }
 
-/* Convert jiffies_64 to milliseconds. */
-static u64 inline jiffies_64_to_msecs(const u64 j)
+/* Convert jiffies_64 to seconds. */
+static u64 inline jiffies_64_to_secs(u64 j)
 {
-#if HZ <= MSEC_PER_SEC && !(MSEC_PER_SEC % HZ)
-		return (MSEC_PER_SEC / HZ) * j;
-#elif HZ > MSEC_PER_SEC && !(HZ % MSEC_PER_SEC)
-		return (j + (HZ / MSEC_PER_SEC) - 1)/(HZ / MSEC_PER_SEC);
-#else
-		return (j * MSEC_PER_SEC) / HZ;
-#endif
+	/* Call to do_div is necessary as we can't do a 64-bit division in a
+	 * 32-bit kernel (at least not without linking to libgcc) */
+	do_div(j, HZ);
+	return j;
 }
 
 int 
@@ -1027,9 +1024,6 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 {
 	struct sk_buff *skb;
 	struct ofp_flow_removed *ofr;
-
-        u64 end_time;
-        u64 init_time;
 
 	if (!flow->send_flow_rem)
 		return 0;
@@ -1046,10 +1040,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 	ofr->priority = htons(flow->priority);
 	ofr->reason = reason;
 
-	init_time = jiffies_64_to_msecs(flow->created);
-	end_time = jiffies_64_to_msecs(get_jiffies_64());
-
-	ofr->duration = htonl((end_time-init_time)/1000);
+	ofr->duration = htonl(jiffies_64_to_secs(get_jiffies_64()-flow->created));
 	ofr->idle_timeout = htons(flow->idle_timeout);
 
 	ofr->packet_count = cpu_to_be64(flow->packet_count);
