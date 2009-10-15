@@ -118,7 +118,7 @@ Table \ref{table:header fields} shows the header fields an incoming packet is co
 \hline VLAN priority & 3 & All packets of Ethernet type 0x8100 & VLAN PCP field \\
 \hline IP source address & 32 & All IP packets & Can be subnet masked \\
 \hline IP destination address & 32 & All IP packets & Can be subnet masked \\
-\hline IP protocol & 8 & All IP packets & \\
+\hline IP protocol & 8 & All IP and IP over Ethernet ARP packets & Only the lower 8 bits of the ARP opcode are used \\
 \hline IP ToS bits & 6 & All IP packets & Specify as 8-bit value and place ToS in upper 6 bits. \\
 \hline Transport source port / ICMP Type & 16 & All TCP, UDP, and ICMP packets & Only lower 8 bits used for ICMP Type \\
 \hline Transport destination port / ICMP Code & 16 & All TCP, UDP, and ICMP packets & Only lower 8 bits used for ICMP Code \\
