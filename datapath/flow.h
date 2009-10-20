@@ -41,8 +41,10 @@ struct sw_flow_key {
 	uint16_t tp_dst;	/* TCP/UDP destination port. */
 	uint8_t dl_src[ETH_ALEN]; /* Ethernet source address. */
 	uint8_t dl_dst[ETH_ALEN]; /* Ethernet destination address. */
-	uint8_t nw_proto;	/* IP protocol. */
 	uint8_t dl_vlan_pcp;	/* Input VLAN priority. */
+	uint8_t nw_tos;		/* IPv4 DSCP */
+	uint8_t nw_proto;	/* IP protocol. */
+	uint8_t pad[3];
 	uint32_t wildcards;	/* Wildcard fields (host byte order). */
 	uint32_t nw_src_mask;	/* 1-bit in each significant nw_src bit. */
 	uint32_t nw_dst_mask;	/* 1-bit in each significant nw_dst bit. */
@@ -67,7 +69,7 @@ static inline int flow_keys_equal(const struct sw_flow_key *a,
  */
 static inline void check_key_align(void)
 {
-	BUILD_BUG_ON(sizeof(struct sw_flow_key) != 44); 
+	BUILD_BUG_ON(sizeof(struct sw_flow_key) != 48);
 }
 
 /* We keep actions as a separate structure because we need to be able to 

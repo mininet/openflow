@@ -56,10 +56,12 @@ struct flow {
     uint16_t tp_dst;            /* TCP/UDP destination port. */
     uint8_t dl_src[6];          /* Ethernet source address. */
     uint8_t dl_dst[6];          /* Ethernet destination address. */
-    uint8_t nw_proto;           /* IP protocol. */
     uint8_t dl_vlan_pcp;        /* Input VLAN priority. */
+    uint8_t nw_tos;             /* IPv4 DSCP. */
+    uint8_t nw_proto;           /* IP protocol. */
+    uint8_t pad[3];
 };
-BUILD_ASSERT_DECL(sizeof(struct flow) == 32);
+BUILD_ASSERT_DECL(sizeof(struct flow) == 36);
 
 int flow_extract(struct ofpbuf *, uint16_t in_port, struct flow *);
 void flow_fill_match(struct ofp_match *, const struct flow *,

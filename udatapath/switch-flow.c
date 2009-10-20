@@ -43,6 +43,9 @@
 #include "packets.h"
 #include "timeval.h"
 
+#define THIS_MODULE VLM_chain
+#include "vlog.h"
+
 /* Internal function used to compare fields in flow. */
 static inline int
 flow_fields_match(const struct flow *a, const struct flow *b, uint32_t w,
@@ -54,9 +57,10 @@ flow_fields_match(const struct flow *a, const struct flow *b, uint32_t w,
             && (w & OFPFW_DL_SRC || eth_addr_equals(a->dl_src, b->dl_src))
             && (w & OFPFW_DL_DST || eth_addr_equals(a->dl_dst, b->dl_dst))
             && (w & OFPFW_DL_TYPE || a->dl_type == b->dl_type)
+            && (w & OFPFW_NW_TOS || a->nw_tos == b->nw_tos)
+            && (w & OFPFW_NW_PROTO || a->nw_proto == b->nw_proto)
             && !((a->nw_src ^ b->nw_src) & src_mask)
             && !((a->nw_dst ^ b->nw_dst) & dst_mask)
-            && (w & OFPFW_NW_PROTO || a->nw_proto == b->nw_proto)
             && (w & OFPFW_TP_SRC || a->tp_src == b->tp_src)
             && (w & OFPFW_TP_DST || a->tp_dst == b->tp_dst));
 }
@@ -112,19 +116,21 @@ flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from)
     memcpy(to->flow.dl_dst, from->dl_dst, ETH_ADDR_LEN);
     to->flow.dl_type = from->dl_type;
 
-    to->flow.nw_src = to->flow.nw_dst = to->flow.nw_proto = 0;
+    to->flow.nw_tos = to->flow.nw_proto = to->flow.nw_src = to->flow.nw_dst = 0;
     to->flow.tp_src = to->flow.tp_dst = 0;
+    memset(to->flow.pad, 0, sizeof(to->flow.pad));
 
 #define OFPFW_TP (OFPFW_TP_SRC | OFPFW_TP_DST)
-#define OFPFW_NW (OFPFW_NW_SRC_MASK | OFPFW_NW_DST_MASK | OFPFW_NW_PROTO)
+#define OFPFW_NW (OFPFW_NW_TOS | OFPFW_NW_PROTO | OFPFW_NW_SRC_MASK | OFPFW_NW_DST_MASK)
     if (to->wildcards & OFPFW_DL_TYPE) {
         /* Can't sensibly match on network or transport headers if the
          * data link type is unknown. */
         to->wildcards |= OFPFW_NW | OFPFW_TP;
     } else if (from->dl_type == htons(ETH_TYPE_IP)) {
+        to->flow.nw_tos   = from->nw_tos & 0xfc;
+        to->flow.nw_proto = from->nw_proto;
         to->flow.nw_src   = from->nw_src;
         to->flow.nw_dst   = from->nw_dst;
-        to->flow.nw_proto = from->nw_proto;
 
         if (to->wildcards & OFPFW_NW_PROTO) {
             /* Can't sensibly match on transport headers if the network
@@ -169,11 +175,11 @@ flow_alloc(size_t actions_len)
 {
     struct sw_flow_actions *sfa;
     size_t size = sizeof *sfa + actions_len;
-    struct sw_flow *flow = malloc(sizeof *flow);
+    struct sw_flow *flow = calloc(1, sizeof *flow);
     if (!flow)
         return NULL;
 
-    sfa = malloc(size);
+    sfa = calloc(1, size);
     if (!sfa) {
         free(flow);
         return NULL;
@@ -240,16 +246,20 @@ void
 print_flow(const struct sw_flow_key *key)
 {
     const struct flow *f = &key->flow;
-    printf("wild%08x port%04x:vlan%04x vlan_pcp%02x mac%02x:%02x:%02x:%02x:%02x:%02x"
-           "->%02x:%02x:%02x:%02x:%02x:%02x "
-           "proto%04x ip%u.%u.%u.%u->%u.%u.%u.%u port%d->%d\n",
-           key->wildcards, ntohs(f->in_port), ntohs(f->dl_vlan),
-           f->dl_vlan_pcp,
+
+    VLOG_INFO("wild %08x port %04x vlan-vid %04x vlan-pcp %02x "
+              "src-mac %02x:%02x:%02x:%02x:%02x:%02x "
+              "dst-mac %02x:%02x:%02x:%02x:%02x:%02x "
+              "frm-type %04x ip-tos %02x ip-src %u.%u.%u.%u ip-dst %u.%u.%u.%u "
+              "ip-proto %04x tp-src %d tp-dst %d pad %02x%02x%02x\n",
+           key->wildcards, ntohs(f->in_port),
+           ntohs(f->dl_vlan), f->dl_vlan_pcp,
            f->dl_src[0], f->dl_src[1], f->dl_src[2],
            f->dl_src[3], f->dl_src[4], f->dl_src[5],
            f->dl_dst[0], f->dl_dst[1], f->dl_dst[2],
            f->dl_dst[3], f->dl_dst[4], f->dl_dst[5],
            ntohs(f->dl_type),
+           f->nw_tos,
            ((unsigned char *)&f->nw_src)[0],
            ((unsigned char *)&f->nw_src)[1],
            ((unsigned char *)&f->nw_src)[2],
@@ -258,7 +268,9 @@ print_flow(const struct sw_flow_key *key)
            ((unsigned char *)&f->nw_dst)[1],
            ((unsigned char *)&f->nw_dst)[2],
            ((unsigned char *)&f->nw_dst)[3],
-           ntohs(f->tp_src), ntohs(f->tp_dst));
+           f->nw_proto,
+           ntohs(f->tp_src), ntohs(f->tp_dst),
+           f->pad[0], f->pad[1], f->pad[2]);
 }
 
 bool flow_timeout(struct sw_flow *flow)

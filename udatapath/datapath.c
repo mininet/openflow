@@ -806,6 +806,7 @@ fill_flow_stats(struct ofpbuf *buffer, struct sw_flow *flow,
     memcpy(ofs->match.dl_dst, flow->key.flow.dl_dst, ETH_ADDR_LEN);
     ofs->match.dl_vlan   = flow->key.flow.dl_vlan;
     ofs->match.dl_type   = flow->key.flow.dl_type;
+    ofs->match.nw_tos    = flow->key.flow.nw_tos;
     ofs->match.nw_src    = flow->key.flow.nw_src;
     ofs->match.nw_dst    = flow->key.flow.nw_dst;
     ofs->match.nw_proto  = flow->key.flow.nw_proto;
@@ -1063,7 +1064,7 @@ add_flow(struct datapath *dp, const struct sender *sender,
             execute_actions(dp, buffer, &key, 
                     ofm->actions, actions_len, false);
         } else {
-            error = -ESRCH; 
+            error = -ESRCH;
         }
     }
     return error;

@@ -5,7 +5,7 @@ use strict;
 use OF::Includes;
 
 sub send_expect_exact {
-    my ($ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $max_idle, $pkt_len) = @_;
+    my ($ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $max_idle, $pkt_len, $vlan_id) = @_;
 
     my $in_port = $in_port_offset + $$options_ref{'port_base'};
     my $out_port = $out_port_offset + $$options_ref{'port_base'};
@@ -17,12 +17,13 @@ sub send_expect_exact {
     my $pkt_payload = [map {int(rand(256))} (1..($pkt_len - 8 - 4 - 16 - 14))];
 
     # This is the packet we are sending... - Jean II
+    my $test_nw_tos = 0xa9;
     my $test_pkt_args = {
 	DA => "00:00:00:00:00:0" . ($out_port + 1),
 	SA => "00:00:00:00:00:0" . ($in_port + 1),
 	src_ip => "192.168.200." . ($in_port + 1),
 	dst_ip => "192.168.201." . ($out_port + 1),
-	tos => 0xa9,
+	tos => $test_nw_tos,
 	ttl => 64,
 	len => $pkt_len,
 	src_port => 1,
@@ -52,7 +53,7 @@ sub send_expect_exact {
     my $flags = $enums{'OFPFF_SEND_FLOW_REM'}; # want flow expiry
     my $nw_tos = 0x56;
 
-    my $flow_mod_pkt = create_flow_mod_from_udp_action($ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', 'nw_tos', $nw_tos);
+    my $flow_mod_pkt = create_flow_mod_from_udp_action($ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', 'nw_tos', $nw_tos, $vlan_id, $test_nw_tos);
 
     #print HexDump($flow_mod_pkt);
 

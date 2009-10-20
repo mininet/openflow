@@ -805,14 +805,11 @@ sub run_black_box_test {
 }
 
 sub create_flow_mod_from_udp {
-
-	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $chg_field, $chg_val, $vlan_id ) = @_;
+	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $chg_field, $chg_val, $vlan_id, $nw_tos ) = @_;
 
 	my $flow_mod_pkt;
 
-	$flow_mod_pkt =
-	  create_flow_mod_from_udp_action( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards,
-		'OFPFC_ADD', $chg_field, $chg_val, $vlan_id );
+	$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', $chg_field, $chg_val, $vlan_id, $nw_tos );
 
 	return $flow_mod_pkt;
 }
@@ -995,8 +992,7 @@ sub combine_args {
 }
 
 sub create_flow_mod_from_udp_action {
-
-        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $mod_type, $chg_field, $chg_val, $vlan_id ) = @_;
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $mod_type, $chg_field, $chg_val, $vlan_id, $nw_tos) = @_;
 
         if (   $mod_type ne 'drop' 
                 && $mod_type ne 'OFPFC_ADD'
@@ -1052,6 +1048,13 @@ sub create_flow_mod_from_udp_action {
 		$dl_vlan_pcp = 0x0;
 	}
 
+	my $match_nw_tos;
+	if (defined $nw_tos) {
+	    $match_nw_tos = $nw_tos & 0xfc;
+	} else {
+	    $match_nw_tos = 0;
+	}
+
         my $match_args = {
                 wildcards => $wildcards,
                 in_port   => $in_port,
@@ -1062,6 +1065,7 @@ sub create_flow_mod_from_udp_action {
                 dl_vlan_pcp => $dl_vlan_pcp,
                 nw_src    => $src_ip,
                 nw_dst    => $dst_ip,
+                nw_tos    => $match_nw_tos,
                 nw_proto  => 17,                                  #udp
                 tp_src    => ${ $udp_pkt->{UDP_pdu} }->SrcPort,
                 tp_dst    => ${ $udp_pkt->{UDP_pdu} }->DstPort
@@ -1320,6 +1324,7 @@ sub for_all_wildcards {
 		0x003f00 => 'NW_SRC',
 		0x0fc000 => 'NW_DST',
 		0x100000 => 'DL_VLAN_PCP',
+		0x200000 => 'NW_TOS',
 	);
 
 	# Disable "1 ||" below for a more complete test
@@ -1760,6 +1765,7 @@ sub create_flow_mod_from_icmp_action {
                 dl_vlan_pcp => 0x00,
                 nw_src    => $src_ip,
                 nw_dst    => $dst_ip,
+                nw_tos    => 0,
                 nw_proto  => 1,                                  #ICMP
                 tp_src    => $icmp_type,
                 tp_dst    => $icmp_code

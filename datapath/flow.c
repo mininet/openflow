@@ -1,3 +1,4 @@
+
 /*
  * Distributed under the terms of the GNU GPL version 2.
  * Copyright (c) 2007, 2008 The Board of Trustees of The Leland 
@@ -34,9 +35,10 @@ int flow_fields_match(const struct sw_flow_key *a, const struct sw_flow_key *b,
 		&& (w & OFPFW_DL_SRC || !memcmp(a->dl_src, b->dl_src, ETH_ALEN))
 		&& (w & OFPFW_DL_DST || !memcmp(a->dl_dst, b->dl_dst, ETH_ALEN))
 		&& (w & OFPFW_DL_TYPE || a->dl_type == b->dl_type)
+		&& (w & OFPFW_NW_TOS || a->nw_tos == b->nw_tos)
+		&& (w & OFPFW_NW_PROTO || a->nw_proto == b->nw_proto)
 		&& !((a->nw_src ^ b->nw_src) & src_mask)
 		&& !((a->nw_dst ^ b->nw_dst) & dst_mask)
-		&& (w & OFPFW_NW_PROTO || a->nw_proto == b->nw_proto)
 		&& (w & OFPFW_TP_SRC || a->tp_src == b->tp_src)
 		&& (w & OFPFW_TP_DST || a->tp_dst == b->tp_dst));
 }
@@ -93,19 +95,21 @@ void flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from)
 	memcpy(to->dl_dst, from->dl_dst, ETH_ALEN);
 	to->dl_type = from->dl_type;
 
-	to->nw_src = to->nw_dst = to->nw_proto = 0;
+	to->nw_tos = to->nw_proto = to->nw_src = to->nw_dst = 0;
 	to->tp_src = to->tp_dst = 0;
+	memset(to->pad, 0, sizeof(to->pad));
 
 #define OFPFW_TP (OFPFW_TP_SRC | OFPFW_TP_DST)
-#define OFPFW_NW (OFPFW_NW_SRC_MASK | OFPFW_NW_DST_MASK | OFPFW_NW_PROTO)
+#define OFPFW_NW (OFPFW_NW_TOS | OFPFW_NW_PROTO | OFPFW_NW_SRC_MASK | OFPFW_NW_DST_MASK)
 	if (to->wildcards & OFPFW_DL_TYPE) {
 		/* Can't sensibly match on network or transport headers if the
 		 * data link type is unknown. */
 		to->wildcards |= OFPFW_NW | OFPFW_TP;
 	} else if (from->dl_type == htons(ETH_P_IP)) {
+		to->nw_tos   = from->nw_tos & 0xfc;
+		to->nw_proto = from->nw_proto;
 		to->nw_src   = from->nw_src;
 		to->nw_dst   = from->nw_dst;
-		to->nw_proto = from->nw_proto;
 
 		if (to->wildcards & OFPFW_NW_PROTO) {
 			/* Can't sensibly match on transport headers if the
@@ -142,9 +146,10 @@ void flow_fill_match(struct ofp_match* to, const struct sw_flow_key* from)
 	memcpy(to->dl_src, from->dl_src, ETH_ALEN);
 	memcpy(to->dl_dst, from->dl_dst, ETH_ALEN);
 	to->dl_type   = from->dl_type;
+	to->nw_tos    = from->nw_tos;
+	to->nw_proto  = from->nw_proto;
 	to->nw_src    = from->nw_src;
 	to->nw_dst    = from->nw_dst;
-	to->nw_proto  = from->nw_proto;
 	to->tp_src    = from->tp_src;
 	to->tp_dst    = from->tp_dst;
 	to->dl_vlan_pcp  = from->dl_vlan_pcp;
@@ -310,9 +315,11 @@ EXPORT_SYMBOL(flow_replace_acts);
 /* Prints a representation of 'key' to the kernel log. */
 void print_flow(const struct sw_flow_key *key)
 {
-	printk("wild%08x port%04x:vlan%04x vlan_pcp%02x mac%02x:%02x:%02x:%02x:%02x:%02x"
-			"->%02x:%02x:%02x:%02x:%02x:%02x "
-			"proto%04x ip%u.%u.%u.%u->%u.%u.%u.%u port%d->%d\n",
+	printk("wild %08x port %04x vlan-vid %04x vlan-pcp %02x "
+	       "src-mac %02x:%02x:%02x:%02x:%02x:%02x "
+	       "dst-mac %02x:%02x:%02x:%02x:%02x:%02x "
+	       "frm-type %04x ip-tos %02x ip-proto %02x "
+	       "src-ip %u.%u.%u.%u dst-ip %u.%u.%u.%u tp-src %d tp-dst %d\n",
 			key->wildcards, ntohs(key->in_port), ntohs(key->dl_vlan),
 			key->dl_vlan_pcp,
 			key->dl_src[0], key->dl_src[1], key->dl_src[2],
@@ -320,6 +327,7 @@ void print_flow(const struct sw_flow_key *key)
 			key->dl_dst[0], key->dl_dst[1], key->dl_dst[2],
 			key->dl_dst[3], key->dl_dst[4], key->dl_dst[5],
 			ntohs(key->dl_type),
+			key->nw_tos, key->nw_proto,
 			((unsigned char *)&key->nw_src)[0],
 			((unsigned char *)&key->nw_src)[1],
 			((unsigned char *)&key->nw_src)[2],
@@ -406,9 +414,10 @@ int flow_extract(struct sk_buff *skb, uint16_t in_port,
 	if (key->dl_type == htons(ETH_P_IP) && iphdr_ok(skb)) {
 		struct iphdr *nh = ip_hdr(skb);
 		int th_ofs = nh_ofs + nh->ihl * 4;
+		key->nw_tos = nh->tos & 0xfc;
+		key->nw_proto = nh->protocol;
 		key->nw_src = nh->saddr;
 		key->nw_dst = nh->daddr;
-		key->nw_proto = nh->protocol;
 		skb_set_transport_header(skb, th_ofs);
 
 		/* Transport layer. */

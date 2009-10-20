@@ -109,7 +109,7 @@ static const value_string names_ofp_action_type[] = {
 #define NUM_PORT_CONFIG_FLAGS 7
 #define NUM_PORT_STATE_FLAGS 1
 #define NUM_PORT_FEATURES_FLAGS 12
-#define NUM_WILDCARDS 11
+#define NUM_WILDCARDS 12
 #define NUM_CAPABILITIES_FLAGS 6
 #define NUM_FLOW_MOD_FLAGS 3
 #define NUM_SF_REPLY_FLAGS 1
@@ -440,6 +440,7 @@ static gint ofp_match_dl_vlan_pcp = -1;
 static gint ofp_match_dl_type   = -1;
 static gint ofp_match_nw_src    = -1;
 static gint ofp_match_nw_dst    = -1;
+static gint ofp_match_nw_tos    = -1;
 static gint ofp_match_nw_proto  = -1;
 static gint ofp_match_arp_opcode= -1;
 static gint ofp_match_tp_src    = -1;
@@ -1023,6 +1024,9 @@ void proto_register_openflow()
         { &ofp_match_wildcards[10],
             { "  VLAN priority", "of.wildcard_dl_vlan_pcp" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_DL_VLAN_PCP, "VLAN priority", HFILL }},
 
+        { &ofp_match_wildcards[11],
+            { "  IPv4 DSCP", "of.wildcard_nw_tos" , FT_UINT32, BASE_DEC, VALS(wildcard_choice), OFPFW_NW_TOS, "IPv4 DSCP", HFILL }},
+
         { &ofp_table_stats_wildcards[0],
           { "  Input port", "of.wildcard_in_port" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_IN_PORT, "Input Port", HFILL }},
 
@@ -1085,6 +1089,9 @@ void proto_register_openflow()
 
         { &ofp_match_dl_vlan_pcp,
           { "Input VLAN priority", "of.match_dl_vlan_pcp", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Input VLAN priority", HFILL }},
+
+        { &ofp_match_nw_tos,
+          { "IPv4 DSCP", "of.match_nw_tos", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "IPv4 DSCP", HFILL }},
 
         { &ofp_match_tp_src,
           { "TCP/UDP Src Port", "of.match_tp_src", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "TCP/UDP Source Port", HFILL }},
@@ -2188,6 +2195,11 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 2;
 
+    if( ~wildcards & OFPFW_NW_TOS )
+        add_child(match_tree, ofp_match_nw_tos, tvb, offset, 1);
+    else
+        *offset += 1;
+
     /* Save NW proto for later */
     guint8 nw_proto = tvb_get_guint8( tvb, *offset);
 
@@ -2199,7 +2211,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     else
         *offset += 1;
 
-    dissect_pad(match_tree, offset, 3);
+    dissect_pad(match_tree, offset, 2);
 
     if( ~wildcards & OFPFW_NW_SRC_MASK )
         add_child(match_tree, ofp_match_nw_src, tvb, offset, 4);

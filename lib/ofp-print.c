@@ -161,6 +161,7 @@ ofp_packet_in(struct ds *string, const void *oh, size_t len, int verbosity)
         match.dl_type = flow.dl_type;
         match.nw_proto = flow.nw_proto;
         match.dl_vlan_pcp = flow.dl_vlan_pcp;
+        match.nw_tos = flow.nw_tos;
         match.nw_src = flow.nw_src;
         match.nw_dst = flow.nw_dst;
         match.tp_src = flow.tp_src;
@@ -700,6 +701,8 @@ ofp_match_to_string(const struct ofp_match *om, int verbosity)
                      (w & OFPFW_NW_SRC_MASK) >> OFPFW_NW_SRC_SHIFT, verbosity);
     print_ip_netmask(&f, "nw_dst=", om->nw_dst,
                      (w & OFPFW_NW_DST_MASK) >> OFPFW_NW_DST_SHIFT, verbosity);
+    print_wild(&f, "nw_tos=", w & OFPFW_NW_TOS, verbosity,
+              "%u", om->nw_tos);
     if (!skip_proto) {
         print_wild(&f, "nw_proto=", w & OFPFW_NW_PROTO, verbosity,
                    "%u", om->nw_proto);

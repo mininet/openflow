@@ -1431,9 +1431,10 @@ static int flow_stats_dump_callback(struct sw_flow *flow, void *private)
 	memcpy(ofs->match.dl_dst, flow->key.dl_dst, ETH_ALEN);
 	ofs->match.dl_vlan   = flow->key.dl_vlan;
 	ofs->match.dl_type   = flow->key.dl_type;
+	ofs->match.nw_tos    = flow->key.nw_tos;
+	ofs->match.nw_proto  = flow->key.nw_proto;
 	ofs->match.nw_src    = flow->key.nw_src;
 	ofs->match.nw_dst    = flow->key.nw_dst;
-	ofs->match.nw_proto  = flow->key.nw_proto;
 	ofs->match.dl_vlan_pcp = flow->key.dl_vlan_pcp;
 	ofs->match.tp_src    = flow->key.tp_src;
 	ofs->match.tp_dst    = flow->key.tp_dst;
