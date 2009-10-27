@@ -72,7 +72,7 @@ Each flow table entry (see Table \ref{table:flow entry}) contains:
 \begin{table}[hbp]
 \centering
 \footnotesize
-\begin{tabularx}{\textwidth}{ |X|X|X|X|X|X|X|X|X|X|X| }
+\begin{tabularx}{\textwidth}{ |X|X|X|X|X|X|X|X|X|X|X|X| }
 \hline
 Ingress Port &
 Ether source &
@@ -83,6 +83,7 @@ VLAN priority &
 IP src &
 IP dst &
 IP proto &
+IP ToS bits &
 TCP/ UDP src port &
 TCP/ UDP dst port
 \\ 
@@ -108,6 +109,7 @@ Table 2 shows the header fields an incoming packet is compared against. Each ent
 \hline IP source address & 32 & All IP packets & Can be subnet masked \\
 \hline IP destination address & 32 & All IP packets & Can be subnet masked \\
 \hline IP protocol & 8 & All IP packets & \\
+\hline IP ToS bits & 6 & All IP packets & Specify as 8-bit value and place ToS in upper 6 bits. \\
 \hline Transport source port / ICMP Type & 16 & All TCP, UDP, and ICMP packets & Only lower 8 bits used for ICMP Type \\
 \hline Transport destination port / ICMP Code & 16 & All TCP, UDP, and ICMP packets & Only lower 8 bits used for ICMP Code \\
 \hline
