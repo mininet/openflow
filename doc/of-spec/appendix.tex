@@ -241,9 +241,12 @@ The \verb|body| contains a \verb|wildcards| field, which indicates the fields fo
 \verb|OFP_MAX_TABLE_NAME_LEN| is \input{define/OFP_MAX_TABLE_NAME_LEN}.
 
 \paragraph{Port Statistics}
-Information about physical ports is requested with the \verb|OFPST_PORT| stats request type.  The request does not contain any data in the \verb|body|.
+Information about physical ports is requested with the \verb|OFPST_PORT| stats request type:
+
+\input{struct/ofp_port_stats_request}
+The \verb|port_no| field contains the number of the port to obtain statistics about. The port number should be set to \verb|OFPP_NONE| to obtain the statistics of \emph{all} ports.
 \\\\
-The body of the reply consists of an array of the following:
+The \verb|body| of the reply consists of an array of the following:
 
 \input{struct/ofp_port_stats}
 The switch should return a value of -1 for unavailable counters.
