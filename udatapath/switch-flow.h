@@ -57,6 +57,7 @@ struct sw_flow_actions {
 struct sw_flow {
     struct sw_flow_key key;
 
+    uint64_t cookie;            /* Opaque controller-issued identifier. */
     uint16_t priority;          /* Only used on entries with wildcards. */
     uint16_t idle_timeout;      /* Idle time before discarding (seconds). */
     uint16_t hard_timeout;      /* Hard expiration time (seconds) */

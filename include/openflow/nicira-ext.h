@@ -171,6 +171,7 @@ OFP_ASSERT(sizeof(struct nx_flow_end_config) == 20);
 struct nx_flow_end {
     struct nicira_header header;
     struct ofp_match match;   /* Description of fields. */
+    uint64_t cookie;          /* Opaque controller-issued identifier. */
 
     uint16_t priority;        /* Priority level of flow entry. */
     uint8_t reason;           /* One of NXFER_*. */
@@ -189,6 +190,6 @@ struct nx_flow_end {
     uint64_t packet_count;
     uint64_t byte_count;
 };
-OFP_ASSERT(sizeof(struct nx_flow_end) == 104);
+OFP_ASSERT(sizeof(struct nx_flow_end) == 112);
 
 #endif /* openflow/nicira-ext.h */
