@@ -44,6 +44,16 @@
 #include "vlog.h"
 #define THIS_MODULE VLM_flow
 
+static struct arp_header *
+pull_arp(struct ofpbuf *packet)
+{
+    if (packet->size >= ARP_ETH_HEADER_LEN) {
+        struct arp_eth_header *arp = packet->data;
+        return ofpbuf_pull(packet, ARP_ETH_HEADER_LEN);
+    }
+    return NULL;
+}
+
 static struct ip_header *
 pull_ip(struct ofpbuf *packet)
 {
@@ -197,6 +207,13 @@ flow_extract(struct ofpbuf *packet, uint16_t in_port, struct flow *flow)
                 } else {
                     retval = 1;
                 }
+            }
+        } else if (flow->dl_type == htons(ETH_TYPE_ARP)) {
+            const struct arp_eth_header *arp = pull_arp(&b);
+            if (arp) {
+                flow->nw_src = arp->ar_spa;
+                flow->nw_dst = arp->ar_tpa;
+                flow->nw_proto = ntohs(arp->ar_op) && 0xff;
             }
         }
     }
