@@ -200,6 +200,8 @@ BUILD_ASSERT_DECL(VLAN_ETH_HEADER_LEN == sizeof(struct vlan_eth_header));
 #define IP_IS_FRAGMENT(ip_frag_off) \
         ((ip_frag_off) & htons(IP_MORE_FRAGMENTS | IP_FRAG_OFF_MASK))
 
+#define IP_ADDR_LEN 4
+
 #define IP_HEADER_LEN 20
 struct ip_header {
     uint8_t ip_ihl_ver;

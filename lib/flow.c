@@ -211,8 +211,10 @@ flow_extract(struct ofpbuf *packet, uint16_t in_port, struct flow *flow)
         } else if (flow->dl_type == htons(ETH_TYPE_ARP)) {
             const struct arp_eth_header *arp = pull_arp(&b);
             if (arp) {
-                flow->nw_src = arp->ar_spa;
-                flow->nw_dst = arp->ar_tpa;
+                if (arp->ar_pro == htons(ARP_PRO_IP) && arp->ar_pln == IP_ADDR_LEN) {
+                    flow->nw_src = arp->ar_spa;
+                    flow->nw_dst = arp->ar_tpa;
+                }
                 flow->nw_proto = ntohs(arp->ar_op) && 0xff;
             }
         }
