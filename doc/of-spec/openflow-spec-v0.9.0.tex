@@ -128,7 +128,7 @@ Switch designers are free to implement the internals in any way convenient provi
 Counters are maintained per-table, per-flow, \qosupd{per-port and
   per queue}.  OpenFlow-compliant counters may be implemented in software and maintained by polling hardware counters with more limited ranges.
 \\\\
-Table \ref{table:counters} contains the required set of counters.  Duration refers to the time the flow has been installed in the switch.  The Receive Errors field includes all explicitly specified errors, including frame, overrun, and CRC errors, plus any others.
+Table \ref{table:counters} contains the required set of counters.  Duration refers to the time the flow has been installed in the switch.  The Receive Errors field includes all explicitly specified errors, including frame, overrun, and CRC errors, plus any others.  Counters wrap around with no overflow indicator.
 \begin{table}[!hbp] 	
 \centering
 \footnotesize
