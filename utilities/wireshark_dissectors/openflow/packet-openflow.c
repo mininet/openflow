@@ -356,6 +356,41 @@ static const gchar *par_str[] = {"IP header bad", "Required option missing"};
 
 #define	N_PARAMPROB	(sizeof par_str / sizeof par_str[0])
 
+
+/* ARP definitions from wireshark source: epan/dissectors/packet-arp.c */
+/* ARP / RARP structs and definitions */
+#ifndef ARPOP_REQUEST
+#define ARPOP_REQUEST  1       /* ARP request.  */
+#endif
+#ifndef ARPOP_REPLY
+#define ARPOP_REPLY    2       /* ARP reply.  */
+#endif
+/* Some OSes have different names, or don't define these at all */
+#ifndef ARPOP_RREQUEST
+#define ARPOP_RREQUEST 3       /* RARP request.  */
+#endif
+#ifndef ARPOP_RREPLY
+#define ARPOP_RREPLY   4       /* RARP reply.  */
+#endif
+#ifndef ARPOP_IREQUEST
+#define ARPOP_IREQUEST 8       /* Inverse ARP (RFC 1293) request.  */
+#endif
+#ifndef ARPOP_IREPLY
+#define ARPOP_IREPLY   9       /* Inverse ARP reply.  */
+#endif
+#ifndef ATMARPOP_NAK
+#define ATMARPOP_NAK   10      /* ATMARP NAK.  */
+#endif
+
+static const value_string names_arp_opcode[] = {
+  {ARPOP_REQUEST,  "request" },
+  {ARPOP_REPLY,    "reply"   },
+  {ARPOP_RREQUEST, "reverse request"},
+  {ARPOP_RREPLY,   "reverse reply"  },
+  {ARPOP_IREQUEST, "inverse request"},
+  {ARPOP_IREPLY,   "inverse reply"  },
+  {0,              NULL          } };
+
 /* These variables are used to hold the IDs of our fields; they are
  * set when we call proto_register_field_array() in proto_register_openflow()
  */
@@ -406,6 +441,7 @@ static gint ofp_match_dl_type   = -1;
 static gint ofp_match_nw_src    = -1;
 static gint ofp_match_nw_dst    = -1;
 static gint ofp_match_nw_proto  = -1;
+static gint ofp_match_arp_opcode= -1;
 static gint ofp_match_tp_src    = -1;
 static gint ofp_match_tp_dst    = -1;
 static gint ofp_match_icmp_type = -1;
@@ -1043,6 +1079,9 @@ void proto_register_openflow()
 
         { &ofp_match_nw_proto,
           { "IP Protocol", "of.match_nw_proto", FT_UINT8, BASE_HEX, NO_STRINGS, NO_MASK, "IP Protocol", HFILL }},
+
+        { &ofp_match_arp_opcode,
+          { "ARP Opcode", "of.match_nw_proto", FT_UINT8, BASE_DEC, VALS(names_arp_opcode), NO_MASK, "ARP Opcode", HFILL }},
 
         { &ofp_match_dl_vlan_pcp,
           { "Input VLAN priority", "of.match_dl_vlan_pcp", FT_UINT8, BASE_DEC, NO_STRINGS, NO_MASK, "Input VLAN priority", HFILL }},
@@ -2141,6 +2180,9 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
 
     dissect_pad(match_tree, offset, 1);
 
+    /* Save DL type for later */
+    guint16 dl_type = tvb_get_ntohs( tvb, *offset);
+
     if( ~wildcards & OFPFW_DL_TYPE )
         dissect_dl_type(match_tree, ofp_match_dl_type, tvb, offset);
     else
@@ -2149,7 +2191,10 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
     /* Save NW proto for later */
     guint8 nw_proto = tvb_get_guint8( tvb, *offset);
 
-    if( ~wildcards & OFPFW_NW_PROTO )
+    /* Custom handling for ARP packets vs non-ARP packets */
+    if ( dl_type == ETHERTYPE_ARP )
+        add_child(match_tree, ofp_match_arp_opcode, tvb, offset, 1);
+    else if( ~wildcards & OFPFW_NW_PROTO )
         dissect_nw_proto(match_tree, ofp_match_nw_proto, tvb, offset);
     else
         *offset += 1;
@@ -2167,7 +2212,7 @@ static void dissect_match(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pac
         *offset += 4;
 
     /* Display either ICMP type/code or TCP/UDP ports */
-    if( nw_proto == IP_PROTO_ICMP) {
+    if( dl_type == ETHERTYPE_IP && nw_proto == IP_PROTO_ICMP) {
         dissect_icmp_type_code_match(match_tree, tvb, offset,
                 ~wildcards & OFPFW_TP_SRC,
                 ~wildcards & OFPFW_TP_DST );
