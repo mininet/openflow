@@ -333,7 +333,7 @@ Controller/switch messages are initiated by the controller and may or may not re
 \textbf{Barrier}: Barrier request/reply messages are used by the controller to ensure message dependencies have been met or to receive notifications for completed operations.  
 
 \subsubsection{Asynchronous}
-Asynchronous messages are sent without solicitation from the switch to the controller and denote a change in switch or network state.  The four main asynchronous message types are described below.
+Asynchronous messages are sent without the controller soliciting them from a switch.  Switches send asynchronous messages to the controller to denote a packet arrival, switch state change, or error.  The four main asynchronous message types are described below.
 \\\\
 \textbf{Packet-in:} For all packets that do not have a matching flow entry, a packet-in event is sent to the controller (or if a packet matches an entry with a ``send to controller" action).  If the switch has sufficient memory to buffer packets that are sent to the controller, the packet-in events contain some fraction of the packet header (by default \input{define/OFP_DEFAULT_MISS_SEND_LEN} bytes) and a buffer ID to be used by the controller when it is ready for the switch to forward the packet.  Switches that do not support internal buffering (or have run out of internal buffering) must send the full packet to the controller as part of the event.
 \\\\
