@@ -1824,6 +1824,17 @@ sub get {
   return ${$self->{ARP_hdr}}->TargetIpAddr if ($field eq "TargetIpAddr");
 }
 
+# Create a new aRP request for ARP handling tests
+sub new_arp_test_pkt
+  {
+    my ($class, %arg) = @_;
+
+    $arg{'Op'} = NF2::ARP->ARP_REQUEST;
+
+    return $class->new(%arg);
+  }
+
+
 ####################################################################################
 # ICMP packet
 ####################################################################################

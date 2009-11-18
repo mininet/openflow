@@ -77,6 +77,10 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &get_default_black_box_pkt_len_icmp
   &create_flow_mod_from_icmp_action
   &create_flow_mod_from_icmp
+  &forward_simple_arp
+  &get_default_black_box_pkt_len_arp
+  &create_flow_mod_from_arp_action
+  &create_flow_mod_from_arp
   &wait_for_two_flow_expired
   &get_dpinst
   &wait_for_echo_request
@@ -1662,6 +1666,23 @@ sub get_default_black_box_pkt_len_icmp {
         return new_icmp_test_pkt NF2::ICMP_pkt(%$pkt_args);
 }
 
+#Sub functions for ICMP handling tests
+
+sub get_default_black_box_pkt_len_arp {
+        my ($in_port, $out_port, $len) = @_;
+
+        my $pkt_args = {
+                DA     => "00:00:00:00:00:0" . ( $out_port ),
+                SA     => "00:00:00:00:00:0" . ( $in_port ),
+                SenderIpAddr => "192.168.200." .     ( $in_port ),
+                SenderEthAddr => "00:00:00:00:01:0" . ( $in_port ),
+                TargetIpAddr => "192.168.201." .     ( $out_port ),
+                TargetEthAddr => "ff:ff:ff:ff:ff:ff",
+                len    => $len,
+        };
+        return new_arp_test_pkt NF2::ARP_pkt(%$pkt_args);
+}
+
 sub create_flow_mod_from_icmp {
 
         my ( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $fool ) = @_;
@@ -1742,6 +1763,121 @@ sub create_flow_mod_from_icmp_action {
                 nw_proto  => 1,                                  #ICMP
                 tp_src    => $icmp_type,
                 tp_dst    => $icmp_code
+        };
+
+        my $max_len;
+        if ($out_port != $enums{'OFPP_CONTROLLER'}) {
+            $max_len = 0;
+        } else {
+            $max_len = 65535;
+        }
+        my $action_output_args = {
+                type => $enums{'OFPAT_OUTPUT'},
+                len => $ofp->sizeof('ofp_action_output'),
+                port => $out_port,
+                max_len => $max_len,
+        };
+
+        my $action_output = $ofp->pack( 'ofp_action_output', $action_output_args );
+
+        my $flow_mod_args = {
+                header => $hdr_args,
+                match  => $match_args,
+
+                #               command   => $enums{$mod_type},
+                command   => $enums{"$mod_type"},
+                idle_timeout  => $max_idle,
+                hard_timeout  => $max_idle,
+                flags  => $flags,
+                priority => 0,
+                buffer_id => -1,
+                out_port => $enums{'OFPP_NONE'}
+        };
+        my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
+
+        my $flow_mod_pkt = $flow_mod . $action_output;
+
+        return $flow_mod_pkt;
+}
+
+sub create_flow_mod_from_arp {
+
+        my ( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $fool ) = @_;
+
+        my $flow_mod_pkt;
+
+        $flow_mod_pkt =
+          create_flow_mod_from_arp_action( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards,
+                'OFPFC_ADD', $fool );
+
+        return $flow_mod_pkt;
+}
+
+sub create_flow_mod_from_arp_action {
+
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $mod_type, $fool ) = @_;
+
+        if (   $mod_type ne 'OFPFC_ADD'
+                && $mod_type ne 'OFPFC_DELETE'
+                && $mod_type ne 'OFPFC_DELETE_STRICT' )
+        {
+                die "Undefined flow mod type: $mod_type\n";
+        }
+
+        my $hdr_args = {
+                version => $of_ver,
+                type    => $enums{'OFPT_FLOW_MOD'},
+                length  => $ofp->sizeof('ofp_flow_mod') + $ofp->sizeof('ofp_action_output'),
+                xid     => 0x0000000
+        };
+
+        # might be cleaner to convert the exported colon-hex MAC addrs
+        #print ${$udp_pkt->{Ethernet_hdr}}->SA . "\n";
+        #print ${$test_pkt->{Ethernet_hdr}}->SA . "\n";
+        my $ref_to_eth_hdr = ( $udp_pkt->{'Ethernet_hdr'} );
+        my $ref_to_arp_hdr  = ( $udp_pkt->{'ARP_hdr'} );
+
+        # pointer to array
+        my $eth_hdr_bytes    = $$ref_to_eth_hdr->{'bytes'};
+        my $arp_hdr_bytes    = $$ref_to_arp_hdr->{'bytes'};
+        my @dst_mac_subarray = @{$eth_hdr_bytes}[ 0 .. 5 ];
+        my @src_mac_subarray = @{$eth_hdr_bytes}[ 6 .. 11 ];
+
+        my @src_ip_subarray = @{$arp_hdr_bytes}[ 14 .. 17 ];
+        my @dst_ip_subarray = @{$arp_hdr_bytes}[ 24 .. 27 ];
+
+        my $src_ip =
+          ( ( 2**24 ) * $src_ip_subarray[0] +
+                  ( 2**16 ) * $src_ip_subarray[1] +
+                  ( 2**8 ) * $src_ip_subarray[2] +
+                  $src_ip_subarray[3] );
+
+        my $dst_ip =
+          ( ( 2**24 ) * $dst_ip_subarray[0] +
+                  ( 2**16 ) * $dst_ip_subarray[1] +
+                  ( 2**8 ) * $dst_ip_subarray[2] +
+                  $dst_ip_subarray[3] );
+
+        my $arp_opcode;
+        if ($fool == 1) {
+                $arp_opcode = ~(${$ref_to_arp_hdr}->Op);
+        } else {
+                $arp_opcode = (${$ref_to_arp_hdr}->Op);
+        }
+
+        my $match_args = {
+                wildcards => $wildcards,
+                in_port   => $in_port,
+                dl_src    => \@src_mac_subarray,
+                dl_dst    => \@dst_mac_subarray,
+                dl_vlan   => 0xffff,
+                dl_type   => 0x0806,
+                dl_vlan_pcp => 0x00,
+                nw_src    => $src_ip,
+                nw_dst    => $dst_ip,
+                nw_proto  => $arp_opcode,
+                tp_src    => 0x0000,
+                tp_dst    => 0x0000
         };
 
         my $max_len;
@@ -1889,6 +2025,135 @@ sub forward_simple_icmp {
         }
         else {
                 die "invalid input to forward_simple_icmp\n";
+        }
+
+        my $pkt_len = $$options_ref{'pkt_len'};
+        if (defined $vlan_id) {
+                $$options_ref{'pkt_len'} = $pkt_len + 4;
+        }
+
+        if (not defined($nowait)) {
+                print "wait \n";
+		if ($fool == 1) {
+                        print "wait for two flow exprired\n";
+                        wait_for_two_flow_expired( $ofp, $sock, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );
+                } else {
+                        print "wait for flow expired\n";
+                        wait_for_flow_expired( $ofp, $sock, $options_ref, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'} );
+                }
+        }
+}
+
+sub forward_simple_arp {
+
+        my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $wildcards, $type, $fool, $nowait ) = @_;
+
+        my $in_port = $in_port_offset + $$options_ref{'port_base'};
+        my $out_port;
+
+        my $fool_port = 0;
+        my $flow_mod_pkt_fool;
+
+	my $flags = $enums{'OFPFF_SEND_FLOW_REM'};
+
+        if ($type eq 'all') {
+                $out_port = $enums{'OFPP_ALL'};    # all physical ports except the input
+        }
+        elsif ($type eq 'controller') {
+                $out_port = $enums{'OFPP_CONTROLLER'};   #send to the secure channel
+        }
+        else {
+                $out_port = $out_port_offset + $$options_ref{'port_base'};
+        }
+
+        if ($fool == 1) {
+                $fool_port = ($out_port_offset + $$options_ref{'port_base'} + 1) % $$options_ref{'num_ports'};
+                if ($fool_port == $in_port) {
+                        $fool_port = ($out_port_offset + $$options_ref{'port_base'} + 2) % $$options_ref{'num_ports'};
+                }
+        }
+
+        my $test_pkt = get_default_black_box_pkt_len_arp( $in_port, $out_port, $$options_ref{'pkt_len'} );
+
+        #print HexDump ( $test_pkt->packed );
+
+        if (($fool == 1) && ($type eq 'port') && ($wildcards != 0x40)) {
+                my $flow_mod_pkt_fool =
+                  create_flow_mod_from_arp( $ofp, $test_pkt, $in_port, $fool_port, $$options_ref{'max_idle'}, $flags, $wildcards, $fool );
+                print HexDump($flow_mod_pkt_fool);
+                #print Dumper($flow_mod_pkt_fool);
+                # Send 'flow_mod' message
+                print $sock $flow_mod_pkt_fool;
+                print "sent flow_mod message\n";
+                # Give OF switch time to process the flow mod
+                usleep($$options_ref{'send_delay'});
+        }
+
+        my $flow_mod_pkt =
+          create_flow_mod_from_arp( $ofp, $test_pkt, $in_port, $out_port, $$options_ref{'max_idle'}, $flags, $wildcards, 0 );
+
+        #print HexDump($flow_mod_pkt);
+        #print Dumper($flow_mod_pkt);
+
+        # Send 'flow_mod' message
+        print $sock $flow_mod_pkt;
+        print "sent flow_mod message\n";
+
+        # Give OF switch time to process the flow mod
+        usleep($$options_ref{'send_delay'});
+
+        nftest_send( "eth" . ($in_port_offset + 1), $test_pkt->packed );
+        #print HexDump($test_pkt->packed);
+
+        if ($type eq 'any' || $type eq 'port') {
+                # expect single packet
+                print "expect single packet\n";
+                nftest_expect( "eth" . ( $out_port_offset + 1 ), $test_pkt->packed );
+        }
+        elsif ($type eq 'all') {
+                # expect packets on all other interfaces
+                print "expect multiple packets\n";
+                for ( my $k = 0 ; $k < $$options_ref{'num_ports'} ; $k++ ) {
+                        if ( $k != $in_port_offset ) {
+                                nftest_expect( "eth" . ( $k + 1), $test_pkt->packed );
+                        }
+                }
+        }
+        elsif ($type eq 'controller') {
+                # expect at controller
+
+                my $recvd_mesg;
+                sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
+
+                # Inspect  message
+                my $msg_size = length($recvd_mesg);
+                my $expected_size = $ofp->offsetof( 'ofp_packet_in', 'data' ) + length( $test_pkt->packed );
+                compare( "msg size", $msg_size, '==', $expected_size );
+
+                my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
+
+                #print HexDump ($recvd_mesg);
+                #print Dumper($msg);
+
+                # Verify fields
+                print "Verifying ofprotocol message for packet sent in to eth" . ( $in_port + 1 ) . "\n";
+
+                verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
+
+                compare( "total len", $$msg{'total_len'}, '==', length( $test_pkt->packed ) );
+                compare( "in_port",   $$msg{'in_port'},   '==', $in_port );
+                compare( "reason",    $$msg{'reason'},    '==', $enums{'OFPR_ACTION'} );
+
+                # verify packet was unchanged!
+                my $recvd_pkt_data = substr( $recvd_mesg, $ofp->offsetof( 'ofp_packet_in', 'data' ) );
+                if ( $recvd_pkt_data ne $test_pkt->packed ) {
+                        die "ERROR: sending from eth"
+                          . ($in_port_offset + 1)
+                          . " received packet data didn't match packet sent\n";
+                }
+        }
+        else {
+                die "invalid input to forward_simple_arp\n";
         }
 
         my $pkt_len = $$options_ref{'pkt_len'};
