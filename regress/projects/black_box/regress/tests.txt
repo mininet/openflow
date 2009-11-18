@@ -51,6 +51,16 @@ test_forward_wildcard_icmp_all/run.pl
 test_forward_wildcard_icmp_controller/run.pl
 test_forward_wildcard_icmp_fool/run.pl
 
+## ARP handling Tests
+test_forward_exact_arp_port/run.pl
+test_forward_exact_arp_all/run.pl
+test_forward_exact_arp_controller/run.pl
+test_forward_exact_arp_fool/run.pl
+test_forward_wildcard_arp_port/run.pl
+test_forward_wildcard_arp_all/run.pl
+test_forward_wildcard_arp_controller/run.pl
+test_forward_wildcard_arp_fool/run.pl
+
 ## Unusual Data
 test_ip_options/run.pl
 ##test_ip_protocol/run.pl
