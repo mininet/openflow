@@ -311,6 +311,8 @@ For each packet that matches a flow entry, the associated counters for that entr
 The secure channel is the interface that connects each OpenFlow switch to a controller.  Through this interface, the controller configures and manages the switch, receives events from the switch, and send packets out the switch.
 \\\\
 Between the datapath and the secure channel, the interface is implementation-specific, however all secure channel messages must be formatted according to the OpenFlow protocol. 
+\\\\
+Support for multiple simultaneous controllers is currently undefined.
 
 \subsection{OpenFlow Protocol Overview}
 The OpenFlow protocol supports three message types, \emph{controller-to-switch}, \emph{asynchronous}, and \emph{symmetric}, each with multiple sub-types.  Controller-to-switch messages are initiated by the controller and used to directly manage or inspect the state of the switch.  Asynchronous messages are initiated by the switch and used to update the controller of network events and changes to the switch state. Symmetric messages are initiated by either the switch or the controller and sent without solicitation.  The message types used by OpenFlow are described below.
