@@ -1639,7 +1639,7 @@ use strict;
 
 use constant ARP_Ethertype => 0x0806;
 use constant ETH_HDR_LEN => 6 + 6 + 2;
-use constant ARP_HDR_LEN => 6 * 4;
+use constant ARP_HDR_LEN => 2 + 2 + 1 + 1 + 2 + 6 + 4 + 6 + 4;
 use constant MIN_LEN => ETH_HDR_LEN + ARP_HDR_LEN;
 
 
