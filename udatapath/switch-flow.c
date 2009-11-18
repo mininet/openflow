@@ -141,6 +141,15 @@ flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from)
              * instead of falling into table-linear. */
             to->wildcards &= ~OFPFW_TP;
         }
+    } else if (from->dl_type == htons(ETH_TYPE_ARP)) {
+        to->flow.nw_src   = from->nw_src;
+        to->flow.nw_dst   = from->nw_dst;
+        to->flow.nw_proto = from->nw_proto;
+
+        /* Transport layer fields are undefined.  Mark them as
+         * exact-match to allow such flows to reside in table-hash,
+         * instead of falling into table-linear. */
+        to->wildcards &= ~OFPFW_TP;
     } else {
         /* Network and transport layer fields are undefined.  Mark them
          * as exact-match to allow such flows to reside in table-hash,
