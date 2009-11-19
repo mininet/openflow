@@ -805,11 +805,14 @@ sub run_black_box_test {
 }
 
 sub create_flow_mod_from_udp {
-	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $chg_field, $chg_val, $vlan_id, $nw_tos ) = @_;
+	my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags,
+		$wildcards, $chg_field, $chg_val, $vlan_id, $nw_tos, $cookie ) = @_;
 
 	my $flow_mod_pkt;
 
-	$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', $chg_field, $chg_val, $vlan_id, $nw_tos );
+	$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $udp_pkt, $in_port,
+		$out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', $chg_field,
+		$chg_val, $vlan_id, $nw_tos, $cookie );
 
 	return $flow_mod_pkt;
 }
@@ -992,7 +995,10 @@ sub combine_args {
 }
 
 sub create_flow_mod_from_udp_action {
-        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $mod_type, $chg_field, $chg_val, $vlan_id, $nw_tos) = @_;
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags,
+		$wildcards, $mod_type, $chg_field, $chg_val, $vlan_id, $nw_tos, $cookie) = @_;
+
+	$cookie = 0 if !defined($cookie);
 
         if (   $mod_type ne 'drop' 
                 && $mod_type ne 'OFPFC_ADD'
@@ -1081,7 +1087,8 @@ sub create_flow_mod_from_udp_action {
                 flags  => $flags,
                 priority => 0,
                 buffer_id => -1,
-                out_port => $enums{'OFPP_NONE'}
+                out_port => $enums{'OFPP_NONE'},
+                cookie => $cookie,
         };
         my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
         my $flow_mod_pkt = combine_args($flow_mod, $mod_type, $out_port, $chg_field, $chg_val);
@@ -1696,14 +1703,17 @@ sub create_flow_mod_from_icmp {
 
         $flow_mod_pkt =
           create_flow_mod_from_icmp_action( $ofp, $icmp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards,
-                'OFPFC_ADD', $fool );
+                'OFPFC_ADD', $fool, $cookie );
 
         return $flow_mod_pkt;
 }
 
 sub create_flow_mod_from_icmp_action {
 
-        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $mod_type, $fool ) = @_;
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags,
+		$wildcards, $mod_type, $fool, $cookie ) = @_;
+
+	$cookie = 0 if !defined($cookie);
 
         if (   $mod_type ne 'OFPFC_ADD'
                 && $mod_type ne 'OFPFC_DELETE'
@@ -1797,7 +1807,8 @@ sub create_flow_mod_from_icmp_action {
                 flags  => $flags,
                 priority => 0,
                 buffer_id => -1,
-                out_port => $enums{'OFPP_NONE'}
+                out_port => $enums{'OFPP_NONE'},
+                cookie => $cookie,
         };
         my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
 
