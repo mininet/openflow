@@ -1534,7 +1534,8 @@ sub generate_expect_packet {
 
 sub forward_simple {
 
-	my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $wildcards, $type, $nowait, $chg_field, $vlan_id ) = @_;
+	my ( $ofp, $sock, $options_ref, $in_port_offset, $out_port_offset,
+		$wildcards, $type, $nowait, $chg_field, $vlan_id, $cookie ) = @_;
 
 	my $in_port = $in_port_offset + $$options_ref{'port_base'};
 	my $out_port;
@@ -1576,10 +1577,13 @@ sub forward_simple {
 	my $flags = $enums{'OFPFF_SEND_FLOW_REM'};
 	if ($type eq 'drop') {
 		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port,
-		                   $$options_ref{'max_idle'}, $flags, $wildcards, 'drop', $vlan_id );
+		                   $$options_ref{'max_idle'}, $flags,
+				   $wildcards, 'drop', $vlan_id, undef, $cookie );
 	} else {
 		$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
-		                   $$options_ref{'max_idle'}, $flags, $wildcards, $chg_field, $chg_val, $vlan_id );
+		                   $$options_ref{'max_idle'}, $flags,
+				   $wildcards, $chg_field, $chg_val, $vlan_id,
+				   undef, $cookie);
 	}
 
 	print HexDump($flow_mod_pkt);
