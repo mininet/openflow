@@ -1097,37 +1097,44 @@ sub create_flow_mod_from_udp_action {
 
 sub wait_for_flow_expired {
 
-	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout ) = @_;
+	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout,
+		$cookie ) = @_;
 
-	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout );
+	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len,
+		$pkt_total, $idle_timeout, $cookie, undef);
 }
 
 sub wait_for_flow_expired_all {
 
-	my ( $ofp, $sock, $options_ref ) = @_;
+	my ( $ofp, $sock, $options_ref, $cookie ) = @_;
 
-	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $$options_ref{'pkt_len'}, $$options_ref{'pkt_total'}, undef );
+	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref,
+		$$options_ref{'pkt_len'}, $$options_ref{'pkt_total'},
+		$cookie, undef );
 }
 
 sub wait_for_flow_expired_readone {
 
-	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout ) = @_;
+	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout,
+		$cookie ) = @_;
 
 	wait_for_flow_expired_readsize( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout,
-		$ofp->sizeof('ofp_flow_removed') );
+		$cookie, $ofp->sizeof('ofp_flow_removed') );
 }
 
 sub wait_for_flow_expired_readsize {
 
 	# can specify the reading size from socket (by the last argument, $read_size_)
 
-	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout, $read_size_ ) = @_;
+	my ( $ofp, $sock, $options_ref, $pkt_len, $pkt_total, $idle_timeout,
+		$cookie, $read_size_ ) = @_;
 	wait_for_flow_expired_total_bytes( $ofp, $sock, $options_ref, ( $pkt_len * $pkt_total ),
-		$pkt_total, $idle_timeout, $read_size_ );
+		$pkt_total, $idle_timeout, $cookie, $read_size_ );
 }
 
 sub wait_for_flow_expired_total_bytes {
-	my ( $ofp, $sock, $options_ref, $bytes, $pkt_total, $idle_timeout, $read_size_ ) = @_;
+	my ( $ofp, $sock, $options_ref, $bytes, $pkt_total, $idle_timeout,
+		$cookie, $read_size_ ) = @_;
 	my $read_size;
 
 	if ( defined $read_size_ ) {
@@ -1164,6 +1171,10 @@ sub wait_for_flow_expired_total_bytes {
 
 	if ( defined $idle_timeout ) {
 		compare( "ofp_flow_removed idle_timeout",   $$msg{'idle_timeout'},      '==', $idle_timeout );
+	}
+
+	if ( defined $cookie ) {
+		compare( "ofp_flow_removed cookie",   $$msg{'cookie'}, '==', $cookie );
 	}
 }
 
