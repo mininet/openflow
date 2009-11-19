@@ -495,6 +495,7 @@ static gint ofp_desc_stats_serial_num = -1;
 static gint ofp_flow_stats_request          = -1;
 /* field: ofp_match */
 static gint ofp_flow_stats_request_table_id = -1;
+static gint ofp_flow_stats_request_out_port = -1;
 
 static gint ofp_flow_stats_reply              = -1;
 /* length won't be put in the tree */
@@ -1487,6 +1488,9 @@ void proto_register_openflow()
 
         { &ofp_flow_stats_request_table_id,
           { "Table ID", "of.stats_flow_table_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Table ID", HFILL } },
+
+        { &ofp_flow_stats_request_out_port,
+          { "Out Port", "of.stats_flow_table_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Out Port", HFILL } },
 
         /* CSM: Stats: Flow: Reply */
         { &ofp_flow_stats_reply,
@@ -2756,6 +2760,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                 }
 
                 dissect_pad(flow_tree, &offset, 1);
+                dissect_port(flow_tree, ofp_flow_stats_request_out_port, tvb, &offset );
                 break;
             }
 
