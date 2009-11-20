@@ -279,16 +279,16 @@ This action is only applied to TCP and UDP packets.\\
 \label{fig:packet_flow}
 \end{figure}
 
+On receipt of a packet, an OpenFlow Switch performs the functions shown in Figure \ref{fig:packet_flow}.
+
 \begin{figure}[!hbp]
 \centering
-\includegraphics[height=3in]{figure_flow_match_flowchart}
-\caption{A flow table showing how a packet is matched against a flow entry.}
-\label{fig:flow_match}
+\includegraphics[height=3in]{header_parsing_flowchart}
+\caption{Flowchart showing how header fields are parsed for matching.}
+\label{fig:header_parsing}
 \end{figure}
 
-On receipt of a packet, an OpenFlow Switch performs the functions shown in Figure \ref{fig:packet_flow}.
-\\\\
-The flow table is checked for a matching flow entry.  The header fields used for the table lookup depend on the packet type as described below (and shown in Figure \ref{fig:flow_match}).
+The flow table is checked for a matching flow entry.  The header fields used for the table lookup depend on the packet type as described below (and shown in Figure \ref{fig:header_parsing}).
 
 \begin{itemize}
 \item Rules specifying an ingress port are matched against the physical port that received the packet.
