@@ -272,23 +272,21 @@ This action is only applied to TCP and UDP packets.\\
 \end{table}
 
 \subsection{Matching}
-\begin{figure}[!hbp]
+\begin{figure}[!htb]
 \centering
-\includegraphics[width=4.8in]{figure_packet_flow_flowchart.png}
-\caption{The functions performed on a packet as it moves through an OpenFlow switch.  As discussed in Section \ref{flow_table:stp_support}, support for 802.1D is optional.}
+\includegraphics[height=1.85in]{packet_flow_flowchart}
+\caption{Packet flow in an OpenFlow switch.  As discussed in Section \ref{flow_table:stp_support}, support for 802.1D is optional.}
 \label{fig:packet_flow}
 \end{figure}
 
-On receipt of a packet, an OpenFlow Switch performs the functions shown in Figure \ref{fig:packet_flow}.
-
-\begin{figure}[!hbp]
+\begin{figure}[!htb]
 \centering
-\includegraphics[height=3in]{header_parsing_flowchart}
+\includegraphics[height=2.9in]{header_parsing_flowchart}
 \caption{Flowchart showing how header fields are parsed for matching.}
 \label{fig:header_parsing}
 \end{figure}
 
-The flow table is checked for a matching flow entry.  The header fields used for the table lookup depend on the packet type as described below (and shown in Figure \ref{fig:header_parsing}).
+On receipt of a packet, an OpenFlow Switch performs the functions shown in Figure \ref{fig:packet_flow}.  Header fields used for the table lookup depend on the packet type as described below (and shown in Figure \ref{fig:header_parsing}).
 
 \begin{itemize}
 \item Rules specifying an ingress port are matched against the physical port that received the packet.
