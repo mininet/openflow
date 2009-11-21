@@ -18,14 +18,14 @@ sub my_test {
 	};
 
 	my $match_args = {
-		wildcards => 0x3ff,
+		wildcards => 0x3ef,
 		in_port   => 0,
 		dl_src    => [],
 		dl_dst    => [],
 		dl_vlan   => 0,
-		dl_type   => 0,
-		nw_src    => 0,
-		nw_dst    => 0,
+		dl_type   => 0x800,
+		nw_src    => (NF2::IP_hdr::getIP('192.168.200.1'))[0],
+		nw_dst    => (NF2::IP_hdr::getIP('192.168.201.2'))[0],
 		nw_proto  => 0,
 		tp_src    => 0,
 		tp_dst    => 0
@@ -40,6 +40,7 @@ sub my_test {
 	my $body_args = {
 		match   	=> $match_args,
 		table_id	=> 0xff, #match all tables		
+		out_port	=> $enums{'OFPP_NONE'},
 	};
 
 	my $body = $ofp->pack('ofp_flow_stats_request', $body_args );
@@ -73,7 +74,7 @@ sub my_test {
 	
 		my $in_port_offset = 0;
 		my $out_port_offset = 1;
-		my $wildcards = 0x3ff;
+		my $wildcards = 0x3ef;
 		my $wait = 5;
 	
 		#$$options_ref{'send_delay'} = 5;
@@ -110,11 +111,29 @@ sub my_test {
 
 	my $msg = $ofp->unpack( 'ofp_stats_reply', $recvd_mesg );
 
+	# Strip off the header from the received message
+	$recvd_mesg = substr($recvd_mesg, $ofp->sizeof('ofp_stats_reply'));
+
+	# Unpack each of the ofp_flow_stats messages
+	my $flow_stats_len = $ofp->sizeof('ofp_flow_stats');
+	while (length($recvd_mesg) > 0) {
+		if (length($recvd_mesg) < $flow_stats_len) {\
+			die "Error: Partial flow stats message received";
+		}
+		my $flow_stats = $ofp->unpack('ofp_flow_stats', $recvd_mesg);
+
+		push @{$msg->{'body'}}, $flow_stats;
+		$recvd_mesg = substr($recvd_mesg, $flow_stats->{'length'});
+	}
+
 	#print HexDump ($recvd_mesg);
 	print Dumper($msg);
 
 	# Verify fields
 	verify_header( $msg, 'OFPT_STATS_REPLY', $msg_size );
+
+	# Ensure that we got back one ofp_flow_stats body
+	compare( "stats_reply flow_stats count",  scalar(@{$msg->{'body'}}), '==', 1 );
 	
 
 	#wait_for_flow_expired_all( $ofp, $sock, $options_ref );	
