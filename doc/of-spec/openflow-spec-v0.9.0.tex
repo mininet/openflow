@@ -1,4 +1,5 @@
 \documentclass[10pt]{article} 
+\usepackage{amsmath}
 \usepackage{listings}
 \usepackage{hyperref}
 \usepackage{fancyhdr}
@@ -121,7 +122,7 @@ Switch designers are free to implement the internals in any way convenient provi
 
 Counters are maintained per-table, per-flow, and per-port.  OpenFlow-compliant counters may be implemented in software and maintained by polling hardware counters with more limited ranges.
 \\\\
-Table \ref{table:counters} contains the required set of counters.  Duration refers to the number of seconds a flow has been active.  The Receive Errors field includes all explicitly specified errors, including frame, overrun, and CRC errors, plus any others.
+Table \ref{table:counters} contains the required set of counters.  Duration refers to the time the flow has been installed in the switch.  The Receive Errors field includes all explicitly specified errors, including frame, overrun, and CRC errors, plus any others.
 \begin{table}[!hbp] 	
 \centering
 \footnotesize
@@ -135,7 +136,8 @@ Table \ref{table:counters} contains the required set of counters.  Duration refe
 \hline \multicolumn{2}{|c|}{Per Flow} \\
 \hline Received Packets & 64 \\
 \hline Received Bytes & 64 \\
-\hline Duration & 32 \\
+\hline Duration (seconds) & 32 \\
+\hline Duration (nano seconds) & 32 \\
 \hline  \multicolumn{2}{|c|}{Per Port} \\
 \hline Received Packets & 64 \\
 \hline Transmitted Packets & 64 \\

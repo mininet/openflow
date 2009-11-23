@@ -180,7 +180,7 @@ While the system is running, the datapath may be queried about its current state
 The switch responds with one or more \verb|OFPT_STATS_REPLY| messages:
 
 \input{struct/ofp_stats_reply}
-The only value defined for \verb|flags| in a reply is whether more replies will follow this one - this has the value \verb|0x0001|.  To ease implementation, the switch is allowed to send replies with no additional entries.  However, it must always send another reply following a message with the ÒmoreÓ flag set.  The transaction ids (xid) of replies must always match the request that prompted them.
+The only value defined for \verb|flags| in a reply is whether more replies will follow this one - this has the value \verb|0x0001|.  To ease implementation, the switch is allowed to send replies with no additional entries.  However, it must always send another reply following a message with the ï¿½moreï¿½ flag set.  The transaction ids (xid) of replies must always match the request that prompted them.
 \\\\
 In both the request and response, the \verb|type| field specifies the kind of information being passed and determines how the \verb|body| field is interpreted:
 
@@ -206,6 +206,8 @@ The \verb|body| of the reply consists of an array of the following:
 
 \input{struct/ofp_flow_stats}
 The fields consist of those provided in the \verb|flow_mod| that created these, plus the table into which the entry was inserted, the packet count, and the byte count.
+\\\\
+The \verb|duration_sec| and \verb|duration_nsec| fields indicate the elapsed time the flow has been installed in the switch. The total duration in nanoseconds can be computed as \verb|duration_sec|*10$^{9}$ + \verb|duration_nsec|. Implementations are required to provide millisecond precision; higher precision is encouraged where available.
 
 \paragraph{Aggregate Flow Statistics}
 Aggregate information about multiple flows is requested with the \verb|OFPST_AGGREGATE| stats request type:
@@ -275,7 +277,7 @@ The \verb|match| and \verb|priority| fields are the same as those used in the fl
 The \verb|reason| field is one of the following:
 
 \input{enum/ofp_flow_removed_reason}
-The \verb|duration| field indicates the number of seconds the flow was alive (present in the flow table).
+The \verb|duration_sec| and \verb|duration_nsec| fields indicate the elapsed time the flow has been installed in the switch. The total duration in nanoseconds can be computed as \verb|duration_sec|*10$^{9}$ + \verb|duration_nsec|. Implementations are required to provide millisecond precision, higher precision is encouraged where available.
 \\\\
 The \verb|idle_timeout| field is directly copied from the flow mod that created this entry. 
 \\\\

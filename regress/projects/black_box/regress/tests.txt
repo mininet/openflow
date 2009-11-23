@@ -8,12 +8,14 @@ test_packet_out/run.pl
 test_switch_config/run.pl
 test_flow_expired/run.pl
 test_flow_expired_idle_timeout/run.pl
+test_flow_expired_precision/run.pl
 test_flow_expired_send_flow_exp/run.pl
 test_miss_send_length/run.pl
 
 # Read State Tests
 test_port_stats/run.pl
 test_flow_stats/run.pl
+test_flow_stats_precision/run.pl
 
 ## Forwarding Tests
 test_forward_any_port/run.pl

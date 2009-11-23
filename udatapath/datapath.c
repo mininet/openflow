@@ -732,6 +732,8 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
 {
     struct ofpbuf *buffer;
     struct ofp_flow_removed *ofr;
+    uint64_t tdiff = time_msec() - flow->created;
+    uint32_t sec = tdiff / 1000;
 
     if (!flow->send_flow_rem) {
         return;
@@ -751,7 +753,8 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
     ofr->priority = htons(flow->priority);
     ofr->reason = reason;
 
-    ofr->duration = htonl((time_msec()-flow->created)/1000);
+    ofr->duration_sec = htonl(sec);
+    ofr->duration_nsec = htonl((tdiff -(sec*1000))*1000000);
     ofr->idle_timeout = htons(flow->idle_timeout);
 
     ofr->packet_count = htonll(flow->packet_count);
@@ -779,6 +782,8 @@ fill_flow_stats(struct ofpbuf *buffer, struct sw_flow *flow,
 {
     struct ofp_flow_stats *ofs;
     int length = sizeof *ofs + flow->sf_acts->actions_len;
+    uint64_t tdiff = now - flow->created;
+    uint32_t sec = tdiff / 1000;
     ofs = ofpbuf_put_uninit(buffer, length);
     ofs->length          = htons(length);
     ofs->table_id        = table_idx;
@@ -795,7 +800,8 @@ fill_flow_stats(struct ofpbuf *buffer, struct sw_flow *flow,
     ofs->match.dl_vlan_pcp = flow->key.flow.dl_vlan_pcp;
     ofs->match.tp_src    = flow->key.flow.tp_src;
     ofs->match.tp_dst    = flow->key.flow.tp_dst;
-    ofs->duration        = htonl((now - flow->created) / 1000);
+    ofs->duration_sec    = htonl(sec);
+    ofs->duration_nsec   = htonl((tdiff - (sec*1000))*1000000);
     ofs->priority        = htons(flow->priority);
     ofs->idle_timeout    = htons(flow->idle_timeout);
     ofs->hard_timeout    = htons(flow->hard_timeout);
