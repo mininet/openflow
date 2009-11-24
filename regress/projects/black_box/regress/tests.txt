@@ -48,6 +48,14 @@ test_forward_wildcard_icmp_all/run.pl
 test_forward_wildcard_icmp_controller/run.pl
 test_forward_wildcard_icmp_fool/run.pl
 
+## Slicing Tests
+test_queue_config/run.pl
+## These assume that there is a queue with queue_id=1 at port 1.
+## Uncomment if your setup supports this.
+## Should work OK with the reference implementation
+# test_queue_stats/run.pl
+# test_queue_forward/run.pl
+
 ## Unusual Data
 test_ip_options/run.pl
 ##test_ip_protocol/run.pl

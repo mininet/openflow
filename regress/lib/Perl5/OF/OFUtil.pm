@@ -284,6 +284,13 @@ sub setup_user {
     system("${openflow_dir}/udatapath/ofdatapath punix:/var/run/test -i $if_string \&");
 
     start_ofprotocol("unix:/var/run/test", @_);
+
+    #create a queue in each port
+    for ($i = 1;$i <= 4; $i++) {
+        system("${openflow_dir}/utilities/dpctl add-queue unix:/var/run/test $i 1 10");
+    }
+
+
 }
 
 sub teardown_kmod {
@@ -817,44 +824,47 @@ sub flow_mod_length {
     my ($mod_type, $chg_field) = @_;
 
     my $action_length = 0;
-
+	
     if ($mod_type eq 'drop') {
-	$action_length = 0;
+        $action_length = 0;
     } elsif (defined $chg_field) {
-	if (($chg_field eq 'dl_src') || ($chg_field eq 'dl_dst')) {
-	    $action_length = $ofp->sizeof('ofp_action_dl_addr')
-		+ $ofp->sizeof('ofp_action_output');
-	} elsif (($chg_field eq 'nw_src') || ($chg_field eq 'nw_dst')) {
-	    $action_length = $ofp->sizeof('ofp_action_nw_addr')
-		+ $ofp->sizeof('ofp_action_output');
-	} elsif ($chg_field eq 'nw_tos') {
-	    $action_length = $ofp->sizeof('ofp_action_nw_tos')
-		+ $ofp->sizeof('ofp_action_output');
-	} elsif (($chg_field eq 'tp_src') || ($chg_field eq 'tp_dst')) {
-	    $action_length = $ofp->sizeof('ofp_action_tp_port')
-		+ $ofp->sizeof('ofp_action_output');
-	} elsif ($chg_field eq 'strip_vlan') {
-	    $action_length = $ofp->sizeof('ofp_action_header')
-		+ $ofp->sizeof('ofp_action_output');
-	} elsif ($chg_field eq 'vlan_vid') {
-	    $action_length = $ofp->sizeof('ofp_action_vlan_vid')
-		+ $ofp->sizeof('ofp_action_output');
-	} elsif ($chg_field eq 'vlan_pcp') {
-	    $action_length = $ofp->sizeof('ofp_action_vlan_pcp')
-		+ $ofp->sizeof('ofp_action_output');
-	} else {
-	    $action_length = $ofp->sizeof('ofp_action_output');
+        if (($chg_field eq 'dl_src') || ($chg_field eq 'dl_dst')) {
+            $action_length = $ofp->sizeof('ofp_action_dl_addr')
+				+ $ofp->sizeof('ofp_action_output');
+        } elsif (($chg_field eq 'nw_src') || ($chg_field eq 'nw_dst')) {
+            $action_length = $ofp->sizeof('ofp_action_nw_addr')
+				+ $ofp->sizeof('ofp_action_output');
+        } elsif ($chg_field eq 'nw_tos') {
+            $action_length = $ofp->sizeof('ofp_action_nw_tos')
+				+ $ofp->sizeof('ofp_action_output');
+        } elsif (($chg_field eq 'tp_src') || ($chg_field eq 'tp_dst')) {
+            $action_length = $ofp->sizeof('ofp_action_tp_port')
+				+ $ofp->sizeof('ofp_action_output');
+        } elsif ($chg_field eq 'strip_vlan') {
+            $action_length = $ofp->sizeof('ofp_action_header')
+				+ $ofp->sizeof('ofp_action_output');
+        } elsif ($chg_field eq 'vlan_vid') {
+            $action_length = $ofp->sizeof('ofp_action_vlan_vid')
+				+ $ofp->sizeof('ofp_action_output');
+        } elsif ($chg_field eq 'vlan_pcp') {
+            $action_length = $ofp->sizeof('ofp_action_vlan_pcp')
+				+ $ofp->sizeof('ofp_action_output');
+        } else {
+            $action_length = $ofp->sizeof('ofp_action_output');
+        }
+    } elsif ($mod_type eq 'enqueue') {
+        $action_length = $ofp->sizeof('ofp_action_enqueue');
 	}
-    } else {
-	$action_length = $ofp->sizeof('ofp_action_output');
+    else {
+        $action_length = $ofp->sizeof('ofp_action_output');
     }
-
+	
     my $length = $ofp->sizeof('ofp_flow_mod') + $action_length;
     return $length;
 }
 
 sub combine_args {
-    my ($flow_mod, $mod_type, $out_port, $chg_field, $chg_val) = @_;
+    my ($flow_mod, $mod_type, $out_port, $chg_field, $chg_val, $queue_id) = @_;
 
     my @pad_6 = (0,0,0,0,0,0);
     my @pad_4 = (0,0,0,0);
@@ -879,13 +889,25 @@ sub combine_args {
         $max_len = 65535;
     }
     if ($mod_type ne 'drop') {
-	$action_output_args = {
-	    type => $enums{'OFPAT_OUTPUT'},
-	    len => $ofp->sizeof('ofp_action_output'),
-	    port => $out_port,
-	    max_len => $max_len,
-	};
-	$action_output = $ofp->pack('ofp_action_output', $action_output_args);
+        if ($mod_type eq 'enqueue') {
+            $action_enqueue_args = {
+			    type => $enums{'OFPAT_ENQUEUE'},
+			    len => $ofp->sizeof('ofp_action_enqueue'),
+			    port => $out_port,
+			    pad  => \@pad_6,
+                queue_id => $queue_id,
+            };
+            $action_enqueue = $ofp->pack('ofp_action_enqueue', $action_enqueue_args);
+        }
+        else {
+            $action_output_args = {
+			    type => $enums{'OFPAT_OUTPUT'},
+			    len => $ofp->sizeof('ofp_action_output'),
+			    port => $out_port,
+			    max_len => $max_len,
+            };
+            $action_output = $ofp->pack('ofp_action_output', $action_output_args);
+        }
     }
 
     #MODIFY ACTION
@@ -982,9 +1004,11 @@ sub combine_args {
     }
 
     if (defined $action_mod) {
-	$flow_mod_pkt = $flow_mod . $action_mod . $action_output;
+        $flow_mod_pkt = $flow_mod . $action_mod . $action_output;
+    } elsif (defined $action_enqueue) {
+        $flow_mod_pkt = $flow_mod . $action_enqueue;
     } else {
-	$flow_mod_pkt = $flow_mod . $action_output;
+        $flow_mod_pkt = $flow_mod . $action_output;
     }
 
     return $flow_mod_pkt;
@@ -992,12 +1016,13 @@ sub combine_args {
 
 sub create_flow_mod_from_udp_action {
 
-        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $mod_type, $chg_field, $chg_val, $vlan_id ) = @_;
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, $mod_type, $chg_field, $chg_val, $vlan_id, $queue_id ) = @_;
 
-        if (   $mod_type ne 'drop' 
-                && $mod_type ne 'OFPFC_ADD'
-                && $mod_type ne 'OFPFC_DELETE'
-                && $mod_type ne 'OFPFC_DELETE_STRICT')
+        if (   $mod_type ne 'drop'
+               && $mod_type ne 'enqueue' 
+               && $mod_type ne 'OFPFC_ADD'
+               && $mod_type ne 'OFPFC_DELETE'
+               && $mod_type ne 'OFPFC_DELETE_STRICT')
         {
                 die "Undefined flow mod type: $mod_type\n";
         }
@@ -1076,7 +1101,7 @@ sub create_flow_mod_from_udp_action {
                 out_port => $enums{'OFPP_NONE'}
         };
         my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
-        my $flow_mod_pkt = combine_args($flow_mod, $mod_type, $out_port, $chg_field, $chg_val);
+        my $flow_mod_pkt = combine_args($flow_mod, $mod_type, $out_port, $chg_field, $chg_val, $queue_id);
         return $flow_mod_pkt;
 }
 
@@ -1550,6 +1575,10 @@ sub forward_simple {
 	if ($type eq 'drop') {
 		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port,
 		                   $$options_ref{'max_idle'}, $flags, $wildcards, 'drop', $vlan_id );
+	} elsif ($type eq 'enqueue') {
+		my $queue_id = 1;
+		$flow_mod_pkt = create_flow_mod_from_udp_action( $ofp, $test_pkt, $in_port, $out_port,
+		                   $$options_ref{'max_idle'}, $flags, $wildcards, 'enqueue', undef, undef, $vlan_id, $queue_id); 
 	} else {
 		$flow_mod_pkt = create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port,
 		                   $$options_ref{'max_idle'}, $flags, $wildcards, $chg_field, $chg_val, $vlan_id );
@@ -1576,7 +1605,7 @@ sub forward_simple {
 		$expect_pkt = $test_pkt;
 	}
 
-	if ($type eq 'any' || $type eq 'port') {
+	if ($type eq 'any' || $type eq 'port' || $type eq 'enqueue') {
 		# expect single packet
 		print "expect single packet\n";
 		nftest_expect( "eth" . ( $out_port_offset + 1 ), $expect_pkt->packed );
