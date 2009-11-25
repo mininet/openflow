@@ -3,7 +3,7 @@
 This document describes how to build, install, and execute the
 reference implementation of OpenFlow.  Please send any comments to:
 
-                      <info@openflowswitch.org>
+                      <openflow-discuss@openflowswitch.org>
 
 Contents
 ========
@@ -690,4 +690,9 @@ Bug Reporting
 -------------
 
 Please report problems to: 
-info@openflowswitch.org
+
+openflow-discuss@openflowswitch.org
+
+or post them to our online bug tracking system at:
+
+http://www.openflowswitch.org/bugs/openflow

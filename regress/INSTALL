@@ -9,7 +9,7 @@ Ethernet switch controller included with the OpenFlow Reference Linux Switch.
 
 Please send any comments to:
 
-                      <info@openflowswitch.org> 
+                      <openflow-discuss@openflowswitch.org> 
 
 === Prerequisites ===
 
@@ -257,4 +257,8 @@ Note that the kmod refuses removal until the interfaces and datapaths have been 
 == Reporting Bugs ==
 
 Please report problems to: 
-info@openflowswitch.org
+openflow-discuss@openflowswitch.org
+
+or post them directly to our bug tracking system: 
+
+http://www.openflowswitch.org/bugs/openflow
