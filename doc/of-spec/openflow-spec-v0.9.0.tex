@@ -389,6 +389,8 @@ For valid (non-overlapping) ADD requests, or those with no overlap checking, the
 \\\\
 If a switch cannot find any table in which to add the incoming flow entry, the switch should send an \verb|ofp_error_msg| with \verb|OFPET_FLOW_MOD_FAILED| type and \verb|OFPFMFC_ALL_TABLES_FULL| code.
 \\\\
+If the action list in a flow mod message references a port that will never be valid on a switch, the switch must return an \verb|ofp_error_msg| with \verb|OFPET_BAD_ACTION| type and \verb|OFPBAC_BAD_OUT_PORT| code.  If the referenced port may be valid in the future, e.g. when a linecard is added to a chassis switch, or a port is dynamically added to a software switch, the switch may either silently drop packets sent to the referenced port, or immediately return an \verb|OFPBAC_BAD_OUT_PORT| error and refuse the flow mod.
+\\\\
 For MODIFY requests, if a flow entry with identical header fields does not current reside in any table, the MODIFY acts like an ADD, and the new flow entry must be inserted with zeroed counters.  Otherwise, the actions field is changed on the existing entry and its counters and idle time fields are left unchanged.
 \\\\
 For DELETE requests, if no flow entry matches, no error is recorded, and no flow table modification occurs.  If flow entries match, and must be deleted, then each normal entry with the \verb|OFPFF_SEND_FLOW_REM| flag set should generate a flow removed message.  Deleted emergency flow entries generate no flow removed messages.
