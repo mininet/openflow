@@ -207,7 +207,7 @@ The \verb|body| of the reply consists of an array of the following:
 \input{struct/ofp_flow_stats}
 The fields consist of those provided in the \verb|flow_mod| that created these, plus the table into which the entry was inserted, the packet count, and the byte count.
 \\\\
-The \verb|duration_sec| and \verb|duration_nsec| fields indicate the elapsed time the flow has been installed in the switch. The total duration in nanoseconds can be computed as \verb|duration_sec|*10$^{9}$ + \verb|duration_nsec|. Implementations are required to provide millisecond precision; higher precision is encouraged where available.
+\label{flow_duration_info}The \verb|duration_sec| and \verb|duration_nsec| fields indicate the elapsed time the flow has been installed in the switch. The total duration in nanoseconds can be computed as $\verb|duration_sec|*10^{9}$ + \verb|duration_nsec|. Implementations are required to provide millisecond precision; higher precision is encouraged where available.
 
 \paragraph{Aggregate Flow Statistics}
 Aggregate information about multiple flows is requested with the \verb|OFPST_AGGREGATE| stats request type:
@@ -277,7 +277,7 @@ The \verb|match| and \verb|priority| fields are the same as those used in the fl
 The \verb|reason| field is one of the following:
 
 \input{enum/ofp_flow_removed_reason}
-The \verb|duration_sec| and \verb|duration_nsec| fields indicate the elapsed time the flow has been installed in the switch. The total duration in nanoseconds can be computed as \verb|duration_sec|*10$^{9}$ + \verb|duration_nsec|. Implementations are required to provide millisecond precision, higher precision is encouraged where available.
+The \verb|duration_sec| and \verb|duration_nsec| fields are described in Section \ref{flow_duration_info}.
 \\\\
 The \verb|idle_timeout| field is directly copied from the flow mod that created this entry. 
 \\\\

@@ -780,10 +780,12 @@ ofp_print_flow_removed(struct ds *string, const void *oh, size_t len UNUSED,
         break;
     }
     ds_put_format(string, 
-         " pri%"PRIu16" secs%"PRIu32" nsecs%"PRIu32" idle%"PRIu16" pkts%"PRIu64" bytes%"PRIu64"\n",
+         " pri%"PRIu16" secs%"PRIu32" nsecs%"PRIu32" idle%"PRIu16"",
          ofe->match.wildcards ? ntohs(ofe->priority) : (uint16_t)-1,
          ntohl(ofe->duration_sec), ntohl(ofe->duration_nsec),
-         ntohs(ofe->idle_timeout), ntohll(ofe->packet_count),
+         ntohs(ofe->idle_timeout));
+    ds_put_format(string,
+         " pkts%"PRIu64" bytes%"PRIu64"\n", ntohll(ofe->packet_count),
          ntohll(ofe->byte_count));
 }
 
@@ -985,8 +987,10 @@ ofp_flow_stats_reply(struct ds *string, const void *body_, size_t len,
             break;
         }
 
-        ds_put_format(string, "  duration_sec=%"PRIu32"s, ", ntohl(fs->duration_sec));
-        ds_put_format(string, "duration_nsec=%"PRIu32"s, ", ntohl(fs->duration_nsec));
+        ds_put_format(string, "  duration_sec=%"PRIu32"s, ",
+                    ntohl(fs->duration_sec));
+        ds_put_format(string, "duration_nsec=%"PRIu32"s, ",
+                    ntohl(fs->duration_nsec));
         ds_put_format(string, "table_id=%"PRIu8", ", fs->table_id);
         ds_put_format(string, "priority=%"PRIu16", ", 
                     fs->match.wildcards ? ntohs(fs->priority) : (uint16_t)-1);

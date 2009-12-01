@@ -1,5 +1,7 @@
 #!/usr/bin/perl -w
 # test_flow_expired
+# This test assumes a lightly loaded switch that can expire flows within a
+# reasonably tight bound (<1s) of the specified hard timeout value.
 
 use strict;
 use OF::Includes;

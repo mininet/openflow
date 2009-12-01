@@ -754,7 +754,7 @@ dp_send_flow_end(struct datapath *dp, struct sw_flow *flow,
     ofr->reason = reason;
 
     ofr->duration_sec = htonl(sec);
-    ofr->duration_nsec = htonl((tdiff -(sec*1000))*1000000);
+    ofr->duration_nsec = htonl((tdiff - (sec * 1000)) * 1000000);
     ofr->idle_timeout = htons(flow->idle_timeout);
 
     ofr->packet_count = htonll(flow->packet_count);
@@ -801,7 +801,7 @@ fill_flow_stats(struct ofpbuf *buffer, struct sw_flow *flow,
     ofs->match.tp_src    = flow->key.flow.tp_src;
     ofs->match.tp_dst    = flow->key.flow.tp_dst;
     ofs->duration_sec    = htonl(sec);
-    ofs->duration_nsec   = htonl((tdiff - (sec*1000))*1000000);
+    ofs->duration_nsec   = htonl((tdiff - (sec * 1000)) * 1000000);
     ofs->priority        = htons(flow->priority);
     ofs->idle_timeout    = htons(flow->idle_timeout);
     ofs->hard_timeout    = htons(flow->hard_timeout);

@@ -1,5 +1,7 @@
 #!/usr/bin/perl -w
 # test_flow_stats
+# This test assumes a lightly loaded switch that can measure and reply to
+# flow stats requests within 500ms of receiving the request.
 
 use strict;
 use OF::Includes;
@@ -7,6 +9,7 @@ use OF::Includes;
 sub my_test {
 
 	my ( $sock, $options_ref ) = @_;
+	my $time_threshold = 500000000;
 	my $port_base = $$options_ref{'port_base'};
 
 	my $hdr_args = {
@@ -102,7 +105,7 @@ sub my_test {
 	my $flow_stats_len = $ofp->sizeof('ofp_flow_stats');
 	while ( length($recvd_mesg) > 0 ) {
 		if ( length($recvd_mesg) < $flow_stats_len ) {
-			\die "Error: Partial flow stats message received";
+			die "Error: Partial flow stats message received";
 		}
 		my $flow_stats = $ofp->unpack( 'ofp_flow_stats', $recvd_mesg );
 
@@ -126,7 +129,7 @@ sub my_test {
 		die "Error, duration_sec out of acceptable range";
 	}
 	if (   $msg->{'body'}[0]->{'duration_nsec'} < 100000000
-		|| $msg->{'body'}[0]->{'duration_nsec'} > 600000000 )
+		|| $msg->{'body'}[0]->{'duration_nsec'} > (100000000+$time_threshold) )
 	{
 		die "Error, duration_nsec out of acceptable range";
 	}
@@ -153,7 +156,7 @@ sub my_test {
 	my $flow_stats_len = $ofp->sizeof('ofp_flow_stats');
 	while ( length($recvd_mesg) > 0 ) {
 		if ( length($recvd_mesg) < $flow_stats_len ) {
-			\die "Error: Partial flow stats message received";
+			die "Error: Partial flow stats message received";
 		}
 		my $flow_stats = $ofp->unpack( 'ofp_flow_stats', $recvd_mesg );
 
@@ -177,7 +180,7 @@ sub my_test {
 		die "Error, duration_sec out of acceptable range";
 	}
 	if (   $msg->{'body'}[0]->{'duration_nsec'} < 100000000
-		|| $msg->{'body'}[0]->{'duration_nsec'} > 600000000 )
+		|| $msg->{'body'}[0]->{'duration_nsec'} > (100000000+$time_threshold) )
 	{
 		die "Error, duration_nsec out of acceptable range";
 	}
