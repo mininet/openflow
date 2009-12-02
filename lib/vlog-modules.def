@@ -52,6 +52,7 @@ VLOG_MODULE(vconn)
 VLOG_MODULE(vlog)
 VLOG_MODULE(vlog_socket)
 VLOG_MODULE(vswitchd)
+VLOG_MODULE(experimental)
 
 #ifdef HAVE_EXT
 #include "ext/vlogext-modules.def"
