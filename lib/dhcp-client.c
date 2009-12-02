@@ -1048,7 +1048,7 @@ do_send_msg(struct dhclient *cli, const struct dhcp_msg *msg)
         } else {
             VLOG_INFO("sending %s", dhcp_type_name(msg->type));
         }
-        error = netdev_send(cli->netdev, &b);
+        error = netdev_send(cli->netdev, &b, 0);
         if (error) {
             VLOG_ERR("send failed on %s: %s",
                      netdev_get_name(cli->netdev), strerror(error));
