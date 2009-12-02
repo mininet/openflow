@@ -127,7 +127,7 @@ static int table_linear_has_conflict(struct sw_table *swt,
     struct sw_flow *flow;
 
     LIST_FOR_EACH (flow, struct sw_flow, node, &tl->flows) {
-        if (flow_matches_desc(&flow->key, key, strict)
+        if (flow_matches_2desc(&flow->key, key, strict)
                 && (flow->priority == priority)) {
             return true;
         }

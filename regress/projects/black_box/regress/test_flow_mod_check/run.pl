@@ -31,9 +31,10 @@ sub my_test {
 
     my $test_pkt = get_default_black_box_pkt($in_port, $out_port_1);
 
-    my $wildcards = 0x03fe;
+
+    my $wildcards = 0x0c0;
     my $flags = $enums{'OFPFF_CHECK_OVERLAP'};
-    my $max_idle = 0x0;		# never expire
+    my $max_idle = 0x0;        # never expire
     my $flow_mod_pkt = create_flow_mod_from_udp($ofp, $test_pkt, $in_port, $out_port_1, $max_idle, $flags, $wildcards);
 
     # Send 'flow_mod' message
@@ -43,14 +44,40 @@ sub my_test {
     usleep($$options_ref{'send_delay'});
 
     # change the wildcard and send again. this should fail
-    $wildcards = 0x03fd;
+    $wildcards = 0x0c1;
     my $flags = $enums{'OFPFF_CHECK_OVERLAP'};
-    $flow_mod_pkt = create_flow_mod_from_udp($ofp, $test_pkt, $in_port, $out_port_2, $max_idle, $flags, $wildcards);
+    $flow_mod_pkt = create_flow_mod_from_udp($ofp, $test_pkt, $in_port+1, $out_port_2, $max_idle, $flags, $wildcards);
 
     # Send 'flow_mod' message
     print $sock $flow_mod_pkt;
 
     wait_for_flow_overlap_error($ofp, $sock, $flow_mod_pkt);
+
+    # Start with coarse granularity flow
+    # edge-case bug reported by Justin
+    # https://mailman.stanford.edu/pipermail/openflow-dev/2009-November/000529.html
+    $wildcards = 0x0c1;
+    $flags = 0x0;
+    $flow_mod_pkt = create_flow_mod_from_udp($ofp, $test_pkt, $in_port, $out_port_1, $max_idle, $flags, $wildcards);
+
+    # Send 'flow_mod' message
+    print $sock $flow_mod_pkt;
+
+    # Give OF switch time to process the flow mod
+    usleep($$options_ref{'send_delay'});
+
+    # change the wildcard and send again. this should fail
+    $wildcards = 0x0c0;
+    $flags = $enums{'OFPFF_CHECK_OVERLAP'};
+    $flow_mod_pkt = create_flow_mod_from_udp($ofp, $test_pkt, $in_port+1, $out_port_2, $max_idle, $flags, $wildcards);
+
+    # Send 'flow_mod' message
+    print $sock $flow_mod_pkt;
+
+    wait_for_flow_overlap_error($ofp, $sock, $flow_mod_pkt);
+
+
+
 }
 
 run_black_box_test( \&my_test, \@ARGV );

@@ -133,7 +133,7 @@ static int table_hash_has_conflict(struct sw_table *swt,
     if (key->wildcards == 0) {
         struct sw_flow **bucket = find_bucket(swt, key);
         struct sw_flow *flow = *bucket;
-        if (flow && flow_matches_desc(&flow->key, key,strict)
+        if (flow && flow_matches_2desc(&flow->key, key,strict)
                 && (flow->priority == priority)) {
             return true;
         }
@@ -143,7 +143,7 @@ static int table_hash_has_conflict(struct sw_table *swt,
         for (i = 0; i <= th->bucket_mask; i++) {
             struct sw_flow **bucket = &th->buckets[i];
             struct sw_flow *flow = *bucket;
-            if (flow && flow_matches_desc(&flow->key, key, strict)
+            if (flow && flow_matches_2desc(&flow->key, key, strict)
                     && (flow->priority == priority)) {
                 return true;
             }

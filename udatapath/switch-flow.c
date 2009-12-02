@@ -105,6 +105,21 @@ flow_matches_desc(const struct sw_flow_key *t, const struct sw_flow_key *d,
     return flow_matches_1wild(t, d);
 }
 
+/* Returns nonzero if 't' (the table entry's key) and 'd' (the key
+ * describing the match) match, that is, if their fields are
+ * equal modulo 't' or 'd' wildcards, zero otherwise.  If 'strict' is nonzero, the
+ * wildcards must match in both 't_key' and 'd_key'.  Note that the
+ * table's wildcards are ignored unless 'strict' is set. */
+int
+flow_matches_2desc(const struct sw_flow_key *t, const struct sw_flow_key *d,
+        int strict)
+{
+    if (strict && d->wildcards != t->wildcards) {
+        return 0;
+    }
+    return flow_matches_2wild(t, d);
+}
+
 void
 flow_extract_match(struct sw_flow_key* to, const struct ofp_match* from)
 {
