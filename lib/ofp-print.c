@@ -228,6 +228,10 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
             sizeof(struct ofp_action_output),
             sizeof(struct ofp_action_output),
         },
+        [OFPAT_ENQUEUE] = {
+            sizeof(struct ofp_action_enqueue),
+            sizeof(struct ofp_action_enqueue),
+        },
         [OFPAT_SET_VLAN_VID] = {
             sizeof(struct ofp_action_vlan_vid),
             sizeof(struct ofp_action_vlan_vid),
@@ -294,7 +298,7 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
         const struct openflow_action *act = &of_actions[type];
         if ((len < act->min_size) || (len > act->max_size)) {
             ds_put_format(string, 
-                    "***action %"PRIu16" wrong length: %zu***\n", type, len);
+                          "***action %"PRIu16" wrong length: %zu %zu %zu***\n", type, len, act->min_size, act->max_size);
             return -1;
         }
     }
@@ -315,6 +319,15 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
                 }
             }
         }
+        break;
+    }
+
+    case OFPAT_ENQUEUE: {
+        struct ofp_action_enqueue *ea = (struct ofp_action_enqueue *)ah;
+        uint16_t port = ntohs(ea->port);
+        uint32_t queue = ntohl(ea->queue_id);
+
+        ds_put_format(string, "enqueue:%"PRIu16":%"PRIu32,port,queue);
         break;
     }
 
@@ -1078,6 +1091,34 @@ ofp_port_stats_reply(struct ds *string, const void *body, size_t len,
 }
 
 static void
+ofp_queue_stats_reply(struct ds *string, const void *body, size_t len,
+                     int verbosity)
+{
+    const struct ofp_queue_stats *qs = body;
+    size_t n = len / sizeof *qs;
+    int prev_port = -1;
+
+    if (verbosity < 1) {
+        return;
+    }
+
+    for (; n--; qs++) {
+        if (prev_port != ntohs(qs->port_no)) {
+            ds_put_format(string, "Port %2"PRIu16": ", ntohs(qs->port_no));
+        } else {
+            ds_put_format(string, "         ");
+        }
+        prev_port = ntohs(qs->port_no);
+        ds_put_format(string, "Queue %2"PRIu32": ", ntohl(qs->queue_id));
+
+        print_port_stat(string, "bytes=", ntohll(qs->tx_bytes), 1);
+        print_port_stat(string, "pkts=", ntohll(qs->tx_packets), 1);
+        print_port_stat(string, "errors=", ntohll(qs->tx_errors), 0);
+    }
+    ds_put_format(string, "\n");
+}
+
+static void
 ofp_table_stats_reply(struct ds *string, const void *body, size_t len,
                      int verbosity)
 {
@@ -1171,6 +1212,12 @@ print_stats(struct ds *string, int type, const void *body, size_t body_len,
             "port",
             { 0, 0, NULL, },
             { 0, SIZE_MAX, ofp_port_stats_reply },
+        },
+        {
+            OFPST_QUEUE,
+            "queue",
+            { 0, 0, NULL, },
+            { 0, SIZE_MAX, ofp_queue_stats_reply}
         },
         {
             OFPST_VENDOR,
@@ -1268,6 +1315,61 @@ ofp_vendor(struct ds *string, const void *oh, size_t len, int verbosity)
 
     switch(ntohl(vh->vendor)) 
     {
+    }
+}
+
+/*
+ * Write queue props into string and return number of bytes
+ * processed.  For now, only report min rate; no error checking
+ */
+static int
+show_queue_props(struct ds *string, const struct ofp_packet_queue *queue_desc)
+{
+    struct ofp_queue_prop_min_rate *min_rate_prop;
+    int ent_len;
+
+    ent_len = ntohs(queue_desc->len);
+    if (ent_len > sizeof(struct ofp_packet_queue)) {
+        /* Should switch on type of property and accumulate length fields */
+        min_rate_prop =
+            (struct ofp_queue_prop_min_rate *)(queue_desc->properties);
+        /* Assert: len == 16 */
+        /* Assert: property == OFPQT_MIN_RATE */
+        ds_put_format(string, " Minimum Rate %d\n",
+                      ntohs(min_rate_prop->rate));
+    }
+
+    return ent_len;
+}
+
+static void
+show_queue_get_config_reply(struct ds *string, const void *oh,
+                            size_t len, int verbosity)
+{
+    const struct ofp_queue_get_config_reply *reply;
+    const struct ofp_packet_queue *queue_desc;
+    int tot_bytes;
+    int processed;
+    int tot_processed;
+
+    reply = oh;
+    tot_bytes = ntohs(reply->header.length);
+
+    ds_put_format(string, "\nQueue cfg for port %d:\n", ntohs(reply->port));
+    tot_processed = sizeof(struct ofp_queue_get_config_reply);
+
+    queue_desc = reply->queues;
+    if (tot_processed >= tot_bytes) {
+        ds_put_format(string, "   No queues reported\n");
+    }
+    while (tot_processed < tot_bytes) {
+        ds_put_format(string, "   Queue %d (0x%x):",
+                      ntohl(queue_desc->queue_id),
+                      ntohl(queue_desc->queue_id));
+        processed = show_queue_props(string, queue_desc);
+        queue_desc = (struct ofp_packet_queue *)
+            ((char *)queue_desc + processed);
+        tot_processed += processed;
     }
 }
 
@@ -1399,6 +1501,12 @@ static const struct openflow_packet packets[] = {
         sizeof (struct ofp_vendor_header),
         ofp_vendor,
     },
+    {
+        OFPT_QUEUE_GET_CONFIG_REPLY,
+        "queue_config_reply",
+        sizeof (struct ofp_queue_get_config_reply),
+        show_queue_get_config_reply,
+    }
 };
 
 /* Composes and returns a string representing the OpenFlow packet of 'len'

@@ -54,6 +54,7 @@
 #include "compiler.h"
 #include "dpif.h"
 #include "openflow/nicira-ext.h"
+#include "openflow/openflow-ext.h"
 #include "ofp-print.h"
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
@@ -240,6 +241,12 @@ usage(void)
            "  mod-flows SWITCH FLOW       modify actions of matching FLOWs\n"
            "  del-flows SWITCH [FLOW]     delete matching FLOWs\n"
            "  monitor SWITCH              print packets received from SWITCH\n"
+           "  execute SWITCH CMD [ARG...] execute CMD with ARGS on SWITCH\n"
+           "Queue Ops:  Q: queue-id; P: port-id; BW: perthousand bandwidth\n"
+           "  add-queue SWITCH P Q [BW]   add queue (with min bandwidth)\n"
+           "  mod-queue SWITCH P Q BW     modify queue min bandwidth\n"
+           "  del-queue SWITCH P Q        delete queue\n"
+           "  dump-queue SWITCH [P [Q]]   show queue info\n"
            "\nFor local datapaths, remote switches, and controllers:\n"
            "  probe VCONN                 probe whether VCONN is up\n"
            "  ping VCONN [N]              latency of N-byte echos\n"
@@ -278,7 +285,6 @@ static void run(int retval, const char *message, ...)
     }
 }
 
-
 #ifdef HAVE_NETLINK
 /* Netlink-only commands. */
 
@@ -469,6 +475,28 @@ dump_trivial_stats_transaction(const char *vconn_name, uint8_t stats_type)
 {
     struct ofpbuf *request;
     alloc_stats_request(0, stats_type, &request);
+    dump_stats_transaction(vconn_name, request);
+}
+
+/* Get the pointer to struct member based on member offset */
+#define S_PTR(_ptr, _type, _member) \
+    ((void *)(((char *)(_ptr)) + offsetof(_type, _member)))
+
+static void
+dump_queue_stats_transaction(const char *vconn_name, uint8_t stats_type,
+                             uint16_t port, uint32_t q_id)
+{
+    struct ofpbuf *request;
+    struct ofp_queue_stats_request *q_req;
+    struct ofp_stats_request *stats_req;
+
+    alloc_stats_request(sizeof(struct ofp_queue_stats_request),
+                        stats_type, &request);
+    stats_req = request->data;
+    q_req = S_PTR(stats_req, struct ofp_stats_request, body);
+
+    q_req->port_no = htons(port);
+    q_req->queue_id = htonl(q_id);
     dump_stats_transaction(vconn_name, request);
 }
 
@@ -798,10 +826,22 @@ put_output_action(struct ofpbuf *b, uint16_t port)
     return oao;
 }
 
+static struct ofp_action_enqueue *
+put_enqueue_action(struct ofpbuf *b, uint16_t port, uint32_t queue)
+{
+    struct ofp_action_enqueue *oao;
+
+    oao = put_action(b, sizeof *oao, OFPAT_ENQUEUE);
+    oao->len = htons(sizeof(*oao));
+    oao->port = htons(port);
+    oao->queue_id = htonl(queue);
+    return oao;
+}
+
 static void
 str_to_action(char *str, struct ofpbuf *b)
 {
-    char *act, *arg;
+    char *act, *arg, *arg2;
     char *saveptr = NULL;
 
     for (act = strtok_r(str, ", \t\r\n", &saveptr); act;
@@ -838,6 +878,13 @@ str_to_action(char *str, struct ofpbuf *b)
             struct ofp_action_header *ah;
             ah = put_action(b, sizeof *ah, OFPAT_STRIP_VLAN);
             ah->type = htons(OFPAT_STRIP_VLAN);
+        } else if (!strcasecmp(act, "enqueue")) {
+            arg2 = strchr(arg, ':');
+            if (arg2) {
+                *arg2 = '\0';
+                arg2++;
+            }
+            put_enqueue_action(b, str_to_u32(arg), str_to_u32(arg2));
         } else if (!strcasecmp(act, "output")) {
             put_output_action(b, str_to_u32(arg));
         } else if (!strcasecmp(act, "TABLE")) {
@@ -1435,6 +1482,194 @@ do_benchmark(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
            count * message_size / (duration / 1000.0));
 }
 
+/****************************************************************
+ *
+ * Queue operations
+ *
+ ****************************************************************/
+
+static int
+parse_queue_params(int argc, char *argv[], uint16_t *port, uint32_t *q_id,
+                   uint16_t *min_rate)
+{
+    if (!port || !q_id) {
+        return -1;
+    }
+
+    *port = OFPP_ALL;
+    *q_id = OFPQ_ALL;
+    if (argc > 2) {
+        *port = str_to_u32(argv[2]);
+    }
+    if (argc > 3) {
+        *q_id = str_to_u32(argv[3]);
+    }
+    if (min_rate) {
+        *min_rate = OFPQ_MIN_RATE_UNCFG;
+        if (argc > 4) {
+            *min_rate = str_to_u32(argv[4]);
+        }
+    }
+
+    return 0;
+}
+
+/* Length of queue request; works with 16-bit property values like min_rate */
+#define Q_REQ_LEN(prop_count) \
+    (sizeof(struct ofp_packet_queue) + Q_PROP_LEN(prop_count))
+
+#define Q_PROP_LEN(prop_count) \
+    ((prop_count) * sizeof(struct ofp_queue_prop_min_rate))
+
+/*
+ * Execute a queue add/mod/del operation
+ *
+ * All commands must specify a port and queue id.
+ * Add may specify a bandwidth value
+ * Modify must specify a bandwidth value
+ *
+ * To simplify things, always allocate space for all three parameters
+ * (port, queue, min-bw):
+ *     openflow_queue_header (w/ ofp header, port)
+ *     ofp_queue (with q_id and offset to properties list)
+ *     ofp_queue_prop_min_rate (w/ prop header and rate info)
+ */
+static struct openflow_queue_command_header *
+queue_req_create(int cmd, struct ofpbuf **b, uint16_t port,
+                 uint32_t q_id, uint16_t min_rate)
+{
+    struct openflow_queue_command_header *request;
+    struct ofp_packet_queue *queue;
+    struct ofp_queue_prop_min_rate *min_rate_prop;
+    int req_bytes;
+
+    req_bytes = sizeof(*request) + sizeof(*queue) + sizeof(*min_rate_prop);
+    request = make_openflow(req_bytes, OFPT_VENDOR, b);
+    if (request == NULL) {
+        return NULL;
+    }
+    request->header.vendor = htonl(OPENFLOW_VENDOR_ID);
+    request->header.subtype = htonl(cmd);
+    request->port = htons(port);
+
+    /* Will get complicated when queue properties w/ different struct sizes */
+    queue = S_PTR(request, struct openflow_queue_command_header, body);
+    queue->queue_id = htonl(q_id);
+    queue->len = htons(Q_REQ_LEN(1));
+
+    min_rate_prop = S_PTR(queue, struct ofp_packet_queue, properties);
+    min_rate_prop->prop_header.property = htons(OFPQT_MIN_RATE);
+    min_rate_prop->prop_header.len = htons(Q_PROP_LEN(1));
+    min_rate_prop->rate = htons(min_rate);
+
+    return request;
+}
+
+/* Handler for add/modify/delete queue ops */
+static void
+do_queue_op(int cmd, int argc, char *argv[])
+{
+    struct openflow_queue_command_header *request;
+    struct vconn *vconn;
+    struct ofpbuf *b;
+    uint16_t port;
+    uint32_t q_id;
+    uint16_t min_rate;
+
+    if (parse_queue_params(argc, argv, &port, &q_id, &min_rate) < 0) {
+        ofp_fatal(0, "Error parsing port/queue for cmd %s", argv[0]);
+        return;
+    }
+
+    printf("que op %d (%s). port %d. q 0x%x. rate %d\n", cmd, argv[0],
+           port, q_id, min_rate);
+
+    if ((request = queue_req_create(cmd, &b, port, q_id, min_rate)) == NULL) {
+        ofp_fatal(0, "Error creating queue req for cmd %s", argv[0]);
+        return;
+    }
+
+    printf("made request %p, running transaction\n", request);
+
+    open_vconn(argv[1], &vconn);
+    /* Unacknowledged call for now */
+    send_openflow_buffer(vconn, b);
+    vconn_close(vconn);
+}
+
+char *openflow_queue_error_strings[] = OPENFLOW_QUEUE_ERROR_STRINGS_DEF;
+
+static void
+do_mod_queue(const struct settings *s UNUSED, int argc, char *argv[])
+{
+    do_queue_op(OFP_EXT_QUEUE_MODIFY, argc, argv);
+}
+
+static void
+do_del_queue(const struct settings *s UNUSED, int argc, char *argv[])
+{
+    do_queue_op(OFP_EXT_QUEUE_DELETE, argc, argv);
+}
+
+static void
+do_dump_queue_port(char *vconn_name, uint16_t port, uint32_t q_id)
+{
+    struct ofp_queue_get_config_request *request;
+    struct ofpbuf *buf;
+
+    request = make_openflow(sizeof(*request), OFPT_QUEUE_GET_CONFIG_REQUEST,
+                            &buf);
+    request->port = htons(port); /* FIXME */
+    dump_transaction(vconn_name, buf);
+
+    /* Then do a queue stats get */
+    dump_queue_stats_transaction(vconn_name, OFPST_QUEUE, port, q_id);
+}
+
+static void
+do_dump_queue_all(char *vconn_name, uint32_t q_id)
+{
+    struct ofpbuf *request, *reply;
+    struct ofp_switch_features *osf;
+    int port_idx, n_ports;
+    uint16_t port_no;
+    struct vconn *vconn;
+
+    /* Send a "Features Request" to get the list of ports in the system */
+    make_openflow(sizeof(struct ofp_header), OFPT_FEATURES_REQUEST, &request);
+    open_vconn(vconn_name, &vconn);
+    run(vconn_transact(vconn, request, &reply), "talking to %s", vconn_name);
+    vconn_close(vconn);
+
+    osf = reply->data;
+    n_ports = (reply->size - sizeof *osf) / sizeof *osf->ports;
+    for (port_idx = 0; port_idx < n_ports; port_idx++) {
+        if ((port_no = ntohs(osf->ports[port_idx].port_no)) < OFPP_MAX) {
+            do_dump_queue_port(vconn_name, port_no, q_id);
+        }
+    }
+    ofpbuf_delete(reply);
+}
+
+static void
+do_dump_queue(const struct settings *s UNUSED, int argc, char *argv[])
+{
+    uint16_t port;
+    uint32_t q_id;
+
+    /* Get queue params from the request */
+    if (parse_queue_params(argc, argv, &port, &q_id, NULL) < 0) {
+        ofp_fatal(0, "Error parsing port/queue for cmd %s", argv[0]);
+        return;
+    }
+
+    if (port == OFPP_ALL) {
+        do_dump_queue_all(argv[1], q_id);
+    } else {
+        do_dump_queue_port(argv[1], port, q_id);
+    }
+}
+
 static void
 do_help(const struct settings *s UNUSED, int argc UNUSED, char *argv[] UNUSED)
 {
@@ -1467,6 +1702,10 @@ static struct command all_commands[] = {
     { "del-flows", 1, 2, do_del_flows },
     { "dump-ports", 1, 1, do_dump_ports },
     { "mod-port", 3, 3, do_mod_port },
+    { "add-queue", 3, 4, do_mod_queue },
+    { "mod-queue", 3, 4, do_mod_queue },
+    { "del-queue", 3, 3, do_del_queue },
+    { "dump-queue", 1, 3, do_dump_queue },
     { "probe", 1, 1, do_probe },
     { "ping", 1, 2, do_ping },
     { "benchmark", 3, 3, do_benchmark },
