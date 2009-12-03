@@ -125,7 +125,12 @@ enum ofp_type {
 
     /* Barrier messages. */
     OFPT_BARRIER_REQUEST,     /* Controller/switch message */
-    OFPT_BARRIER_REPLY        /* Controller/switch message */
+    OFPT_BARRIER_REPLY,       /* Controller/switch message */
+
+    /* Queue Configuration messages. */
+    OFPT_QUEUE_GET_CONFIG_REQUEST,  /* Controller/switch message */
+    OFPT_QUEUE_GET_CONFIG_REPLY     /* Controller/switch message */
+
 };
 
 /* Header on all OpenFlow packets. */
@@ -172,7 +177,8 @@ enum ofp_capabilities {
     OFPC_STP            = 1 << 3,  /* 802.1d spanning tree. */
     OFPC_MULTI_PHY_TX   = 1 << 4,  /* Supports transmitting through multiple
                                       physical interfaces */
-    OFPC_IP_REASM       = 1 << 5   /* Can reassemble IP fragments. */
+    OFPC_IP_REASM       = 1 << 5,  /* Can reassemble IP fragments. */
+    OFPC_QUEUE_STATS    = 1 << 6   /* Queue statistics */
 };
 
 /* Flags to indicate behavior of the physical port.  These flags are
@@ -285,7 +291,7 @@ OFP_ASSERT(sizeof(struct ofp_port_status) == 64);
 struct ofp_port_mod {
     struct ofp_header header;
     uint16_t port_no;
-    uint8_t hw_addr[OFP_ETH_ALEN]; /* The hardware address is not 
+    uint8_t hw_addr[OFP_ETH_ALEN]; /* The hardware address is not
                                       configurable.  This is used to
                                       sanity-check the request, so it must
                                       be the same as returned in an
@@ -335,6 +341,7 @@ enum ofp_action_type {
     OFPAT_SET_NW_TOS,       /* IP ToS/DSCP field (6 bits). */
     OFPAT_SET_TP_SRC,       /* TCP/UDP source port. */
     OFPAT_SET_TP_DST,       /* TCP/UDP destination port. */
+    OFPAT_ENQUEUE,          /* Output to queue.  */
     OFPAT_VENDOR = 0xffff
 };
 
@@ -416,7 +423,7 @@ struct ofp_action_vendor_header {
 };
 OFP_ASSERT(sizeof(struct ofp_action_vendor_header) == 8);
 
-/* Action header that is common to all actions.  The length includes the 
+/* Action header that is common to all actions.  The length includes the
  * header and any padding used to make the action 64-bit aligned.
  * NB: The length of an action *must* always be a multiple of eight. */
 struct ofp_action_header {
@@ -553,7 +560,7 @@ struct ofp_flow_mod {
     uint16_t priority;            /* Priority level of flow entry. */
     uint32_t buffer_id;           /* Buffered packet to apply to (or -1).
                                      Not meaningful for OFPFC_DELETE*. */
-    uint16_t out_port;            /* For OFPFC_DELETE* commands, require 
+    uint16_t out_port;            /* For OFPFC_DELETE* commands, require
                                      matching entries to include this as an
                                      output port.  A value of OFPP_NONE
                                      indicates no restriction. */
@@ -596,7 +603,8 @@ enum ofp_error_type {
     OFPET_HELLO_FAILED,         /* Hello protocol failed. */
     OFPET_BAD_REQUEST,          /* Request was not understood. */
     OFPET_BAD_ACTION,           /* Error in action description. */
-    OFPET_FLOW_MOD_FAILED       /* Problem modifying flow entry. */
+    OFPET_FLOW_MOD_FAILED,      /* Problem modifying flow entry. */
+    OFPET_QUEUE_OP_FAILED       /* Queue operation failed. */
 };
 
 /* ofp_error_msg 'code' values for OFPET_HELLO_FAILED.  'data' contains an
@@ -627,7 +635,8 @@ enum ofp_bad_action_code {
     OFPBAC_BAD_VENDOR_TYPE,    /* Unknown action type for vendor id. */
     OFPBAC_BAD_OUT_PORT,       /* Problem validating output action. */
     OFPBAC_BAD_ARGUMENT,       /* Bad action argument. */
-    OFPBAC_EPERM               /* Permissions error. */
+    OFPBAC_EPERM,              /* Permissions error. */
+    OFPBAC_BAD_QUEUE           /* Problem validating output queue. */
 };
 
 /* ofp_error_msg 'code' values for OFPET_FLOW_MOD_FAILED.  'data' contains
@@ -639,6 +648,14 @@ enum ofp_flow_mod_failed_code {
     OFPFMFC_EPERM,              /* Permissions error. */
     OFPFMFC_BAD_EMERG_TIMEOUT   /* Flow not added because of non-zero idle/hard
                                  * timeout. */
+};
+
+/* ofp_error msg 'code' values for OFPET_QUEUE_OP_FAILED. 'data' contains
+ * at least the first 64 bytes of the failed request */
+enum ofp_queue_op_failed_code {
+    OFPQOFC_BAD_PORT,           /* Invalid port (or port does not exist). */
+    OFPQOFC_BAD_QUEUE,          /* Queue does not exist. */
+    OFPQOFC_EPERM               /* Permissions error. */
 };
 
 /* OFPT_ERROR: Error message (datapath -> controller). */
@@ -677,6 +694,11 @@ enum ofp_stats_types {
      * The request body is empty.
      * The reply body is an array of struct ofp_port_stats. */
     OFPST_PORT,
+
+    /* Queue statistics for a port
+     * The request body defines the port
+     * The reply body is an array of struct ofp_queue_stats */
+    OFPST_QUEUE,
 
     /* Vendor extension.
      * The request and reply bodies begin with a 32-bit vendor ID, which takes
@@ -770,7 +792,7 @@ OFP_ASSERT(sizeof(struct ofp_aggregate_stats_reply) == 24);
 
 /* Body of reply to OFPST_TABLE request. */
 struct ofp_table_stats {
-    uint8_t table_id;        /* Identifier of table.  Lower numbered tables 
+    uint8_t table_id;        /* Identifier of table.  Lower numbered tables
                                 are consulted first. */
     uint8_t pad[3];          /* Align to 32-bits. */
     char name[OFP_MAX_TABLE_NAME_LEN];
@@ -819,5 +841,88 @@ struct ofp_vendor_header {
     /* Vendor-defined arbitrary additional data. */
 };
 OFP_ASSERT(sizeof(struct ofp_vendor_header) == 12);
+
+/* All ones is used to indicate all queues in a port (for stats retrieval). */
+#define OFPQ_ALL      0xffffffff
+
+/* Min rate > 1000 means not configured. */
+#define OFPQ_MIN_RATE_UNCFG      0xffff
+
+enum ofp_queue_properties {
+    OFPQT_NONE = 0,       /* No property defined for queue (default). */
+    OFPQT_MIN_RATE,       /* Minimum datarate guaranteed. */
+                          /* Other types should be added here
+                           * (i.e. max rate, precedence, etc). */
+};
+
+/* Common description for a queue. */
+struct ofp_queue_prop_header {
+    uint16_t property;    /* One of OFPQT_. */
+    uint16_t len;         /* Length of property, including this header. */
+    uint8_t pad[4];       /* 64-bit alignemnt. */
+};
+OFP_ASSERT(sizeof(struct ofp_queue_prop_header) == 8);
+
+/* Min-Rate queue property description. */
+struct ofp_queue_prop_min_rate {
+    struct ofp_queue_prop_header prop_header; /* prop: OFPQT_MIN, len: 16. */
+    uint16_t rate;        /* In 1/10 of a percent; >1000 -> disabled. */
+    uint8_t pad[6];       /* 64-bit alignment */
+};
+OFP_ASSERT(sizeof(struct ofp_queue_prop_min_rate) == 16);
+
+/* Full description for a queue. */
+struct ofp_packet_queue {
+    uint32_t queue_id;     /* id for the specific queue. */
+    uint16_t len;          /* Length in bytes of this queue desc. */
+    uint8_t pad[2];        /* 64-bit alignment. */
+    struct ofp_queue_prop_header properties[0]; /* List of properties. */
+};
+OFP_ASSERT(sizeof(struct ofp_packet_queue) == 8);
+
+/* Query for port queue configuration. */
+struct ofp_queue_get_config_request {
+    struct ofp_header header;
+    uint16_t port;         /* Port to be queried. Should refer
+                              to a valid physical port (i.e. < OFPP_MAX) */
+    uint8_t pad[2];        /* 32-bit alignment. */
+};
+OFP_ASSERT(sizeof(struct ofp_queue_get_config_request) == 12);
+
+/* Queue configuration for a given port. */
+struct ofp_queue_get_config_reply {
+    struct ofp_header header;
+    uint16_t port;
+    uint8_t pad[6];
+    struct ofp_packet_queue queues[]; /* List of configured queues. */
+};
+OFP_ASSERT(sizeof(struct ofp_queue_get_config_reply) == 16);
+
+/* OFPAT_ENQUEUE action struct: send packets to given queue on port. */
+struct ofp_action_enqueue {
+    uint16_t type;            /* OFPAT_ENQUEUE. */
+    uint16_t len;             /* Len is 12. */
+    uint16_t port;            /* Port that queue belongs. */
+    uint8_t pad[6];           /* Pad for 64-bit alignment. */
+    uint32_t queue_id;        /* Where to enqueue the packets. */
+};
+OFP_ASSERT(sizeof(struct ofp_action_enqueue) == 16);
+
+struct ofp_queue_stats_request {
+    uint16_t port_no;        /* All ports if OFPT_ALL. */
+    uint8_t pad[2];          /* Align to 32-bits. */
+    uint32_t queue_id;       /* All queues if OFPQ_ALL. */
+};
+OFP_ASSERT(sizeof(struct ofp_queue_stats_request) == 8);
+
+struct ofp_queue_stats {
+    uint16_t port_no;
+    uint8_t pad[2];          /* Align to 32-bits. */
+    uint32_t queue_id;       /* Queue i.d */
+    uint64_t tx_bytes;       /* Number of transmitted bytes. */
+    uint64_t tx_packets;     /* Number of transmitted packets. */
+    uint64_t tx_errors;      /* Number of packets dropped due to overrun. */
+};
+OFP_ASSERT(sizeof(struct ofp_queue_stats) == 32);
 
 #endif /* openflow/openflow.h */

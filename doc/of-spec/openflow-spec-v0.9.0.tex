@@ -4,6 +4,7 @@
 \usepackage{fancyhdr}
 \usepackage{graphicx}
 \usepackage{tabularx}
+\usepackage{color}
 
 \hbadness=10000 % No "underfull hbox" messages
 
@@ -19,6 +20,8 @@
 
 \fontfamily{cmr} % what about cmss?
 \selectfont
+
+\newcommand{\qosupd}[1]{{\color{blue} #1}}
 
 \title{OpenFlow Switch Specification}
 \author{Version 0.9.0 ( Wire Protocol \input{define/OFP_VERSION})}
@@ -119,7 +122,8 @@ Switch designers are free to implement the internals in any way convenient provi
 
 \subsection{Counters}
 
-Counters are maintained per-table, per-flow, and per-port.  OpenFlow-compliant counters may be implemented in software and maintained by polling hardware counters with more limited ranges.
+Counters are maintained per-table, per-flow, \qosupd{per-port and
+  per queue}.  OpenFlow-compliant counters may be implemented in software and maintained by polling hardware counters with more limited ranges.
 \\\\
 Table \ref{table:counters} contains the required set of counters.  Duration refers to the number of seconds a flow has been active.  The Receive Errors field includes all explicitly specified errors, including frame, overrun, and CRC errors, plus any others.
 \begin{table}[!hbp] 	
@@ -149,6 +153,10 @@ Table \ref{table:counters} contains the required set of counters.  Duration refe
 \hline Receive Overrun Errors & 64 \\
 \hline Receive CRC Errors & 64 \\
 \hline Collisions & 64 \\
+\hline  \multicolumn{2}{|c|}{\qosupd{Per Queue}} \\
+\hline \qosupd{Transmit Packets} & \qosupd{64} \\
+\hline \qosupd{Transmit Bytes} & \qosupd{64} \\
+\hline \qosupd{Transmit Overrun Errors} & \qosupd{64}\\
 \hline
 \end{tabular}
 \caption{Required list of counters for use in statistics messages.}
@@ -183,6 +191,11 @@ Ideally, a switch will support flow-entries that can forward packets to any comb
 However, some switches will not be able to support any combination. Therefore, the requirement is that the switch support sending to any combination of physical ports and the “Controller” virtual port simultaneously. All other combinations are desired, but optional. 
 \\\\
 The controller will only ask the switch to send to multiple physical ports simultaneously if the switch indicates it supports this behavior in the initial handshake (see section \ref{cts:handshake}).  
+\\\\
+\textbf{\qosupd{Optional Action:}} \emph{\qosupd{Enqueue}}. \qosupd{The enqueue action forwards
+a packet through a queue attached to a port. Forwarding behavior is
+dictated by the configuration of the queue and is used to provide
+basic Quality-of-Service (QoS) support (see section \ref{cts:qos}).}
 \\\\
 \textbf{Required Action:} \emph{Drop}.  A flow-entry with no specified action indicates that all matching packets should be dropped.
 \\\\
