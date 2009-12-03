@@ -230,7 +230,7 @@ usage(void)
            "  dump-desc SWITCH            print switch description\n"
            "  dump-tables SWITCH          print table stats\n"
            "  mod-port SWITCH IFACE ACT   modify port behavior\n"
-           "  dump-ports SWITCH           print port statistics\n"
+           "  dump-ports SWITCH [PORT]    print port statistics\n"
            "  dump-flows SWITCH           print all flow entries\n"
            "  dump-flows SWITCH FLOW      print matching FLOWs\n"
            "  dump-aggregate SWITCH       print aggregate flow statistics\n"
@@ -1254,9 +1254,32 @@ do_monitor(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
 }
 
 static void
-do_dump_ports(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
+str_to_port(char *string, uint16_t *start_port)
 {
-    dump_trivial_stats_transaction(argv[1], OFPST_PORT);
+    char *save_ptr = NULL;
+    char *value = NULL;
+
+    if (start_port) {
+        *start_port = OFPP_NONE;
+    }
+
+    value = strtok_r(string, ", \t\r\n", &save_ptr);
+    if (value && start_port) {
+        *start_port = atoi(value);
+    }
+}
+
+static void
+do_dump_ports(const struct settings *s UNUSED, int argc, char *argv[])
+{
+    struct ofp_port_stats_request *psr;
+    struct ofpbuf *buf;
+
+    psr = alloc_stats_request(sizeof(*psr), OFPST_PORT, &buf);
+    str_to_port(argc > 2 ? argv[2] : "", &psr->port_no);
+    psr->port_no = htons(psr->port_no);
+    memset(psr->pad, 0, sizeof(psr->pad));
+    dump_stats_transaction(argv[1], buf);
 }
 
 static void
@@ -1476,7 +1499,7 @@ static struct command all_commands[] = {
     { "add-flows", 2, 2, do_add_flows },
     { "mod-flows", 2, 2, do_mod_flows },
     { "del-flows", 1, 2, do_del_flows },
-    { "dump-ports", 1, 1, do_dump_ports },
+    { "dump-ports", 1, 2, do_dump_ports },
     { "mod-port", 3, 3, do_mod_port },
     { "probe", 1, 1, do_probe },
     { "ping", 1, 2, do_ping },

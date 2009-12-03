@@ -140,7 +140,7 @@ static struct ofpbuf *retrieve_buffer(uint32_t id);
 static void discard_buffer(uint32_t id);
 
 static struct sw_port *
-lookup_port(struct datapath *dp, uint16_t port_no) 
+lookup_port(struct datapath *dp, uint16_t port_no)
 {
     return (port_no < DP_MAX_PORTS ? &dp->ports[port_no]
             : port_no == OFPP_LOCAL ? dp->local_port
@@ -466,7 +466,7 @@ static void
 remote_start_dump(struct remote *remote,
                   int (*dump)(struct datapath *, void *),
                   void (*done)(void *),
-                  void *aux) 
+                  void *aux)
 {
     assert(!remote->cb_dump);
     remote->cb_dump = dump;
@@ -1364,14 +1364,18 @@ table_stats_dump(struct datapath *dp, void *state UNUSED,
 }
 
 struct port_stats_state {
-    int port;
+    int start_port;	/* port to start dumping from */
+    int port_no;	/* from ofp_stats_request */
 };
 
 static int
-port_stats_init(const void *body UNUSED, int body_len UNUSED, void **state)
+port_stats_init(const void *body, int body_len, void **state)
 {
     struct port_stats_state *s = xmalloc(sizeof *s);
-    s->port = 0;
+    struct ofp_port_stats_request *psr = body;
+
+    s->start_port = 1;
+    s->port_no = ntohs(psr->port_no);
     *state = s;
     return 0;
 }
@@ -1400,20 +1404,28 @@ static int port_stats_dump(struct datapath *dp, void *state,
                            struct ofpbuf *buffer)
 {
     struct port_stats_state *s = state;
-    int i;
+    struct sw_port *p = NULL;
+    int i = 0;
 
-    for (i = s->port; i < DP_MAX_PORTS; i++) {
-        struct sw_port *p = &dp->ports[i];
-        if (p->netdev) {
+    if (s->port_no == OFPP_NONE) {
+        /* Dump statistics for all ports */
+        for (i = s->start_port; i < DP_MAX_PORTS; i++) {
+            p = lookup_port(dp, i);
+            if (p && p->netdev) {
+                dump_port_stats(p, buffer);
+            }
+        }
+        if (dp->local_port) {
+            dump_port_stats(dp->local_port, buffer);
+        }
+    } else {
+        /* Dump statistics for a single port */
+        p = lookup_port(dp, s->port_no);
+        if (p && p->netdev) {
             dump_port_stats(p, buffer);
         }
     }
-    s->port = i;
 
-    if (dp->local_port) {
-        dump_port_stats(dp->local_port, buffer);
-        s->port = OFPP_LOCAL + 1;
-    }
     return 0;
 }
 
@@ -1542,8 +1554,8 @@ static const struct stats_type stats[] = {
     },
     {
         OFPST_PORT,
-        0,
-        0,
+        sizeof(struct ofp_port_stats_request),
+        sizeof(struct ofp_port_stats_request),
         port_stats_init,
         port_stats_dump,
         port_stats_done
@@ -1645,7 +1657,7 @@ recv_stats_request(struct datapath *dp UNUSED, const struct sender *sender,
     cb->sender = *sender;
     cb->s = st;
     cb->state = NULL;
-    
+
     body_len = rq_len - offsetof(struct ofp_stats_request, body);
     if (body_len < cb->s->min_body || body_len > cb->s->max_body) {
         VLOG_WARN_RL(&rl, "stats request type %d with bad body length %d",

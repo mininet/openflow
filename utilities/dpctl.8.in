@@ -129,9 +129,10 @@ Prints to the console statistics for each of the flow tables used by
 datapath \fIswitch\fR.
 
 .TP
-\fBdump-ports \fIswitch\fR
-Prints to the console statistics for each of the network devices
-associated with datapath \fIswitch\fR.
+\fBdump-ports \fIswitch\fR \fR[\fIport number\fR]
+Prints to the console statistics for each interface monitored by
+\fIswitch\fR. If port number is specified, print statistics only for
+the interface corresponding to port number.
 
 .TP
 \fBmod-port \fIswitch\fR \fInetdev\fR \fIaction\fR

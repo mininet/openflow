@@ -569,6 +569,8 @@ static gint ofp_table_stats_active_count  = -1;
 static gint ofp_table_stats_lookup_count  = -1;
 static gint ofp_table_stats_matched_count = -1;
 
+static gint ofp_port_stats_request = -1;
+static gint ofp_port_stats_request_port_no = -1;
 static gint ofp_port_stats            = -1;
 static gint ofp_port_stats_port_no    = -1;
 static gint ofp_port_stats_rx_packets   = -1;
@@ -670,6 +672,7 @@ static gint ett_ofp_flow_stats_reply = -1;
 static gint ett_ofp_aggr_stats_request = -1;
 static gint ett_ofp_aggr_stats_reply = -1;
 static gint ett_ofp_table_stats = -1;
+static gint ett_ofp_port_stats_request = -1;
 static gint ett_ofp_port_stats = -1;
 static gint ett_ofp_vendor_stats = -1;
 static gint ett_ofp_packet_out = -1;
@@ -1603,6 +1606,12 @@ void proto_register_openflow()
           { "Flow Count", "of.stats_aggr_flow_count", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Flow Count", HFILL } },
 
         /* CSM: Stats: Port */
+        { &ofp_port_stats_request,
+          { "Port Stats Request", "of.stats_port_request", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Statistics Request", HFILL } },
+
+        { &ofp_port_stats_request_port_no,
+          { "Port #", "of.stats_port_request_port_no", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "", HFILL } },
+
         { &ofp_port_stats,
           { "Port Stats", "of.stats_port", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Stats", HFILL } },
 
@@ -1728,6 +1737,7 @@ void proto_register_openflow()
         &ett_ofp_aggr_stats_request,
         &ett_ofp_aggr_stats_reply,
         &ett_ofp_table_stats,
+        &ett_ofp_port_stats_request,
         &ett_ofp_port_stats,
         &ett_ofp_packet_out,
         &ett_ofp_packet_out_data_hdr,
@@ -2861,9 +2871,18 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             }
 
             case OFPST_TABLE:
-            case OFPST_PORT:
                 /* no body for these types of requests */
                 break;
+
+            case OFPST_PORT:{
+		    if (len - offset > 0) {
+			    proto_item *port_item = proto_tree_add_item(type_tree, ofp_port_stats_request, tvb, offset, -1, FALSE);
+			    proto_tree *port_tree = proto_item_add_subtree(port_item, ett_ofp_port_stats_request);
+			    dissect_port(port_tree, ofp_port_stats_request_port_no, tvb, &offset);
+			    dissect_pad(port_tree, &offset, 6);
+		    }
+	    }
+		    break;
 
             default:
                 /* add as bytes if type isn't one we know how to dissect */
