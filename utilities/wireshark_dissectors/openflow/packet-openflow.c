@@ -1276,7 +1276,7 @@ void proto_register_openflow()
           { "  802.11d spanning tree", "of.sf_capabilities_stp", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_STP, "802.11d spanning tree", HFILL }},
 
         { &ofp_switch_features_capabilities[4],
-          { "  Supports transmitting through multiple physical interface", "of.sf_capabilities_multi_phy_tx", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_MULTI_PHY_TX,  "Supports transmitting through multiple physical interface", HFILL }},
+          { "  Reserved", "of.sf_capabilities_reserved", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_RESERVED,  "Reserved", HFILL }},
 
         { &ofp_switch_features_capabilities[5],
           { "  Can reassemble IP fragments", "of.sf_capabilities_ip_reasm", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_IP_REASM,  "Can reassemble IP fragments", HFILL }},

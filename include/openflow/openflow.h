@@ -175,8 +175,7 @@ enum ofp_capabilities {
     OFPC_TABLE_STATS    = 1 << 1,  /* Table statistics. */
     OFPC_PORT_STATS     = 1 << 2,  /* Port statistics. */
     OFPC_STP            = 1 << 3,  /* 802.1d spanning tree. */
-    OFPC_MULTI_PHY_TX   = 1 << 4,  /* Supports transmitting through multiple
-                                      physical interfaces */
+    OFPC_RESERVED       = 1 << 4,  /* Reserved, must be zero. */
     OFPC_IP_REASM       = 1 << 5,  /* Can reassemble IP fragments. */
     OFPC_QUEUE_STATS    = 1 << 6   /* Queue statistics */
 };

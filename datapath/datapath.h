@@ -19,8 +19,7 @@
 /* Capabilities supported by this implementation. */
 #define OFP_SUPPORTED_CAPABILITIES ( OFPC_FLOW_STATS \
 		| OFPC_TABLE_STATS \
-		| OFPC_PORT_STATS \
-		| OFPC_MULTI_PHY_TX )
+		| OFPC_PORT_STATS )
 
 /* Actions supported by this implementation. */
 #define OFP_SUPPORTED_ACTIONS ( (1 << OFPAT_OUTPUT) \
