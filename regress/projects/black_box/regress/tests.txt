@@ -61,6 +61,10 @@ test_forward_wildcard_arp_all/run.pl
 test_forward_wildcard_arp_controller/run.pl
 test_forward_wildcard_arp_fool/run.pl
 
+# Flow cookies
+test_cookie_flow_expired/run.pl
+test_cookie_flow_stats/run.pl
+
 ## Unusual Data
 test_ip_options/run.pl
 ##test_ip_protocol/run.pl
