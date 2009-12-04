@@ -142,7 +142,7 @@ The \verb|vendor| field is the Vendor ID, which takes the same form as in struct
 
 \subsubsection{Handshake}
 \label{cts:handshake} 
-Upon SSL session establishment, the controller sends an \verb|OFPT_FEATURES_REQUEST| message.  This message does not contain a body beyond the OpenFlow header.  The switch responds with an \verb|OFPT_FEATURES_REPLY| message:
+Upon TLS session establishment, the controller sends an \verb|OFPT_FEATURES_REQUEST| message.  This message does not contain a body beyond the OpenFlow header.  The switch responds with an \verb|OFPT_FEATURES_REPLY| message:
 
 \input{struct/ofp_switch_features}
 The \verb|datapath_id| field uniquely identifies a datapath.  The lower 48 bits are intended for the switch MAC address, while the top 16 bits are up to the implementer.  An example use of the top 16 bits would be a VLAN ID to distinguish multiple virtual switch instances on a single physical switch.  This field should be treated as an opaque bit string by controllers.
