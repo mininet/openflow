@@ -409,8 +409,10 @@ netdev_setup_slicing(struct netdev *netdev)
     int error;
 
     /* tap (local) device should not have
-     * queue configuration - do nothing */
+     * queue configuration - just set the 
+     * default socket to tap_fd */
     if (!strncmp(netdev->name, "tap", 3)) {
+        netdev->queue_fd[0] = netdev->tap_fd;
         return 0;
     }
 
@@ -886,7 +888,6 @@ netdev_recv(struct netdev *netdev, struct ofpbuf *buffer)
         }
         return errno;
     } else {
-
         /* we have multiple raw sockets at the same interface, so we also
          * receive what others send, and need to filter them out.
          * TODO(yiannisy): can we install this as a BPF at kernel? */
