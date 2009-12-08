@@ -73,6 +73,7 @@ struct sw_port {
     unsigned long long int tx_dropped;
     uint16_t port_no;
     /* port queues */
+    uint16_t num_queues;
     struct sw_queue queues[NETDEV_MAX_QUEUES];
     struct list queue_list; /* list of all queues for this port */
 };
@@ -106,8 +107,8 @@ struct datapath {
 };
 
 int dp_new(struct datapath **, uint64_t dpid);
-int dp_add_port(struct datapath *, const char *netdev);
-int dp_add_local_port(struct datapath *, const char *netdev);
+int dp_add_port(struct datapath *, const char *netdev, uint16_t);
+int dp_add_local_port(struct datapath *, const char *netdev, uint16_t);
 void dp_add_pvconn(struct datapath *, struct pvconn *);
 void dp_run(struct datapath *);
 void dp_wait(struct datapath *);

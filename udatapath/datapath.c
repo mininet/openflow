@@ -205,7 +205,7 @@ dp_new(struct datapath **dp_, uint64_t dpid)
 
 static int
 new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
-         const char *netdev_name, const uint8_t *new_mac)
+         const char *netdev_name, const uint8_t *new_mac, uint16_t num_queues)
 {
     struct netdev *netdev;
     struct in6_addr in6;
@@ -245,11 +245,16 @@ new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
                  netdev_name, in6_name);
     }
 
-    error = netdev_setup_slicing(netdev);
-    if (error) {
-        VLOG_ERR("failed to configure slicing on %s device",netdev_name);
-        netdev_close(netdev);
-        return error;
+    if (num_queues > 0) {
+        error = netdev_setup_slicing(netdev, num_queues);
+        if (error) {
+            VLOG_ERR("failed to configure slicing on %s device: "\
+                     "check INSTALL for dependencies, or rerun "\
+                     "using --no-slicing option to disable slicing",
+                     netdev_name);
+            netdev_close(netdev);
+            return error;
+        }
     }
 
     memset(port, '\0', sizeof *port);
@@ -258,6 +263,7 @@ new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
     port->dp = dp;
     port->netdev = netdev;
     port->port_no = port_no;
+    port->num_queues = num_queues;
     list_push_back(&dp->port_list, &port->node);
 
     /* Notify the ctlpath that this port has been added */
@@ -267,20 +273,20 @@ new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
 }
 
 int
-dp_add_port(struct datapath *dp, const char *netdev)
+dp_add_port(struct datapath *dp, const char *netdev, uint16_t num_queues)
 {
     int port_no;
     for (port_no = 1; port_no < DP_MAX_PORTS; port_no++) {
         struct sw_port *port = &dp->ports[port_no];
         if (!port->netdev) {
-            return new_port(dp, port, port_no, netdev, NULL);
+            return new_port(dp, port, port_no, netdev, NULL, num_queues);
         }
     }
     return EXFULL;
 }
 
 int
-dp_add_local_port(struct datapath *dp, const char *netdev)
+dp_add_local_port(struct datapath *dp, const char *netdev, uint16_t num_queues)
 {
     if (!dp->local_port) {
         uint8_t ea[ETH_ADDR_LEN];
@@ -289,7 +295,7 @@ dp_add_local_port(struct datapath *dp, const char *netdev)
 
         port = xcalloc(1, sizeof *port);
         eth_addr_from_uint64(dp->id, ea);
-        error = new_port(dp, port, OFPP_LOCAL, netdev, ea);
+        error = new_port(dp, port, OFPP_LOCAL, netdev, ea, num_queues);
         if (!error) {
             dp->local_port = port;
         } else {

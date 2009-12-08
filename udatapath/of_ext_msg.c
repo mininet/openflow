@@ -68,7 +68,7 @@ port_add_queue(struct sw_port *p, uint32_t queue_id,
                struct ofp_queue_prop_min_rate * mr)
 {
     int queue_no;
-    for (queue_no = 1; queue_no < NETDEV_MAX_QUEUES; queue_no++) {
+    for (queue_no = 1; queue_no < p->num_queues; queue_no++) {
         struct sw_queue *q = &p->queues[queue_no];
         if (!q->port) {
             return new_queue(p,q,queue_id,queue_no,mr);

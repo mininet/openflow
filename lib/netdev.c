@@ -106,7 +106,8 @@ struct netdev {
                                  * network device. */
 
     /* one socket per queue.These are valid only for ordinary network devices*/
-    int queue_fd[NETDEV_MAX_QUEUES];
+    int queue_fd[NETDEV_MAX_QUEUES + 1];
+    uint16_t num_queues;
 
     /* Cached network device information. */
     int ifindex;
@@ -402,19 +403,13 @@ do_remove_qdisc(const char *netdev_name)
  * @return 0 on success
  */
 int
-netdev_setup_slicing(struct netdev *netdev)
+netdev_setup_slicing(struct netdev *netdev, uint16_t num_queues)
 {
     int i;
     int * fd;
     int error;
 
-    /* tap (local) device should not have
-     * queue configuration - just set the 
-     * default socket to tap_fd */
-    if (!strncmp(netdev->name, "tap", 3)) {
-        netdev->queue_fd[0] = netdev->tap_fd;
-        return 0;
-    }
+    netdev->num_queues = num_queues;
 
     /* remove any previous queue configuration for this device */
     error = do_remove_qdisc(netdev->name);
@@ -455,11 +450,7 @@ netdev_setup_slicing(struct netdev *netdev)
      * SO_PRIORITY option of the socket. This dictates the usage of one socket
      * per queue. */
 
-    /* the first socket is the default. non-sense, but makes life easier when
-     * start enumerating
-     * from one. */
-    netdev->queue_fd[0] = netdev->tap_fd;
-    for (i=1; i <= NETDEV_MAX_QUEUES; i++) {
+    for (i=1; i <= netdev->num_queues; i++) {
         fd = &netdev->queue_fd[i];
         error = open_queue_socket(netdev->name,i,fd);
         if (error) {
@@ -767,9 +758,11 @@ do_open_netdev(const char *name, int ethertype, int tap_fd,
     netdev->hwaddr_family = hwaddr_family;
     netdev->netdev_fd = netdev_fd;
     netdev->tap_fd = tap_fd < 0 ? netdev_fd : tap_fd;
+    netdev->queue_fd[0] = netdev->tap_fd;
     memcpy(netdev->etheraddr, etheraddr, sizeof etheraddr);
     netdev->mtu = mtu;
     netdev->in6 = in6;
+    netdev->num_queues = 0;
 
     /* Get speed, features. */
     do_ethtool(netdev);
@@ -824,7 +817,7 @@ netdev_close(struct netdev *netdev)
             close(netdev->tap_fd);
         }
 
-        for (i =1; i<= NETDEV_MAX_QUEUES; i++) {
+        for (i =1; i <= netdev->num_queues; i++) {
             close(netdev->queue_fd[i]);
         }
         free(netdev);
