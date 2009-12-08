@@ -22,6 +22,7 @@ enum ofp_extension_commands { /* Queue configuration commands */
     /* Queue Commands */
     OFP_EXT_QUEUE_MODIFY,  /* Add and/or modify */
     OFP_EXT_QUEUE_DELETE,  /* Remove a queue */
+    OFP_EXT_SET_DESC,      /* Set ofp_desc_stat->dp_desc */
 
     OFP_EXT_COUNT
 };
@@ -71,6 +72,12 @@ enum openflow_queue_error_code {
 }
 
 extern char *openflow_queue_error_strings[];
+
+struct openflow_ext_set_dp_desc {
+    struct ofp_extension_header header;
+    char dp_desc[DESC_STR_LEN];
+};
+OFP_ASSERT(sizeof(struct openflow_ext_set_dp_desc) == 272);
 
 #define ofq_error_string(rv) (((rv) < OFQ_ERR_COUNT) && ((rv) >= 0) ? \
     openflow_queue_error_strings[rv] : "Unknown error code")

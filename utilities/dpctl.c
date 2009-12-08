@@ -232,6 +232,7 @@ usage(void)
            "  dump-tables SWITCH          print table stats\n"
            "  mod-port SWITCH IFACE ACT   modify port behavior\n"
            "  dump-ports SWITCH [PORT]    print port statistics\n"
+           "  desc SWITCH STRING          set switch description\n"
            "  dump-flows SWITCH           print all flow entries\n"
            "  dump-flows SWITCH FLOW      print matching FLOWs\n"
            "  dump-aggregate SWITCH       print aggregate flow statistics\n"
@@ -1087,6 +1088,28 @@ str_to_flow(char *string, struct ofp_match *match, struct ofpbuf *actions,
 }
 
 static void
+do_desc(const struct settings *s UNUSED, int argc UNUSED, char *argv[])
+{
+    struct vconn * vconn;
+    struct ofpbuf * msg;
+    struct openflow_ext_set_dp_desc * desc;
+
+    msg = ofpbuf_new(sizeof(*desc));
+    ofpbuf_put_uninit(msg, sizeof(*desc));
+    desc = ofpbuf_at_assert(msg, 0, sizeof(*desc));
+    desc->header.header.version = OFP_VERSION;
+    desc->header.header.type    = OFPT_VENDOR;
+    desc->header.header.length  = htons(sizeof(*desc));
+    desc->header.vendor         = htonl(OPENFLOW_VENDOR_ID);
+    desc->header.subtype        = htonl(OFP_EXT_SET_DESC);
+    strncpy(desc->dp_desc, argv[2], DESC_STR_LEN);
+
+    open_vconn(argv[1], &vconn);
+    send_openflow_buffer(vconn, msg);
+    vconn_close(vconn);
+}
+
+static void
 do_dump_flows(const struct settings *s UNUSED, int argc, char *argv[])
 {
     struct ofp_flow_stats_request *req;
@@ -1728,6 +1751,7 @@ static struct command all_commands[] = {
     { "monitor", 1, 1, do_monitor },
     { "dump-desc", 1, 1, do_dump_desc },
     { "dump-tables", 1, 1, do_dump_tables },
+    { "desc", 2, 2, do_desc },
     { "dump-flows", 1, 2, do_dump_flows },
     { "dump-aggregate", 1, 2, do_dump_aggregate },
     { "add-flow", 2, 2, do_add_flow },

@@ -202,6 +202,20 @@ recv_of_exp_queue_modify(struct datapath *dp,
                  port_no);
     }
 }
+/**
+ * Parses a set dp_desc message and uses it to set
+ *  the dp_desc string in dp
+ */
+static void
+recv_of_set_dp_desc(struct datapath *dp,
+                         const struct sender *sender UNUSED,
+                         const struct ofp_extension_header * exth)
+{
+    struct openflow_ext_set_dp_desc * set_dp_desc = (struct openflow_ext_set_dp_desc * )
+        exth;
+    strncpy(dp->dp_desc, set_dp_desc->dp_desc, DESC_STR_LEN);
+    dp->dp_desc[DESC_STR_LEN-1] = 0;        // force null for safety
+}
 
 /**
  * Receives an experimental message and pass it
@@ -210,9 +224,9 @@ recv_of_exp_queue_modify(struct datapath *dp,
 int of_ext_recv_msg(struct datapath *dp, const struct sender *sender,
         const void *oh)
 {
-    const struct openflow_queue_command_header  *ofexth = oh;
+    const struct ofp_extension_header  *ofexth = oh;
 
-    switch (ntohl(ofexth->header.subtype)) {
+    switch (ntohl(ofexth->subtype)) {
     case OFP_EXT_QUEUE_MODIFY: {
         recv_of_exp_queue_modify(dp,sender,oh);
         return 0;
@@ -221,9 +235,12 @@ int of_ext_recv_msg(struct datapath *dp, const struct sender *sender,
         recv_of_exp_queue_delete(dp,sender,oh);
         return 0;
     }
+    case OFP_EXT_SET_DESC:
+        recv_of_set_dp_desc(dp,sender,ofexth);
+        return 0;
     default:
         VLOG_ERR("Received unknown command of type %d",
-                 ntohl(ofexth->header.subtype));
+                 ntohl(ofexth->subtype));
         return -EINVAL;
     }
 

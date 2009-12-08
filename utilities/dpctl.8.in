@@ -169,6 +169,11 @@ except emergency flows in the datapath flows are retrieved.
 See \fBFLOW SYNTAX\fR, below, for the syntax of \fIflows\fR.
 
 .TP
+\fBdesc \fIswitch \fIstring
+Sets the switch description (as returned in ofp_desc_stats) to
+\fIstring (max length is DESC_STR_LEN).
+
+.TP
 \fBdump-aggregate \fIswitch \fR[\fIflows\fR]
 Prints to the console aggregate statistics for flows in datapath
 \fSWITCH\fR's tables that match \fIflows\fR.  If \fIflows\fR is omitted, 

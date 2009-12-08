@@ -16,6 +16,7 @@
 #include "openflow/private-ext.h"
 #include "dp_act.h"
 #include "private-msg.h"
+#include "openflow-ext.h"
 #include "chain.h"
 #include "flow.h"
 
@@ -410,6 +411,8 @@ recv_vendor(struct sw_chain *chain, const struct sender *sender,
 	{
 	case PRIVATE_VENDOR_ID:
 		return private_recv_msg(chain, sender, msg);
+    case OPENFLOW_VENDOR_ID:
+		return openflow_ext_recv_msg(chain, sender, msg);
 	default:
 		if (net_ratelimit())
 			printk(KERN_NOTICE "%s: unknown vendor: 0x%x\n",
