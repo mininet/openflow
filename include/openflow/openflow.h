@@ -901,7 +901,7 @@ OFP_ASSERT(sizeof(struct ofp_queue_get_config_reply) == 16);
 /* OFPAT_ENQUEUE action struct: send packets to given queue on port. */
 struct ofp_action_enqueue {
     uint16_t type;            /* OFPAT_ENQUEUE. */
-    uint16_t len;             /* Len is 12. */
+    uint16_t len;             /* Len is 16. */
     uint16_t port;            /* Port that queue belongs. */
     uint8_t pad[6];           /* Pad for 64-bit alignment. */
     uint32_t queue_id;        /* Where to enqueue the packets. */
