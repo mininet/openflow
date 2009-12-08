@@ -596,7 +596,8 @@ enum ofp_error_type {
     OFPET_HELLO_FAILED,         /* Hello protocol failed. */
     OFPET_BAD_REQUEST,          /* Request was not understood. */
     OFPET_BAD_ACTION,           /* Error in action description. */
-    OFPET_FLOW_MOD_FAILED       /* Problem modifying flow entry. */
+    OFPET_FLOW_MOD_FAILED,      /* Problem modifying flow entry. */
+    OFPET_PORT_MOD_FAILED       /* OFPT_PORT_MOD failed. */
 };
 
 /* ofp_error_msg 'code' values for OFPET_HELLO_FAILED.  'data' contains an
@@ -615,7 +616,10 @@ enum ofp_bad_request_code {
     OFPBRC_BAD_VENDOR,          /* Vendor not supported (in ofp_vendor_header
                                  * or ofp_stats_request or ofp_stats_reply). */
     OFPBRC_BAD_SUBTYPE,         /* Vendor subtype not supported. */
-    OFPBRC_EPERM                /* Permissions error. */
+    OFPBRC_EPERM,               /* Permissions error. */
+    OFPBRC_BAD_LEN,             /* Wrong request length for type. */
+    OFPBRC_BUFFER_EMPTY,        /* Specified buffer has already been used. */
+    OFPBRC_BUFFER_UNKNOWN       /* Specified buffer does not exist. */
 };
 
 /* ofp_error_msg 'code' values for OFPET_BAD_ACTION.  'data' contains at least
@@ -627,7 +631,8 @@ enum ofp_bad_action_code {
     OFPBAC_BAD_VENDOR_TYPE,    /* Unknown action type for vendor id. */
     OFPBAC_BAD_OUT_PORT,       /* Problem validating output action. */
     OFPBAC_BAD_ARGUMENT,       /* Bad action argument. */
-    OFPBAC_EPERM               /* Permissions error. */
+    OFPBAC_EPERM,              /* Permissions error. */
+    OFPBAC_TOO_MANY            /* Can't handle this many actions. */
 };
 
 /* ofp_error_msg 'code' values for OFPET_FLOW_MOD_FAILED.  'data' contains
@@ -637,8 +642,16 @@ enum ofp_flow_mod_failed_code {
     OFPFMFC_OVERLAP,            /* Attempted to add overlapping flow with
                                  * CHECK_OVERLAP flag set. */
     OFPFMFC_EPERM,              /* Permissions error. */
-    OFPFMFC_BAD_EMERG_TIMEOUT   /* Flow not added because of non-zero idle/hard
+    OFPFMFC_BAD_EMERG_TIMEOUT,  /* Flow not added because of non-zero idle/hard
                                  * timeout. */
+    OFPFMFC_BAD_COMMAND         /* Unknown command. */
+};
+
+/* ofp_error_msg 'code' values for OFPET_PORT_MOD_FAILED.  'data' contains
+ * at least the first 64 bytes of the failed request. */
+enum ofp_port_mod_failed_code {
+    OFPPMFC_BAD_PORT,            /* Specified port does not exist. */
+    OFPPMFC_BAD_HW_ADDR,         /* Specified hardware address is wrong. */
 };
 
 /* OFPT_ERROR: Error message (datapath -> controller). */
