@@ -84,6 +84,19 @@ tree.
 To build Debian packages without being root, also install the
 "fakeroot" package.
 
+Userspace Switch Prerequisites
+---------------------------------
+
+     - To enable slicing support, "tc" frontend should be installed
+       (from iproute2, part of all major distributions,
+       http://www.linux-foundation.org/en/Net:Iproute2).
+       You also need to enable the following kernel configuration
+       options under the QoS and/or Fair queueing section :
+       CONFIG_NET_SCHED,CONFIG_NET_SCH_HTB (already configured that
+       way in most distributions).
+       (NOTE: You can disable slicing (and these dependencies) at runtime
+        using the --no-slicing option)
+
 Kernel-Based Switch Prerequisites
 ---------------------------------
 
