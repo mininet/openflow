@@ -57,7 +57,7 @@ validate_output(struct datapath *dp UNUSED, const struct sw_flow_key *key,
 }
 
 static uint16_t
-validate_queue(struct datapath *dp UNUSED, const struct sw_flow_key *key,
+validate_queue(struct datapath *dp UNUSED, const struct sw_flow_key *key UNUSED,
                const struct ofp_action_header *ah)
 {
     struct ofp_action_enqueue *ea = (struct ofp_action_enqueue *)ah;
@@ -372,7 +372,7 @@ validate_ofpat(struct datapath *dp, const struct sw_flow_key *key,
 /* Validate vendor-defined actions.  Either returns ACT_VALIDATION_OK
  * or an OFPET_BAD_ACTION error code. */
 static uint16_t 
-validate_vendor(struct datapath *dp, const struct sw_flow_key *key, 
+validate_vendor(struct datapath *dp UNUSED, const struct sw_flow_key *key UNUSED, 
         const struct ofp_action_header *ah, uint16_t len)
 {
     struct ofp_action_vendor_header *avh;
@@ -454,7 +454,7 @@ execute_ofpat(struct ofpbuf *buffer, struct sw_flow_key *key,
 
 /* Execute a vendor-defined action against 'buffer'. */
 static void
-execute_vendor(struct ofpbuf *buffer, const struct sw_flow_key *key, 
+execute_vendor(struct ofpbuf *buffer UNUSED, const struct sw_flow_key *key UNUSED, 
         const struct ofp_action_header *ah)
 {
     struct ofp_action_vendor_header *avh 

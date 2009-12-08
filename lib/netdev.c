@@ -851,7 +851,7 @@ netdev_recv(struct netdev *netdev, struct ofpbuf *buffer)
 {
     ssize_t n_bytes;
     struct sockaddr_ll sll;
-    int sll_len;
+    socklen_t sll_len;
 
     assert(buffer->size == 0);
     assert(ofpbuf_tailroom(buffer) >= ETH_TOTAL_MIN);

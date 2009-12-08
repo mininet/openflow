@@ -1309,7 +1309,7 @@ ofp_echo(struct ds *string, const void *oh, size_t len, int verbosity)
 }
 
 static void
-ofp_vendor(struct ds *string, const void *oh, size_t len, int verbosity)
+ofp_vendor(struct ds *string UNUSED, const void *oh, size_t len UNUSED, int verbosity UNUSED)
 {
     const struct ofp_vendor_header *vh = oh;
 
@@ -1344,7 +1344,7 @@ show_queue_props(struct ds *string, const struct ofp_packet_queue *queue_desc)
 
 static void
 show_queue_get_config_reply(struct ds *string, const void *oh,
-                            size_t len, int verbosity)
+                            size_t len UNUSED, int verbosity UNUSED)
 {
     const struct ofp_queue_get_config_reply *reply;
     const struct ofp_packet_queue *queue_desc;
