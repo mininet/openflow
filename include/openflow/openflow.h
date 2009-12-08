@@ -347,7 +347,8 @@ enum ofp_action_type {
 
 /* Action structure for OFPAT_OUTPUT, which sends packets out 'port'.
  * When the 'port' is the OFPP_CONTROLLER, 'max_len' indicates the max
- * number of bytes to send. */
+ * number of bytes to send.  A 'max_len' of zero means no bytes of the
+ * packet should be sent.*/
 struct ofp_action_output {
     uint16_t type;                  /* OFPAT_OUTPUT. */
     uint16_t len;                   /* Length is 8. */
@@ -417,7 +418,7 @@ OFP_ASSERT(sizeof(struct ofp_action_nw_tos) == 8);
 /* Action header for OFPAT_VENDOR. The rest of the body is vendor-defined. */
 struct ofp_action_vendor_header {
     uint16_t type;                  /* OFPAT_VENDOR. */
-    uint16_t len;                   /* Length is 8. */
+    uint16_t len;                   /* Length is a multiple of 8. */
     uint32_t vendor;                /* Vendor ID, which takes the same form
                                        as in "struct ofp_vendor_header". */
 };
