@@ -951,21 +951,22 @@ struct field {
 };
 
 static bool
-parse_field(const char *name, const struct field **f_out) 
+parse_field(const char *name, const struct field **f_out)
 {
 #define F_OFS(MEMBER) offsetof(struct ofp_match, MEMBER)
-    static const struct field fields[] = { 
+    static const struct field fields[] = {
         { "in_port", OFPFW_IN_PORT, F_U16, F_OFS(in_port), 0 },
         { "dl_vlan", OFPFW_DL_VLAN, F_U16, F_OFS(dl_vlan), 0 },
         { "dl_vlan_pcp", OFPFW_DL_VLAN_PCP, F_U8, F_OFS(dl_vlan_pcp), 0 },
         { "dl_src", OFPFW_DL_SRC, F_MAC, F_OFS(dl_src), 0 },
         { "dl_dst", OFPFW_DL_DST, F_MAC, F_OFS(dl_dst), 0 },
         { "dl_type", OFPFW_DL_TYPE, F_U16, F_OFS(dl_type), 0 },
+        { "nw_tos", OFPFW_NW_TOS, F_U8, F_OFS(nw_tos), 0 },
+        { "nw_proto", OFPFW_NW_PROTO, F_U8, F_OFS(nw_proto), 0 },
         { "nw_src", OFPFW_NW_SRC_MASK, F_IP,
           F_OFS(nw_src), OFPFW_NW_SRC_SHIFT },
         { "nw_dst", OFPFW_NW_DST_MASK, F_IP,
           F_OFS(nw_dst), OFPFW_NW_DST_SHIFT },
-        { "nw_proto", OFPFW_NW_PROTO, F_U8, F_OFS(nw_proto), 0 },
         { "tp_src", OFPFW_TP_SRC, F_U16, F_OFS(tp_src), 0 },
         { "tp_dst", OFPFW_TP_DST, F_U16, F_OFS(tp_dst), 0 },
         { "icmp_type", OFPFW_ICMP_TYPE, F_U16, F_OFS(icmp_type), 0 },

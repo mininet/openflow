@@ -303,7 +303,7 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
             return -1;
         }
     }
-    
+
     switch (type) {
     case OFPAT_OUTPUT: {
         struct ofp_action_output *oa = (struct ofp_action_output *)ah;
@@ -350,7 +350,7 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
 
     case OFPAT_SET_DL_SRC: {
         struct ofp_action_dl_addr *da = (struct ofp_action_dl_addr *)ah;
-        ds_put_format(string, "mod_dl_src:"ETH_ADDR_FMT, 
+        ds_put_format(string, "mod_dl_src:"ETH_ADDR_FMT,
                 ETH_ADDR_ARGS(da->dl_addr));
         break;
     }
@@ -376,7 +376,7 @@ ofp_print_action(struct ds *string, const struct ofp_action_header *ah,
 
     case OFPAT_SET_NW_TOS: {
        struct ofp_action_nw_tos *nt = (struct ofp_action_nw_tos *)ah;
-       ds_put_format(string, "mod_ip_tos:%d", nt->nw_tos);
+       ds_put_format(string, "mod_nw_tos:0x%"PRIx8, nt->nw_tos);
         break;
     }
 
@@ -715,7 +715,7 @@ ofp_match_to_string(const struct ofp_match *om, int verbosity)
     print_ip_netmask(&f, "nw_dst=", om->nw_dst,
                      (w & OFPFW_NW_DST_MASK) >> OFPFW_NW_DST_SHIFT, verbosity);
     print_wild(&f, "nw_tos=", w & OFPFW_NW_TOS, verbosity,
-              "%u", om->nw_tos);
+              "0x%02x", om->nw_tos);
     if (!skip_proto) {
         print_wild(&f, "nw_proto=", w & OFPFW_NW_PROTO, verbosity,
                    "%u", om->nw_proto);

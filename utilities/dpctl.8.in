@@ -301,6 +301,11 @@ Matches IP protocol type \fIproto\fR, which should be specified as a
 decimal number between 0 and 255, inclusive, e.g. 6 to match TCP
 packets.
 
+.IP \fBnw_tos=\fItos/dscp\fR
+Matches ToS/DSCP (only 6-bits, not modify reserved 2-bits for future
+use) field of IPv4 header \fItos/dscp\fR, which should be specified as
+a decimal number between 0 and 255, inclusive.
+
 .IP \fBtp_src=\fIport\fR
 Matches UDP or TCP source port \fIport\fR, which should be specified
 as a decimal number between 0 and 65535, inclusive, e.g. 80 to match
