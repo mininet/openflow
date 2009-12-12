@@ -10,6 +10,8 @@ udatapath_ofdatapath_SOURCES = \
 	udatapath/datapath.h \
 	udatapath/dp_act.c \
 	udatapath/dp_act.h \
+	udatapath/of_ext_msg.c \
+	udatapath/of_ext_msg.h \
 	udatapath/udatapath.c \
 	udatapath/private-msg.c \
 	udatapath/private-msg.h \

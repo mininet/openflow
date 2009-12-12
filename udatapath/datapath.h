@@ -42,11 +42,25 @@
 #include "ofpbuf.h"
 #include "timeval.h"
 #include "list.h"
+#include "netdev.h"
 
 struct rconn;
 struct pvconn;
 struct sw_flow;
 struct sender;
+
+struct sw_queue {
+    struct list node; /* element in port.queues */
+    unsigned long long int tx_packets;
+    unsigned long long int tx_bytes;
+    unsigned long long int tx_errors;
+    uint32_t queue_id;
+    uint16_t class_id; /* internal mapping from OF queue_id to tc class_id */
+    struct sw_port *port; /* reference to the parent port */
+    /* keep it simple for now, only one property (assuming min_rate) */
+    uint16_t property; /* one from OFPQT_ */
+    uint16_t min_rate;
+};
 
 struct sw_port {
     uint32_t config;            /* Some subset of OFPPC_* flags. */
@@ -58,6 +72,10 @@ struct sw_port {
     unsigned long long int rx_bytes, tx_bytes;
     unsigned long long int tx_dropped;
     uint16_t port_no;
+    /* port queues */
+    uint16_t num_queues;
+    struct sw_queue queues[NETDEV_MAX_QUEUES];
+    struct list queue_list; /* list of all queues for this port */
 };
 
 #define DP_MAX_PORTS 255
@@ -90,8 +108,8 @@ struct datapath {
 };
 
 int dp_new(struct datapath **, uint64_t dpid);
-int dp_add_port(struct datapath *, const char *netdev);
-int dp_add_local_port(struct datapath *, const char *netdev);
+int dp_add_port(struct datapath *, const char *netdev, uint16_t);
+int dp_add_local_port(struct datapath *, const char *netdev, uint16_t);
 void dp_add_pvconn(struct datapath *, struct pvconn *);
 void dp_run(struct datapath *);
 void dp_wait(struct datapath *);
@@ -100,8 +118,10 @@ void dp_send_error_msg(struct datapath *, const struct sender *,
 void dp_send_flow_end(struct datapath *, struct sw_flow *,
                       enum ofp_flow_removed_reason);
 void dp_output_port(struct datapath *, struct ofpbuf *, int in_port, 
-        int out_port, bool ignore_no_fwd);
+                    int out_port, uint32_t queue_id, bool ignore_no_fwd);
 void dp_output_control(struct datapath *, struct ofpbuf *, int in_port,
         size_t max_len, int reason);
+struct sw_port * dp_lookup_port(struct datapath *, uint16_t);
+struct sw_queue * dp_lookup_queue(struct sw_port *, uint32_t);
 
 #endif /* datapath.h */

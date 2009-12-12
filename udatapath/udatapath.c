@@ -73,6 +73,7 @@ static struct datapath *dp;
 static uint64_t dpid = UINT64_MAX;
 static char *port_list;
 static char *local_port = "tap:";
+static uint16_t num_queues = NETDEV_MAX_QUEUES;
 
 static void add_ports(struct datapath *dp, char *port_list);
 
@@ -92,7 +93,7 @@ main(int argc, char *argv[])
 
     if (argc - optind < 1) {
         ofp_fatal(0, "at least one listener argument is required; "
-		  "use --help for usage");
+          "use --help for usage");
     }
 
     error = dp_new(&dp, dpid);
@@ -119,7 +120,7 @@ main(int argc, char *argv[])
         add_ports(dp, port_list);
     }
     if (local_port) {
-        error = dp_add_local_port(dp, local_port);
+        error = dp_add_local_port(dp, local_port, 0);
         if (error) {
             ofp_fatal(error, "failed to add local port %s", local_port);
         }
@@ -153,7 +154,7 @@ add_ports(struct datapath *dp, char *port_list)
      * Using ",," instead of the obvious "," works around it. */
     for (port = strtok_r(port_list, ",,", &save_ptr); port;
          port = strtok_r(NULL, ",,", &save_ptr)) {
-        int error = dp_add_port(dp, port);
+        int error = dp_add_port(dp, port, num_queues);
         if (error) {
             ofp_fatal(error, "failed to add port %s", port);
         }
@@ -170,7 +171,8 @@ parse_options(int argc, char *argv[])
 	OPT_DP_DESC,
         OPT_SERIAL_NUM,
         OPT_BOOTSTRAP_CA_CERT,
-        OPT_NO_LOCAL_PORT
+        OPT_NO_LOCAL_PORT,
+        OPT_NO_SLICING
     };
 
     static struct option long_options[] = {
@@ -181,6 +183,7 @@ parse_options(int argc, char *argv[])
         {"verbose",     optional_argument, 0, 'v'},
         {"help",        no_argument, 0, 'h'},
         {"version",     no_argument, 0, 'V'},
+        {"no-slicing",  no_argument, 0, OPT_NO_SLICING},
         {"mfr-desc",    required_argument, 0, OPT_MFR_DESC},
         {"hw-desc",     required_argument, 0, OPT_HW_DESC},
         {"sw-desc",     required_argument, 0, OPT_SW_DESC},
@@ -266,6 +269,10 @@ parse_options(int argc, char *argv[])
             strncpy(serial_num, optarg, sizeof serial_num);
             break;
 
+        case OPT_NO_SLICING:
+            num_queues = 0;
+            break;
+
         DAEMON_OPTION_HANDLERS
 
 #ifdef HAVE_OPENSSL
@@ -292,7 +299,7 @@ usage(void)
     printf("%s: userspace OpenFlow datapath\n"
            "usage: %s [OPTIONS] LISTEN...\n"
            "where LISTEN is a passive OpenFlow connection method on which\n"
-	   "to listen for incoming connections from the secure channel.\n",
+       "to listen for incoming connections from the secure channel.\n",
            program_name, program_name);
     vconn_usage(false, true, false);
     printf("\nConfiguration options:\n"
@@ -302,6 +309,7 @@ usage(void)
            "  --no-local-port         disable local port\n"
            "  -d, --datapath-id=ID    Use ID as the OpenFlow switch ID\n"
            "                          (ID must consist of 12 hex digits)\n"
+           "  --no-slicing            disable slicing\n"
            "\nOther options:\n"
            "  -D, --detach            run in background as daemon\n"
            "  -P, --pidfile[=FILE]    create pidfile (default: %s/udatapath.pid)\n"

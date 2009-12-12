@@ -1,6 +1,7 @@
+//234567890123456789012345678901234567890123456789012345678901234567890123456789
 /* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
- * 
+ *
  * We are making the OpenFlow specification and associated documentation
  * (Software) available for public use and benefit with the expectation
  * that others will use, modify and enhance the Software and contribute
@@ -13,10 +14,10 @@
  * distribute, sublicense, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -25,7 +26,7 @@
  * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
+ *
  * The name and trademarks of copyright holder(s) may NOT be used in
  * advertising or publicity pertaining to the Software or any
  * derivatives without specific, written prior permission.
@@ -42,11 +43,11 @@
 #include "chain.h"
 #include "csum.h"
 #include "flow.h"
-#include "netdev.h"
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
 #include "openflow/nicira-ext.h"
 #include "openflow/private-ext.h"
+#include "openflow/openflow-ext.h"
 #include "packets.h"
 #include "poll-loop.h"
 #include "rconn.h"
@@ -56,6 +57,7 @@
 #include "vconn.h"
 #include "xtoxll.h"
 #include "private-msg.h"
+#include "of_ext_msg.h"
 #include "dp_act.h"
 
 #define THIS_MODULE VLM_datapath
@@ -68,10 +70,11 @@ extern char dp_desc;
 extern char serial_num;
 
 /* Capabilities supported by this implementation. */
-#define OFP_SUPPORTED_CAPABILITIES ( OFPC_FLOW_STATS \
-        | OFPC_TABLE_STATS \
-        | OFPC_PORT_STATS \
-        | OFPC_MULTI_PHY_TX )
+#define OFP_SUPPORTED_CAPABILITIES ( OFPC_FLOW_STATS        \
+                                     | OFPC_TABLE_STATS        \
+                                     | OFPC_PORT_STATS        \
+                                     | OFPC_QUEUE_STATS        \
+                                     | OFPC_MULTI_PHY_TX )
 
 /* Actions supported by this implementation. */
 #define OFP_SUPPORTED_ACTIONS ( (1 << OFPAT_OUTPUT)         \
@@ -83,7 +86,8 @@ extern char serial_num;
                                 | (1 << OFPAT_SET_NW_SRC)   \
                                 | (1 << OFPAT_SET_NW_DST)   \
                                 | (1 << OFPAT_SET_TP_SRC)   \
-                                | (1 << OFPAT_SET_TP_DST) )
+                                | (1 << OFPAT_SET_TP_DST)   \
+                                | (1 << OFPAT_ENQUEUE))
 
 /* The origin of a received OpenFlow message, to enable sending a reply. */
 struct sender {
@@ -139,12 +143,25 @@ uint32_t save_buffer(struct ofpbuf *);
 static struct ofpbuf *retrieve_buffer(uint32_t id);
 static void discard_buffer(uint32_t id);
 
-static struct sw_port *
-lookup_port(struct datapath *dp, uint16_t port_no)
+struct sw_port *
+dp_lookup_port(struct datapath *dp, uint16_t port_no)
 {
     return (port_no < DP_MAX_PORTS ? &dp->ports[port_no]
             : port_no == OFPP_LOCAL ? dp->local_port
             : NULL);
+}
+
+struct sw_queue *
+dp_lookup_queue(struct sw_port *p, uint32_t queue_id)
+{
+    struct sw_queue *q;
+
+    LIST_FOR_EACH(q, struct sw_queue, node, &p->queue_list) {
+        if (q->queue_id == queue_id) {
+            return q;
+        }
+    }
+    return NULL;
 }
 
 /* Generates and returns a random datapath id. */
@@ -200,7 +217,7 @@ dp_new(struct datapath **dp_, uint64_t dpid)
 
 static int
 new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
-         const char *netdev_name, const uint8_t *new_mac)
+         const char *netdev_name, const uint8_t *new_mac, uint16_t num_queues)
 {
     struct netdev *netdev;
     struct in6_addr in6;
@@ -240,11 +257,25 @@ new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
                  netdev_name, in6_name);
     }
 
+    if (num_queues > 0) {
+        error = netdev_setup_slicing(netdev, num_queues);
+        if (error) {
+            VLOG_ERR("failed to configure slicing on %s device: "\
+                     "check INSTALL for dependencies, or rerun "\
+                     "using --no-slicing option to disable slicing",
+                     netdev_name);
+            netdev_close(netdev);
+            return error;
+        }
+    }
+
     memset(port, '\0', sizeof *port);
 
+    list_init(&port->queue_list);
     port->dp = dp;
     port->netdev = netdev;
     port->port_no = port_no;
+    port->num_queues = num_queues;
     list_push_back(&dp->port_list, &port->node);
 
     /* Notify the ctlpath that this port has been added */
@@ -254,20 +285,20 @@ new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
 }
 
 int
-dp_add_port(struct datapath *dp, const char *netdev)
+dp_add_port(struct datapath *dp, const char *netdev, uint16_t num_queues)
 {
     int port_no;
     for (port_no = 1; port_no < DP_MAX_PORTS; port_no++) {
         struct sw_port *port = &dp->ports[port_no];
         if (!port->netdev) {
-            return new_port(dp, port, port_no, netdev, NULL);
+            return new_port(dp, port, port_no, netdev, NULL, num_queues);
         }
     }
     return EXFULL;
 }
 
 int
-dp_add_local_port(struct datapath *dp, const char *netdev) 
+dp_add_local_port(struct datapath *dp, const char *netdev, uint16_t num_queues)
 {
     if (!dp->local_port) {
         uint8_t ea[ETH_ADDR_LEN];
@@ -276,7 +307,7 @@ dp_add_local_port(struct datapath *dp, const char *netdev)
 
         port = xcalloc(1, sizeof *port);
         eth_addr_from_uint64(dp->id, ea);
-        error = new_port(dp, port, OFPP_LOCAL, netdev, ea);
+        error = new_port(dp, port, OFPP_LOCAL, netdev, ea, num_queues);
         if (!error) {
             dp->local_port = port;
         } else {
@@ -318,7 +349,7 @@ dp_run(struct datapath *dp)
         dp->last_timeout = now;
     }
     poll_timer_wait(1000);
-    
+
     LIST_FOR_EACH_SAFE (p, pn, struct sw_port, node, &dp->port_list) {
         int error;
 
@@ -394,7 +425,7 @@ remote_run(struct datapath *dp, struct remote *r)
             } else {
                 VLOG_WARN_RL(&rl, "received too-short OpenFlow message");
             }
-            ofpbuf_delete(buffer); 
+            ofpbuf_delete(buffer);
         } else {
             if (r->n_txq < TXQ_LIMIT) {
                 int error = r->cb_dump(dp, r->cb_aux);
@@ -418,7 +449,7 @@ remote_run(struct datapath *dp, struct remote *r)
 }
 
 static void
-remote_wait(struct remote *r) 
+remote_wait(struct remote *r)
 {
     rconn_run_wait(r->rconn);
     rconn_recv_wait(r->rconn);
@@ -438,7 +469,7 @@ remote_destroy(struct remote *r)
 }
 
 static struct remote *
-remote_create(struct datapath *dp, struct rconn *rconn) 
+remote_create(struct datapath *dp, struct rconn *rconn)
 {
     struct remote *remote = xmalloc(sizeof *remote);
     list_push_back(&dp->remotes, &remote->node);
@@ -475,7 +506,7 @@ remote_start_dump(struct remote *remote,
 }
 
 void
-dp_wait(struct datapath *dp) 
+dp_wait(struct datapath *dp)
 {
     struct sw_port *p;
     struct remote *r;
@@ -511,12 +542,12 @@ output_all(struct datapath *dp, struct ofpbuf *buffer, int in_port, int flood)
         }
         if (prev_port != -1) {
             dp_output_port(dp, ofpbuf_clone(buffer), in_port, prev_port,
-                           false);
+                           0,false);
         }
         prev_port = p->port_no;
     }
     if (prev_port != -1)
-        dp_output_port(dp, buffer, in_port, prev_port, false);
+        dp_output_port(dp, buffer, in_port, prev_port, 0, false);
     else
         ofpbuf_delete(buffer);
 
@@ -524,14 +555,39 @@ output_all(struct datapath *dp, struct ofpbuf *buffer, int in_port, int flood)
 }
 
 static void
-output_packet(struct datapath *dp, struct ofpbuf *buffer, uint16_t out_port) 
+output_packet(struct datapath *dp, struct ofpbuf *buffer, uint16_t out_port,
+              uint32_t queue_id)
 {
-    struct sw_port *p = lookup_port(dp, out_port);
+    uint16_t class_id;
+    struct sw_queue * q;
+    struct sw_port *p;
+
+    q = NULL;
+    p = dp_lookup_port(dp, out_port);
     if (p && p->netdev != NULL) {
         if (!(p->config & OFPPC_PORT_DOWN)) {
-            if (!netdev_send(p->netdev, buffer)) {
+            /* avoid the queue lookup for best-effort traffic */
+            if (queue_id == 0) {
+                class_id = 0;
+            }
+            else {
+                /* silently drop the packet if queue doesn't exist */
+                q = dp_lookup_queue(p, queue_id);
+                if (q) {
+                    class_id = q->class_id;
+                }
+                else {
+                    goto error;
+                }
+            }
+
+            if (!netdev_send(p->netdev, buffer, class_id)) {
                 p->tx_packets++;
                 p->tx_bytes += buffer->size;
+                if (q) {
+                    q->tx_packets++;
+                    q->tx_bytes += buffer->size;
+                }
             } else {
                 p->tx_dropped++;
             }
@@ -540,27 +596,30 @@ output_packet(struct datapath *dp, struct ofpbuf *buffer, uint16_t out_port)
         return;
     }
 
+ error:
     ofpbuf_delete(buffer);
-    VLOG_DBG_RL(&rl, "can't forward to bad port %d\n", out_port);
+    VLOG_DBG_RL(&rl, "can't forward to bad port:queue(%d:%d)\n", out_port,
+                queue_id);
 }
 
-/* Takes ownership of 'buffer' and transmits it to 'out_port' on 'dp'.
+/** Takes ownership of 'buffer' and transmits it to 'out_port' on 'dp'.
  */
 void
 dp_output_port(struct datapath *dp, struct ofpbuf *buffer,
-               int in_port, int out_port, bool ignore_no_fwd UNUSED)
+               int in_port, int out_port, uint32_t queue_id,
+               bool ignore_no_fwd UNUSED)
 {
 
     assert(buffer);
     switch (out_port) {
     case OFPP_IN_PORT:
-        output_packet(dp, buffer, in_port);
+        output_packet(dp, buffer, in_port, queue_id);
         break;
 
     case OFPP_TABLE: {
-        struct sw_port *p = lookup_port(dp, in_port);
-                if (run_flow_through_tables(dp, buffer, p)) {
-                        ofpbuf_delete(buffer);
+        struct sw_port *p = dp_lookup_port(dp, in_port);
+        if (run_flow_through_tables(dp, buffer, p)) {
+            ofpbuf_delete(buffer);
         }
         break;
     }
@@ -583,7 +642,7 @@ dp_output_port(struct datapath *dp, struct ofpbuf *buffer,
             VLOG_DBG_RL(&rl, "can't directly forward to input port");
             return;
         }
-        output_packet(dp, buffer, out_port);
+        output_packet(dp, buffer, out_port, queue_id);
         break;
     }
 }
@@ -667,6 +726,27 @@ dp_output_control(struct datapath *dp, struct ofpbuf *buffer, int in_port,
 }
 
 static void
+fill_queue_desc(struct ofpbuf *buffer, struct sw_queue *q,
+                struct ofp_packet_queue *desc)
+{
+    struct ofp_queue_prop_min_rate *mr;
+    int len;
+
+    len = sizeof(struct ofp_packet_queue) +
+        sizeof(struct ofp_queue_prop_min_rate);
+    desc->queue_id = htonl(q->queue_id);
+    desc->len = htons(len);
+
+    /* Property list */
+    mr = ofpbuf_put_zeros(buffer, sizeof *mr);
+    mr->prop_header.property = htons(OFPQT_MIN_RATE);
+    len = sizeof(struct ofp_queue_prop_min_rate);
+    mr->prop_header.len = htons(len);
+    mr->rate = htons(q->min_rate);
+}
+
+
+static void
 fill_port_desc(struct sw_port *p, struct ofp_phy_port *desc)
 {
     desc->port_no = htons(p->port_no);
@@ -677,9 +757,9 @@ fill_port_desc(struct sw_port *p, struct ofp_phy_port *desc)
     desc->config = htonl(p->config);
     desc->state = htonl(p->state);
     desc->curr = htonl(netdev_get_features(p->netdev, NETDEV_FEAT_CURRENT));
-    desc->supported = htonl(netdev_get_features(p->netdev, 
+    desc->supported = htonl(netdev_get_features(p->netdev,
                 NETDEV_FEAT_SUPPORTED));
-    desc->advertised = htonl(netdev_get_features(p->netdev, 
+    desc->advertised = htonl(netdev_get_features(p->netdev,
                 NETDEV_FEAT_ADVERTISED));
     desc->peer = htonl(netdev_get_features(p->netdev, NETDEV_FEAT_PEER));
 }
@@ -693,7 +773,7 @@ dp_send_features_reply(struct datapath *dp, const struct sender *sender)
 
     ofr = make_openflow_reply(sizeof *ofr, OFPT_FEATURES_REPLY,
                                sender, &buffer);
-    ofr->datapath_id  = htonll(dp->id); 
+    ofr->datapath_id  = htonll(dp->id);
     ofr->n_tables     = dp->chain->n_tables;
     ofr->n_buffers    = htonl(N_PKT_BUFFERS);
     ofr->capabilities = htonl(OFP_SUPPORTED_CAPABILITIES);
@@ -709,7 +789,7 @@ dp_send_features_reply(struct datapath *dp, const struct sender *sender)
 void
 update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm)
 {
-    struct sw_port *p = lookup_port(dp, ntohs(opm->port_no));
+    struct sw_port *p = dp_lookup_port(dp, ntohs(opm->port_no));
 
     /* Make sure the port id hasn't changed since this was sent */
     if (!p || memcmp(opm->hw_addr, netdev_get_etheraddr(p->netdev),
@@ -726,7 +806,7 @@ update_port_flags(struct datapath *dp, const struct ofp_port_mod *opm)
 }
 
 static void
-send_port_status(struct sw_port *p, uint8_t status) 
+send_port_status(struct sw_port *p, uint8_t status)
 {
     struct ofpbuf *buffer;
     struct ofp_port_status *ops;
@@ -855,7 +935,7 @@ int run_flow_through_tables(struct datapath *dp, struct ofpbuf *buffer,
     flow = chain_lookup(dp->chain, &key, 0);
     if (flow != NULL) {
         flow_used(flow, buffer);
-        execute_actions(dp, buffer, &key, flow->sf_acts->actions, 
+        execute_actions(dp, buffer, &key, flow->sf_acts->actions,
                         flow->sf_acts->actions_len, false);
         return 0;
     } else {
@@ -957,7 +1037,7 @@ recv_packet_out(struct datapath *dp, const struct sender *sender,
     } else {
         buffer = retrieve_buffer(ntohl(opo->buffer_id));
         if (!buffer) {
-            return -ESRCH; 
+            return -ESRCH;
         }
     }
 
@@ -996,7 +1076,7 @@ add_flow(struct datapath *dp, const struct sender *sender,
 {
     int error = -ENOMEM;
     uint16_t v_code;
-    struct sw_flow *flow; 
+    struct sw_flow *flow;
     size_t actions_len = ntohs(ofm->header.length) - sizeof *ofm;
     int overlap;
 
@@ -1049,7 +1129,7 @@ add_flow(struct datapath *dp, const struct sender *sender,
     error = chain_insert(dp->chain, flow,
                          (ntohs(ofm->flags) & OFPFF_EMERG) ? 1 : 0);
     if (error == -ENOBUFS) {
-        dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED, 
+        dp_send_error_msg(dp, sender, OFPET_FLOW_MOD_FAILED,
                 OFPFMFC_ALL_TABLES_FULL, ofm, ntohs(ofm->header.length));
         goto error_free_flow;
     } else if (error) {
@@ -1064,7 +1144,7 @@ add_flow(struct datapath *dp, const struct sender *sender,
             uint16_t in_port = ntohs(ofm->match.in_port);
             flow_extract(buffer, in_port, &key.flow);
             flow_used(flow, buffer);
-            execute_actions(dp, buffer, &key, 
+            execute_actions(dp, buffer, &key,
                     ofm->actions, actions_len, false);
         } else {
             error = -ESRCH;
@@ -1251,7 +1331,7 @@ static int flow_stats_dump(struct datapath *dp, void *state,
         {
             struct sw_table *table = dp->chain->tables[s->table_idx];
 
-            if (table->iterate(table, &match_key, s->rq.out_port, 
+            if (table->iterate(table, &match_key, s->rq.out_port,
                                &s->position, flow_stats_dump_callback, s))
                 break;
 
@@ -1321,7 +1401,7 @@ static int aggregate_stats_dump(struct datapath *dp, void *state,
         {
             struct sw_table *table = dp->chain->tables[table_idx];
 
-            error = table->iterate(table, &match_key, rq->out_port, &position, 
+            error = table->iterate(table, &match_key, rq->out_port, &position,
                                    aggregate_stats_dump_callback, rpy);
             if (error)
                 return error;
@@ -1337,7 +1417,7 @@ static int aggregate_stats_dump(struct datapath *dp, void *state,
     return 0;
 }
 
-static void aggregate_stats_done(void *state) 
+static void aggregate_stats_done(void *state)
 {
     free(state);
 }
@@ -1366,6 +1446,11 @@ table_stats_dump(struct datapath *dp, void *state UNUSED,
 struct port_stats_state {
     int start_port;	/* port to start dumping from */
     int port_no;	/* from ofp_stats_request */
+};
+
+struct queue_stats_state {
+    uint16_t port;
+    uint32_t queue_id;
 };
 
 static int
@@ -1410,7 +1495,7 @@ static int port_stats_dump(struct datapath *dp, void *state,
     if (s->port_no == OFPP_NONE) {
         /* Dump statistics for all ports */
         for (i = s->start_port; i < DP_MAX_PORTS; i++) {
-            p = lookup_port(dp, i);
+            p = dp_lookup_port(dp, i);
             if (p && p->netdev) {
                 dump_port_stats(p, buffer);
             }
@@ -1420,7 +1505,7 @@ static int port_stats_dump(struct datapath *dp, void *state,
         }
     } else {
         /* Dump statistics for a single port */
-        p = lookup_port(dp, s->port_no);
+        p = dp_lookup_port(dp, s->port_no);
         if (p && p->netdev) {
             dump_port_stats(p, buffer);
         }
@@ -1430,6 +1515,79 @@ static int port_stats_dump(struct datapath *dp, void *state,
 }
 
 static void port_stats_done(void *state)
+{
+    free(state);
+}
+
+static int
+queue_stats_init(const void *body, int body_len UNUSED, void **state)
+{
+    const struct ofp_queue_stats_request *qsr = body;
+    struct queue_stats_state *s = xmalloc(sizeof *s);
+    s->port = ntohs(qsr->port_no);
+    s->queue_id = ntohl(qsr->queue_id);
+    *state = s;
+    return 0;
+}
+
+static void
+dump_queue_stats(struct sw_queue *q, struct ofpbuf *buffer)
+{
+    struct ofp_queue_stats *oqs = ofpbuf_put_uninit(buffer, sizeof *oqs);
+    oqs->port_no = htons(q->port->port_no);
+    oqs->queue_id = htonl(q->queue_id);
+    oqs->tx_bytes = htonll(q->tx_bytes);
+    oqs->tx_packets = htonll(q->tx_packets);
+    oqs->tx_errors = htonll(q->tx_errors);
+}
+
+static int
+queue_stats_dump(struct datapath *dp, void *state,
+                 struct ofpbuf *buffer)
+{
+    struct queue_stats_state *s = state;
+    struct sw_queue *q;
+    struct sw_port *p;
+
+
+    if (s->port == OFPP_ALL) {
+        LIST_FOR_EACH(p, struct sw_port, node, &dp->port_list) {
+            if (p->port_no < OFPP_MAX) {
+                if (s->queue_id == OFPQ_ALL) {
+                    LIST_FOR_EACH(q, struct sw_queue, node, &p->queue_list) {
+                        dump_queue_stats(q,buffer);
+                    }
+                }
+                else {
+                    q = dp_lookup_queue(p, s->queue_id);
+                    if (q) {
+                        dump_queue_stats(q, buffer);
+                    }
+                }
+            }
+        }
+    }
+    else {
+        p = dp_lookup_port(dp, s->port);
+        if (p) {
+            if (s->queue_id == OFPQ_ALL) {
+                LIST_FOR_EACH(q, struct sw_queue, node, &p->queue_list) {
+                    dump_queue_stats(q,buffer);
+                }
+            }
+            else {
+                q = dp_lookup_queue(p, s->queue_id);
+                if (q) {
+                    dump_queue_stats(q, buffer);
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+static void
+queue_stats_done(void *state)
 {
     free(state);
 }
@@ -1559,6 +1717,14 @@ static const struct stats_type stats[] = {
         port_stats_init,
         port_stats_dump,
         port_stats_done
+    },
+    {
+        OFPST_QUEUE,
+        sizeof(struct ofp_queue_stats_request),
+        sizeof(struct ofp_queue_stats_request),
+        queue_stats_init,
+        queue_stats_dump,
+        queue_stats_done
     },
     {
         OFPST_VENDOR,
@@ -1700,15 +1866,59 @@ recv_echo_reply(struct datapath *dp UNUSED, const struct sender *sender UNUSED,
 }
 
 static int
+recv_queue_get_config_request(struct datapath *dp, const struct sender *sender,
+                              const void *oh)
+{
+    struct ofpbuf *buffer;
+    struct ofp_queue_get_config_reply *ofq_reply;
+    const struct ofp_queue_get_config_request *ofq_request;
+    struct sw_port *p;
+    struct sw_queue *q;
+    uint16_t port_no;
+
+    ofq_request = (struct ofp_queue_get_config_request *)oh;
+    port_no = ntohs(ofq_request->port);
+
+    if (port_no < OFPP_MAX) {
+        /* Find port under query */
+        p = dp_lookup_port(dp,port_no);
+
+        /* if the port under query doesn't exist, send an error */
+        if (!p ||  (p->port_no != port_no)) {
+            dp_send_error_msg(dp, sender, OFPET_QUEUE_OP_FAILED, OFPQOFC_BAD_PORT,
+                              oh, ntohs(ofq_request->header.length));
+            goto error;
+        }
+        ofq_reply = make_openflow_reply(sizeof *ofq_reply, OFPT_QUEUE_GET_CONFIG_REPLY,
+                                        sender, &buffer);
+        ofq_reply->port = htons(port_no);
+        LIST_FOR_EACH(q, struct sw_queue, node, &p->queue_list) {
+            struct ofp_packet_queue * opq = ofpbuf_put_zeros(buffer, sizeof *opq);
+            fill_queue_desc(buffer, q, opq);
+        }
+        send_openflow_buffer(dp, buffer, sender);
+    }
+    else {
+        dp_send_error_msg(dp, sender, OFPET_QUEUE_OP_FAILED, OFPQOFC_BAD_PORT,
+                          oh, ntohs(ofq_request->header.length));
+    }
+ error:
+    return 0;
+}
+
+static int
 recv_vendor(struct datapath *dp, const struct sender *sender,
                   const void *oh)
 {
     const struct ofp_vendor_header *ovh = oh;
 
-    switch (ntohl(ovh->vendor)) 
+    switch (ntohl(ovh->vendor))
     {
     case PRIVATE_VENDOR_ID:
         return private_recv_msg(dp, sender, oh);
+
+    case OPENFLOW_VENDOR_ID:
+        return of_ext_recv_msg(dp, sender, oh);
 
     default:
         VLOG_WARN_RL(&rl, "unknown vendor: 0x%x\n", ntohl(ovh->vendor));
@@ -1777,6 +1987,10 @@ fwd_control_input(struct datapath *dp, const struct sender *sender,
         min_size = sizeof(struct ofp_header);
         handler = recv_echo_reply;
         break;
+    case OFPT_QUEUE_GET_CONFIG_REQUEST:
+        min_size = sizeof(struct ofp_header);
+        handler = recv_queue_get_config_request;
+        break;
     case OFPT_VENDOR:
         min_size = sizeof(struct ofp_vendor_header);
         handler = recv_vendor;
@@ -1819,7 +2033,7 @@ uint32_t save_buffer(struct ofpbuf *buffer)
         if (time_now() < p->timeout) { /* FIXME */
                 return (uint32_t)-1;
         } else {
-            ofpbuf_delete(p->buffer); 
+            ofpbuf_delete(p->buffer);
         }
     }
     /* Don't use maximum cookie value since the all-bits-1 id is

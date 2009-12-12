@@ -39,7 +39,6 @@
 #include "dp_act.h"
 #include "openflow/nicira-ext.h"
 
-
 static uint16_t
 validate_output(struct datapath *dp UNUSED, const struct sw_flow_key *key, 
         const struct ofp_action_header *ah) 
@@ -57,12 +56,26 @@ validate_output(struct datapath *dp UNUSED, const struct sw_flow_key *key,
     return ACT_VALIDATION_OK;
 }
 
+static uint16_t
+validate_queue(struct datapath *dp UNUSED, const struct sw_flow_key *key UNUSED,
+               const struct ofp_action_header *ah)
+{
+    struct ofp_action_enqueue *ea = (struct ofp_action_enqueue *)ah;
+
+	/* Only physical ports may have queues. */
+    if (ntohs(ea->port) > OFPP_MAX && ntohs(ea->port) != OFPP_IN_PORT) {
+        return OFPBAC_BAD_OUT_PORT;
+    }
+    return ACT_VALIDATION_OK;
+}
+
 static void
 do_output(struct datapath *dp, struct ofpbuf *buffer, int in_port,
-          size_t max_len, int out_port, bool ignore_no_fwd)
+          size_t max_len, int out_port, uint32_t queue_id,
+          bool ignore_no_fwd)
 {
     if (out_port != OFPP_CONTROLLER) {
-        dp_output_port(dp, buffer, in_port, out_port, ignore_no_fwd);
+        dp_output_port(dp, buffer, in_port, out_port, queue_id, ignore_no_fwd);
     } else {
         dp_output_control(dp, buffer, in_port, max_len, OFPR_ACTION);
     }
@@ -267,6 +280,12 @@ static const struct openflow_action of_actions[] = {
         validate_output,
         NULL                   /* This is optimized into execute_actions */
     },
+    [OFPAT_ENQUEUE] = {
+        sizeof(struct ofp_action_enqueue),
+        sizeof(struct ofp_action_enqueue),
+        validate_queue,
+        NULL         /* This is optimized into execute_actions */
+    },
     [OFPAT_SET_VLAN_VID] = {
         sizeof(struct ofp_action_vlan_vid),
         sizeof(struct ofp_action_vlan_vid),
@@ -353,7 +372,7 @@ validate_ofpat(struct datapath *dp, const struct sw_flow_key *key,
 /* Validate vendor-defined actions.  Either returns ACT_VALIDATION_OK
  * or an OFPET_BAD_ACTION error code. */
 static uint16_t 
-validate_vendor(struct datapath *dp, const struct sw_flow_key *key, 
+validate_vendor(struct datapath *dp UNUSED, const struct sw_flow_key *key UNUSED, 
         const struct ofp_action_header *ah, uint16_t len)
 {
     struct ofp_action_vendor_header *avh;
@@ -435,7 +454,7 @@ execute_ofpat(struct ofpbuf *buffer, struct sw_flow_key *key,
 
 /* Execute a vendor-defined action against 'buffer'. */
 static void
-execute_vendor(struct ofpbuf *buffer, const struct sw_flow_key *key, 
+execute_vendor(struct ofpbuf *buffer UNUSED, const struct sw_flow_key *key UNUSED, 
         const struct ofp_action_header *ah)
 {
     struct ofp_action_vendor_header *avh 
@@ -461,11 +480,13 @@ void execute_actions(struct datapath *dp, struct ofpbuf *buffer,
      * freeing the original buffer is wasteful.  So the following code is
      * slightly obscure just to avoid that. */
     int prev_port;
+    uint32_t prev_queue;
     size_t max_len = UINT16_MAX;
     uint16_t in_port = ntohs(key->flow.in_port);
     uint8_t *p = (uint8_t *)actions;
 
     prev_port = -1;
+    prev_queue = 0;
 
     /* The action list was already validated, so we can be a bit looser
      * in our sanity-checking. */
@@ -475,14 +496,20 @@ void execute_actions(struct datapath *dp, struct ofpbuf *buffer,
 
         if (prev_port != -1) {
             do_output(dp, ofpbuf_clone(buffer), in_port, max_len,
-                      prev_port, ignore_no_fwd);
+                      prev_port, prev_queue, ignore_no_fwd);
             prev_port = -1;
         }
 
         if (ah->type == htons(OFPAT_OUTPUT)) {
             struct ofp_action_output *oa = (struct ofp_action_output *)p;
             prev_port = ntohs(oa->port);
+            prev_queue = 0; /* using the default best-effort queue */
             max_len = ntohs(oa->max_len);
+        } else if (ah->type == htons(OFPAT_ENQUEUE)) {
+            struct ofp_action_enqueue *ea = (struct ofp_action_enqueue *)p;
+            prev_port = ntohs(ea->port);
+            prev_queue = ntohl(ea->queue_id);
+            max_len = 0; /* we will not send to the controller anyways - useless */
         } else {
             uint16_t type = ntohs(ah->type);
 
@@ -497,7 +524,7 @@ void execute_actions(struct datapath *dp, struct ofpbuf *buffer,
         actions_len -= len;
     }
     if (prev_port != -1) {
-        do_output(dp, buffer, in_port, max_len, prev_port, ignore_no_fwd);
+        do_output(dp, buffer, in_port, max_len, prev_port, prev_queue, ignore_no_fwd);
     } else {
         ofpbuf_delete(buffer);
     }

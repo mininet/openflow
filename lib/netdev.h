@@ -68,6 +68,8 @@ enum netdev_pseudo_ethertype {
     NETDEV_ETH_TYPE_802_2        /* Receive all IEEE 802.2 frames. */
 };
 
+#define NETDEV_MAX_QUEUES 8
+
 struct netdev;
 
 int netdev_open(const char *name, int ethertype, struct netdev **);
@@ -77,7 +79,7 @@ void netdev_close(struct netdev *);
 int netdev_recv(struct netdev *, struct ofpbuf *);
 void netdev_recv_wait(struct netdev *);
 int netdev_drain(struct netdev *);
-int netdev_send(struct netdev *, const struct ofpbuf *);
+int netdev_send(struct netdev *, const struct ofpbuf *, uint16_t class_id);
 void netdev_send_wait(struct netdev *);
 int netdev_set_etheraddr(struct netdev *, const uint8_t mac[6]);
 const uint8_t *netdev_get_etheraddr(const struct netdev *);
@@ -93,6 +95,9 @@ int netdev_set_flags(struct netdev *, enum netdev_flags, bool permanent);
 int netdev_turn_flags_on(struct netdev *, enum netdev_flags, bool permanent);
 int netdev_turn_flags_off(struct netdev *, enum netdev_flags, bool permanent);
 int netdev_arp_lookup(const struct netdev *, uint32_t ip, uint8_t mac[6]);
+int netdev_setup_slicing(struct netdev *, uint16_t);
+int netdev_setup_class(const struct netdev *, uint16_t , uint16_t);
+int netdev_change_class(const struct netdev *, uint16_t , uint16_t);
 
 void netdev_enumerate(struct svec *);
 int netdev_nodev_get_flags(const char *netdev_name, enum netdev_flags *);

@@ -1,6 +1,6 @@
 /* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
  * Junior University
- * 
+ *
  * We are making the OpenFlow specification and associated documentation
  * (Software) available for public use and benefit with the expectation
  * that others will use, modify and enhance the Software and contribute
@@ -13,10 +13,10 @@
  * distribute, sublicense, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWRE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -25,7 +25,7 @@
  * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
+ *
  * The name and trademarks of copyright holder(s) may NOT be used in
  * advertising or publicity pertaining to the Software or any
  * derivatives without specific, written prior permission.
@@ -105,6 +105,10 @@ struct netdev {
     int tap_fd;                 /* TAP character device, if any, otherwise the
                                  * network device. */
 
+    /* one socket per queue.These are valid only for ordinary network devices*/
+    int queue_fd[NETDEV_MAX_QUEUES + 1];
+    uint16_t num_queues;
+
     /* Cached network device information. */
     int ifindex;
     uint8_t etheraddr[ETH_ADDR_LEN];
@@ -180,8 +184,285 @@ get_ipv6_address(const char *name, struct in6_addr *in6)
     fclose(file);
 }
 
+/* All queues in a port, lie beneath a qdisc */
+#define TC_QDISC 0x0001
+/* This is a root class. In order to efficiently share excess bandwidth
+ * tc requires that all classes are under a common root class */
+#define TC_ROOT_CLASS 0xffff
+/* This is the queue_id for packets that do not match in any other queue.
+ * It has min_rate = 0. This is a placeholder for best-effort traffic
+ * without any bandwidth guarantees */
+#define TC_DEFAULT_CLASS 0xfffe
+#define TC_MIN_RATE 1
+/* This configures an HTB qdisc under the defined device. */
+#define COMMAND_ADD_DEV_QDISC "/sbin/tc qdisc add dev %s " \
+                              "root handle %x: htb default %x"
+#define COMMAND_DEL_DEV_QDISC "/sbin/tc qdisc del dev %s root"
+#define COMMAND_ADD_CLASS "/sbin/tc class add dev %s parent %x:%x " \
+                          "classid %x:%x htb rate %dkbit ceil %dkbit"
+#define COMMAND_CHANGE_CLASS "/sbin/tc class change dev %s parent %x:%x " \
+                             "classid %x:%x htb rate %dkbit ceil %dkbit"
+
+static int
+netdev_setup_root_class(const struct netdev *netdev, uint16_t class_id,
+                        uint16_t rate)
+{
+    char command[1024];
+    int actual_rate;
+
+    /* we need to translate from .1% to kbps */
+    actual_rate = rate*netdev->speed;
+
+    snprintf(command, sizeof(command), COMMAND_ADD_CLASS, netdev->name,
+             TC_QDISC,0,TC_QDISC, class_id, actual_rate, netdev->speed*1000);
+    if (system(command) != 0) {
+        VLOG_ERR("Problem configuring root class %d for device %s",
+                 class_id, netdev->name);
+        return -1;
+    }
+
+    return 0;
+}
+
+/** Defines a class for the specific queue discipline. A class
+ * represents an OpenFlow queue.
+ *
+ * @param netdev the device under configuration
+ * @param class_id unique identifier for this queue. TC limits this to 16-bits,
+ * so we need to keep an internal mapping between class_id and OpenFlow
+ * queue_id
+ * @param rate the minimum rate for this queue in kbps
+ * @return 0 on success, non-zero value when the configuration was not
+ * successful.
+ */
+int
+netdev_setup_class(const struct netdev *netdev, uint16_t class_id,
+                   uint16_t rate)
+{
+    char command[1024];
+    int actual_rate;
+
+    /* we need to translate from .1% to kbps */
+    actual_rate = rate*netdev->speed;
+
+    snprintf(command, sizeof(command), COMMAND_ADD_CLASS, netdev->name,
+             TC_QDISC, TC_ROOT_CLASS, TC_QDISC, class_id, actual_rate,
+             netdev->speed*1000);
+    if (system(command) != 0) {
+        VLOG_ERR("Problem configuring class %d for device %s",class_id,
+                 netdev->name);
+        return -1;
+    }
+
+    return 0;
+}
+
+/** Changes a class already defined.
+ *
+ * @param netdev the device under configuration
+ * @param class_id unique identifier for this queue. TC limits this to 16-bits,
+ * so we need to keep an internal mapping between class_id and OpenFlow
+ * queue_id
+ * @param rate the minimum rate for this queue in kbps
+ * @return 0 on success, non-zero value when the configuration was not
+ * successful.
+ */
+int
+netdev_change_class(const struct netdev *netdev, uint16_t class_id, uint16_t rate)
+{
+    char command[1024];
+    int actual_rate;
+
+    /* we need to translate from .1% to kbps */
+    actual_rate = rate*netdev->speed;
+
+    snprintf(command, sizeof(command), COMMAND_CHANGE_CLASS, netdev->name,
+             TC_QDISC, TC_ROOT_CLASS, TC_QDISC, class_id, actual_rate,
+             netdev->speed*1000 );
+    if (system(command) != 0) {
+        VLOG_ERR("Problem configuring class %d for device %s",
+                 class_id, netdev->name);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
+open_queue_socket(const char * name, uint16_t class_id, int * fd)
+{
+    int error;
+    struct ifreq ifr;
+    struct sockaddr_ll sll;
+    uint32_t priority;
+
+    *fd = socket(PF_PACKET, SOCK_RAW, htons(0)); /* this is a write-only sock */
+    if (*fd < 0) {
+        return errno;
+    }
+
+    /* Set non-blocking mode */
+    error = set_nonblocking(*fd);
+    if (error) {
+        goto error_already_set;
+    }
+
+    /* Get ethernet device index. */
+    strncpy(ifr.ifr_name, name, sizeof ifr.ifr_name);
+    if (ioctl(*fd, SIOCGIFINDEX, &ifr) < 0) {
+        VLOG_ERR("ioctl(SIOCGIFINDEX) on %s device failed: %s",
+                 name, strerror(errno));
+        goto error;
+    }
+
+    /* Bind to specific ethernet device. */
+    memset(&sll, 0, sizeof sll);
+    sll.sll_family = PF_PACKET;
+    sll.sll_ifindex = ifr.ifr_ifindex;
+    if (bind(*fd, (struct sockaddr *) &sll, sizeof sll) < 0) {
+        VLOG_ERR("bind to %s failed: %s", name, strerror(errno));
+        goto error;
+    }
+
+    /* set the priority so that packets from this socket will go to the
+     * respective class_id/queue. Note that to refer to a tc class we use the
+     * following concatenation
+     * qdisc:handle on an unsigned integer. */
+    priority = (TC_QDISC<<16) + class_id;
+    if ( set_socket_priority(*fd,priority) < 0) {
+        VLOG_ERR("set socket priority failed for %s : %s",name,strerror(errno));
+        goto error;
+    }
+
+    return 0;
+
+ error:
+    error = errno;
+ error_already_set:
+    close(*fd);
+    return error;
+}
+
+
+/** Setup a classful queue for the specific device. Configured according to
+ * HTB protocol. Note that this is linux specific. You will need to replace
+ * this with the appropriate abstraction for different OS.
+ *
+ * The default configuration includes a root class and a default queue/class.
+ * A root class is neccesary for efficient use of "unused" bandwidth. If we
+ * have traffic A and B (given 80% and 20% of the link respectively), B can use
+ * more than 20% if A doesn't use all its bandwidth. In order to allow this
+ * "sharing", all queues must reside under a common root class.
+ * A default queue/class is a queue  where "unclassified" traffic will fall to.
+ * The default class has a best-effort behavior.
+ *
+ * More on Linux Traffic Control and Hierarchical Token Bucket at :
+ * http://luxik.cdi.cz/~devik/qos/htb/
+ * http://luxik.cdi.cz/~devik/qos/htb/manual/userg.htm
+ *
+ * @param netdev_name the device to be configured
+ * @return 0 on success, non-zero value when the configuration was not
+ * successful.
+ */
+static int
+do_setup_qdisc(const char *netdev_name)
+{
+    char command[1024];
+    int error;
+
+    snprintf(command, sizeof(command), COMMAND_ADD_DEV_QDISC, netdev_name,
+             TC_QDISC, TC_DEFAULT_CLASS);
+    error = system(command);
+    if (error) {
+        VLOG_WARN("Problem configuring qdisc for device %s",netdev_name);
+        return error;
+    }
+    return 0;
+}
+
+/** Remove current queue disciplines from a net device
+ * @param netdev_name the device under configuration
+ */
+static int
+do_remove_qdisc(const char *netdev_name)
+{
+    char command[1024];
+
+    snprintf(command, sizeof(command), COMMAND_DEL_DEV_QDISC, netdev_name);
+    system(command);
+
+    /* There is no need for a device to already be configured. Therefore no
+     * need to indicate any error */
+    return 0;
+}
+
+
+
+/** Configures a port to support slicing
+ * @param netdev_name the device under configuration
+ * @return 0 on success
+ */
+int
+netdev_setup_slicing(struct netdev *netdev, uint16_t num_queues)
+{
+    int i;
+    int * fd;
+    int error;
+
+    netdev->num_queues = num_queues;
+
+    /* remove any previous queue configuration for this device */
+    error = do_remove_qdisc(netdev->name);
+    if (error) {
+        return error;
+    }
+
+    /* Configure tc queue discipline to allow slicing queues */
+    error = do_setup_qdisc(netdev->name);
+    if (error) {
+        return error;
+    }
+
+    /* This define a root class for the queue disc. In order to allow spare
+     * bandwidth to be used efficiently, we need all the classes under a root
+     * class. For details, refer to :
+     * http://luxik.cdi.cz/~devik/qos/htb/ */
+    error = netdev_setup_root_class(netdev, TC_ROOT_CLASS,1000);
+    if (error) {
+        return error;
+    }
+    /* we configure a default class. This would be the best-effort, getting
+     * everything that remains from the other queues.tc requires a min-rate
+     * to configure a class, we put a min_rate here */
+    error = netdev_setup_class(netdev,TC_DEFAULT_CLASS,1);
+    if (error) {
+        return error;
+    }
+
+    /* the tc backend has been configured. Now, we need to create sockets that
+     * match the queue configuration. We need one socket per queue, plus one
+     * for default traffic.
+     * queue-attached sockets are only for outgoing traffic. Data are received
+     * only at the default socket.
+     * This is a limitation due to userspace implementation. We can map flows
+     * to specific queues using the skb->priority field. Having no access to
+     * sk_buffs from userspace, the only way to do the mapping is through the
+     * SO_PRIORITY option of the socket. This dictates the usage of one socket
+     * per queue. */
+
+    for (i=1; i <= netdev->num_queues; i++) {
+        fd = &netdev->queue_fd[i];
+        error = open_queue_socket(netdev->name,i,fd);
+        if (error) {
+            return error;
+        }
+    }
+
+    return 0;
+}
+
 static void
-do_ethtool(struct netdev *netdev) 
+do_ethtool(struct netdev *netdev)
 {
     struct ifreq ifr;
     struct ethtool_cmd ecmd;
@@ -190,6 +471,7 @@ do_ethtool(struct netdev *netdev)
     netdev->supported = 0;
     netdev->advertised = 0;
     netdev->peer = 0;
+    netdev->speed = SPEED_1000;  /* default to 1Gbps link */
 
     memset(&ifr, 0, sizeof ifr);
     strncpy(ifr.ifr_name, netdev->name, sizeof ifr.ifr_name);
@@ -301,6 +583,9 @@ do_ethtool(struct netdev *netdev)
         if (ecmd.autoneg) {
             netdev->curr |= OFPPF_AUTONEG;
         }
+
+        netdev->speed = ecmd.speed;
+
     } else {
         VLOG_DBG("ioctl(SIOCETHTOOL) failed: %s", strerror(errno));
     }
@@ -315,12 +600,12 @@ do_ethtool(struct netdev *netdev)
  * the 'enum netdev_pseudo_ethertype' values to receive frames in one of those
  * categories. */
 int
-netdev_open(const char *name, int ethertype, struct netdev **netdevp) 
+netdev_open(const char *name, int ethertype, struct netdev **netdevp)
 {
     if (!strncmp(name, "tap:", 4)) {
         return netdev_open_tap(name + 4, netdevp);
     } else {
-        return do_open_netdev(name, ethertype, -1, netdevp); 
+        return do_open_netdev(name, ethertype, -1, netdevp);
     }
 }
 
@@ -473,9 +758,11 @@ do_open_netdev(const char *name, int ethertype, int tap_fd,
     netdev->hwaddr_family = hwaddr_family;
     netdev->netdev_fd = netdev_fd;
     netdev->tap_fd = tap_fd < 0 ? netdev_fd : tap_fd;
+    netdev->queue_fd[0] = netdev->tap_fd;
     memcpy(netdev->etheraddr, etheraddr, sizeof etheraddr);
     netdev->mtu = mtu;
     netdev->in6 = in6;
+    netdev->num_queues = 0;
 
     /* Get speed, features. */
     do_ethtool(netdev);
@@ -508,6 +795,8 @@ error_already_set:
 void
 netdev_close(struct netdev *netdev)
 {
+    int i;
+
     if (netdev) {
         /* Bring down interface and drop promiscuous mode, if we brought up
          * the interface or enabled promiscuous mode. */
@@ -526,6 +815,10 @@ netdev_close(struct netdev *netdev)
         close(netdev->netdev_fd);
         if (netdev->netdev_fd != netdev->tap_fd) {
             close(netdev->tap_fd);
+        }
+
+        for (i =1; i <= netdev->num_queues; i++) {
+            close(netdev->queue_fd[i]);
         }
         free(netdev);
     }
@@ -557,13 +850,30 @@ int
 netdev_recv(struct netdev *netdev, struct ofpbuf *buffer)
 {
     ssize_t n_bytes;
+    struct sockaddr_ll sll;
+    socklen_t sll_len;
 
     assert(buffer->size == 0);
     assert(ofpbuf_tailroom(buffer) >= ETH_TOTAL_MIN);
-    do {
-        n_bytes = read(netdev->tap_fd,
-                       ofpbuf_tail(buffer), ofpbuf_tailroom(buffer));
-    } while (n_bytes < 0 && errno == EINTR);
+
+    /* prepare to call recvfrom */
+    memset(&sll,0,sizeof sll);
+    sll_len = sizeof sll;
+
+    /* cannot execute recvfrom over a tap device */
+    if (!strncmp(netdev->name, "tap", 3)) {
+        do {
+            n_bytes = read(netdev->tap_fd, ofpbuf_tail(buffer),
+                           (ssize_t)ofpbuf_tailroom(buffer));
+        } while (n_bytes < 0 && errno == EINTR);
+    }
+    else {
+        do {
+            n_bytes = recvfrom(netdev->tap_fd, ofpbuf_tail(buffer),
+                               (ssize_t)ofpbuf_tailroom(buffer), 0,
+                               (struct sockaddr *)&sll, &sll_len);
+        } while (n_bytes < 0 && errno == EINTR);
+    }
     if (n_bytes < 0) {
         if (errno != EAGAIN) {
             VLOG_WARN_RL(&rl, "error receiving Ethernet packet on %s: %s",
@@ -571,6 +881,14 @@ netdev_recv(struct netdev *netdev, struct ofpbuf *buffer)
         }
         return errno;
     } else {
+        /* we have multiple raw sockets at the same interface, so we also
+         * receive what others send, and need to filter them out.
+         * TODO(yiannisy): can we install this as a BPF at kernel? */
+        if (sll.sll_pkttype == PACKET_OUTGOING) {
+            return EAGAIN;
+        }
+
+
         buffer->size += n_bytes;
 
         /* When the kernel internally sends out an Ethernet frame on an
@@ -608,17 +926,24 @@ netdev_drain(struct netdev *netdev)
  * immediately.  Returns EMSGSIZE if a partial packet was transmitted or if
  * the packet is too big or too small to transmit on the device.
  *
+ * class_id denotes the queue to send the packet. If 0, it goes to the
+ * default,best-effort queue.
+ *
  * The caller retains ownership of 'buffer' in all cases.
  *
  * The kernel maintains a packet transmission queue, so the caller is not
- * expected to do additional queuing of packets. */
+ * expected to do additional queuing of packets.
+ */
 int
-netdev_send(struct netdev *netdev, const struct ofpbuf *buffer)
+netdev_send(struct netdev *netdev, const struct ofpbuf *buffer,
+            uint16_t class_id)
 {
     ssize_t n_bytes;
 
+    assert(class_id <= NETDEV_MAX_QUEUES);
+
     do {
-        n_bytes = write(netdev->tap_fd, buffer->data, buffer->size);
+        n_bytes = write(netdev->queue_fd[class_id], buffer->data, buffer->size);
     } while (n_bytes < 0 && errno == EINTR);
 
     if (n_bytes < 0) {
@@ -700,15 +1025,15 @@ netdev_get_name(const struct netdev *netdev)
  * in bytes, not including the hardware header; thus, this is typically 1500
  * bytes for Ethernet devices. */
 int
-netdev_get_mtu(const struct netdev *netdev) 
+netdev_get_mtu(const struct netdev *netdev)
 {
     return netdev->mtu;
 }
 
-/* Returns the features supported by 'netdev' of type 'type', as a bitmap 
+/* Returns the features supported by 'netdev' of type 'type', as a bitmap
  * of bits from enum ofp_phy_features, in host byte order. */
 uint32_t
-netdev_get_features(struct netdev *netdev, int type) 
+netdev_get_features(struct netdev *netdev, int type)
 {
     do_ethtool(netdev);
     switch (type) {
@@ -865,7 +1190,7 @@ do_update_flags(struct netdev *netdev, enum netdev_flags off,
 
     new_flags = (old_flags & ~nd_to_iff_flags(off)) | nd_to_iff_flags(on);
     if (!permanent) {
-        netdev->changed_flags |= new_flags ^ old_flags; 
+        netdev->changed_flags |= new_flags ^ old_flags;
     }
     if (new_flags != old_flags) {
         error = set_flags(netdev->name, new_flags);
@@ -912,7 +1237,7 @@ netdev_turn_flags_off(struct netdev *netdev, enum netdev_flags flags,
  * ENXIO indicates that there is not ARP table entry for 'ip' on 'netdev'. */
 int
 netdev_arp_lookup(const struct netdev *netdev,
-                  uint32_t ip, uint8_t mac[ETH_ADDR_LEN]) 
+                  uint32_t ip, uint8_t mac[ETH_ADDR_LEN])
 {
     struct arpreq r;
     struct sockaddr_in *pa;

@@ -85,9 +85,12 @@ static const value_string names_ofp_type[] = {
     { OFPT_BARRIER_REQUEST,     "Barrier Request (CSM)" },
     { OFPT_BARRIER_REPLY,       "Barrier Reply (CSM)" },
 
+    { OFPT_QUEUE_GET_CONFIG_REQUEST, "Get Queue Config Request (CSM)" },
+    { OFPT_QUEUE_GET_CONFIG_REPLY,   "Get Queue Config Reply (CSM)" },
+
     { 0,                        NULL }
 };
-#define OFP_TYPE_MAX_VALUE OFPT_BARRIER_REPLY
+#define OFP_TYPE_MAX_VALUE OFPT_QUEUE_GET_CONFIG_REPLY
 
 /** names from ofp_action_type */
 static const value_string names_ofp_action_type[] = {
@@ -102,10 +105,11 @@ static const value_string names_ofp_action_type[] = {
     { OFPAT_SET_NW_TOS,   "Set IP TOS field" },
     { OFPAT_SET_TP_SRC,   "TCP/UDP source port" },
     { OFPAT_SET_TP_DST,   "TCP/UDP destination port"},
+    { OFPAT_ENQUEUE,      "Enqueue to port queue" },
     { OFPAT_VENDOR,       "Vendor-defined action"},
     { 0,                  NULL }
 };
-#define NUM_ACTIONS_FLAGS 11
+#define NUM_ACTIONS_FLAGS 13
 #define NUM_PORT_CONFIG_FLAGS 7
 #define NUM_PORT_STATE_FLAGS 1
 #define NUM_PORT_FEATURES_FLAGS 12
@@ -152,6 +156,7 @@ static const value_string names_stats_types[] = {
     { OFPST_AGGREGATE, "Aggregate flow statistics" },
     { OFPST_TABLE,     "Flow table statistics" },
     { OFPST_PORT,      "Physical port statistics" },
+    { OFPST_QUEUE,     "Queue statistics" },
     { OFPST_VENDOR,    "Vendor extension" },
     { 0, NULL }
 };
@@ -193,8 +198,16 @@ static const value_string names_ofp_error_type_reason[] = {
     { OFPET_BAD_REQUEST,        "Request was not understood" },
     { OFPET_BAD_ACTION,         "Error in action description" },
     { OFPET_FLOW_MOD_FAILED,    "Problem modifying flow entry" },
+    { OFPET_QUEUE_OP_FAILED,    "Problem during queue operation" },
     { 0,                        NULL }
 };
+
+static const value_string names_ofp_packet_queue_property_type[] = {
+    { OFPQT_NONE,       "No-op Property" },
+    { OFPQT_MIN_RATE,   "Min Rate Queue" },
+    { 0,                  NULL }
+};
+
 
 /** Address masks */
 static const value_string addr_mask[] = {
@@ -272,7 +285,8 @@ static const gchar *bad_action_err_str[] = {"Unknown action type",
                                             "Unknown action type for vendor id",
                                             "Problem validating output action",
                                             "Bad action argument",
-					    "Permissions error"};
+                                            "Permissions error",
+                                            "Problem validating output queue"};
 
 #define N_BADACTION     (sizeof bad_action_err_str / sizeof bad_action_err_str[0])
 
@@ -282,6 +296,12 @@ static const gchar *flow_mod_failed_err_str[] = {"Flow not added because of full
 						 "Flow not added because of non-zero idle/hard timeout"};
 
 #define N_FLOWMODFAILED (sizeof flow_mod_failed_err_str / sizeof flow_mod_failed_err_str[0])
+
+static const gchar *queue_op_failed_err_str[] = {"Parent port does not exist",
+                                                 "queue does not exist",
+                                                 "Permissions error"};
+
+#define N_QUEUEOPFAILED (sizeof queue_op_failed_err_str / sizeof queue_op_failed_err_str[0])
 
 /* ICMP definitions from wireshark source: epan/dissectors/packet-ip.c */
 /* ICMP definitions */
@@ -469,6 +489,11 @@ static gint ofp_action_output         = -1;
 static gint ofp_action_output_port    = -1;
 static gint ofp_action_output_max_len = -1;
 
+/* type: ofp_action_enqueue */
+static gint ofp_action_enqueue = -1;
+static gint ofp_action_enqueue_port_no = -1;
+static gint ofp_action_enqueue_queue_id = -1;
+
 /* Controller/Switch Messages */
 static gint ofp_switch_features               = -1;
 static gint ofp_switch_features_datapath_id   = -1;
@@ -489,6 +514,29 @@ static gint ofp_switch_config               = -1;
 static gint ofp_switch_config_flags_hdr = -1;
 static gint ofp_switch_config_flags_ip_frag = -1;
 static gint ofp_switch_config_miss_send_len = -1;
+
+static gint ofp_queue_get_config_request  = -1;
+static gint ofp_queue_get_config_request_port_no = -1;
+
+// there is no limit at the no of queues/port. 1024 is safe for now.
+static gint ofp_queue_get_config_reply = -1;
+static gint ofp_queue_get_config_reply_port_no = -1;
+static gint ofp_queue_get_config_reply_queues_hdr = -1;
+static gint ofp_queue_get_config_reply_queues_num = -1;
+
+static gint ofp_packet_queue = -1;
+static gint ofp_packet_queue_queue_id = -1;
+static gint ofp_packet_queue_len = -1;
+static gint ofp_packet_queue_warn = -1;
+
+static gint ofp_packet_queue_property = -1;
+static gint ofp_packet_queue_property_len  = -1;
+static gint ofp_packet_queue_property_type = -1;
+static gint ofp_packet_queue_property_rate = -1;
+static gint ofp_packet_queue_properties_hdr = -1;
+static gint ofp_packet_queue_properties_num = -1;
+static gint ofp_packet_queue_property_unknown = -1;
+static gint ofp_packet_queue_property_warn = -1;
 
 static gint ofp_flow_mod              = -1;
 /* field: ofp_match */
@@ -586,6 +634,15 @@ static gint ofp_port_stats_rx_over_err  = -1;
 static gint ofp_port_stats_rx_crc_err   = -1;
 static gint ofp_port_stats_collisions = -1;
 
+static gint ofp_queue_stats_request          = -1;
+
+static gint ofp_queue_stats = -1;
+static gint ofp_queue_stats_port_no = -1;
+static gint ofp_queue_stats_queue_id = -1;
+static gint ofp_queue_stats_tx_bytes = -1;
+static gint ofp_queue_stats_tx_packets = -1;
+static gint ofp_queue_stats_tx_errors = -1;
+
 static gint ofp_vendor_stats = -1;
 static gint ofp_vendor_stats_vendor = -1;
 static gint ofp_vendor_stats_body = -1;
@@ -648,6 +705,11 @@ static gint ett_ofp_match = -1;
 static gint ett_ofp_match_wildcards_hdr = -1;
 static gint ett_ofp_action = -1;
 static gint ett_ofp_action_output = -1;
+static gint ett_ofp_action_enqueue = -1;
+static gint ett_ofp_packet_queue_root = -1;
+static gint ett_ofp_packet_queue = -1;
+static gint ett_ofp_packet_queue_property = -1;
+static gint ett_ofp_packet_queue_properties_hdr = -1;
 
 /* Controller/Switch Messages */
 static gint ett_ofp_switch_features = -1;
@@ -663,6 +725,10 @@ static gint ett_ofp_port_mod_config_hdr = -1;
 static gint ett_ofp_port_mod_mask_hdr = -1;
 static gint ett_ofp_port_mod_advertise_hdr = -1;
 
+static gint ett_ofp_queue_get_config_request = -1;
+static gint ett_ofp_queue_get_config_reply = -1;
+static gint ett_ofp_queue_get_config_reply_queues_hdr = -1;
+
 static gint ett_ofp_stats_request = -1;
 static gint ett_ofp_stats_reply = -1;
 static gint ett_ofp_stats_reply_flags = -1;
@@ -673,7 +739,9 @@ static gint ett_ofp_aggr_stats_request = -1;
 static gint ett_ofp_aggr_stats_reply = -1;
 static gint ett_ofp_table_stats = -1;
 static gint ett_ofp_port_stats_request = -1;
+static gint ett_ofp_queue_stats_request = -1;
 static gint ett_ofp_port_stats = -1;
+static gint ett_ofp_queue_stats = -1;
 static gint ett_ofp_vendor_stats = -1;
 static gint ett_ofp_packet_out = -1;
 static gint ett_ofp_packet_out_actions_hdr = -1;
@@ -1166,6 +1234,16 @@ void proto_register_openflow()
         { &ofp_action_output_max_len,
           { "Max Bytes to Send", "of.action_output_max_len", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Maximum Bytes to Send", HFILL }},
 
+        /* CS: ofp_action_enqueue */
+        { &ofp_action_enqueue,
+          { "Enqueue Action(s)", "of.action_enqueue", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Enqueue Action", HFILL }},
+
+        { &ofp_action_enqueue_port_no,
+          { "Output port", "of.action_enqueue_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Output port", HFILL }},
+
+        { &ofp_action_enqueue_queue_id,
+          { "Output Queue", "of.action_enqueue_queue", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Output queue", HFILL }},
+
         /* CSM: Features Request */
         /* nothing beyond the header */
 
@@ -1242,6 +1320,12 @@ void proto_register_openflow()
         { &ofp_switch_features_actions[10],
           { "  TCP/UDP destination", "of.sf_actions_dst_port", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_SET_TP_DST, "TCP/UDP destination port", HFILL }},
 
+        { &ofp_switch_features_actions[12],
+          { "  Enqueue port queue", "of.sf_actions_enqueue", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_ENQUEUE, "Enqueue to port queue", HFILL }},
+
+        { &ofp_switch_features_actions[11],
+          { "  Vendor-defined action", "of.sf_actions_vendor", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_VENDOR, "Vendor-defined action", HFILL }},
+
         { &ofp_switch_features_ports_hdr,
           { "Port Definitions", "of.sf_ports", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Definitions", HFILL }},
 
@@ -1279,6 +1363,60 @@ void proto_register_openflow()
         { &ofp_switch_config_miss_send_len,
           { "Max Bytes of New Flow to Send to Controller", "of.sc_miss_send_len", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Max Bytes of New Flow to Send to Controller", HFILL } },
 
+        /* Queue config request/reply */
+        { &ofp_queue_get_config_request,
+          { "Queue Configuration Request", "of.queue_req", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Queue Configuration Request", HFILL } },
+
+        { &ofp_queue_get_config_request_port_no,
+          { "Port #", "of.queue_port_no", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port #", HFILL }},
+
+        { &ofp_queue_get_config_reply,
+          { "Queue Configuration Reply", "of.queue_repr", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Queue Configuration Reply", HFILL } },
+
+        { &ofp_queue_get_config_reply_port_no,
+          { "Port #", "of.queue_port_no", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Port #", HFILL }},
+
+        { &ofp_queue_get_config_reply_queues_hdr,
+          { "Queue Definitions", "of.qr_queues", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Queue Definitions", HFILL }},
+
+        { &ofp_queue_get_config_reply_queues_num,
+          { "# of Queues", "of.qr_queues_num", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Number of Queues", HFILL }},
+
+        { &ofp_packet_queue,
+          { "Queue", "of.packet_queue", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Queue", HFILL }},
+
+        { &ofp_packet_queue_queue_id,
+          { "Queue ID", "of.packet_queue", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Queue ID", HFILL }},
+
+        { &ofp_packet_queue_len,
+          { "Len", "of.packet_queue_len", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Len", HFILL }},
+
+        { &ofp_packet_queue_warn,
+          { "Warning", "of.packet_queue_warn", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Warning", HFILL }},
+
+        { &ofp_packet_queue_property,
+          { "Queue Property", "of.packet_queue_prop", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Queue Property", HFILL }},
+
+        { &ofp_packet_queue_property_len,
+          { "Len", "of.packet_queue_prop_len", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Len", HFILL }},
+
+        { &ofp_packet_queue_property_type,
+          { "Type", "of.packet_queue_prop_type", FT_UINT16, BASE_DEC, VALS(names_ofp_packet_queue_property_type), NO_MASK, "Type", HFILL }},
+
+        { &ofp_packet_queue_property_rate,
+          { "Rate", "of.packet_queue_prop_rate", FT_UINT16, BASE_DEC, NO_STRINGS, NO_MASK, "Rate", HFILL }},
+
+        { &ofp_packet_queue_properties_hdr,
+          { "Property Definitions", "of.qr_queue_properties", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Property Definitions", HFILL }},
+
+        { &ofp_packet_queue_properties_num,
+          { "# of Properties", "of.qr_queue_properties_num", FT_UINT32, BASE_DEC, NO_STRINGS, NO_MASK, "Number of Properties", HFILL }},
+
+        { &ofp_packet_queue_property_unknown,
+          { "Unknown Property Type", "of.queue_property_unknown", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Unknown Property Type", HFILL }},
+
+        { &ofp_packet_queue_property_warn,
+          { "Warning", "of.queue_property_warn", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Warning", HFILL }},
 
         /* AM:  Packet In */
         { &ofp_packet_in,
@@ -1654,6 +1792,28 @@ void proto_register_openflow()
         { &ofp_port_stats_collisions,
           { "# Collisions", "of.stats_port_collisions", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "Number of collisions", HFILL } },
 
+        /* CSM: Stats: Queue */
+        { &ofp_queue_stats_request,
+          { "Queue Stats Request", "of.stats_flow", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Queue Statistics Request", HFILL } },
+
+        { &ofp_queue_stats,
+          { "Queue Stats", "of.stats_queue", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Queue Stats", HFILL } },
+
+        { &ofp_queue_stats_port_no,
+          { "Port #", "of.stats_queue_port_no", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "", HFILL } },
+
+        { &ofp_queue_stats_queue_id,
+          { "Queue ID","of.stats_queue_queue_id", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Queue ID", HFILL } },
+
+        { &ofp_queue_stats_tx_bytes,
+          { "# Transmitted bytes", "of.stats_queu_tx_bytes", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# Transmitted bytes", HFILL } },
+
+        { &ofp_queue_stats_tx_packets,
+          { "# Transmitted packets", "of.stats_queue_tx_packets", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# Transmitted packets", HFILL } },
+
+        { &ofp_queue_stats_tx_errors,
+          { "# Transmit errors", "of.stats_queue_tx_errors", FT_UINT64, BASE_DEC, NO_STRINGS, NO_MASK, "# Transmit errors", HFILL } },
+
         /* CSM: Stats: Table */
         { &ofp_table_stats,
           { "Table Stats", "of.stats_table", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Table Stats", HFILL } },
@@ -1684,6 +1844,9 @@ void proto_register_openflow()
 
         { &ofp_vendor_stats_body,
           { "Vendor Stats Body", "of.stats_vendor_body", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Vendor Stats Body", HFILL } },
+
+        { &ofp_vendor,
+          { "Vendor Message Body", "of.vendor", FT_BYTES, BASE_NONE, NO_STRINGS, NO_MASK, "Vendor Message Body", HFILL } },
 
         /* AM:  Error Message */
         { &ofp_error_msg,
@@ -1716,6 +1879,11 @@ void proto_register_openflow()
         &ett_ofp_match_wildcards_hdr,
         &ett_ofp_action,
         &ett_ofp_action_output,
+        &ett_ofp_action_enqueue,
+        &ett_ofp_packet_queue_root,
+        &ett_ofp_packet_queue,
+        &ett_ofp_packet_queue_property,
+        &ett_ofp_packet_queue_properties_hdr,
         &ett_ofp_switch_features,
         &ett_ofp_switch_features_capabilities_hdr,
         &ett_ofp_switch_features_actions_hdr,
@@ -1728,6 +1896,9 @@ void proto_register_openflow()
         &ett_ofp_port_mod_config_hdr,
         &ett_ofp_port_mod_mask_hdr,
         &ett_ofp_port_mod_advertise_hdr,
+        &ett_ofp_queue_get_config_request,
+        &ett_ofp_queue_get_config_reply,
+        &ett_ofp_queue_get_config_reply_queues_hdr,
         &ett_ofp_stats_request,
         &ett_ofp_stats_reply,
         &ett_ofp_stats_reply_flags,
@@ -1739,6 +1910,8 @@ void proto_register_openflow()
         &ett_ofp_table_stats,
         &ett_ofp_port_stats_request,
         &ett_ofp_port_stats,
+        &ett_ofp_queue_stats_request,
+        &ett_ofp_queue_stats,
         &ett_ofp_packet_out,
         &ett_ofp_packet_out_data_hdr,
         &ett_ofp_packet_out_actions_hdr,
@@ -1965,6 +2138,26 @@ static void dissect_phy_ports(proto_tree* tree, proto_item* item, tvbuff_t *tvb,
         }
         *offset += 4;
     }
+}
+
+static void dissect_queue_id(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32 *offset) {
+    /* get the queue_id */
+    guint32 queue_id = tvb_get_ntohl( tvb, *offset);
+
+    /* check to see if it is any special id */
+    const char* str_queue = NULL;
+    char str_num[10];
+    switch( queue_id ) {
+    case OFPQ_ALL:
+        str_queue = "All queues (all queues configured on a physical port)";
+        break;
+
+    default:
+        str_queue = str_num;
+        snprintf(str_num, 10, "%u", queue_id);
+    }
+
+    add_child_str(tree, hf, tvb, offset, 4, str_queue);
 }
 
 static void dissect_port_mod(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
@@ -2271,6 +2464,15 @@ static void dissect_action_output(proto_tree* tree, tvbuff_t *tvb, guint32 *offs
     add_child_str( tree, ofp_action_output_max_len, tvb, offset, 2, str );
 }
 
+static void dissect_action_enqueue(proto_tree* tree, tvbuff_t *tvb, guint32 *offset)
+{
+    /* add the output port */
+    dissect_port( tree, ofp_action_enqueue_port_no, tvb, offset );
+    dissect_pad(tree, offset, 6);
+    dissect_queue_id(tree, ofp_action_enqueue_queue_id, tvb, offset);
+}
+
+
 /** returns the number of bytes dissected (-1 if an unknown action type is
  *  encountered; and 8/16 for all other actions as of 0x96) */
 static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
@@ -2332,6 +2534,10 @@ static gint dissect_action(proto_tree* tree, proto_item* item, tvbuff_t *tvb, pa
         dissect_pad(action_tree, offset, 2);
         break;
 
+    case OFPAT_ENQUEUE:
+        dissect_action_enqueue(action_tree, tvb, offset);
+        break;
+
     default:
         add_child( action_tree, ofp_action_unknown, tvb, offset, 0 );
         return -1;
@@ -2367,6 +2573,113 @@ static void dissect_action_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
         proto_tree_add_uint(action_tree, ofp_action_num, tvb, offset_action_start, 0, num_actions);
     }
 }
+
+static void dissect_property_min(proto_tree* tree, tvbuff_t *tvb, guint32 *offset)
+{
+    add_child(tree, ofp_packet_queue_property_rate, tvb, offset, 2);
+    dissect_pad(tree, offset, 6);
+}
+
+static gint32 dissect_property(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
+{
+    guint32 offset_start = *offset;
+    guint16 type = tvb_get_ntohs(tvb, *offset);
+    guint16 len = tvb_get_ntohs(tvb, *offset + 2);
+
+    proto_item *property_item = proto_tree_add_item(tree, ofp_packet_queue_property, tvb, *offset, len, FALSE);
+    proto_tree *property_tree = proto_item_add_subtree(property_item, ett_ofp_packet_queue_property);
+
+    add_child(property_tree, ofp_packet_queue_property_type, tvb, offset, 2);
+    add_child(property_tree, ofp_packet_queue_property_len, tvb, offset, 2);
+    dissect_pad(tree, offset, 4);
+
+    switch( type ) {
+    case OFPQT_MIN_RATE:
+        dissect_property_min(property_tree, tvb, offset);
+        break;
+    default:
+        add_child(property_tree, ofp_packet_queue_property_unknown, tvb, offset, 0);
+        return -1;
+    }
+
+    return *offset - offset_start;
+}
+
+/* returns the number of bytes dissected ( -1 if unknown propery is encountered */
+static void dissect_property_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint len, guint32 *offset)
+{
+    guint total_len  = len;
+
+    proto_item *property_item = proto_tree_add_item(tree, ofp_packet_queue_properties_hdr, tvb, *offset, total_len, FALSE);
+    proto_tree *property_tree = proto_item_add_subtree(property_item, ett_ofp_packet_queue_properties_hdr);
+
+    if( total_len == 0 ) {
+        add_child_str(property_tree, ofp_packet_queue_property_warn, tvb, offset, 0, "No properties were specified");
+    }
+    else {
+        guint32 offset_property_start = *offset;
+        guint num_properties = 0;
+        while( total_len > 0 ) {
+            num_properties += 1;
+            int ret = dissect_property(property_tree, tvb, pinfo, offset);
+            if( ret < 0 ) {
+                break; /* stop if we run into a property we couldn't dissect */
+            }
+            else
+                total_len -= ret;
+        }
+        proto_tree_add_uint(property_tree, ofp_packet_queue_properties_num, tvb, offset_property_start, 0, num_properties);
+    }
+}
+
+/** returns the number of bytes dissected (-1 if an unknown property is
+ *  encountered; */
+static gint dissect_queue(proto_tree* tree, tvbuff_t *tvb, packet_info *pinfo, guint32 *offset)
+{
+    guint32 offset_start = *offset;
+    guint16 len = tvb_get_ntohs( tvb, *offset + 4);
+
+    proto_item *queue_item = proto_tree_add_item(tree, ofp_packet_queue, tvb, *offset, len, FALSE);
+    proto_tree *queue_tree = proto_item_add_subtree(queue_item, ett_ofp_packet_queue);
+
+    //    add_child( queue_tree, ofp_packet_queue_queue_id, tvb, offset, 4 );
+    dissect_queue_id(queue_tree, ofp_packet_queue_queue_id, tvb, offset);
+    add_child( queue_tree, ofp_packet_queue_len, tvb, offset, 2 );
+    dissect_pad( queue_tree, offset, 2);
+
+    dissect_property_array(tvb, pinfo, queue_tree, len - (*offset - offset_start), offset);
+    return *offset - offset_start;
+
+}
+
+static void dissect_queue_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint len, guint32 *offset)
+{
+    guint total_len = len - *offset;
+
+    proto_item *queue_item = proto_tree_add_item(tree, ofp_queue_get_config_reply_queues_hdr, tvb, *offset, total_len, FALSE);
+    proto_tree *queue_tree = proto_item_add_subtree(queue_item, ett_ofp_queue_get_config_reply_queues_hdr);
+
+    if( total_len == 0 ) {
+        add_child_str(queue_tree, ofp_packet_queue_warn, tvb, offset, 0, "No queues were specified");
+    }
+    else if( *offset > len ) {
+        /* not enough bytes => wireshark will already have reported the error */
+    }
+    else {
+        guint offset_queue_start = *offset;
+        guint num_queues = 0;
+        while( total_len > 0 ) {
+            num_queues += 1;
+            int ret = dissect_queue(queue_tree, tvb, pinfo, offset);
+            if( ret < 0 )
+                break; /* stop if we run into an action we couldn't dissect */
+            else
+                total_len -= ret;
+        }
+        proto_tree_add_uint(queue_tree, ofp_queue_get_config_reply_queues_num, tvb, offset_queue_start, 0, num_queues);
+    }
+}
+
 
 static void dissect_capability_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, guint field_size) {
     proto_item *sf_cap_item = proto_tree_add_item(tree, ofp_switch_features_capabilities_hdr, tvb, offset, field_size, FALSE);
@@ -2448,6 +2761,14 @@ static void dissect_error_code(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32
                 code_str = "Unknown - error?";
             }
             break;
+        case OFPET_QUEUE_OP_FAILED:
+            if (err_code < N_QUEUEOPFAILED) {
+                code_str = queue_op_failed_err_str[err_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+
         default:
             valid = FALSE;
             break;
@@ -2611,7 +2932,9 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
         }
         	 	
         case OFPT_VENDOR: {
-            add_child(tree, ofp_vendor, tvb, &offset, len - offset);
+            if (len - offset > 0) {
+                add_child(tree, ofp_vendor, tvb, &offset, len - offset);
+            }
             break;        	
         }
 
@@ -2682,6 +3005,26 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             type_tree = proto_item_add_subtree(type_item, ett_ofp_switch_config);
             dissect_switch_config_flags(tvb, pinfo, type_tree, &offset);
             add_child(type_tree, ofp_switch_config_miss_send_len, tvb, &offset, 2);
+            break;
+        }
+
+        case OFPT_QUEUE_GET_CONFIG_REQUEST: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_queue_get_config_request, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_queue_get_config_request);
+            dissect_port(type_tree, ofp_queue_get_config_request_port_no, tvb, &offset);
+            dissect_pad(type_tree, &offset, 2);
+            break;
+        }
+
+        case OFPT_QUEUE_GET_CONFIG_REPLY: {
+            type_item = proto_tree_add_item(ofp_tree, ofp_queue_get_config_reply, tvb, offset, -1, FALSE);
+            type_tree = proto_item_add_subtree(type_item, ett_ofp_queue_get_config_reply);
+
+            dissect_port(type_tree, ofp_queue_get_config_reply_port_no, tvb, &offset);
+            dissect_pad(type_tree, &offset, 6);
+
+            /* handle queues */
+            dissect_queue_array(tvb, pinfo, type_tree, len, &offset);
             break;
         }
 
@@ -2884,6 +3227,16 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 	    }
 		    break;
 
+            case OFPST_QUEUE: {
+                proto_item *queue_item = proto_tree_add_item(type_tree, ofp_queue_stats_request, tvb, offset, -1, FALSE);
+                proto_tree *queue_tree = proto_item_add_subtree(queue_item, ett_ofp_queue_stats_request);
+
+                dissect_port(queue_tree, ofp_queue_stats_port_no, tvb, &offset);
+                dissect_pad(queue_tree, &offset, 2);
+                dissect_queue_id(queue_tree, ofp_queue_stats_queue_id, tvb, &offset);
+                break;
+            }
+
             default:
                 /* add as bytes if type isn't one we know how to dissect */
                 add_child(type_tree, ofp_stats_request_body, tvb, &offset, len - offset);
@@ -2998,6 +3351,22 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
                     add_child(port_tree, ofp_port_stats_rx_over_err, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_rx_crc_err, tvb, &offset, 8);
                     add_child(port_tree, ofp_port_stats_collisions, tvb, &offset, 8);
+                }
+                break;
+            }
+
+            case OFPST_QUEUE: {
+                /* process each port stats struct in the packet */
+                while( offset < len ) {
+                    proto_item *queue_item = proto_tree_add_item(type_tree, ofp_queue_stats, tvb, offset, -1, FALSE);
+                    proto_tree *queue_tree = proto_item_add_subtree(queue_item, ett_ofp_queue_stats);
+
+                    dissect_port(queue_tree, ofp_queue_stats_port_no, tvb, &offset);
+                    dissect_pad(queue_tree, &offset, 2);
+					dissect_queue_id(queue_tree, ofp_queue_stats_queue_id, tvb, &offset);
+                    add_child(queue_tree, ofp_queue_stats_tx_bytes, tvb, &offset, 8);
+                    add_child(queue_tree, ofp_queue_stats_tx_packets, tvb, &offset, 8);
+                    add_child(queue_tree, ofp_queue_stats_tx_errors, tvb, &offset, 8);
                 }
                 break;
             }

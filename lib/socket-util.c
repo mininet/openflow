@@ -69,6 +69,15 @@ set_nonblocking(int fd)
     }
 }
 
+/** Sets the priority for the socket. Returns 0 if successful,
+ * otherwise a positive errno value */
+int
+set_socket_priority(int fd, int priority)
+{
+    int prio = priority;
+    return setsockopt(fd, SOL_SOCKET, SO_PRIORITY, (char *)&prio, sizeof(prio));
+}
+
 /* Returns the maximum valid FD value, plus 1. */
 int
 get_max_fds(void)

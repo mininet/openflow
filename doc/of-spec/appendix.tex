@@ -45,6 +45,25 @@ The \verb|curr|, \verb|advertised|, \verb|supported|, and \verb|peer| fields ind
 \input{enum/ofp_port_features}
 Multiple of these flags may be set simultaneously.
 
+\subsubsection{\qosupd{Queue Structures}}
+\label{cts:qos}
+\qosupd{An OpenFlow switch provides limited Quality-of-Service support
+  (QoS) through a simple queuing
+mechanism. One (or more) queues can attach to a port and be used to map flows
+on it. Flows mapped to a specific queue will be treated according to
+that queue's configuration (e.g. min rate).
+\\\\
+A queue is described by the} \verb|ofp_packet_queue| \qosupd{structure:
+\input{struct/ofp_packet_queue}
+Each queue is further described by a set of properties, each of a
+specific type and configuration.
+\input{enum/ofp_queue_properties}
+Each queue property description starts with a common header:
+\input{struct/ofp_queue_prop_header}
+Currently, there is only a minimum-rate type queue, described by the}
+\verb|ofp_queue_prop_min_rate| \qosupd{structure:
+\input{struct/ofp_queue_prop_min_rate}}
+
 \subsubsection{Flow Match Structures}
 When describing a flow entry, the following structure is used:
 
@@ -60,7 +79,7 @@ The source and destination netmasks are each specified with a 6-bit number in th
 A number of actions may be associated with flows or packets.  The currently defined action types are:
 
 \input{enum/ofp_action_type} 
-Output actions are described in Section \ref{ft:actions}, while Field-Modify actions are described in Table \ref{table:field modify actions}.  An action definition contains the action type, length, and any associated data:
+Output \qosupd{and enqueue} actions are described in Section \ref{ft:actions}, while Field-Modify actions are described in Table \ref{table:field modify actions}.  An action definition contains the action type, length, and any associated data:
 
 \input{struct/ofp_action_header}
 An \verb|action_output| has the following fields:
@@ -68,6 +87,20 @@ An \verb|action_output| has the following fields:
 \input{struct/ofp_action_output}
 The \verb|max_len| indicates the maximum amount of data from a packet that should be sent when the port is \verb|OFPP_CONTROLLER|.  If \verb|max_len| is zero, the switch must send a zero-size \verb|packet_in| message.  The \verb|port| specifies the physical port from which packets should be sent. 
  \\\\
+\qosupd{The enqueue action maps a flow to an already-configured queue, regardless of the TOS and VLAN PCP bits.
+  The packet should not change after an enqueue action. If the switch
+  needs to set the TOS/PCP bits for internal handling, the original values
+  should be restored before sending the packet out.
+\\\\
+A switch may support only queues that are tight to specific PCP/TOS
+bits. In that case, we cannot map an arbitrary flow to a specific
+queue, therefore the action ENQUEUE is not supported. The user can
+still use these queues and map
+flows to them by setting the relevant fields (TOS, VLAN PCP).
+\\\\
+The enqueue action has the following fields:
+
+\input{struct/ofp_action_enqueue}}
 An \verb|action_vlan_vid| has the following fields:
 
 \input{struct/ofp_action_vlan_vid}
@@ -180,6 +213,20 @@ The controller uses the \verb|OFPT_PORT_MOD| message to modify the behavior of t
 \input{struct/ofp_port_mod}
 The \verb|mask| field is used to select bits in the \verb|config| field to change.  The \verb|advertise| field has no mask; all port features change together.
 
+\subsubsection{\qosupd{Queue Configuration Messages}}
+\qosupd{Queue configuration takes place outside the OpenFlow protocol, either
+  through a command line tool or through an external dedicated configuration
+protocol.
+\\\\
+The controller can query the switch for configured queues on a port
+using the following structure:
+\input{struct/ofp_queue_get_config_request}
+The switch replies back with an} \verb|ofp_queue_get_config_reply| \qosupd{command, containing
+a list of configured queues.
+
+\input{struct/ofp_queue_get_config_reply}
+}
+
 \subsubsection{Read State Messages}
 While the system is running, the datapath may be queried about its current state using the \verb|OFPT_STATS_REQUEST| message:
 
@@ -250,6 +297,20 @@ The \verb|body| of the reply consists of an array of the following:
 
 \input{struct/ofp_port_stats}
 The switch should return a value of -1 for unavailable counters.
+
+\paragraph{\qosupd{Queue Statistics}}
+\qosupd{The} \verb|OFPST_QUEUE| \qosupd{stats request message provides
+  queue statistics for one or more ports.
+  The request body consists of a} \verb|port_no| \qosupd{field
+identifying the port and a} \verb|queue_id|. \verb|OFPP_ALL|
+\qosupd{refers to all ports, while} \verb|OFPQ_ALL| \qosupd{refers to all queues configured
+at a port.
+
+\input{struct/ofp_queue_stats_request}
+The body of the reply consists of an array of
+the following structure:
+
+\input{struct/ofp_queue_stats}}
 
 \paragraph{Vendor Statistics}
 Vendor-specific stats messages are requested with the \verb|OFPST_VENDOR| stats type. The first four bytes of the message are the vendor identifier. The rest of the body is vendor-defined.
@@ -332,6 +393,11 @@ The \verb|data| field contains at least 64 bytes of the failed request.
 For the \verb|OFPET_FLOW_MOD_FAILED| error \verb|type|, the following \verb|code|s are currently defined:
 
 \input{enum/ofp_flow_mod_failed_code}
+The \verb|data| field contains at least 64 bytes of the failed request.
+\\\\
+For the \verb|OFPET_QUEUE_OP_FAILED| error \verb|type|, the following \verb|code|s are currently defined:
+
+\input{enum/ofp_queue_op_failed_code}
 The \verb|data| field contains at least 64 bytes of the failed request.
 \\\\
 If the error message is in response to a specific message from the controller, e.g., \verb|OFPET_BAD_REQUEST|, \verb|OFPET_BAD_ACTION|, or \verb|OFPET_FLOW_MOD_FAILED|, then the \verb|xid| field of the header should match that of the offending message.
