@@ -99,6 +99,14 @@ Do not provide a local port as part of the datapath.  When this option
 is used, the switch will not support in-band control.
 
 .TP
+\fB--no-slicing\fR
+Disable slicing (no queue configuration to ports). When this option
+is used, the switch will have 0 queues, and therefore no
+slicing-related functionality is supported. This option is useful when
+run-time dependencies for slicing (tc and related kernel
+configuration) are not met.
+
+.TP
 \fB-d\fR, \fB--datapath-id=\fIdpid\fR
 Specifies the OpenFlow datapath ID (a 48-bit number that uniquely
 identifies a controller) as \fIdpid\fR, which consists of exactly 12
