@@ -111,7 +111,7 @@ recv_of_exp_queue_delete(struct datapath *dp,
         }
         else {
             dp_send_error_msg(dp, sender, OFPET_QUEUE_OP_FAILED,
-                              OFPQOFC_BAD_QUEUE, oh,
+                              OFPQOFC_BAD_PORT, oh,
                               ntohs(ofq_delete->header.header.length));
         }
     }
@@ -184,7 +184,13 @@ recv_of_exp_queue_modify(struct datapath *dp,
         }
         else {
             /* create new queue */
-            port_add_queue(p,queue_id, mr);
+            error = port_add_queue(p,queue_id, mr);
+            if (error == EXFULL) {
+                dp_send_error_msg(dp, sender, OFPET_QUEUE_OP_FAILED,
+                                  OFPQOFC_EPERM, oh,
+                                  ntohs(ofq_modify->header.header.length));
+                return;
+            }
             q = dp_lookup_queue(p, queue_id);
             error = netdev_setup_class(p->netdev,q->class_id, ntohs(mr->rate));
             if (error) {
