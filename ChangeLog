@@ -1,3 +1,20 @@
+1.0.0 - XX Dec 2009
+-------------------
+    - Changed wire protocol version to 0xXX
+    - Added slicing support
+    - Improved resolution of flow duration in stats/expiry
+    - Added flow cookies to flows
+    - Enable matching on IP fields inside ARP packets
+    - Enable port stats to be retrieved for individual ports
+    - Added ability to match on IP ToS bits
+    - Added datapath description to desc stats
+    - Added ability to control slicing queues from dpctl
+    - Set datapath description from dpctl
+    - Removed kernel datapath from reference switch
+      (will be release separately)
+    - Fix bug related to identifying overlapping flows
+    - Updated Wireshark dissector to support 1.0.0 features
+
 0.9.0-rev1 - 04 Sep 2009
 ------------------------
     - Added NetFPGA hardware table support (wire protocol 0x98)
