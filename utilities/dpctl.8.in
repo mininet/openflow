@@ -222,6 +222,47 @@ messages), but it will not print any messages sent to the kernel by
 the kernel in response to those messages.
 
 .PP
+The following commands monitor and control the egress queue
+configuration for an OpenFlow switch if the switch supports such
+operations.  After a queue is created with the add or modify
+operation, the OpenFlow enqueue action may be specified to
+direct packets to a particular queue.  Queues are associated with
+specific ports (so the same queue-id may be used on different
+ports and this will refer to different queues).  The only
+characteristic that may be configured for queues is the minimum
+bandwidth guarantee.  This parameter is specified in tenths of
+a percent (so full link bandwidth is 1000).
+
+.TP
+\fBadd-queue \fIswitch\fR \fIport\fR \fIq-id\fR [\fIbandwidth\fR]
+Connect to \fIswitch\fR and add an egress queue identified as \fIq-id\fR
+for \fIport\fR.  If
+specified, \fIbandwidth\fR indicates the minimum bandwidth guarantee
+for the queue and is specified in tenths of a
+percent.  This is the only characteristic of the queue that
+may be configured.
+
+.TP
+\fBmod-queue \fIswitch\fR \fIport\fR \fIq-id\fR \fIbandwidth\fR
+Connect to \fIswitch\fR and modify the bandwidth setting for an egress
+queue identified as \fIq-id\fR
+for \fIport\fR.  The queue need not have been created with \fBadd-queue\fR
+previously.  The parameter \fIbandwidth\fR indicates the minimum
+bandwidth guarantee for the queue and is specified in tenths of a
+percent.  This is the only characteristic
+of the queue that may be configured.
+
+.TP
+\fBdel-queue \fIswitch\fR \fIport\fR \fIq-id\fR
+Delete an egress queue identified as \fIq-id\fR for \fIport\fR which
+had been created by \fBadd-queue\fR or \fBmod-queue\fR.
+
+.TP
+\fBdump-queue \fIswitch\fR [\fIport\fR [\fIq-id\fR]]
+Dump that current queue configuration.  A port may be specified.
+If it is, a queue-id may also be specified.
+
+.PP
 The following commands can be used regardless of the connection
 method.  They apply to OpenFlow switches and controllers.
 
@@ -351,6 +392,11 @@ the following keywords:
 .RS
 .IP \fBoutput\fR:\fIport\fR
 Outputs the packet on the port specified by \fIport\fR.
+
+.IP \fBenqueue\fR:\fIport\fR:\fIq-id\fR
+Enqueue the packet to the queue specified by \fIq-id\fR on the port
+specified by \fIport\fR.  See \fBadd-queue\fR and related commands
+in this manpage above.
 
 .IP \fBnormal\fR
 Subjects the packet to the device's normal L2/L3 processing.  (This
