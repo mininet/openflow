@@ -2,7 +2,8 @@
 # about overriding distdir, below.
 AUTOMAKE_OPTIONS = foreign -Wno-syntax subdir-objects
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = datapath
+#SUBDIRS = datapath
+SUBDIRS =
 
 AM_CPPFLAGS = $(SSL_CFLAGS)
 AM_CPPFLAGS += -I $(top_srcdir)/include
