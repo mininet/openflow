@@ -609,7 +609,7 @@ enum ofp_error_type {
     OFPET_BAD_REQUEST,          /* Request was not understood. */
     OFPET_BAD_ACTION,           /* Error in action description. */
     OFPET_FLOW_MOD_FAILED,      /* Problem modifying flow entry. */
-    OFPET_PORT_MOD_FAILED,      /* OFPT_PORT_MOD failed. */
+    OFPET_PORT_MOD_FAILED,      /* Port mod request failed. */
     OFPET_QUEUE_OP_FAILED       /* Queue operation failed. */
 };
 
