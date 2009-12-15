@@ -8,23 +8,15 @@ reference implementation of OpenFlow.  Please send any comments to:
 Contents
 ========
 
-The OpenFlow reference implementation includes two OpenFlow switch
+The OpenFlow reference implementation includes one OpenFlow switch
 implementations:
 
-        - The "kernel-based switch": This divides the switch into a
-          "datapath" Linux kernel module (ofdatapath.ko for Linux 2.6) and
-          a userspace program (ofprotocol).
-          The kernel-based switch is faster than either of
-          the other two implementations but requires building and
-          installing a kernel module, which can sometimes be
-          challenging.
-
-        - The "userspace datapath-based switch": This divides the
-          switch into a userspace "datapath" (built as
-          udatapath/ofdatapath) and the same userspace program used by
-          the kernel-based switch (ofprotocol).  The userspace
-          datapath-based switch does not require building a kernel
-          module, but it is not as fast as the kernel-based switch.
+	- The "userspace datapath-based switch": This divides the switch
+	  into a userspace "datapath" (built as udatapath/ofdatapath)
+	  and a userspace program that implements the secure channel
+	  component (ofprotocol).  The userspace datapath-based switch
+	  does not require building a kernel module, but it is not as
+	  fast as a kernel-based switch.
 
 The reference implementation also contains a simple OpenFlow
 controller (built as controller/controller) and a number of related
@@ -65,7 +57,7 @@ will also need the following software:
 
     - Autoconf version 2.60 or later (http://www.gnu.org/software/autoconf).
 
-    - Automake version 1.10 or later (http://www.gnu.org/software/automake).  
+    - Automake version 1.10 or later (http://www.gnu.org/software/automake).
 
     - pkg-config (http://pkg-config.freedesktop.org/wiki/).  We test
       with version 0.22.
@@ -97,42 +89,6 @@ Userspace Switch Prerequisites
        (NOTE: You can disable slicing (and these dependencies) at runtime
         using the --no-slicing option)
 
-Kernel-Based Switch Prerequisites
----------------------------------
-
-The OpenFlow distribution also includes a Linux kernel module that can
-be used to achieve higher switching performance.  To compile the
-kernel module, you must install the following in addition to the
-software listed in the "Base Prerequisites" section above:
-
-    - A supported Linux kernel version.  Please refer to README for a
-      list of supported versions.
-
-      The OpenFlow datapath requires bridging support (CONFIG_BRIDGE)
-      to be built as a kernel module.  (This is common in kernels
-      provided by Linux distributions.)  The bridge module must not be
-      loaded or in use.  If the bridge module is running (check with
-      "lsmod | grep bridge"), you must remove it ("rmmod bridge")
-      before starting the datapath.
-
-      In kernels prior to 2.6.9, VLAN support (CONFIG_VLAN_8021Q) must 
-      be compiled either directly or as a module.  Failure to do this
-      will cause an error on module insertion due to the 
-      "dev_change_flags" symbol being undefined.
-
-    - The correct version of GCC for the kernel that you are building
-      the module against:
-
-        * To build a kernel module for a Linux 2.6 kernel, you need
-          the same version of GCC that was used to build that kernel
-          (usually version 4.0 or later).
-
-    - A kernel build directory corresponding to the Linux kernel image
-      the module is to run on.  Under Debian and Ubuntu, for example,
-      each linux-image package containing a kernel binary has a
-      corresponding linux-headers package with the required build
-      infrastructure.
-
 Building Conventionally
 =======================
 
@@ -140,9 +96,7 @@ This section explains how to build and install the OpenFlow
 distribution in the ordinary way using "configure" and "make".
 
 0. Check that you have installed all the prerequisites listed above in
-   the Base Prerequisites section.  If you want to compile the Linux
-   kernel module, also check that the prequisites listed under
-   Kernel-Based Switch Prequisites are installed.
+   the Base Prerequisites section.
 
 1. In the top source directory, configure the package by running the
    configure script.  You can usually invoke configure without any
@@ -155,16 +109,11 @@ distribution in the ordinary way using "configure" and "make".
 
       % ./configure CC=gcc-4.2
 
-   To build the Linux kernel module, so that you can run the
-   kernel-based switch, add --with-l26 option, or both,
-   to the configure script's command line.  Refer to Building the
-   Linux Kernel-Based Switch, below, for more information.
-
    The configure script accepts a number of other options and honors
    additional environment variables.  For a full list, invoke
    configure with the --help option.
 
-2. Run make in the top source directory: 
+2. Run make in the top source directory:
 
       % make
 
@@ -194,75 +143,11 @@ distribution in the ordinary way using "configure" and "make".
       - Switch monitoring UI for small text displays:
         ext/ezio/ofp-switchui.
 
-   If you passed --with-l26 to configure, "make" will also build the
-   following kernel modules:
-
-      - datapath/linux-2.6/ofdatapath.ko
-
-      - datapath/linux-2.6/ofdatapath_<table>.ko for each <table>
-        specified on --enable-hw-tables (if any).
-
-   If you passed --with-l26 to configure, "make" will also build the
-   following kernel modules:
-
-      - datapath/linux-2.6/ofdatapath_<table>.o for each <table>
-        specified on --enable-hw-tables (if any).
-
 3. Run "make install" to install the executables and manpages into the
    running system, by default under /usr/local.
 
-4. If you built kernel modules, you may load them with "insmod", e.g.:
-
-      (Linux 2.6)
-      % insmod datapath/linux-2.6/ofdatapath.ko
-
-   After you load the openflow module, you may load one hardware switch
-   table module (if any were built) to enable support for that hardware
-   switching table.
-
-   The insmod program must be run as root.  You may need to specify a
-   full path to insmod, e.g. /sbin/insmod.  To verify that the modules
-   have been loaded, run "/sbin/lsmod" and check that ofdatapath is
-   listed.
-
 4. Test the userspace programs, as described under Testing Userspace
    Programs below.
-
-5. If you built the kernel module, test the kernel-based switch, as
-   described under Testing the Kernel-Based Implementation below.
-
-Building the Linux Kernel-Based Switch
---------------------------------------
-
-To build the kernel module, follow the build process described above,
-but pass the location of the kernel build directory as an additional
-argument to the configure script, as described under step 1 in that
-section.  Specify the location on --with-l26 for Linux 2.6.
-For example, to build for a running instance of Linux 2.6:
-
-      % ./configure --with-l26=/lib/modules/`uname -r`
-
-If you wish to build OpenFlow for an architecture other than the
-architecture used for compilation, you may specify the kernel
-architecture string using the KARCH variable when invoking the
-configure script.
-
-      % ./configure --with-l26=/path/to/linux-2.6 KARCH=mips
-
-If you have hardware that supports accelerated OpenFlow switching, and
-you have obtained a hardware table module for your hardware and
-extracted it into the OpenFlow reference distribution source tree,
-then you may also enable building support for the hardware switching
-table with --enable-hw-tables.  For example, if your hardware
-switching table is in a directory named datapath/hwtable-foomatic, you
-could compile support for it with the running Linux 2.6 kernel like
-so:
-
-      % ./configure --with-l26=/lib/modules/`uname -r` \
-                    --enable-hw-tables=foomatic
-
-For more information about hardware table modules, please read
-README.hwtables at the root of the OpenFlow distribution tree.
 
 Building Debian Packages
 ========================
@@ -498,99 +383,6 @@ switch, follow the procedure below.
    use, because the switch must then also obtain its own IP address
    and the controller's location via DHCP.
 
-Testing the Kernel-Based Implementation
----------------------------------------
-
-The OpenFlow kernel module must be loaded, as described under
-"Building Conventionally", before it may be used.
-
-0. The commands below must run as root, so log in as root, or use a
-   program such as "su" to become root temporarily.
-
-1. Create a datapath instance.  The command below creates a datapath
-   identified as nl:0 (see dpctl(8) for more detailed usage
-   information).
-
-      # dpctl adddp nl:0
-   
-   (nl:0 is the first datapath within a host.  ofdatapath supports
-   multiple datapaths within the same host, which would be identified
-   as nl:1, nl:2, etc.)
-
-   Creating datapath nl:0 also creates a new network device named of0.
-   This network device, called the datapath's "local port", will be
-   bridged to the physical switch ports by the ofprotocol, for use in
-   in-band control.
-
-   If you built a support module for hardware accelerated OpenFlow
-   switching and you want to use it, you must load it before creating
-   the datapath with "dpctl adddp".
-
-2. Use dpctl to attach the datapath to physical interfaces on the
-   machine.  Say, for example, you want to create a trivial 2-port
-   switch using interfaces eth1 and eth2, you would issue the following
-   commands:
-
-      # dpctl addif nl:0 eth1
-      # dpctl addif nl:0 eth2
-
-   You can verify that the interfaces were successfully added by asking
-   dpctl to print the current status of datapath nl:0:
-
-      # dpctl show nl:0
-
-3. Arrange so that the switch can reach the controller over the
-   network.
-
-      - If you are using out-of-band control, at this point make sure
-        that the switch machine can reach the controller over the
-        network.
-
-      - If you are using in-band control, then at this point you must
-        configure the of0 network device created in step 1.  This
-        device is not yet bridged to any physical network (because
-        ofprotocol does that, and it is not yet running), so the next
-        step depends on whether connectivity is required to configure
-        the device's IP address:
-
-           * If the switch has a static IP address, you may configure
-             its IP address now, e.g.:
-
-                # ifconfig of0 192.168.1.1
-
-           * If the switch does not have a static IP address, e.g. its
-             IP address is obtained dynamically via DHCP, then proceed
-             to step 4.  The DHCP client will not be able to contact
-             the DHCP server until the secure channel has started up.
-
-      - If you are using in-band control with controller discovery, no
-        configuration is required at this point.  You may proceed to
-        step 4.
-
-4. Run ofprotocol to start the secure channel connecting the datapath to
-   a remote controller.  If the controller is running on host
-   192.168.1.2 port 6633 (the default port), the ofprotocol invocation
-   would look like this:
-
-      # ofprotocol nl:0 tcp:192.168.1.2
-
-   - If you are using in-band control with controller discovery, omit
-     the second argument to the ofprotocol command.
-
-   - If you are using out-of-band control, add --out-of-band to the
-     command line.
-
-5. If you are using in-band control with manual configuration, and the
-   switch obtains its IP address dynamically, then you may now obtain
-   the switch's IP address, e.g. by invoking a DHCP client.  The
-   secure channel will only be able to connect to the controller after
-   an IP address has been obtained.
-
-6. The secure channel should connect to the controller within a few
-   seconds.  It may take a little longer if controller discovery is in
-   use, because the switch must then also obtain its own IP address
-   and the controller's location via DHCP.
-
 Configuration
 =============
 
@@ -702,7 +494,7 @@ respectively, of ofprotocol would point to these files.
 Bug Reporting
 -------------
 
-Please report problems to: 
+Please report problems to:
 
 openflow-discuss@openflowswitch.org
 
