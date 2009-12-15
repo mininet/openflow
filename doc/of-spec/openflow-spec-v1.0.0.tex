@@ -13,9 +13,14 @@
 
 %\lstset{language=C}
 
+% Define the OpenFlow version here
+\newcommand{\ofversion}{1.0.0}
+
 \pagestyle{fancy}
 \fancyhead{}
-\chead{DO NOT BUILD A SWITCH FROM THIS SPECIFICATION!}
+\lhead{OpenFlow Switch Specification}
+%\chead{DO NOT BUILD A SWITCH FROM THIS SPECIFICATION!}
+\rhead{Version \ofversion}
 \renewcommand{\headrulewidth}{0.4pt}
 \renewcommand{\footrulewidth}{0.4pt}
 
@@ -25,7 +30,7 @@
 \newcommand{\qosupd}[1]{{\color{blue} #1}}
 
 \title{OpenFlow Switch Specification}
-\author{Version 1.0.0 ( Wire Protocol \input{define/OFP_VERSION})}
+\author{Version \ofversion{} ( Wire Protocol \input{define/OFP_VERSION})}
 \date{\today}
 \maketitle
 
