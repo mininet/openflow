@@ -30,29 +30,15 @@ Specification [2].
 What's here?
 ------------
 
-This distribution includes two reference implementations of an
-OpenFlow switch.  The first implementation, which is closely tied to
-Linux because it is partially implemented in the Linux kernel, has the
-following components:
+This distribution includes one reference implementations of an
+OpenFlow switch.  This implementation has the following components:
 
-        - A Linux kernel module that implements the flow table and
-          OpenFlow protocol, in the datapath directory.
+        - ofdatapath, which implements the flow table in user space.
 
         - ofprotocol, a program that implements the secure channel
           component of the reference switch.
 
-        - dpctl, a tool for configuring the kernel module.
-
-        - Hardware acceleration support, see README.hwtables
-
-The second implementation has the following components:
-
-        - ofdatapath, which implements the same functionality as the
-          Linux kernel module in userspace, at a cost in performance.
-
-        - ofprotocol, a program that implements the secure channel
-          component of the reference switch (the same program used in
-          the kernel-based implementation).
+        - dpctl, a tool for configuring the switch.
 
 This distribution includes some additional software as well:
 
@@ -78,19 +64,21 @@ This distribution includes some additional software as well:
 For installation instructions, read INSTALL.  Each userspace program
 is also accompanied by a manpage.
 
+What's NOT here?
+----------------
+
+The reference implementation no longer includes the Linux kernel module
+or the NetFPGA implementation. The OpenFlow consortium intends to
+release these separately from the reference design.
+
 Platform support
 ----------------
 
-Other than the Linux kernel module and userspace switch
-implementation, the software in the OpenFlow distribution should
-compile under Unix-like environments such as Linux, FreeBSD, Mac OS X,
-and Solaris.  Our primary test environment is Debian GNU/Linux.
-Please contact us with portability-related bug reports or patches.
-
-The Linux kernel module is, of course, Linux-specific, and the dpctl
-utility will not be useful without the kernel module.  The testing of
-the kernel module has focused on Linux 2.6.28.  Linux 2.6 releases
-from 2.6.15 onward should also work.
+Other than the userspace switch implementation, the software in the
+OpenFlow distribution should compile under Unix-like environments such
+as Linux, FreeBSD, Mac OS X, and Solaris.  Our primary test environment
+is Debian GNU/Linux.  Please contact us with portability-related bug
+reports or patches.
 
 The userspace datapath implementation should be easy to port to
 Unix-like systems.  The interface to network devices, in netdev.c, is
