@@ -198,6 +198,7 @@ static const value_string names_ofp_error_type_reason[] = {
     { OFPET_BAD_REQUEST,        "Request was not understood" },
     { OFPET_BAD_ACTION,         "Error in action description" },
     { OFPET_FLOW_MOD_FAILED,    "Problem modifying flow entry" },
+    { OFPET_PORT_MOD_FAILED,    "OFPT_PORT_MOD failed" },
     { OFPET_QUEUE_OP_FAILED,    "Problem during queue operation" },
     { 0,                        NULL }
 };
@@ -275,7 +276,10 @@ static const gchar *bad_request_err_str[] = {"ofp_header.version not supported",
                                              "ofp_stats_request.type not supported",
                                              "Vendor not supported (in ofp_vendor or ofp_stats_request or ofp_stats_reply)",
                                              "Vendor subtype not supported",
-					     "Permissions error"};
+					     "Permissions error",
+                                             "Wrong request length for type",
+                                             "Specified buffer has already been used",
+                                             "Specified buffer does not exist"};
 
 #define N_BADREQUEST    (sizeof bad_request_err_str / sizeof bad_request_err_str[0])
 
@@ -286,6 +290,7 @@ static const gchar *bad_action_err_str[] = {"Unknown action type",
                                             "Problem validating output action",
                                             "Bad action argument",
                                             "Permissions error",
+                                            "Can't handle this many actions",
                                             "Problem validating output queue"};
 
 #define N_BADACTION     (sizeof bad_action_err_str / sizeof bad_action_err_str[0])
@@ -293,9 +298,16 @@ static const gchar *bad_action_err_str[] = {"Unknown action type",
 static const gchar *flow_mod_failed_err_str[] = {"Flow not added because of full tables",
 						 "Flow not added because of conflicting entry in tables",
 						 "Permissions error",
-						 "Flow not added because of non-zero idle/hard timeout"};
+						 "Flow not added because of non-zero idle/hard timeout",
+                                                 "Unknown command",
+                                                 "Unsupported action list - cannot process in the order specified"};
 
 #define N_FLOWMODFAILED (sizeof flow_mod_failed_err_str / sizeof flow_mod_failed_err_str[0])
+
+static const gchar *port_mod_failed_err_str[] = {"Specified port does not exist",
+                                                 "Specified hardware address is wrong"};
+
+#define N_PORTMODFAILED (sizeof port_mod_failed_err_str / sizeof port_mod_failed_err_str[0])
 
 static const gchar *queue_op_failed_err_str[] = {"Parent port does not exist",
                                                  "queue does not exist",
@@ -2757,6 +2769,13 @@ static void dissect_error_code(proto_tree* tree, gint hf, tvbuff_t *tvb, guint32
         case OFPET_FLOW_MOD_FAILED:
             if (err_code < N_FLOWMODFAILED) {
                 code_str = flow_mod_failed_err_str[err_code];
+            } else {
+                code_str = "Unknown - error?";
+            }
+            break;
+        case OFPET_PORT_MOD_FAILED:
+            if (err_code < N_PORTMODFAILED) {
+                code_str = port_mod_failed_err_str[err_code];
             } else {
                 code_str = "Unknown - error?";
             }
