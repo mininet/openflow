@@ -98,6 +98,7 @@ int netdev_arp_lookup(const struct netdev *, uint32_t ip, uint8_t mac[6]);
 int netdev_setup_slicing(struct netdev *, uint16_t);
 int netdev_setup_class(const struct netdev *, uint16_t , uint16_t);
 int netdev_change_class(const struct netdev *, uint16_t , uint16_t);
+int netdev_delete_class(const struct netdev *, uint16_t);
 
 void netdev_enumerate(struct svec *);
 int netdev_nodev_get_flags(const char *netdev_name, enum netdev_flags *);

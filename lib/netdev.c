@@ -202,6 +202,7 @@ get_ipv6_address(const char *name, struct in6_addr *in6)
                           "classid %x:%x htb rate %dkbit ceil %dkbit"
 #define COMMAND_CHANGE_CLASS "/sbin/tc class change dev %s parent %x:%x " \
                              "classid %x:%x htb rate %dkbit ceil %dkbit"
+#define COMMAND_DEL_CLASS "/sbin/tc class del dev %s parent %x:%x classid %x:%x"
 
 static int
 netdev_setup_root_class(const struct netdev *netdev, uint16_t class_id,
@@ -282,6 +283,30 @@ netdev_change_class(const struct netdev *netdev, uint16_t class_id, uint16_t rat
     if (system(command) != 0) {
         VLOG_ERR("Problem configuring class %d for device %s",
                  class_id, netdev->name);
+        return -1;
+    }
+
+    return 0;
+}
+
+/** Deletes a class already defined to represent an OpenFlow queue.
+ *
+ * @param netdev the device under configuration
+ * @param class_id unique identifier for this queue.
+ * @param rate the minimum rate for this queue in kbps
+ * @return 0 on success, non-zero value when the configuration was not
+ * successful.
+ */
+int
+netdev_delete_class(const struct netdev *netdev, uint16_t class_id)
+{
+    char command[1024];
+
+    snprintf(command, sizeof(command), COMMAND_DEL_CLASS, netdev->name,
+             TC_QDISC, TC_ROOT_CLASS, TC_QDISC, class_id);
+    if (system(command) != 0) {
+        VLOG_ERR("Problem deleting class %d for device %s",class_id,
+                 netdev->name);
         return -1;
     }
 

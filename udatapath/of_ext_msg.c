@@ -107,6 +107,7 @@ recv_of_exp_queue_delete(struct datapath *dp,
     if (p->netdev) {
         q = dp_lookup_queue(p,queue_id);
         if (q) {
+            netdev_delete_class(p->netdev,q->class_id);
             port_delete_queue(p,q);
         }
         else {
