@@ -938,7 +938,9 @@ OFP_ASSERT(sizeof(struct ofp_queue_get_config_reply) == 16);
 struct ofp_action_enqueue {
     uint16_t type;            /* OFPAT_ENQUEUE. */
     uint16_t len;             /* Len is 16. */
-    uint16_t port;            /* Port that queue belongs. */
+    uint16_t port;            /* Port that queue belongs. Should
+                                 refer to a valid physical port
+                                 (i.e. < OFPP_MAX) or OFPP_IN_PORT. */
     uint8_t pad[6];           /* Pad for 64-bit alignment. */
     uint32_t queue_id;        /* Where to enqueue the packets. */
 };

@@ -92,7 +92,7 @@ The \verb|max_len| indicates the maximum amount of data from a packet that shoul
   needs to set the TOS/PCP bits for internal handling, the original values
   should be restored before sending the packet out.
 \\\\
-A switch may support only queues that are tight to specific PCP/TOS
+A switch may support only queues that are tied to specific PCP/TOS
 bits. In that case, we cannot map an arbitrary flow to a specific
 queue, therefore the action ENQUEUE is not supported. The user can
 still use these queues and map
