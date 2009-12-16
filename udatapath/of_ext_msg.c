@@ -104,7 +104,7 @@ recv_of_exp_queue_delete(struct datapath *dp,
     queue_id = ntohl(opq->queue_id);
 
     p = dp_lookup_port(dp,port_no);
-    if (p) {
+    if (p->netdev) {
         q = dp_lookup_queue(p,queue_id);
         if (q) {
             port_delete_queue(p,q);
@@ -166,7 +166,7 @@ recv_of_exp_queue_modify(struct datapath *dp,
     queue_id = ntohl(opq->queue_id);
 
     p = dp_lookup_port(dp, port_no);
-    if (p){
+    if (p->netdev){
         q = dp_lookup_queue(p, queue_id);
         if (q) {
             /* queue exists - modify it */
