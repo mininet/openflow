@@ -14,6 +14,9 @@
       (will be release separately)
     - Fix bug related to identifying overlapping flows
     - Updated Wireshark dissector to support 1.0.0 features
+    - Added regression tests for ARP handling, flow cookies, slicing,
+      selective port stats, flow duration precision, matching on ToS bits, and
+      the datapath description
 
 0.9.0-rev1 - 04 Sep 2009
 ------------------------
