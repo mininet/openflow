@@ -295,6 +295,7 @@ On receipt of a packet, an OpenFlow Switch performs the functions shown in Figur
 \item Rules specifying an ingress port are matched against the physical port that received the packet.
 \item The Ethernet headers as specified in Table \ref{table:header fields} are used for all packets.
 \item If the packet is a VLAN (Ethernet type 0x8100), the VLAN ID and PCP fields are used in the lookup.
+\item (Optional) For ARP packets (Ethernet type equal to 0x0806), the lookup fields may also include the contained IP source and destination fields.
 \item For IP packets (Ethernet type equal to 0x0800), the lookup fields also include those in the IP header.
 \item For IP packets that are TCP or UDP (IP protocol is equal to 6 or 17), the lookup includes the transport ports.
 \item For IP packets that are ICMP (IP prototcol is equal to 1), the lookup includes the Type and Code fields.  
