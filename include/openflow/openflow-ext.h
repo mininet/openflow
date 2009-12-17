@@ -48,6 +48,14 @@ struct openflow_queue_command_header {
 };
 OFP_ASSERT(sizeof(struct openflow_queue_command_header) == 24);
 
+/* NOTE
+ * Bug number: TBD.
+ * The definitions for openflow_queue_error_code conflict with
+ * those for ofp_queue_op_failed_code defined in openflow.h.
+ * This will be addressed after the release of OpenFlow 1.0.
+ * The error codes below for openflow_queue_error_code may be
+ * removed at that time.
+ */
 /*
  * Entries for 'code' in ofp_error_msg with error 'type'
  * OFPET_QUEUE_OP_FAILED
