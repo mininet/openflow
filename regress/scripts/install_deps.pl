@@ -23,7 +23,8 @@ my $yum = 'yum';
 my $distro;
 my $sim;
 my %install_funcs = (
-	'Ubuntu'  => \&install_ubuntu,
+	'Ubuntu'  => \&install_ubuntu_debian,
+	'Debian'  => \&install_ubuntu_debian,
 );
 our($opt_s, $opt_d);
 
@@ -107,10 +108,10 @@ sub identify_distro {
 }
 
 #
-# install_ubuntu:
-#   Install the necessary dependencies
+# install_ubuntu_debian:
+#   Install the necessary dependencies for Ubuntu and Debian
 #
-sub install_ubuntu {
+sub install_ubuntu_debian {
 	my @pkgs = (
 		'liberror-perl',
 		'libio-interface-perl',
@@ -140,7 +141,6 @@ sub install_ubuntu {
 	# Install modules directly from CPAN
 	install_perl_modules(@modules);
 }
-
 
 #
 # install_perl_modules:
