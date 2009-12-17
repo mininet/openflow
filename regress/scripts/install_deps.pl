@@ -25,6 +25,7 @@ my $sim;
 my %install_funcs = (
 	'Ubuntu'  => \&install_ubuntu_debian,
 	'Debian'  => \&install_ubuntu_debian,
+	'Fedora'  => \&install_fedora,
 );
 our($opt_s, $opt_d);
 
@@ -140,6 +141,36 @@ sub install_ubuntu_debian {
 
 	# Install modules directly from CPAN
 	install_perl_modules(@modules);
+}
+
+#
+# install_fedora:
+#   Install the necessary dependencies for Fedora Core
+#
+sub install_fedora {
+	my @pkgs = (
+		'perl-Convert-Binary-C',
+		'perl-Data-HexDump',
+		'perl-Net-Pcap',
+		'perl-Error.noarch',
+		'perl-Module-Build',
+		'libpcap-devel',
+		'perl-List-MoreUtils',
+		'perl-Net-RawIP',
+	);
+
+	# Run yum
+	my @flags = ('-y');
+	if (defined($sim)) {
+		push(@flags, 'info');
+	}
+	else {
+		push(@flags, 'install');
+	}
+	system($yum, @flags, @pkgs);
+	if ($? >> 8 != 0) {
+		die "Error running $yum";
+	}
 }
 
 #
