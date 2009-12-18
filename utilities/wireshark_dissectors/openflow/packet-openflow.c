@@ -114,7 +114,7 @@ static const value_string names_ofp_action_type[] = {
 #define NUM_PORT_STATE_FLAGS 1
 #define NUM_PORT_FEATURES_FLAGS 12
 #define NUM_WILDCARDS 12
-#define NUM_CAPABILITIES_FLAGS 7
+#define NUM_CAPABILITIES_FLAGS 8
 #define NUM_FLOW_MOD_FLAGS 3
 #define NUM_SF_REPLY_FLAGS 1
 
@@ -1295,6 +1295,9 @@ void proto_register_openflow()
 
         { &ofp_switch_features_capabilities[6],
           { "  Queue statistics", "of.sf_capabilities_queue_stats", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_QUEUE_STATS,  "Queue statistics", HFILL }},
+
+        { &ofp_switch_features_capabilities[7],
+          { "  Match IP addresses in ARP pkts", "of.sf_capabilities_arp_match_ip", FT_UINT32, BASE_DEC, VALS(names_choice), OFPC_ARP_MATCH_IP,  "Match IP addresses in ARP pkts", HFILL }},
 
         { &ofp_switch_features_actions_hdr,
           { "Actions", "of.sf_actions", FT_UINT32, BASE_HEX, NO_STRINGS, NO_MASK, "Actions", HFILL }},

@@ -177,7 +177,8 @@ enum ofp_capabilities {
     OFPC_STP            = 1 << 3,  /* 802.1d spanning tree. */
     OFPC_RESERVED       = 1 << 4,  /* Reserved, must be zero. */
     OFPC_IP_REASM       = 1 << 5,  /* Can reassemble IP fragments. */
-    OFPC_QUEUE_STATS    = 1 << 6   /* Queue statistics */
+    OFPC_QUEUE_STATS    = 1 << 6,  /* Queue statistics. */
+    OFPC_ARP_MATCH_IP   = 1 << 7   /* Match IP addresses in ARP pkts. */
 };
 
 /* Flags to indicate behavior of the physical port.  These flags are

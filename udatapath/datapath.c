@@ -72,7 +72,8 @@ extern char serial_num;
 #define OFP_SUPPORTED_CAPABILITIES ( OFPC_FLOW_STATS        \
                                      | OFPC_TABLE_STATS        \
                                      | OFPC_PORT_STATS        \
-                                     | OFPC_QUEUE_STATS )
+                                     | OFPC_QUEUE_STATS       \
+                                     | OFPC_ARP_MATCH_IP )
 
 /* Actions supported by this implementation. */
 #define OFP_SUPPORTED_ACTIONS ( (1 << OFPAT_OUTPUT)         \
