@@ -238,7 +238,7 @@ enum ofp_port_features {
 struct ofp_phy_port {
     uint16_t port_no;
     uint8_t hw_addr[OFP_ETH_ALEN];
-    uint8_t name[OFP_MAX_PORT_NAME_LEN]; /* Null-terminated */
+    char name[OFP_MAX_PORT_NAME_LEN]; /* Null-terminated */
 
     uint32_t config;        /* Bitmap of OFPPC_* flags. */
     uint32_t state;         /* Bitmap of OFPPS_* flags. */
@@ -934,7 +934,7 @@ struct ofp_queue_get_config_reply {
     struct ofp_header header;
     uint16_t port;
     uint8_t pad[6];
-    struct ofp_packet_queue queues[]; /* List of configured queues. */
+    struct ofp_packet_queue queues[0]; /* List of configured queues. */
 };
 OFP_ASSERT(sizeof(struct ofp_queue_get_config_reply) == 16);
 
