@@ -18,6 +18,11 @@
       selective port stats, flow duration precision, matching on ToS bits, and
       the datapath description
 
+    Known issues:
+    - isolation provided by the slicing mechanism has been
+      observed to degrade when run on systems with low performance CPUs.
+      Investigations are underway to improve isolation on such systems.
+
 0.9.0-rev1 - 04 Sep 2009
 ------------------------
     - Added NetFPGA hardware table support (wire protocol 0x98)
