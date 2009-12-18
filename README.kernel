@@ -1,0 +1,18 @@
+Kernel-mode Support					-*- text -*-
+-------------------
+
+The OpenFlow reference implementation no longer includes a kernel module
+that implements the datapath. A separate release with kernel-mode support
+is expected in 1H2010.
+
+The release you downloaded *may* include the kernel module source files
+depending upon the method used to obtain the release. If you downloaded the
+release as a compressed tar file (.tar.gz) then you will *not* have the
+source for the kernel module. If you downloaded the release directly from
+git then you will have the source.
+
+Please note that if you obtained the release via git that the kernel module
+source is not built by default and does not implement all features.
+
+Please check the OpenFlow website or subscribe to the openflow-announce
+mailing list for updates on the kernel-mode implementation.
