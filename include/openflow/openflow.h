@@ -59,10 +59,14 @@
 #define OFP_PACKED              /* SWIG doesn't understand __attribute. */
 #endif
 
+/* Version number:
+ * Non-experimental versions released: 0x01
+ * Experimental versions released: 0x81 -- 0x99
+ */
 /* The most significant bit being set in the version field indicates an
  * experimental OpenFlow version.
  */
-#define OFP_VERSION   0x99
+#define OFP_VERSION   0x01
 
 #define OFP_MAX_TABLE_NAME_LEN 32
 #define OFP_MAX_PORT_NAME_LEN  16

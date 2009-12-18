@@ -1,6 +1,6 @@
-1.0.0 - XX Dec 2009
+1.0.0-RC1- 19 Dec 2009
 -------------------
-    - Changed wire protocol version to 0xXX
+    - Changed wire protocol version to 0x01
     - Added slicing support
     - Improved resolution of flow duration in stats/expiry
     - Added flow cookies to flows

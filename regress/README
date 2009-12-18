@@ -6,7 +6,7 @@ What's here?
 This distribution includes:
 
     - 55+ "black box" tests to verify that an OF switch conforms to the 
-      OF protocol 0xXX
+      OF protocol 0x01
 
     - 7 tests to verify that the reference controller acts as a learning
       Ethernet switch 
@@ -19,7 +19,7 @@ Please see INSTALL for instruction on installing and running the tests.
 Changelog
 ---------------
 1.0.0
-- all tests updated to OpenFlow wire protocol 0xXX
+- all tests updated to OpenFlow wire protocol 0x01
 - added tests for new features in the OpenFlow 1.0.0 spec
 
 0.9.0
