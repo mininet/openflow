@@ -13,14 +13,19 @@ use constant {
 	DEBIAN  => 'Debian',
 	REDHAT  => 'RedHat',
 	FEDORA  => 'Fedora',
+
+	UNKNOWN  => 'unknown',
+	X86_64  => 'x86_64',
 };
 
 # Executables
 my $lsb_release = 'lsb_release';
 my $apt_get = 'apt-get';
 my $yum = 'yum';
+my $uname = '/bin/uname';
 
 my $distro;
+my $machine;
 my $sim;
 my %install_funcs = (
 	'Ubuntu'  => \&install_ubuntu_debian,
@@ -38,11 +43,12 @@ if ($> != 0) {
 parse_args();
 
 
-# Identify the distribution
+# Identify the distribution and machine
 if (!defined($distro)) {
 	identify_distro();
 	die "Unable to identify the distribution" if (!defined($distro));
 }
+identify_machine();
 
 # Call the appropriate install function
 if ($install_funcs{$distro}) {
@@ -109,6 +115,23 @@ sub identify_distro {
 }
 
 #
+# identify_machine:
+#   Attempt to identify the machine type
+#
+sub identify_machine {
+	# First, look for lsb release which makes querying easier
+	if ( -x $uname) {
+		$machine = `$uname -m`;
+		chomp($machine);
+	}
+
+	# we don't know what sort of machine this is
+	else {
+		$machine = UNKNOWN;
+	}
+}
+
+#
 # install_ubuntu_debian:
 #   Install the necessary dependencies for Ubuntu and Debian
 #
@@ -125,6 +148,9 @@ sub install_ubuntu_debian {
 		'libnet-rawip-perl',
 		'wget',
 	);
+	if ($machine eq X86_64) {
+		push (@pkgs, 'libc6-dev-i386', 'ia32-libs');
+	}
 
 	my @modules = (
 		'http://search.cpan.org/CPAN/authors/id/F/FT/FTASSIN/Data-HexDump-0.02.tar.gz',
