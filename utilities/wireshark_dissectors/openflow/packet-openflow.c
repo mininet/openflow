@@ -518,7 +518,6 @@ static gint ofp_switch_features_actions[NUM_ACTIONS_FLAGS];
 static gint ofp_switch_features_actions_warn = -1;
 // are these two necessary?
 static gint ofp_switch_features_ports_hdr = -1;
-static gint ofp_switch_features_ports[OFPP_MAX];
 static gint ofp_switch_features_ports_num = -1;
 static gint ofp_switch_features_ports_warn = -1;
 
@@ -560,7 +559,6 @@ static gint ofp_flow_mod_priority     = -1;
 static gint ofp_flow_mod_buffer_id    = -1;
 static gint ofp_flow_mod_out_port     = -1;
 static gint ofp_flow_mod_flags[NUM_FLOW_MOD_FLAGS];
-static gint ofp_flow_mod_actions      = -1;
 
 static gint ofp_port_mod      = -1;
 static gint ofp_port_mod_port_no = -1;
@@ -597,7 +595,6 @@ static gint ofp_flow_stats_request_out_port = -1;
 
 static gint ofp_flow_stats_reply              = -1;
 /* length won't be put in the tree */
-static gint ofp_flow_stats_reply_length       = -1;
 static gint ofp_flow_stats_reply_table_id     = -1;
 /* field: ofp_match */
 static gint ofp_flow_stats_reply_duration_sec = -1;
@@ -705,7 +702,6 @@ static gint ett_ofp = -1;
 static gint ett_ofp_header = -1;
 
 /* Common Structures */
-static gint ett_ofp_hello = -1;
 static gint ett_ofp_phy_port = -1;
 static gint ett_ofp_phy_port_config_hdr = -1;
 static gint ett_ofp_phy_port_state_hdr = -1;
@@ -1338,11 +1334,9 @@ void proto_register_openflow()
         { &ofp_switch_features_actions[10],
           { "  TCP/UDP destination", "of.sf_actions_dst_port", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_SET_TP_DST, "TCP/UDP destination port", HFILL }},
 
-        { &ofp_switch_features_actions[12],
+        { &ofp_switch_features_actions[11],
           { "  Enqueue port queue", "of.sf_actions_enqueue", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_ENQUEUE, "Enqueue to port queue", HFILL }},
 
-        { &ofp_switch_features_actions[11],
-          { "  Vendor-defined action", "of.sf_actions_vendor", FT_UINT32, BASE_DEC, VALS(names_choice), 1 << OFPAT_VENDOR, "Vendor-defined action", HFILL }},
 
         { &ofp_switch_features_ports_hdr,
           { "Port Definitions", "of.sf_ports", FT_NONE, BASE_NONE, NO_STRINGS, NO_MASK, "Port Definitions", HFILL }},
