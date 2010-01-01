@@ -1,5 +1,15 @@
-1.0.0-RC1- 19 Dec 2009
+1.0.0 - 31 Dec 2009
 -------------------
+    - Fixed Wireshark plugin warnings
+    - Clarified purpose of actions field in ofp_switch_features in spec
+
+    Known issues:
+    - isolation provided by the slicing mechanism has been
+      observed to degrade when run on systems with low performance CPUs.
+      Investigations are underway to improve isolation on such systems.
+
+1.0.0-RC1 - 19 Dec 2009
+-----------------------
     - Changed wire protocol version to 0x01
     - Added slicing support
     - Improved resolution of flow duration in stats/expiry
