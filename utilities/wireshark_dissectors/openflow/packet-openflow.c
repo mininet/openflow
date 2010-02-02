@@ -109,7 +109,7 @@ static const value_string names_ofp_action_type[] = {
     { OFPAT_VENDOR,       "Vendor-defined action"},
     { 0,                  NULL }
 };
-#define NUM_ACTIONS_FLAGS 13
+#define NUM_ACTIONS_FLAGS 12
 #define NUM_PORT_CONFIG_FLAGS 7
 #define NUM_PORT_STATE_FLAGS 1
 #define NUM_PORT_FEATURES_FLAGS 12
