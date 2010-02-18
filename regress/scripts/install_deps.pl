@@ -143,7 +143,6 @@ sub install_ubuntu_debian {
 		'libpcap0.8-dev',
 		'iproute',
 		'psmisc',
-		'libconvert-binary-c-perl',
 		'libnet-pcap-perl',
 		'libnet-rawip-perl',
 		'wget',
@@ -156,6 +155,14 @@ sub install_ubuntu_debian {
 		'http://search.cpan.org/CPAN/authors/id/F/FT/FTASSIN/Data-HexDump-0.02.tar.gz',
 		'http://www.cpan.org/authors/id/J/JV/JV/Getopt-Long-2.38.tar.gz',
 	);
+
+	if ($distro eq UBUNTU) {
+		push (@pkts, 'libconvert-binary-c-perl')
+	}
+	else {
+		push (@modules,
+			'http://search.cpan.org/CPAN/authors/id/M/MH/MHX/Convert-Binary-C-0.74.tar.gz')
+	}
 
 	# Run apt-get
 	my @flags = ('-y');
