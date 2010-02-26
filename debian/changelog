@@ -1,3 +1,9 @@
+openflow (1.0.0) unstable; urgency=low
+
+  * Development version
+
+ -- OpenFlow team <openflow-dev@lists.stanford.edu>  Thu, 31 Dec 2009 23:59:59 -0800
+
 openflow (0.9.0-rev1) unstable; urgency=low
 
   * Development version.
