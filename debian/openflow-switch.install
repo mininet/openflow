@@ -1,4 +1,4 @@
-_debian/secchan/secchan usr/sbin
+_debian/secchan/ofprotocol usr/sbin
 _debian/utilities/dpctl usr/sbin
 _debian/utilities/ofp-discover usr/sbin
 _debian/utilities/ofp-kill usr/sbin
