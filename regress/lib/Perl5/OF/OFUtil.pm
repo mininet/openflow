@@ -713,7 +713,7 @@ sub get_config {
 	my $msg_size      = length($recvd_mesg);
 	my $expected_size = $ofp->sizeof('ofp_switch_config');
 
-	compare( "msg size", length($recvd_mesg), '==', $expected_size );
+	compare( "get_config msg size", length($recvd_mesg), '==', $expected_size );
 
 	my $msg = $ofp->unpack( 'ofp_switch_config', $recvd_mesg );
 
@@ -1230,17 +1230,17 @@ sub wait_for_one_packet_in {
 	# Inspect  message
 	my $msg_size      = length($recvd_mesg);
 	my $expected_size = $pkt_in_msg_size;
-	compare( "msg size", length($recvd_mesg), '==', $expected_size );
+	compare( "ofp_packet_in msg size", length($recvd_mesg), '==', $expected_size );
 
 	my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
 
 	#	print Dumper($msg);
 
 	# Verify fields
-	compare( "header version", $$msg{'header'}{'version'}, '==', $of_ver );
-	compare( "header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_PACKET_IN'} );
-	compare( "header length",  $$msg{'header'}{'length'},  '==', $msg_size );
-	compare( "header length",  $$msg{'total_len'},         '==', $pkt_len );
+	compare( "ofp_packet_in header version", $$msg{'header'}{'version'}, '==', $of_ver );
+	compare( "ofp_packet_in header type",    $$msg{'header'}{'type'},    '==', $enums{'OFPT_PACKET_IN'} );
+	compare( "ofp_packet_in header length",  $$msg{'header'}{'length'},  '==', $msg_size );
+	compare( "ofp_packet_in header length",  $$msg{'total_len'},         '==', $pkt_len );
 
 	my $recvd_pkt_data = substr( $recvd_mesg, $ofp->offsetof( 'ofp_packet_in', 'data' ) );
 
@@ -1663,7 +1663,7 @@ sub forward_simple {
 		# Inspect  message
 		my $msg_size = length($recvd_mesg);
 		my $expected_size = $ofp->offsetof( 'ofp_packet_in', 'data' ) + length( $expect_pkt->packed );
-		compare( "msg size", $msg_size, '==', $expected_size );
+		compare( "ofp_packet_in msg size", $msg_size, '==', $expected_size );
 	
 		my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
 	
@@ -2064,7 +2064,7 @@ sub forward_simple_icmp {
                 # Inspect  message
                 my $msg_size = length($recvd_mesg);
                 my $expected_size = $ofp->offsetof( 'ofp_packet_in', 'data' ) + length( $test_pkt->packed );
-                compare( "msg size", $msg_size, '==', $expected_size );
+                compare( "ofp_packet_in icmp msg size", $msg_size, '==', $expected_size );
 
                 my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
 
@@ -2076,9 +2076,9 @@ sub forward_simple_icmp {
 
                 verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
 
-                compare( "total len", $$msg{'total_len'}, '==', length( $test_pkt->packed ) );
-                compare( "in_port",   $$msg{'in_port'},   '==', $in_port );
-                compare( "reason",    $$msg{'reason'},    '==', $enums{'OFPR_ACTION'} );
+                compare( "ofp_packet_in icmp total len", $$msg{'total_len'}, '==', length( $test_pkt->packed ) );
+                compare( "ofp_packet_in icmp in_port",   $$msg{'in_port'},   '==', $in_port );
+                compare( "ofp_packet_in icmp reason",    $$msg{'reason'},    '==', $enums{'OFPR_ACTION'} );
 
                 # verify packet was unchanged!
                 my $recvd_pkt_data = substr( $recvd_mesg, $ofp->offsetof( 'ofp_packet_in', 'data' ) );
@@ -2193,7 +2193,7 @@ sub forward_simple_arp {
                 # Inspect  message
                 my $msg_size = length($recvd_mesg);
                 my $expected_size = $ofp->offsetof( 'ofp_packet_in', 'data' ) + length( $test_pkt->packed );
-                compare( "msg size", $msg_size, '==', $expected_size );
+                compare( "ofp_packet_in arp msg size", $msg_size, '==', $expected_size );
 
                 my $msg = $ofp->unpack( 'ofp_packet_in', $recvd_mesg );
 
@@ -2205,9 +2205,9 @@ sub forward_simple_arp {
 
                 verify_header( $msg, 'OFPT_PACKET_IN', $msg_size );
 
-                compare( "total len", $$msg{'total_len'}, '==', length( $test_pkt->packed ) );
-                compare( "in_port",   $$msg{'in_port'},   '==', $in_port );
-                compare( "reason",    $$msg{'reason'},    '==', $enums{'OFPR_ACTION'} );
+                compare( "ofp_packet_in arp total len", $$msg{'total_len'}, '==', length( $test_pkt->packed ) );
+                compare( "ofp_packet_in arp in_port",   $$msg{'in_port'},   '==', $in_port );
+                compare( "ofp_packet_in arp reason",    $$msg{'reason'},    '==', $enums{'OFPR_ACTION'} );
 
                 # verify packet was unchanged!
                 my $recvd_pkt_data = substr( $recvd_mesg, $ofp->offsetof( 'ofp_packet_in', 'data' ) );
