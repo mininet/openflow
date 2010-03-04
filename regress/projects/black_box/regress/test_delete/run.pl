@@ -13,8 +13,8 @@ sub send_expect_exact_with_wildcard {
 	my $out_port2 = $out_port2_offset + $$options_ref{'port_base'};
 
 	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port ),
-		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
 		src_ip => "192.168.200." .           ( $in_port ),
 		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,
@@ -25,8 +25,8 @@ sub send_expect_exact_with_wildcard {
 	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
 
 	my $test_pkt_args2 = {
-		DA     => "00:00:00:00:00:0" . ( $out_port ),
-		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
 		src_ip => "192.168.200." .           ( $in_port ),
 		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,
@@ -85,8 +85,8 @@ sub delete_send_expect {
 
 	# in_port refers to the flow mod entry's input
 	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port ),
-		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
 		src_ip => "192.168.200." .           ( $in_port ),
 		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,
@@ -97,8 +97,8 @@ sub delete_send_expect {
 	my $test_pkt = new NF2::UDP_pkt(%$test_pkt_args);
 
 	my $test_pkt_args2 = {
-		DA     => "00:00:00:00:00:0" . ( $out_port ),
-		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
 		src_ip => "192.168.200." .           ( $in_port ),
 		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,

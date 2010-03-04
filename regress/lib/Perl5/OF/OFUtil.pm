@@ -1285,8 +1285,8 @@ sub get_default_black_box_pkt_len {
 	my ($in_port, $out_port, $len, $vlan_id) = @_;
  
 	my $pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port ),
-		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
 		VLAN_ID => $vlan_id,
 		src_ip => "192.168.200." .     ( $in_port ),
 		dst_ip => "192.168.201." .     ( $out_port ),
@@ -1714,8 +1714,8 @@ sub get_default_black_box_pkt_len_icmp {
         my ($in_port, $out_port, $len) = @_;
 
         my $pkt_args = {
-                DA     => "00:00:00:00:00:0" . ( $out_port ),
-                SA     => "00:00:00:00:00:0" . ( $in_port ),
+                DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+                SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
                 src_ip => "192.168.200." .     ( $in_port ),
                 dst_ip => "192.168.201." .     ( $out_port ),
                 ttl    => 64,
@@ -1732,10 +1732,10 @@ sub get_default_black_box_pkt_len_arp {
         my ($in_port, $out_port, $len) = @_;
 
         my $pkt_args = {
-                DA     => "00:00:00:00:00:0" . ( $out_port ),
-                SA     => "00:00:00:00:00:0" . ( $in_port ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
                 SenderIpAddr => "192.168.200." .     ( $in_port ),
-                SenderEthAddr => "00:00:00:00:01:0" . ( $in_port ),
+                SenderEthAddr => "00:00:00:00:01:" . sprintf("%02d", $in_port),
                 TargetIpAddr => "192.168.201." .     ( $out_port ),
                 TargetEthAddr => "ff:ff:ff:ff:ff:ff",
                 len    => $len,

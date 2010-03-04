@@ -13,7 +13,7 @@ sub forward_broadcast {
     my $len = $$options_ref{'pkt_len'};
     my $pkt_args = {
 	DA => "FF:FF:FF:FF:FF:FF",
-	SA => "00:00:00:00:00:0" . ($in_port),
+	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
 	src_ip => "192.168." . ($in_port) . "." . ($out_port),
 	dst_ip => "255.255.255.255",
 	ttl => 64,

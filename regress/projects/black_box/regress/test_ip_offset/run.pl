@@ -14,8 +14,8 @@ sub send_expect_exact {
 	# in_port refers to the flow mod entry's input
 
 	my $test_pkt_frag_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
-		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port + 1 ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port + 1 ),
 		src_ip => "192.168.200." .     ( $in_port + 1 ),
 		dst_ip => "192.168.201." .     ( $out_port + 1 ),
 		ttl    => 64,
@@ -27,8 +27,8 @@ sub send_expect_exact {
 	my $test_pkt_frag = new NF2::UDP_pkt(%$test_pkt_frag_args);
 
 	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port + 1 ),
-		SA     => "00:00:00:00:00:0" . ( $in_port + 1 ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port + 1 ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port + 1 ),
 		src_ip => "192.168.200." .     ( $in_port + 1 ),
 		dst_ip => "192.168.201." .     ( $out_port + 1 ),
 		ttl    => 64,

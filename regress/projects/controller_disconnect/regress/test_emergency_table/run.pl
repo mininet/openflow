@@ -13,8 +13,8 @@ sub test_emergency_cache_first {
 	my $in_port  = $i + $$options_ref{'port_base'};
 	my $out_port = $j + $$options_ref{'port_base'};
 	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:0" . ( $out_port ),
-		SA     => "00:00:00:00:00:0" . ( $in_port ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port + 1 ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port + 1 ),
 		src_ip => "192.168.200." .           ( $in_port ),
 		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,
