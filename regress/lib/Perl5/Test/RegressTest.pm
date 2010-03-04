@@ -52,6 +52,7 @@ my $svnUpdate = '';
 my $help      = '';
 my $mapFile;
 my @projects;
+my $testPath;
 my $ci             = '';
 my $citest         = '';
 my $failfast       = 0;
@@ -80,6 +81,7 @@ sub run_regress_test {
 			"help"              => \$help,
 			"map=s"             => \$mapFile,
 			"project=s"         => \@projects,
+			"testPath=s"        => \$testPath,
 			"ci=s"              => \$ci,
 			"citest=s"          => \$citest,
 			"failfast"          => \$failfast,
@@ -142,22 +144,62 @@ sub run_regress_test {
 		}
 	}
 
-	#
-	# Read in the list of projects to test
-	#
-	if ( $#projects == -1 ) {
-		readProjects();
-	}
-	verifyProjects();
-
-	#
-	# Run the regression tests on each project one-by-one
-	#
 	my %results;
 	my $pass = 1;
 	my @failures;
 
-	foreach my $project (@projects) {
+	# Check if a specific test specified on the command line - Jean II
+	if ( defined($testPath) ) {
+
+	    my $project;
+	    my $regress;
+	    my $testDir;
+	    my $testFile;
+	    my $testPathShort;
+	    my @testList;
+
+	    # Split the path into components...
+	    ($project, $regress, $testDir, $testFile) = split(/\//,$testPath);
+
+	    if((!defined($project)) || (!defined($regress)) || (!defined($testDir))) {
+		my_die("Invalid testPath $testPath");
+	    }
+
+	    # Accept shorthand
+	    if(!defined($testFile)) {
+		$testPathShort = $regress.'/'.$testDir;
+	    } else {
+		$testPathShort = $testDir.'/'.$testFile;
+	    }
+	    push @testList, $testPathShort;
+
+	    # Verify the project
+	    push @projects, $project;
+	    verifyProjects();
+
+	    # Run the test
+	    my ( $result, $tests, $results ) = runAllTests($project, @testList);
+
+	    $pass &= $result;
+
+	    push @failures, $project unless $result;
+	    $results{$project} = $results;
+
+	} else {
+
+	    #
+	    # Read in the list of projects to test
+	    #
+	    if ( $#projects == -1 ) {
+		readProjects();
+	    }
+	    verifyProjects();
+
+	    #
+	    # Run the regression tests on each project one-by-one
+	    #
+
+	    foreach my $project (@projects) {
 		my ( $result, $tests, $results ) = runRegressionSuite($project);
 
 		$pass &= $result;
@@ -166,6 +208,7 @@ sub run_regress_test {
 		$results{$project} = $results;
 
 		last if ( $failfast && !$result );
+	    }
 	}
 
 	#
@@ -290,6 +333,7 @@ HERE
 
 }
 
+# Fix color highlithing : '
 #########################################################
 sub readProjects {
 	local $_;
@@ -344,8 +388,6 @@ sub runRegressionSuite {
 
 	local $_;
 
-	my @results;
-
 	#my $msg = "Running tests on project '$project'...\n";
 	#print (("=" x length($msg)) . "\n" . $msg) unless $quiet;
 	print "Running tests on project '$project'...\n" unless $quiet;
@@ -370,6 +412,18 @@ sub runRegressionSuite {
 	}
 
 	close REGRESSFILE;
+
+	runAllTests( $project, @tests );
+}
+
+#########################################################
+# runAllTests
+#   Run all the tests of a list of tests
+sub runAllTests {
+
+	my ( $project, @tests ) = @_;
+
+	my @results;
 
 	# Run the tests one by one
 	my %testResults;
