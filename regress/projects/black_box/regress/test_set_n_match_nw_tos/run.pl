@@ -4,6 +4,9 @@
 use strict;
 use OF::Includes;
 
+# Please check the following :
+# http://en.wikipedia.org/wiki/Type_of_Service
+
 sub send_expect_exact {
     my ($ofp, $sock, $options_ref, $in_port_offset, $out_port_offset, $max_idle, $pkt_len, $vlan_id) = @_;
 
@@ -17,13 +20,14 @@ sub send_expect_exact {
     my $pkt_payload = [map {int(rand(256))} (1..($pkt_len - 8 - 4 - 16 - 14))];
 
     # This is the packet we are sending... - Jean II
-    my $test_nw_tos = 0xa9;
+    # Set an ECN bit to see if it gets clobbered
+    my $test_nw_tos = 0xA8;
     my $test_pkt_args = {
 	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
 	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
 	src_ip => "192.168.200." . ( $in_port ),
 	dst_ip => "192.168.201." . ( $out_port ),
-	tos => $test_nw_tos,
+	tos => $test_nw_tos | 0x01, # => 0xA9
 	ttl => 64,
 	len => $pkt_len,
 	src_port => 1,
@@ -34,11 +38,11 @@ sub send_expect_exact {
 
     # This is the packet we are expecting to receive - Jean II
     my $expect_pkt_args = {
-	tos => 0x55,
 	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
 	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
 	src_ip => "192.168.200." . ( $in_port ),
 	dst_ip => "192.168.201." . ( $out_port ),
+	tos => 0x54 | 0x01,	# 0x55
 	ttl => 64,
 	len => $pkt_len,
 	src_port => 1,
@@ -51,7 +55,8 @@ sub send_expect_exact {
 
     my $wildcards = 0x0;	# exact match
     my $flags = $enums{'OFPFF_SEND_FLOW_REM'}; # want flow expiry
-    my $nw_tos = 0x56;
+    # Set another ECN bit to see if it's filtered out...
+    my $nw_tos = 0x54 | 0x02;
 
     my $flow_mod_pkt = create_flow_mod_from_udp_action($ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', 'nw_tos', $nw_tos, $vlan_id, $test_nw_tos);
 
