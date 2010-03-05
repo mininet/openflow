@@ -16,6 +16,7 @@ sub verify_packet_in {
 
     my $pkt = get_default_black_box_pkt_len($in_port, $out_port, $pktsiz);
     nftest_send('eth1', $pkt->packed);
+    print "Sent test packet for len ".$miss_send_len."...\n";
 
     my $rcvd_msg;
     sysread($sock, $rcvd_msg, 1512) || die "Failed to receive message: $!";

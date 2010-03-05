@@ -13,6 +13,7 @@ sub my_test {
 
 	my $pkt = get_default_black_box_pkt( $in_port, $out_port);
 	nftest_send('eth1', $pkt->packed );
+	print "Sent test packet...\n";
 
 	my $recvd_mesg;
 	sysread( $sock, $recvd_mesg, 1512 ) || die "Failed to receive message: $!";
