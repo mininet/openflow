@@ -1,20 +1,22 @@
-Credit goes to those in the Stanford  High-Performance Networking Group who helped make this possible.
+Credit goes to those who contributed code to the regression suite. Unless
+otherwise noted, the contributors are at Stanford University.
+
 
 Test writers/editors:
-Brandon Heller
-David Erickson
-Masayoshi Kobayashi
-Yiannis Yiakoumis
-Peyman Kazemian
-Brandon Nefcy
-Clay Collier
+  Clay Collier
+  David Erickson
+  Mikio Hara (NEC)
+  Brandon Heller
+  Peyman Kazemian
+  Masayoshi Kobayashi (NEC)
+  Bob Lantz
+  Brandon Nefcy
+  Rob Sherwood (Deutsche Telekom R&D Labs)
+  Jean Tourrilhes (HP Labs)
+  Tatsuya Yabe (NEC)
+  Yiannis Yiakoumis
 
 Supporting libraries:
-Glen Gibb
-Jad Naous
-Adam Covington
-
-
-
-
-
+  Adam Covington
+  Glen Gibb
+  Jad Naous

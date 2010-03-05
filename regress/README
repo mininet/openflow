@@ -18,36 +18,55 @@ Please see INSTALL for instruction on installing and running the tests.
 
 Changelog
 ---------------
+1.0.0-r1
+  -  Added Open vSwitch scripts : kernel + user + interface maps
+  -  Added VETH scripts for Open vSwitch : kernel + user
+  -  Updated HP-ProCurve scipts : 5400/3500 and 6600
+  -  Assorted fixes to libraries :
+	accept port > 10
+	accept vlan interfaces
+	more explicit error messages 
+  -  Assorted fixes to tests :
+	test_switch_config/ -> add delay
+	test_forward_broadcast_exact_port/ -> run for allports
+	test_set_n_match_nw_tos/ -> fixup nw_tos usage
+	test_set_nw_dst/ -> cleanup
+	test_failover_startup/ -> argv parsing was broken
+  -  Add new test : test_set_dl_nw_flip -> flip dl & nw addresses
+  -  Add new command line options : no_vlan, no_slicing and no_barrier
+  -  Add ability to run a single test with --testPath
+  -  New debugging function : dpctl_show_flows
+
 1.0.0
-- all tests updated to OpenFlow wire protocol 0x01
-- added tests for new features in the OpenFlow 1.0.0 spec
+  - all tests updated to OpenFlow wire protocol 0x01
+  - added tests for new features in the OpenFlow 1.0.0 spec
 
 0.9.0
--all tests updated to OpenFlow wire protocol 0x98
+  - all tests updated to OpenFlow wire protocol 0x98
 
 v0.8.2
--Added support for the NetFPGA
--Integrated the tests into the OpenFlow directory structure
+  - Added support for the NetFPGA
+  - Integrated the tests into the OpenFlow directory structure
 
 v0.8.1-r2
--refactored code to make new test ports easier
--fixed documentation bug in test_LLC
--changed all interfaces IPs to 192.168.20X.X to not conflict with the
-  IP addrs typically assigned via DHCP by home routers
--added easy support for testing user-space switch with physical ports
--added easy support for user-space switch with virtual ports
+  - refactored code to make new test ports easier
+  - fixed documentation bug in test_LLC
+  - changed all interfaces IPs to 192.168.20X.X to not conflict with the
+    IP addrs typically assigned via DHCP by home routers
+  - added easy support for testing user-space switch with physical ports
+  - added easy support for user-space switch with virtual ports
 
 v0.8.1-r1
--added instructions for Debian install
--fixed timing bug in packet_out
+  - added instructions for Debian install
+  - fixed timing bug in packet_out
 
 v0.8.1-r0
--all tests updated to OF spec v0.8.1
--added black box test switch_config
--fixed timing dependence in learning switch tests
+  - all tests updated to OF spec v0.8.1
+  - added black box test switch_config
+  - fixed timing dependence in learning switch tests
 
 v0.2.1
--initial release for OF spec v0.5.1, code tested for ref OF code v0.2.1
+  - initial release for OF spec v0.5.1, code tested for ref OF code v0.2.1
 
 Platform support
 ----------------

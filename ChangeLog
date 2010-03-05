@@ -1,3 +1,18 @@
+1.0.0-rev1 - XX XXX 2010
+------------------------
+    - Changes to regression suite:
+        - Added testing support for Open vSwitch
+        - Updated HP-ProCurve scripts
+        - Minor fixes applied to libraries
+        - Fixes applied to the following tests:
+             test_switch_config, test_forward_broadcast_exact_port,
+	     test_set_n_match_nw_tos, test_set_nw_dst,
+	     test_failover_startup
+        - Added test to verify flipping of src/dst MAC and IP
+	- Ability to disable slicing, VLAN, and barrier in tests
+	- Can easily run a single test
+	For more information, see regress/README
+
 1.0.0 - 31 Dec 2009
 -------------------
     - Fixed Wireshark plugin warnings
