@@ -43,7 +43,7 @@ sub send_expect_exact_with_wildcard {
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards );
 
 	# 2nd flow entry -- wildcard match, $out_port2
-	my $wildcards =  $enums{'OFPFW_TP_SRC'} | $enums{'OFPFW_TP_DST'};     # wildcard match (don't care udp src/dst ports)
+	$wildcards =  $enums{'OFPFW_TP_SRC'} | $enums{'OFPFW_TP_DST'};     # wildcard match (don't care udp src/dst ports)
 	my $flow_mod_wildcard_pkt =
 	  create_flow_mod_from_udp( $ofp, $test_pkt, $in_port, $out_port2, $max_idle, $flags, $wildcards );
 

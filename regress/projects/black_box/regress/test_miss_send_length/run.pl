@@ -56,19 +56,19 @@ sub my_test {
 
     $miss_send_len = 0;
     $pktsiz = 67;
-    my $expected_pktsiz = 8 + 10;
+    $expected_pktsiz = 8 + 10;
     set_config($ofp, $sock, $options_ref, 1, $miss_send_len);
     verify_packet_in($sock, $options_ref, $miss_send_len, $pktsiz, $expected_pktsiz);
 
     $miss_send_len = 127;
     $pktsiz = 259;
-    my $expected_pktsiz = 8 + 10 + $miss_send_len;
+    $expected_pktsiz = 8 + 10 + $miss_send_len;
     set_config($ofp, $sock, $options_ref, 1, $miss_send_len);
     verify_packet_in($sock, $options_ref, $miss_send_len, $pktsiz, $expected_pktsiz);
 
     $miss_send_len = 65535;
     $pktsiz = 1500 - 8 - 10;
-    my $expected_pktsiz = 1500;
+    $expected_pktsiz = 1500;
     set_config($ofp, $sock, $options_ref, 1, $miss_send_len);
     verify_packet_in($sock, $options_ref, $miss_send_len, $pktsiz, $expected_pktsiz);
 
