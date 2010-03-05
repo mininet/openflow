@@ -49,6 +49,7 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &set_config
   &run_black_box_test
   &create_flow_mod_from_udp
+  &create_flow_mod_from_udp_actionbytes
   &create_flow_mod_from_udp_action
   &wait_for_flow_expired
   &wait_for_flow_expired_all
@@ -869,7 +870,7 @@ sub flow_mod_length {
 }
 
 sub combine_args {
-    my ($flow_mod, $mod_type, $out_port, $chg_field, $chg_val, $queue_id) = @_;
+    my ($mod_type, $out_port, $chg_field, $chg_val, $queue_id) = @_;
 
     my @pad_6 = (0,0,0,0,0,0);
     my @pad_4 = (0,0,0,0);
@@ -1009,33 +1010,24 @@ sub combine_args {
     }
 
     if (defined $action_mod) {
-        $flow_mod_pkt = $flow_mod . $action_mod . $action_output;
+        $flow_mod_actions = $action_mod . $action_output;
     } elsif (defined $action_enqueue) {
-        $flow_mod_pkt = $flow_mod . $action_enqueue;
+        $flow_mod_actions = $action_enqueue;
     } else {
-        $flow_mod_pkt = $flow_mod . $action_output;
+        $flow_mod_actions = $action_output;
     }
 
-    return $flow_mod_pkt;
+    return $flow_mod_actions;
 }
 
-sub create_flow_mod_from_udp_action {
-        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags,
-		$wildcards, $mod_type, $chg_field, $chg_val, $vlan_id,
-		$nw_tos, $cookie, $queue_id) = @_;
+sub create_flow_mod_from_udp_actionbytes {
+        my ( $ofp, $udp_pkt, $in_port, $max_idle, $flags,
+		$wildcards, $mod_type, $action_bytes, $vlan_id,
+		$nw_tos, $cookie) = @_;
 
 	$cookie = 0 if !defined($cookie);
 
-        if (   $mod_type ne 'drop'
-               && $mod_type ne 'enqueue'
-               && $mod_type ne 'OFPFC_ADD'
-               && $mod_type ne 'OFPFC_DELETE'
-               && $mod_type ne 'OFPFC_DELETE_STRICT')
-        {
-                die "Undefined flow mod type: $mod_type\n";
-        }
-
-        my $length = flow_mod_length($mod_type, $chg_field);
+        my $length = $ofp->sizeof('ofp_flow_mod') + length $action_bytes;
 
         my $hdr_args = {
                 version => $of_ver,
@@ -1118,9 +1110,37 @@ sub create_flow_mod_from_udp_action {
                 cookie => $cookie,
         };
         my $flow_mod = $ofp->pack( 'ofp_flow_mod', $flow_mod_args );
-        my $flow_mod_pkt = combine_args($flow_mod, $mod_type, $out_port, $chg_field, $chg_val, $queue_id);
+        my $flow_mod_pkt = $flow_mod . $action_bytes;
         return $flow_mod_pkt;
 }
+
+sub create_flow_mod_from_udp_action {
+        my ( $ofp, $udp_pkt, $in_port, $out_port, $max_idle, $flags,
+		$wildcards, $mod_type, $chg_field, $chg_val, $vlan_id,
+		$nw_tos, $cookie, $queue_id) = @_;
+
+        if (   $mod_type ne 'drop'
+               && $mod_type ne 'enqueue'
+               && $mod_type ne 'OFPFC_ADD'
+               && $mod_type ne 'OFPFC_DELETE'
+               && $mod_type ne 'OFPFC_DELETE_STRICT')
+        {
+                die "Undefined flow mod type: $mod_type\n";
+        }
+
+        my $length_expect = flow_mod_length($mod_type, $chg_field);
+        my $flow_mod_actions = combine_args($mod_type, $out_port, $chg_field, $chg_val, $queue_id);
+        my $length = $ofp->sizeof('ofp_flow_mod') + length $flow_mod_actions;
+        if( $length != $length_expect) {
+                die "Mismatching length for $mod_type, $length != $length_expect\n";
+        }
+
+        $flow_mod_pkt =
+          create_flow_mod_from_udp_actionbytes( $ofp, $udp_pkt, $in_port, $max_idle, $flags, $wildcards, $mod_type, $flow_mod_actions, $vlan_id, $nw_tos, $cookie);
+
+        return $flow_mod_pkt;
+}
+
 
 sub wait_for_flow_expired {
 
