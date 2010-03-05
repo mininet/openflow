@@ -8,3 +8,5 @@ export OFT_HP_SWITCH_IP=10.10.10.2
 export OFT_HP_VLAN=10
 export OFT_HP_CONTROLLER="tcp:10.10.10.3:6633"
 export OFT_HP_LISTENER="tcp:10.10.10.2:6633"
+export OFT_OVS_ROOT=/home/yourname/openvswitch
+export OFT_OVS_MAP_ETH=${OFT_ROOT}/bin/of_ovs_eth.map
