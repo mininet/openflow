@@ -66,6 +66,7 @@ my $portBase = 0;
 my $sendDelay;
 my $baseIdle;
 my $ignoreByteCount;
+my $noSlicing;
 my $lessPorts;
 
 sub run_regress_test {
@@ -96,6 +97,7 @@ sub run_regress_test {
 			"send_delay=s"		=> \$sendDelay,
 			"base_idle=s"		=> \$baseIdle,
 			"ignore_byte_count"	=> \$ignoreByteCount,
+			"no_slicing"		=> \$noSlicing,
 			"less_ports"            => \$lessPorts
 		)
 		and ( $help eq '' )
@@ -580,6 +582,10 @@ sub runTest {
 	# Some platforms can't do byte counts - Jean II
 	if ( defined($ignoreByteCount) ) {
 		$args .= " --ignore_byte_count";
+	}
+	# Some platforms can not do Slicing - Jean II
+	if ( defined($noSlicing) ) {
+		$args .= " --no_slicing";
 	}
 
 	# Don't do all ports on some platforms, it's slow and useless...
