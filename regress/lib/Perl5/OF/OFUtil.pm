@@ -2331,11 +2331,20 @@ sub get_dpinst {
         my $user_dpinst = "unix:/var/run/test";
         my $dpinst;
 
-        if (($platform eq 'user') or ($platform eq 'user_veth')) {
-                $dpinst = $user_dpinst;
-        } else {
-                $dpinst = $kmod_dpinst;
-        }
+	if ( not defined( $$options_ref{'listener'} ) ) {
+	        if (($platform eq 'user') or ($platform eq 'user_veth')) {
+	                $dpinst = $user_dpinst;
+	        } else {
+	                $dpinst = $kmod_dpinst;
+	        }
+	} else {
+		# For some platform, we have absolutely no way to guess
+		# the proper argument to dpctl.
+		# For example, on the HP test, it means guessing the IP
+		# address and the port. So, we need a bit of help...
+		# Jean II
+		$dpinst = $$options_ref{'listener'};
+	}
 
         return $dpinst;
 }

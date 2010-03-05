@@ -224,6 +224,7 @@ sub nftest_init {
  			\%options,
 			"map=s",
 			"controller=s",
+			"listener=s",
 			"port_base=i",
 			"send_delay=i",
 			"base_idle=i",

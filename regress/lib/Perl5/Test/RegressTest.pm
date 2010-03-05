@@ -61,6 +61,7 @@ my $commonSetup    = $setup;
 my $commonTeardown = $teardown;
 my $commonSTArgs   = '';  
 my $controller;
+my $listener;
 my $portBase = 0;
 my $sendDelay;
 my $baseIdle;
@@ -90,6 +91,7 @@ sub run_regress_test {
 			"common-st-args=s"  => \$commonSTArgs,
 			"root=s"            => \$rootOverride,
 			"controller=s"		=> \$controller,
+			"listener=s"		=> \$listener,
 			"port_base=s"		=> \$portBase,
 			"send_delay=s"		=> \$sendDelay,
 			"base_idle=s"		=> \$baseIdle,
@@ -558,6 +560,10 @@ sub runTest {
     
 	if ( defined($controller) ) {
 		$args .= " --controller=$controller";
+	}
+
+	if ( defined($listener) ) {
+		$args .= " --listener=$listener";
 	}
 
 	if ( defined($portBase) ) {
