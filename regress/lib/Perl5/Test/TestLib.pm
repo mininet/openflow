@@ -231,6 +231,7 @@ sub nftest_init {
 			"ignore_byte_count",
 			"num_ports=i",
 			"common-st-args=s",
+			"no_vlan",
 			"no_slicing",
 			"no_barrier",
 			"less_ports"

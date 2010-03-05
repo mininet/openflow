@@ -21,7 +21,9 @@ sub my_test {
 	my ( $sock, $options_ref ) = @_;
 
 	for_all_wildcards( $ofp, $sock, $options_ref, \&forward_wc_controller);
-	for_all_wildcards( $ofp, $sock, $options_ref, \&forward_wc_controller_vlan);
+	if ( not defined( $$options_ref{'no_vlan'} ) ) {
+	    for_all_wildcards( $ofp, $sock, $options_ref, \&forward_wc_controller_vlan);
+	}
 }
 
 run_black_box_test( \&my_test, \@ARGV );

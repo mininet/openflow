@@ -66,6 +66,7 @@ my $portBase = 0;
 my $sendDelay;
 my $baseIdle;
 my $ignoreByteCount;
+my $noVlan;
 my $noSlicing;
 my $noBarrier;
 my $lessPorts;
@@ -98,6 +99,7 @@ sub run_regress_test {
 			"send_delay=s"		=> \$sendDelay,
 			"base_idle=s"		=> \$baseIdle,
 			"ignore_byte_count"	=> \$ignoreByteCount,
+			"no_vlan"		=> \$noVlan,
 			"no_slicing"		=> \$noSlicing,
 			"no_barrier"		=> \$noBarrier,
 			"less_ports"            => \$lessPorts
@@ -584,6 +586,10 @@ sub runTest {
 	# Some platforms can't do byte counts - Jean II
 	if ( defined($ignoreByteCount) ) {
 		$args .= " --ignore_byte_count";
+	}
+	# Some setup can not do VLANs - Jean II
+	if ( defined($noVlan) ) {
+		$args .= " --no_vlan";
 	}
 	# Some platforms can not do Slicing - Jean II
 	if ( defined($noSlicing) ) {
