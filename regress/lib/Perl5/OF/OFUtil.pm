@@ -84,7 +84,8 @@ use Time::HiRes qw(sleep gettimeofday tv_interval usleep);
   &wait_for_two_flow_expired
   &get_dpinst
   &wait_for_echo_request
-  &del_flows
+  &dpctl_del_flows
+  &dpctl_show_flows
 );
 
 my $nf2_kernel_module_path        = 'datapath/linux-2.6';
@@ -2319,11 +2320,18 @@ sub get_dpinst {
         return $dpinst;
 }
 
-sub del_flows {
+sub dpctl_del_flows {
         my ($options_ref) = @_;
 
         my $dpinst = get_dpinst($options_ref);
-        `dpctl del-flows $dpinst`;
+        `$ENV{'OF_ROOT'}/utilities/dpctl del-flows $dpinst`;
+}
+
+sub dpctl_show_flows {
+        my ($options_ref) = @_;
+
+        my $dpinst = get_dpinst($options_ref);
+        system("$ENV{'OF_ROOT'}/utilities/dpctl dump-flows $dpinst");
 }
 
 # Always end library in 1

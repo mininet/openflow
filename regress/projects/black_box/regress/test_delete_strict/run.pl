@@ -63,6 +63,9 @@ sub send_expect_exact_with_wildcard {
 	# Give OF switch time to process the flow mod
 	usleep($$options_ref{'send_delay'});
 
+	# Check what's on the switch
+	#dpctl_show_flows($options_ref);
+
 	# Send a packet - ensure packet comes out desired port
 	print "Verify packets are forwarded correctly\n";
 	nftest_send( "eth" . ( $in_port_offset + 1 ), $test_pkt->packed );
@@ -127,6 +130,9 @@ sub delete_strict_send_expect {
 	usleep($$options_ref{'send_delay'});
 	# Give extra time, delete takes more time - Jean II
 	usleep($$options_ref{'send_delay'});
+
+	# Check what's on the switch
+	#dpctl_show_flows($options_ref);
 
 	# Send a packet
 	print
