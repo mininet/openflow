@@ -40,6 +40,7 @@ test_forward_wildcard_modify_action/run.pl
 test_flow_mod_check/run.pl
 test_set_nw_dst/run.pl
 test_set_n_match_nw_tos/run.pl
+test_set_dl_nw_flip/run.pl
 
 ## ICMP handling Tests
 test_forward_exact_icmp_port/run.pl
