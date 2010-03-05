@@ -18,22 +18,30 @@
 
 use strict;
 use OF::Includes;
+use Getopt::Long;
 
 my $test="Failover test 1 (startup failover)";
 
-# If no controllers specified, use default
-if  (not @ARGV =~ "--controller") {
-   push( @ARGV, "--controller=" . nftest_default_controllers() );
-}
+my $controllers;
 
-# Replace --controller=foo,bar with --controller=bar so that
-# run_black_box_test() will use bar's port rather than foo's
-for (my $i = 0; $i < @ARGV; $i++) {
-   if ($ARGV[$i] =~ /controller=[^,]*,([^\s]+)/ ) {
-      print "failover_startup: got controller $1\n";
-      $ARGV[$i] = "--controller=$1";
-   }
+# Remove '--controller' from the option list... - Jean II
+Getopt::Long::Configure( 'pass_through' );
+unless (
+    GetOptions(
+			"controller=s"		=> \$controllers
+    ) )
+{
+    # If no controllers specified, use default
+    $controllers = nftest_default_controllers();
 }
+Getopt::Long::Configure( 'default' );
+
+# Get controller
+my @controller_array = split(/,/, $controllers);
+my $failover_controller = @controller_array[1];
+
+# Push back a controller string
+push( @ARGV, "--controller=$failover_controller" );
 
 print "$test: Calling run_black_box_test with @ARGV\n";
 

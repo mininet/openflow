@@ -454,7 +454,8 @@ sub run_learning_switch_test {
 		# Assume fully qualified string :
 		# tcp:<controller>:<port>
 		# Jean II
-		($proto, $host, $port) = split(/:/,$options{'controller'});
+	        ($controller, $failover) = split(/,/,$options{'controller'});
+		($proto, $host, $port) = split(/:/,$controller);
 		# Check for string missing the protocol - Jean II
 		if ( ! defined ($port) ) {
 		die "Invalid controller string $options{'controller'}"
