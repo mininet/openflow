@@ -15,7 +15,11 @@ unless ( GetOptions( "map=s" => \$mapFile, ) ) {
 	exit 1;
 }
 
-# If not specified on command line, use enviroment variable - Jean II
+# If not specified on command line, use environment variable.
+# Try specific first, then try generic - Jean II
+if ( (! defined($mapFile) ) && (defined($ENV{'OFT_HP_MAP_ETH'})) ) {
+    $mapFile = "$ENV{OFT_HP_MAP_ETH}";
+}
 if ( (! defined($mapFile) ) && (defined($ENV{'OFT_MAP_ETH'})) ) {
     $mapFile = "$ENV{OFT_MAP_ETH}";
 }

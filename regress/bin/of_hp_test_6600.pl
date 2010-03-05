@@ -2,15 +2,15 @@
 
 ##############################################################################
 #
-# Wrapper for running OpenFlow regression tests against ProCurve 3500/5400
+# Wrapper for running OpenFlow regression tests against ProCurve 6600
 # Jean Tourrilhes - HP-Labs - copyright 2009-2010
 # $Id: of_regress_test.pl 105 2008-06-06 04:07:05Z brandonh $
 #
 ##############################################################################
 
 use OF::Base;
-use Test::RegressTest; 
-use strict; 
+use Test::RegressTest;
+use strict;
 use OF::OFUtil;
 
 # check vars are set.
@@ -23,13 +23,13 @@ sub INT_Handler {
 	exit(1);
 }
 
-# For the 5406zl and 3500yl...
+# For the 6600...
 
-# HP switch starts at port 1 == 'A1' or 1 == '1'
+# HP switch starts at port 25 == '1'
 # Test need extra delay due to slow controller socket
 # Add more idle time due to stat resolution
 # byte count is not available - Jean II
-push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=hp", "--controller=".$ENV{'OFT_HP_CONTROLLER'}, "--port_base=1", "--send_delay=500000", "--base_idle=3", "--ignore_byte_count";
+push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=hp", "--controller=".$ENV{'OFT_HP_CONTROLLER'}, "--port_base=25", "--send_delay=650000", "--base_idle=3", "--ignore_byte_count";
 
 # Use a single random port instead of all four
 push @ARGV, "--less_ports";
