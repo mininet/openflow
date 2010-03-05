@@ -1733,8 +1733,8 @@ sub get_default_black_box_pkt_len_arp {
         my ($in_port, $out_port, $len) = @_;
 
         my $pkt_args = {
-		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
-		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
+                DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+                SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
                 SenderIpAddr => "192.168.200." .     ( $in_port ),
                 SenderEthAddr => "00:00:00:00:01:" . sprintf("%02d", $in_port),
                 TargetIpAddr => "192.168.201." .     ( $out_port ),
