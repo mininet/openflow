@@ -993,7 +993,8 @@ sub nftest_process_iface_map {
 		next if /^$/;
 
 		# Work out if we've got something that looks like a mapping
-		if (/^(\w+):\s*(\w+)$/) {
+		# Note : '.' is used in vlan interfaces
+		if (/^(\w+):\s*([\w\.]+)$/) {
 			$ifaceNameMap{$1} = $2; 
 		}
 	}
