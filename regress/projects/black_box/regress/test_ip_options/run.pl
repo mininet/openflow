@@ -16,10 +16,10 @@ sub send_expect_exact {
 	my $num_ipopt = @ipopt;
 
 	my $test_pkt_args = {
-		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port + 1 ),
-		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port + 1 ),
-		src_ip => "192.168.200." .           ( $in_port + 1 ),
-		dst_ip => "192.168.201." .           ( $out_port + 1 ),
+		DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+		SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
+		src_ip => "192.168.200." .           ( $in_port ),
+		dst_ip => "192.168.201." .           ( $out_port ),
 		ttl    => 64,
 		len => $pkt_len,
 		ip_hdr_len =>  5 + ( $#ipopt + 1 ) / 4,

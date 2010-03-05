@@ -19,10 +19,10 @@ sub send_expect_exact {
     # This is the packet we are sending... - Jean II
     my $test_nw_tos = 0xa9;
     my $test_pkt_args = {
-	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port + 1 ),
-	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port + 1 ),
-	src_ip => "192.168.200." . ($in_port + 1),
-	dst_ip => "192.168.201." . ($out_port + 1),
+	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
+	src_ip => "192.168.200." . ( $in_port ),
+	dst_ip => "192.168.201." . ( $out_port ),
 	tos => $test_nw_tos,
 	ttl => 64,
 	len => $pkt_len,
@@ -34,11 +34,11 @@ sub send_expect_exact {
 
     # This is the packet we are expecting to receive - Jean II
     my $expect_pkt_args = {
-	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port + 1 ),
-	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port + 1 ),
-	src_ip => "192.168.200." . ($in_port + 1),
-	dst_ip => "192.168.201." . ($out_port + 1),
 	tos => 0x55,
+	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
+	src_ip => "192.168.200." . ( $in_port ),
+	dst_ip => "192.168.201." . ( $out_port ),
 	ttl => 64,
 	len => $pkt_len,
 	src_port => 1,

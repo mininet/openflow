@@ -18,10 +18,11 @@ sub send_expect_exact {
 
     # This is the packet we are sending... - Jean II
     my $test_pkt_args = {
-	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port + 1 ),
-	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port + 1 ),
-	src_ip => "192.168.200." . ($in_port + 1),
-	dst_ip => "192.168.201." . ($out_port + 1),
+	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
+	src_ip => "192.168.200." .     ( $in_port ),
+	dst_ip => "192.168.201." .     ( $out_port ),
+	tos => 0x0,
 	ttl => 64,
 	len => $pkt_len,
 	src_port => 1,
@@ -32,10 +33,12 @@ sub send_expect_exact {
 
     # This is the packet we are expecting to receive - Jean II
     my $expect_pkt_args = {
-	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port + 1 ),
-	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port + 1 ),
-	src_ip => "192.168.200." . ($in_port + 1),
-	dst_ip => ($out_port + 1) . ".201.168.192",
+	DA     => "00:00:00:00:00:" . sprintf( "%02d", $out_port ),
+	SA     => "00:00:00:00:00:" . sprintf( "%02d", $in_port ),
+	src_ip => "192.168.200." .     ( $in_port ),
+	#dst_ip => "192.168.201." .     ( $out_port + 1),
+	dst_ip => ( $out_port ) . ".201.168.192"   ,
+	tos => 0x0,
 	ttl => 64,
 	len => $pkt_len,
 	src_port => 1,
@@ -49,16 +52,13 @@ sub send_expect_exact {
     my $wildcards = 0x0;		       # exact match
     my $flags = $enums{'OFPFF_SEND_FLOW_REM'}; # want flow expiry
 
-    # Get to the IP address in the expected packet - Jean II
-    my $ref_to_ip_hdr = ( $expect_pkt->{'IP_hdr'} );
-    my $ip_hdr_bytes = $$ref_to_ip_hdr->{'bytes'};
-    my @dst_ip_subarray = @{$ip_hdr_bytes}[ 16 .. 19 ];
-    my $dst_ip_inverted = ((2**24) * $dst_ip_subarray[0]
-			   + (2**16) * $dst_ip_subarray[1]
-			   + (2**8) * $dst_ip_subarray[2]
-			   + $dst_ip_subarray[3]);
+    # Get the IP address in the expected packet in binary form - Jean II
+    my $chg_val_nw_dst = ${$expect_pkt->{IP_hdr}}->dst_ip;
+    my $nw_dst_addr_chg;
+    my $ok_org;
+    ($nw_dst_addr_chg, $ok_org) = NF2::IP_hdr::getIP($chg_val_nw_dst);
 
-    my $flow_mod_pkt = create_flow_mod_from_udp_action($ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', 'nw_dst', $dst_ip_inverted);
+    my $flow_mod_pkt = create_flow_mod_from_udp_action($ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', 'nw_dst', $nw_dst_addr_chg);
 
     #print HexDump($flow_mod_pkt);
 
