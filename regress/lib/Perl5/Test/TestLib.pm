@@ -232,6 +232,7 @@ sub nftest_init {
 			"num_ports=i",
 			"common-st-args=s",
 			"no_slicing",
+			"no_barrier",
 			"less_ports"
 			)
 		) 

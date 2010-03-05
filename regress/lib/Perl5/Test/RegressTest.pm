@@ -67,6 +67,7 @@ my $sendDelay;
 my $baseIdle;
 my $ignoreByteCount;
 my $noSlicing;
+my $noBarrier;
 my $lessPorts;
 
 sub run_regress_test {
@@ -98,6 +99,7 @@ sub run_regress_test {
 			"base_idle=s"		=> \$baseIdle,
 			"ignore_byte_count"	=> \$ignoreByteCount,
 			"no_slicing"		=> \$noSlicing,
+			"no_barrier"		=> \$noBarrier,
 			"less_ports"            => \$lessPorts
 		)
 		and ( $help eq '' )
@@ -586,6 +588,10 @@ sub runTest {
 	# Some platforms can not do Slicing - Jean II
 	if ( defined($noSlicing) ) {
 		$args .= " --no_slicing";
+	}
+	# Some platforms can not do barrier - Jean II
+	if ( defined($noBarrier) ) {
+		$args .= " --no_barrier";
 	}
 
 	# Don't do all ports on some platforms, it's slow and useless...

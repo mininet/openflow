@@ -70,7 +70,7 @@ test_queue_config/run.pl
 ## These assume that there is a queue with queue_id=1 at port 1.
 ## Uncomment if your setup supports this.
 ## Should work OK with the reference implementation
-test_queue_stats/run.pl
+#test_queue_stats/run.pl
 test_queue_forward/run.pl
 
 ## Unusual Data
