@@ -988,7 +988,7 @@ sub combine_args {
 	    $action_mod_args = {
 		type => $enums{'OFPAT_SET_VLAN_VID'},
 		len => $ofp->sizeof('ofp_action_vlan_vid'),
-		vlan_vid => $chg_val,
+		vlan_vid => $chg_val & 0x0fff,
 		pad => \@pad_2,
 	    };
 	    $action_mod = $ofp->pack('ofp_action_vlan_vid', $action_mod_args);
