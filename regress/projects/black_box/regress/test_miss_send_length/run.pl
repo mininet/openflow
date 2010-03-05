@@ -11,6 +11,9 @@ sub verify_packet_in {
     my $in_port = $$options_ref{'port_base'};
     my $out_port = $in_port + 1;
 
+    # Give OF switch time to process the set_config
+    usleep($$options_ref{'send_delay'});
+
     my $pkt = get_default_black_box_pkt_len($in_port, $out_port, $pktsiz);
     nftest_send('eth1', $pkt->packed);
 

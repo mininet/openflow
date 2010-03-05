@@ -27,6 +27,9 @@ sub my_test {
 	
 	set_config($ofp, $sock, $options_ref, $flags, $miss_send_len);
 	
+	# Give OF switch time to process the set_config
+	usleep($$options_ref{'send_delay'});
+
 	$msg = get_config( $ofp, $sock );
 	
 	compare( "miss send len", $$msg{'miss_send_len'}, '==', $miss_send_len );
