@@ -109,6 +109,13 @@ distribution in the ordinary way using "configure" and "make".
 
       % ./configure CC=gcc-4.2
 
+   If you have hardware that supports accelerated OpenFlow switching
+   and you have obtained a hardware table library for your hardware
+   and extracted it into the OpenFlow reference distribution source
+   tree, then you may also enable building support for the hardware
+   switch table with --enable-hw-lib. For more information, read
+   README.hwtables at the root of the OpenFlow distribution tree.
+
    The configure script accepts a number of other options and honors
    additional environment variables.  For a full list, invoke
    configure with the --help option.
