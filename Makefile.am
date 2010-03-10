@@ -13,7 +13,7 @@ else
 distcheck-hook:
 endif
 
-AM_CPPFLAGS = $(SSL_CFLAGS)
+AM_CPPFLAGS = $(SSL_CFLAGS) -g
 AM_CPPFLAGS += -I $(top_srcdir)/include
 AM_CPPFLAGS += -I $(top_srcdir)/lib
 
@@ -65,3 +65,4 @@ include tests/automake.mk
 include include/automake.mk
 include third-party/automake.mk
 include debian/automake.mk
+include hw-lib/automake.mk

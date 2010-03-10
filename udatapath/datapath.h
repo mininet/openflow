@@ -44,6 +44,11 @@
 #include "list.h"
 #include "netdev.h"
 
+/* FIXME:  Can declare struct of_hw_driver instead */
+#if defined(OF_HW_PLAT)
+#include <openflow/of_hw_api.h>
+#endif
+
 struct rconn;
 struct pvconn;
 struct sw_flow;
@@ -62,11 +67,26 @@ struct sw_queue {
     uint16_t min_rate;
 };
 
+#define MAX_HW_NAME_LEN 32
+enum sw_port_flags {
+    SWP_USED             = 1 << 0,    /* Is port being used */
+    SWP_HW_DRV_PORT      = 1 << 1,    /* Port controlled by HW driver */
+};
+#if defined(OF_HW_PLAT) && !defined(USE_NETDEV)
+#define IS_HW_PORT(p) ((p)->flags & SWP_HW_DRV_PORT)
+#else
+#define IS_HW_PORT(p) 0
+#endif
+
+#define PORT_IN_USE(p) (((p) != NULL) && (p)->flags & SWP_USED)
+
 struct sw_port {
     uint32_t config;            /* Some subset of OFPPC_* flags. */
     uint32_t state;             /* Some subset of OFPPS_* flags. */
+    uint32_t flags;             /* SWP_* flags above */
     struct datapath *dp;
     struct netdev *netdev;
+    char hw_name[OFP_MAX_PORT_NAME_LEN];
     struct list node; /* Element in datapath.ports. */
     unsigned long long int rx_packets, tx_packets;
     unsigned long long int rx_bytes, tx_bytes;
@@ -77,6 +97,15 @@ struct sw_port {
     struct sw_queue queues[NETDEV_MAX_QUEUES];
     struct list queue_list; /* list of all queues for this port */
 };
+
+#if defined(OF_HW_PLAT)
+struct hw_pkt_q_entry {
+    struct ofpbuf *buffer;
+    struct hw_pkt_q_entry *next;
+    of_port_t port_no;
+    int reason;
+};
+#endif
 
 #define DP_MAX_PORTS 255
 BUILD_ASSERT_DECL(DP_MAX_PORTS <= OFPP_MAX);
@@ -105,6 +134,15 @@ struct datapath {
     struct sw_port ports[DP_MAX_PORTS];
     struct sw_port *local_port;  /* OFPP_LOCAL port, if any. */
     struct list port_list; /* All ports, including local_port. */
+
+#if defined(OF_HW_PLAT)
+    /* Although the chain maintains the pointer to the HW driver
+     * for flow operations, the datapath needs the port functions
+     * in the driver structure
+     */
+    of_hw_driver_t *hw_drv;
+    struct hw_pkt_q_entry *hw_pkt_list_head, *hw_pkt_list_tail;
+#endif
 };
 
 int dp_new(struct datapath **, uint64_t dpid);
@@ -123,5 +161,7 @@ void dp_output_control(struct datapath *, struct ofpbuf *, int in_port,
         size_t max_len, int reason);
 struct sw_port * dp_lookup_port(struct datapath *, uint16_t);
 struct sw_queue * dp_lookup_queue(struct sw_port *, uint32_t);
+
+int udatapath_cmd(int argc, char *argv[]);
 
 #endif /* datapath.h */

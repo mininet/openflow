@@ -142,7 +142,7 @@ recv_of_exp_queue_modify(struct datapath *dp,
     struct ofp_packet_queue *opq;
     struct ofp_queue_prop_min_rate *mr;
 
-    int error;
+    int error = 0;
     uint16_t port_no;
     uint32_t queue_id;
 
@@ -167,7 +167,7 @@ recv_of_exp_queue_modify(struct datapath *dp,
     queue_id = ntohl(opq->queue_id);
 
     p = dp_lookup_port(dp, port_no);
-    if (p->netdev){
+    if (PORT_IN_USE(p)) {
         q = dp_lookup_queue(p, queue_id);
         if (q) {
             /* queue exists - modify it */
@@ -207,6 +207,18 @@ recv_of_exp_queue_modify(struct datapath *dp,
                           oh, ntohs(ofq_modify->header.header.length));
         VLOG_ERR("Failed to create/modify queue - port %d doesn't exist",
                  port_no);
+    }
+    if (!error) {
+        if (IS_HW_PORT(p)) {
+#if defined(OF_HW_PLAT) && !defined(USE_NETDEV)
+            error = dp->hw_drv->port_queue_config(dp->hw_drv, port_no,
+                                                  queue_id, ntohs(mr->rate));
+            if (error < 0) {
+                VLOG_ERR("Failed to update HW port %d queue %d",
+                         port_no, queue_id);
+            }
+#endif
+        }
     }
 }
 /**

@@ -38,6 +38,11 @@
 #include <stdlib.h>
 #include "switch-flow.h"
 #include "table.h"
+#include "datapath.h"
+
+#if defined(OF_HW_PLAT)
+#include <openflow/of_hw_api.h>
+#endif
 
 #define THIS_MODULE VLM_chain
 #include "vlog.h"
@@ -70,6 +75,13 @@ struct sw_chain *chain_create(struct datapath *dp)
         return NULL;
 
     chain->dp = dp;
+#if defined(OF_HW_PLAT)
+    if (dp && dp->hw_drv) {
+        if (add_table(chain, (struct sw_table *)dp->hw_drv, 0) != 0) {
+            VLOG_ERR("Could not attach HW table to chain\n");
+        }
+    }
+#endif
     if (add_table(chain, table_hash2_create(0x1EDC6F41, TABLE_HASH_MAX_FLOWS,
                                             0x741B8CD7, TABLE_HASH_MAX_FLOWS),
                                             0)

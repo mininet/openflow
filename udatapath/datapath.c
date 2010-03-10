@@ -62,6 +62,73 @@
 #define THIS_MODULE VLM_datapath
 #include "vlog.h"
 
+#if defined(OF_HW_PLAT)
+#include <openflow/of_hw_api.h>
+#include <pthread.h>
+#endif
+
+#if defined(OF_HW_PLAT) && !defined(USE_NETDEV)
+/* Queue to decouple receive packet thread from rconn control thread */
+/* Could make mutex per-DP */
+static pthread_mutex_t pkt_q_mutex = PTHREAD_MUTEX_INITIALIZER;
+#define PKT_Q_LOCK pthread_mutex_lock(&pkt_q_mutex)
+#define PKT_Q_UNLOCK pthread_mutex_unlock(&pkt_q_mutex)
+
+static void
+enqueue_pkt(struct datapath *dp, struct ofpbuf *buffer, of_port_t port_no,
+            int reason)
+{
+    struct hw_pkt_q_entry *q_entry;
+
+    if ((q_entry = xmalloc(sizeof(*q_entry))) == NULL) {
+        VLOG_WARN("Could not alloc q entry\n");
+        /* FIXME: Dealloc buffer */
+        return;
+    }
+    q_entry->buffer = buffer;
+    q_entry->next = NULL;
+    q_entry->port_no = port_no;
+    q_entry->reason = reason;
+    pthread_mutex_lock(&pkt_q_mutex);
+    if (dp->hw_pkt_list_head == NULL) {
+        dp->hw_pkt_list_head = q_entry;
+    } else {
+        dp->hw_pkt_list_tail->next = q_entry;
+    }
+    dp->hw_pkt_list_tail = q_entry;
+    pthread_mutex_unlock(&pkt_q_mutex);
+}
+
+/* If queue non-empty, fill out params and return 1; else return 0 */
+static int
+dequeue_pkt(struct datapath *dp, struct ofpbuf **buffer, of_port_t *port_no,
+            int *reason)
+{
+    struct hw_pkt_q_entry *q_entry;
+    int rv = 0;
+
+    pthread_mutex_lock(&pkt_q_mutex);
+    q_entry = dp->hw_pkt_list_head;
+    if (dp->hw_pkt_list_head != NULL) {
+        dp->hw_pkt_list_head = dp->hw_pkt_list_head->next;
+        if (dp->hw_pkt_list_head == NULL) {
+            dp->hw_pkt_list_tail = NULL;
+        }
+    }
+    pthread_mutex_unlock(&pkt_q_mutex);
+
+    if (q_entry != NULL) {
+        rv = 1;
+        *buffer = q_entry->buffer;
+        *port_no = q_entry->port_no;
+        *reason = q_entry->reason;
+        free(q_entry);
+    }
+
+    return rv;
+}
+#endif
+
 extern char mfr_desc;
 extern char hw_desc;
 extern char sw_desc;
@@ -156,7 +223,7 @@ dp_lookup_queue(struct sw_port *p, uint32_t queue_id)
     struct sw_queue *q;
 
     LIST_FOR_EACH(q, struct sw_queue, node, &p->queue_list) {
-        if (q->queue_id == queue_id) {
+        if ((q != NULL) && (q->queue_id == queue_id)) {
             return q;
         }
     }
@@ -175,6 +242,89 @@ gen_datapath_id(void)
     return eth_addr_to_uint64(ea);
 }
 
+/* FIXME: Should not depend on udatapath_as_lib */
+#if defined(OF_HW_PLAT) && !defined(USE_NETDEV) && defined(UDATAPATH_AS_LIB)
+/*
+ * Receive packet handling for hardware driver controlled ports
+ *
+ * FIXME:  For now, call the pkt fwding directly; eventually may
+ * want to enqueue packets at this layer; at that point must
+ * make sure poll event is registered or timer kicked
+ */
+static int
+hw_packet_in(of_port_t port_no, of_packet_t *packet, int reason,
+             void *cookie)
+{
+    struct sw_port *port;
+    struct ofpbuf *buffer = NULL;
+    struct datapath *dp = (struct datapath *)cookie;
+    const int headroom = 128 + 2;
+    const int hard_header = VLAN_ETH_HEADER_LEN;
+    const int tail_room = sizeof(uint32_t);  /* For crc if needed later */
+
+    VLOG_INFO("dp rcv packet on port %d, size %d\n",
+              port_no, packet->length);
+    if ((port_no < 1) || port_no > DP_MAX_PORTS) {
+        VLOG_ERR("Bad receive port %d\n", port_no);
+        /* TODO increment error counter */
+        return -1;
+    }
+    port = &dp->ports[port_no];
+    if (!PORT_IN_USE(port)) {
+        VLOG_WARN("Receive port not active: %d\n", port_no);
+        return -1;
+    }
+    if (!IS_HW_PORT(port)) {
+        VLOG_ERR("Receive port not controlled by HW: %d\n", port_no);
+        return -1;
+    }
+    /* Note:  We're really not counting these for port stats as they
+     * should be gotten directly from the HW */
+    port->rx_packets++;
+    port->rx_bytes += packet->length;
+    /* For now, copy data into OFP buffer; eventually may steal packet
+     * from RX to avoid copy.  As per dp_run, add headroom and offset bytes.
+     */
+    buffer = ofpbuf_new(headroom + hard_header + packet->length + tail_room);
+    if (buffer == NULL) {
+        VLOG_WARN("Could not alloc ofpbuf on hw pkt in\n");
+        fprintf(stderr, "Could not alloc ofpbuf on hw pkt in\n");
+    } else {
+        buffer->data = (char*)buffer->data + headroom;
+        buffer->size = packet->length;
+        memcpy(buffer->data, packet->data, packet->length);
+        enqueue_pkt(dp, buffer, port_no, reason);
+        poll_immediate_wake();
+    }
+
+    return 0;
+}
+#endif
+
+#if defined(OF_HW_PLAT)
+static int
+dp_hw_drv_init(struct datapath *dp)
+{
+    dp->hw_pkt_list_head = NULL;
+    dp->hw_pkt_list_tail = NULL;
+
+    dp->hw_drv = new_of_hw_driver(dp);
+    if (dp->hw_drv == NULL) {
+        VLOG_ERR("Could not create HW driver");
+        return -1;
+    }
+#if !defined(USE_NETDEV)
+    if (dp->hw_drv->packet_receive_register(dp->hw_drv,
+                                            hw_packet_in, dp) < 0) {
+        VLOG_ERR("Could not register with HW driver to receive pkts");
+    }
+#endif
+
+    return 0;
+}
+
+#endif
+
 int
 dp_new(struct datapath **dp_, uint64_t dpid)
 {
@@ -190,6 +340,10 @@ dp_new(struct datapath **dp_, uint64_t dpid)
     dp->listeners = NULL;
     dp->n_listeners = 0;
     dp->id = dpid <= UINT64_C(0xffffffffffff) ? dpid : gen_datapath_id();
+/* FIXME: Should not depend on udatapath_as_lib */
+#if defined(OF_HW_PLAT) && (defined(UDATAPATH_AS_LIB) || defined(USE_NETDEV))
+    dp_hw_drv_init(dp);
+#endif
     dp->chain = chain_create(dp);
     if (!dp->chain) {
         VLOG_ERR("could not create chain");
@@ -272,6 +426,7 @@ new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
 
     list_init(&port->queue_list);
     port->dp = dp;
+    port->flags |= SWP_USED;
     port->netdev = netdev;
     port->port_no = port_no;
     port->num_queues = num_queues;
@@ -283,6 +438,48 @@ new_port(struct datapath *dp, struct sw_port *port, uint16_t port_no,
     return 0;
 }
 
+#if defined(OF_HW_PLAT) && !defined(USE_NETDEV)
+int
+dp_add_port(struct datapath *dp, const char *port_name, uint16_t num_queues)
+{
+    int port_no;
+    int rc = 0;
+    struct sw_port *port;
+
+    fprintf(stderr, "Adding port %s. hw_drv is %p\n", port_name, dp->hw_drv);
+    if (dp->hw_drv && dp->hw_drv->port_add) {
+        port_no = dp->hw_drv->port_add(dp->hw_drv, -1, port_name);
+        if (port_no >= 0) {
+            port = &dp->ports[port_no];
+            if (port->flags & SWP_USED) {
+                VLOG_ERR("HW port %s (%d) already created\n",
+                          port_name, port_no);
+                rc = -1;
+            } else {
+                fprintf(stderr, "Adding HW port %s as OF port number %d\n",
+                       port_name, port_no);
+                /* FIXME: Determine and record HW addr, etc */
+                port->flags |= SWP_USED | SWP_HW_DRV_PORT;
+                port->dp = dp;
+                port->port_no = port_no;
+                list_init(&port->queue_list);
+                port->num_queues = num_queues;
+                strncpy(port->hw_name, port_name, sizeof(port->hw_name));
+                list_push_back(&dp->port_list, &port->node);
+                send_port_status(port, OFPPR_ADD);
+            }
+        } else {
+            VLOG_ERR("Port %s not recognized by hardware driver", port_name);
+            rc = -1;
+        }
+    } else {
+        VLOG_ERR("No hardware driver support; can't add ports");
+        rc = -1;
+    }
+
+    return rc;
+}
+#else /* Not HW platform support */
 int
 dp_add_port(struct datapath *dp, const char *netdev, uint16_t num_queues)
 {
@@ -295,6 +492,7 @@ dp_add_port(struct datapath *dp, const char *netdev, uint16_t num_queues)
     }
     return EXFULL;
 }
+#endif /* OF_HW_PLAT */
 
 int
 dp_add_local_port(struct datapath *dp, const char *netdev, uint16_t num_queues)
@@ -349,9 +547,27 @@ dp_run(struct datapath *dp)
     }
     poll_timer_wait(1000);
 
+#if defined(OF_HW_PLAT) && !defined(USE_NETDEV)
+    { /* Process packets received from callback thread */
+        struct ofpbuf *buffer;
+        of_port_t port_no;
+        int reason;
+        struct sw_port *p;
+
+        while (dequeue_pkt(dp, &buffer, &port_no, &reason)) {
+            p = dp_lookup_port(dp, port_no);
+            /* FIXME:  We're throwing away the reason that came from HW */
+            fwd_port_input(dp, buffer, p);
+        }
+    }
+#endif
+
     LIST_FOR_EACH_SAFE (p, pn, struct sw_port, node, &dp->port_list) {
         int error;
 
+        if (IS_HW_PORT(p)) {
+            continue;
+        }
         if (!buffer) {
             /* Allocate buffer with some headroom to add headers in forwarding
              * to the controller or adding a vlan tag, plus an extra 2 bytes to
@@ -512,6 +728,9 @@ dp_wait(struct datapath *dp)
     size_t i;
 
     LIST_FOR_EACH (p, struct sw_port, node, &dp->port_list) {
+        if (IS_HW_PORT(p)) {
+            continue;
+        }
         netdev_recv_wait(p->netdev);
     }
     LIST_FOR_EACH (r, struct remote, node, &dp->remotes) {
@@ -529,7 +748,7 @@ static int
 output_all(struct datapath *dp, struct ofpbuf *buffer, int in_port, int flood)
 {
     struct sw_port *p;
-    int prev_port;
+    int prev_port; /* Buffer is cloned for multiple transmits */
 
     prev_port = -1;
     LIST_FOR_EACH (p, struct sw_port, node, &dp->port_list) {
@@ -563,6 +782,32 @@ output_packet(struct datapath *dp, struct ofpbuf *buffer, uint16_t out_port,
 
     q = NULL;
     p = dp_lookup_port(dp, out_port);
+
+/* FIXME:  Needs update for queuing */
+#if defined(OF_HW_PLAT) && !defined(USE_NETDEV)
+    if ((p != NULL) && IS_HW_PORT(p)) {
+        if (dp && dp->hw_drv) {
+            if (dp->hw_drv->port_link_get(dp->hw_drv, p->port_no)) {
+                of_packet_t *pkt;
+                int rv;
+
+                pkt = calloc(1, sizeof(*pkt));
+                OF_PKT_INIT(pkt, buffer);
+                rv = dp->hw_drv->packet_send(dp->hw_drv, out_port, pkt, 0);
+                if ((rv < 0) && (rv != OF_HW_PORT_DOWN)) {
+                    VLOG_ERR("Error %d sending pkt on HW port %d\n",
+                             rv, out_port);
+                    ofpbuf_delete(buffer);
+                    free(pkt);
+                }
+            }
+        }
+        return;
+    }
+
+    /* Fall through to software controlled ports if not HW port */
+#endif
+
     if (p && p->netdev != NULL) {
         if (!(p->config & OFPPC_PORT_DOWN)) {
             /* avoid the queue lookup for best-effort traffic */
@@ -749,18 +994,41 @@ static void
 fill_port_desc(struct sw_port *p, struct ofp_phy_port *desc)
 {
     desc->port_no = htons(p->port_no);
-    strncpy((char *) desc->name, netdev_get_name(p->netdev),
-            sizeof desc->name);
-    desc->name[sizeof desc->name - 1] = '\0';
-    memcpy(desc->hw_addr, netdev_get_etheraddr(p->netdev), ETH_ADDR_LEN);
+    if (IS_HW_PORT(p)) {
+#if defined(OF_HW_PLAT) && !defined(USE_NETDEV)
+        of_hw_driver_t *hw_drv;
+
+        hw_drv = p->dp->hw_drv;
+        strncpy((char *) desc->name, p->hw_name, sizeof desc->name);
+        desc->name[sizeof desc->name - 1] = '\0';
+        /* Update local port state */
+        if (hw_drv->port_link_get(hw_drv, p->port_no)) {
+            p->state &= ~OFPPS_LINK_DOWN;
+        } else {
+            p->state |= OFPPS_LINK_DOWN;
+        }
+        if (hw_drv->port_enable_get(hw_drv, p->port_no)) {
+            p->config &= ~OFPPC_PORT_DOWN;
+        } else {
+            p->config |= OFPPC_PORT_DOWN;
+        }
+        /* FIXME:  Add current, supported and advertised features */
+#endif
+    } else if (p->netdev) {
+        strncpy((char *) desc->name, netdev_get_name(p->netdev),
+                sizeof desc->name);
+        desc->name[sizeof desc->name - 1] = '\0';
+        memcpy(desc->hw_addr, netdev_get_etheraddr(p->netdev), ETH_ADDR_LEN);
+        desc->curr= htonl(netdev_get_features(p->netdev,
+            NETDEV_FEAT_CURRENT));
+        desc->supported = htonl(netdev_get_features(p->netdev,
+            NETDEV_FEAT_SUPPORTED));
+        desc->advertised = htonl(netdev_get_features(p->netdev,
+            NETDEV_FEAT_ADVERTISED));
+        desc->peer = htonl(netdev_get_features(p->netdev, NETDEV_FEAT_PEER));
+    }
     desc->config = htonl(p->config);
     desc->state = htonl(p->state);
-    desc->curr = htonl(netdev_get_features(p->netdev, NETDEV_FEAT_CURRENT));
-    desc->supported = htonl(netdev_get_features(p->netdev,
-                NETDEV_FEAT_SUPPORTED));
-    desc->advertised = htonl(netdev_get_features(p->netdev,
-                NETDEV_FEAT_ADVERTISED));
-    desc->peer = htonl(netdev_get_features(p->netdev, NETDEV_FEAT_PEER));
 }
 
 static void
@@ -1453,10 +1721,10 @@ struct queue_stats_state {
 };
 
 static int
-port_stats_init(const void *body, int body_len, void **state)
+port_stats_init(const void *body, int body_len UNUSED, void **state)
 {
     struct port_stats_state *s = xmalloc(sizeof *s);
-    struct ofp_port_stats_request *psr = body;
+    const struct ofp_port_stats_request *psr = body;
 
     s->start_port = 1;
     s->port_no = ntohs(psr->port_no);
@@ -1465,25 +1733,57 @@ port_stats_init(const void *body, int body_len, void **state)
 }
 
 static void
-dump_port_stats(struct sw_port *port, struct ofpbuf *buffer)
+dump_port_stats(struct datapath *dp, struct sw_port *port,
+                struct ofpbuf *buffer)
 {
     struct ofp_port_stats *ops = ofpbuf_put_uninit(buffer, sizeof *ops);
     ops->port_no = htons(port->port_no);
     memset(ops->pad, 0, sizeof ops->pad);
-    ops->rx_packets   = htonll(port->rx_packets);
-    ops->tx_packets   = htonll(port->tx_packets);
-    ops->rx_bytes     = htonll(port->rx_bytes);
-    ops->tx_bytes     = htonll(port->tx_bytes);
-    ops->rx_dropped   = htonll(-1);
-    ops->tx_dropped   = htonll(port->tx_dropped);
-    ops->rx_errors    = htonll(-1);
-    ops->tx_errors    = htonll(-1);
-    ops->rx_frame_err = htonll(-1);
-    ops->rx_over_err  = htonll(-1);
-    ops->rx_crc_err   = htonll(-1);
-    ops->collisions   = htonll(-1);
+    if (IS_HW_PORT(port)) {
+#if defined(OF_HW_PLAT) && !defined(USE_NETDEV)
+        struct ofp_port_stats stats;
+
+        memset(&stats, 0, sizeof(stats));
+        if (dp->hw_drv->port_stats_get) {
+            if (dp->hw_drv->port_stats_get(dp->hw_drv, port->port_no,
+                                           &stats) < 0) {
+                VLOG_WARN("Error getting stats on port %d\n", port->port_no);
+                return;
+            }
+        }
+        ops->rx_packets   = htonll(stats.rx_packets);
+        ops->tx_packets   = htonll(stats.tx_packets);
+        ops->rx_bytes     = htonll(stats.rx_bytes);
+        ops->tx_bytes     = htonll(stats.tx_bytes);
+        ops->rx_dropped   = htonll(stats.rx_dropped);
+        ops->tx_dropped   = htonll(stats.tx_dropped);
+        ops->rx_errors    = htonll(stats.rx_errors);
+        ops->tx_errors    = htonll(stats.tx_errors);
+        ops->rx_frame_err = htonll(stats.rx_frame_err);
+        ops->rx_over_err  = htonll(stats.rx_over_err);
+        ops->rx_crc_err   = htonll(stats.rx_crc_err);
+        ops->collisions   = htonll(stats.collisions);
+#endif
+    } else {
+        ops->rx_packets   = htonll(port->rx_packets);
+        ops->tx_packets   = htonll(port->tx_packets);
+        ops->rx_bytes     = htonll(port->rx_bytes);
+        ops->tx_bytes     = htonll(port->tx_bytes);
+        ops->rx_dropped   = htonll(-1);
+        ops->tx_dropped   = htonll(port->tx_dropped);
+        ops->rx_errors    = htonll(-1);
+        ops->tx_errors    = htonll(-1);
+        ops->rx_frame_err = htonll(-1);
+        ops->rx_over_err  = htonll(-1);
+        ops->rx_crc_err   = htonll(-1);
+        ops->collisions   = htonll(-1);
+    }
 }
 
+/* Although this makes some of the motions of being called
+ * multiple times preserving state, it doesn't actually support
+ * that process; the for loop can never break early.
+ */
 static int port_stats_dump(struct datapath *dp, void *state,
                            struct ofpbuf *buffer)
 {
@@ -1495,18 +1795,18 @@ static int port_stats_dump(struct datapath *dp, void *state,
         /* Dump statistics for all ports */
         for (i = s->start_port; i < DP_MAX_PORTS; i++) {
             p = dp_lookup_port(dp, i);
-            if (p && p->netdev) {
-                dump_port_stats(p, buffer);
+            if (p && PORT_IN_USE(p)) {
+                dump_port_stats(dp, p, buffer);
             }
         }
         if (dp->local_port) {
-            dump_port_stats(dp->local_port, buffer);
+            dump_port_stats(dp, dp->local_port, buffer);
         }
     } else {
         /* Dump statistics for a single port */
         p = dp_lookup_port(dp, s->port_no);
-        if (p && p->netdev) {
-            dump_port_stats(p, buffer);
+        if (p && PORT_IN_USE(p)) {
+            dump_port_stats(dp, p, buffer);
         }
     }
 

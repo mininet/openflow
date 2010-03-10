@@ -55,6 +55,10 @@
 #include "vconn-ssl.h"
 #include "vlog-socket.h"
 
+#if defined(OF_HW_PLAT)
+#include <openflow/of_hw_api.h>
+#endif
+
 #define THIS_MODULE VLM_udatapath
 #include "vlog.h"
 
@@ -77,8 +81,26 @@ static uint16_t num_queues = NETDEV_MAX_QUEUES;
 
 static void add_ports(struct datapath *dp, char *port_list);
 
+/* Need to treat this more generically */
+#if defined(UDATAPATH_AS_LIB)
+#define OFP_FATAL(_er, _str, args...) do {                \
+        fprintf(stderr, _str, ## args);                   \
+        return -1;                                        \
+    } while (0)
+#else
+#define OFP_FATAL(_er, _str, args...) ofp_fatal(_er, _str, ## args)
+#endif
+
+#if !defined(UDATAPATH_AS_LIB)
 int
 main(int argc, char *argv[])
+{
+    return udatapath_cmd(argc, argv);
+}
+#endif
+
+int
+udatapath_cmd(int argc, char *argv[])
 {
     int n_listeners;
     int error;
@@ -92,7 +114,7 @@ main(int argc, char *argv[])
     signal(SIGPIPE, SIG_IGN);
 
     if (argc - optind < 1) {
-        ofp_fatal(0, "at least one listener argument is required; "
+        OFP_FATAL(0, "at least one listener argument is required; "
           "use --help for usage");
     }
 
@@ -113,7 +135,7 @@ main(int argc, char *argv[])
         }
     }
     if (!n_listeners) {
-        ofp_fatal(0, "could not listen for any connections");
+        OFP_FATAL(0, "could not listen for any connections");
     }
 
     if (port_list) {
@@ -122,13 +144,13 @@ main(int argc, char *argv[])
     if (local_port) {
         error = dp_add_local_port(dp, local_port, 0);
         if (error) {
-            ofp_fatal(error, "failed to add local port %s", local_port);
+            OFP_FATAL(error, "failed to add local port %s", local_port);
         }
     }
 
     error = vlog_server_listen(NULL, NULL);
     if (error) {
-        ofp_fatal(error, "could not listen for vlog connections");
+        OFP_FATAL(error, "could not listen for vlog connections");
     }
 
     die_if_already_running();

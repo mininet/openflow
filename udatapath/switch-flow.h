@@ -75,6 +75,8 @@ struct sw_flow {
     struct list node;
     struct list iter_node;
     unsigned long int serial;
+
+    void *private;              /* Cookie for tables */
 };
 
 int flow_matches_1wild(const struct sw_flow_key *, const struct sw_flow_key *);

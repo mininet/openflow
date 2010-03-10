@@ -169,6 +169,94 @@ AC_DEFUN([OFP_CHECK_HWTABLES],
    done
    AC_SUBST(HW_TABLES)])
 
+dnl Checks for --enable-hw-lib and substitutes BUILD_HW_LIBS and plat name
+AC_DEFUN([OFP_CHECK_HWLIBS],
+  [AC_ARG_ENABLE(
+     [hw-lib],
+     [AC_HELP_STRING([--enable-hw-lib=PLATFORM],
+                     [Configure and build the specified externally supplied
+                      hardware library: lb4g, t2ref, scorref or nf2])])
+   case "${enable_hw_lib}" in # (
+     yes)
+       AC_MSG_ERROR([--enable-hw-lib has a required argument])
+       ;; # (
+     ''|no)
+       hw_lib=
+       NF2=no
+       LB4G=no
+       T2REF=no
+       SCORREF=no
+       BUILD_HW_LIBS=no
+       ;; # (
+     nf2)
+       NF2=yes
+       LB4G=no
+       T2REF=no
+       SCORREF=no
+       hw_lib=$enable_hw_lib
+       BUILD_HW_LIBS=yes
+       ;; # (
+     lb4g)
+       NF2=no
+       LB4G=yes
+       T2REF=no
+       SCORREF=no
+       hw_lib=$enable_hw_lib
+       BUILD_HW_LIBS=yes
+       ;; # (
+     t2ref)
+       NF2=no
+       LB4G=no
+       T2REF=yes
+       SCORREF=no
+       hw_lib=$enable_hw_lib
+       BUILD_HW_LIBS=yes
+       ;; # (
+     scorref)
+       NF2=no
+       LB4G=no
+       SCORREF=yes
+       T2REF=no
+       hw_lib=$enable_hw_lib
+       BUILD_HW_LIBS=yes
+       ;; # (
+     *)
+       AC_MSG_ERROR([--enable-hw-lib: Unknown platform: ${enable_hw_lib}])
+       BUILD_HW_LIBS=no
+       ;;
+   esac
+   if test $BUILD_HW_LIBS = yes; then
+     if test -e "$srcdir/hw-lib/automake.mk"; then
+       :
+     else
+       AC_MSG_ERROR([cannot configure HW libraries without "hw-lib" directory])
+     fi
+     AC_DEFINE([BUILD_HW_LIBS], [1],
+               [Whether the OpenFlow hardware libraries are available])
+   fi
+   if test $NF2 = yes; then
+     AC_DEFINE([NF2], [1],
+               [Support NetFPGA platform])
+   fi
+   if test $LB4G = yes; then
+     AC_DEFINE([LB4G], [1],
+               [Support Stanford-LB4G platform])
+   fi
+   if test $T2REF = yes; then
+     AC_DEFINE([T2REF], [1],
+               [Support Broadcom 56634 reference platform])
+   fi
+   if test $SCORREF = yes; then
+     AC_DEFINE([SCORREF], [1],
+               [Support Broadcom 56820 reference platform])
+   fi
+   AM_CONDITIONAL([NF2], [test $NF2 = yes])
+   AM_CONDITIONAL([LB4G], [test $LB4G = yes])
+   AM_CONDITIONAL([T2REF], [test $T2REF = yes])
+   AM_CONDITIONAL([SCORREF], [test $SCORREF = yes])
+   AM_CONDITIONAL([BUILD_HW_LIBS], [test $BUILD_HW_LIBS = yes])
+   AC_SUBST(HW_LIB)])
+
 dnl Checks for net/if_packet.h.
 AC_DEFUN([OFP_CHECK_IF_PACKET],
   [AC_CHECK_HEADER([net/if_packet.h],

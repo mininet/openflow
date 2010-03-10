@@ -39,8 +39,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include "datapath.h"
 
+struct datapath; /* Forward declaration for delete operation */
 struct sw_flow;
 struct sw_flow_key;
 struct ofp_action_header;
