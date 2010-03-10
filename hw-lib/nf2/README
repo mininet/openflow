@@ -1,0 +1,56 @@
+NetFPGA Hardware Table
+  Date - 03/09/10
+----------------------------------------
+
+This library creates and maintains a single software table that contains all
+the flows that are currently held in the NetFPGA card. The card itself splits
+exact match flows into SRAM and wildcard match flows into TCAMs. Currently
+there are 24 usable wildcard flow entries and 32,768 available exact match
+entries. The exact match table is hashed so actual available entries will be
+varied.
+
+Installation
+----------------------------------------
+
+First build OpenFlow ensuring you include the directive to build the
+openflow_netfpga hardware table in your configure statement:
+
+	% ./configure --enable-hw-lib=nf2
+
+For further help regarding building OpenFlow please see the INSTALL file in
+the OpenFlow root directory.
+
+Platform support
+----------------
+
+OpenFlow v1.0 with NetFPGA hardware table has been tested on CentOS5.4
+(Linux 2.6.18), which is the officially supported platform of NetFPGA.
+
+Running
+----------------------------------------
+
+Use nf2_download to download the openflow_switch.bit file that is located in
+the <openflow>/datapath/hwtable_nf2 folder:
+
+	% nf2_download -r <openflow>/hw-lib/nf2/openflow_switch.bit
+
+'-r' option enables PHY interrupt for its link status changing, and OpenFlow
+switch can detect it.
+
+Run ofdatapth with indicating *all* the NetFPGA interfaces:
+
+	% <openflow>/udatapath/ofdatapath punix:/var/run/test \
+	   -i nf2c0,nf2c1,nf2c2,nf2c3
+
+At this point your OpenFlow switch should be ready to go.
+The way you start up ofprotocol is as same as you do for software reference
+switch.
+
+Known Issues
+----------------------------------------
+* There is currently no support for priority amongst wildcard-match entries.
+
+Contact
+-------
+e-mail: openflow-discuss@lists.stanford.edu
+www: http://openflowswitch.org/
