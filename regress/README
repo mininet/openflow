@@ -33,7 +33,8 @@ Changelog
 	test_set_nw_dst/ -> cleanup
 	test_failover_startup/ -> argv parsing was broken
   -  Add new test : test_set_dl_nw_flip -> flip dl & nw addresses
-  -  Add new command line options : no_vlan, no_slicing and no_barrier
+  -  Add new command line options : no_vlan, no_slicing and no_barrier,
+     no_emerg
   -  Add ability to run a single test with --testPath
   -  New debugging function : dpctl_show_flows
 

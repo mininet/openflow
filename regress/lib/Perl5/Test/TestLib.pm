@@ -234,6 +234,7 @@ sub nftest_init {
 			"no_vlan",
 			"no_slicing",
 			"no_barrier",
+			"no_emerg",
 			"less_ports"
 			)
 		) 

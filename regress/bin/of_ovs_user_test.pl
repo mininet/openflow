@@ -33,6 +33,9 @@ push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=ovs_user", "--controlle
 # Use a single random port instead of all four
 push @ARGV, "--less_ports";
 
+# The bother with emergency flow table tests, it's not supported...
+push @ARGV, "--no_emerg";
+
 # Don't forget to configure the OVS_ROOT environment variable
 # Jean II
 

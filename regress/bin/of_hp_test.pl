@@ -43,6 +43,9 @@ push @ARGV, "--no_slicing";
 # The hardware can not support barrier
 push @ARGV, "--no_barrier";
 
+# The hardware can not support emergency flow table
+push @ARGV, "--no_emerg";
+
 # Check for listener
 if ( defined($ENV{'OFT_HP_LISTENER'}) ) {
     push @ARGV, "--listener=$ENV{OFT_HP_LISTENER}";

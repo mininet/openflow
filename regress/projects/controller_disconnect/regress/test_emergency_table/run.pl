@@ -85,21 +85,23 @@ sub test_emergency_cache_second {
 sub my_test {
 	my ($sock, $options_ref) = @_;
 
-	#This test uses two ports 
-	my $inport = 0;
-	my $outport = 1;
-	my $wildcards = 0; #exact match
+	if ( not defined( $$options_ref{'no_emerg'} ) ) {
+		#This test uses two ports
+		my $inport = 0;
+		my $outport = 1;
+		my $wildcards = 0; #exact match
 
-	# Wait until switch notices disconnection. it depends on implementation
-	my $wait_timer = 20;
+		# Wait until switch notices disconnection. it depends on implementation
+		my $wait_timer = 20;
 
-	my $test_pkt = test_emergency_cache_first($ofp, $sock, $options_ref, $inport, $outport, $wildcards);
+		my $test_pkt = test_emergency_cache_first($ofp, $sock, $options_ref, $inport, $outport, $wildcards);
 
-	# Wait until ofprotocol notices that connection is broken
-	sleep $wait_timer;
+		# Wait until ofprotocol notices that connection is broken
+		sleep $wait_timer;
 
-	# chek if the emergency table has become active
-	test_emergency_cache_second($test_pkt, $options_ref, $inport, $outport);
+		# chek if the emergency table has become active
+		test_emergency_cache_second($test_pkt, $options_ref, $inport, $outport);
+	}
 }
 
 run_black_box_test( \&my_test, \@ARGV );

@@ -69,6 +69,7 @@ my $ignoreByteCount;
 my $noVlan;
 my $noSlicing;
 my $noBarrier;
+my $noEmerg;
 my $lessPorts;
 
 sub run_regress_test {
@@ -102,6 +103,7 @@ sub run_regress_test {
 			"no_vlan"		=> \$noVlan,
 			"no_slicing"		=> \$noSlicing,
 			"no_barrier"		=> \$noBarrier,
+			"no_emerg"		=> \$noEmerg,
 			"less_ports"            => \$lessPorts
 		)
 		and ( $help eq '' )
@@ -284,7 +286,7 @@ SYNOPSIS
         [--map <mapfile>]
         [--project <project>] [--project <project>] ...
 	[--testPath <test>]
-	[--no_vlan] [--no_slicing] [--no_barrier]
+	[--no_vlan] [--no_slicing] [--no_barrier] [--no_emerg]
         [--ci <test_tool>] [--citest <test_name>]
 	[--listener <listener>]
         [--failfast]        
@@ -337,6 +339,9 @@ OPTIONS
 
    --no_barrier
      Do not run barrier tests
+
+   --no_emerg
+     Do not run emergency flow table tests
 
    --listener <listener>
      Specify port that the switch is listening on
@@ -623,6 +628,10 @@ sub runTest {
 	# Some platforms can not do barrier - Jean II
 	if ( defined($noBarrier) ) {
 		$args .= " --no_barrier";
+	}
+	# Some platforms can not do emergency flow table
+	if ( defined($noEmerg) ) {
+		$args .= " --no_emerg";
 	}
 
 	# Don't do all ports on some platforms, it's slow and useless...
