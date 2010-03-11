@@ -26,10 +26,10 @@ my $controllers;
 
 # Remove '--controller' from the option list... - Jean II
 Getopt::Long::Configure( 'pass_through' );
-unless (
-    GetOptions(
-			"controller=s"		=> \$controllers
-    ) )
+GetOptions(
+		"controller=s"		=> \$controllers
+);
+if (!defined($controllers))
 {
     # If no controllers specified, use default
     $controllers = nftest_default_controllers();
