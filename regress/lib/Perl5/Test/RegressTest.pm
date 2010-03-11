@@ -283,7 +283,10 @@ SYNOPSIS
         [--quiet]
         [--map <mapfile>]
         [--project <project>] [--project <project>] ...
+	[--testPath <test>]
+	[--no_vlan] [--no_slicing] [--no_barrier]
         [--ci <test_tool>] [--citest <test_name>]
+	[--listener <listener>]
         [--failfast]        
         [--root <root_test_path>]
         [--common-setup <local common setup file name>] 
@@ -315,6 +318,28 @@ OPTIONS
      
    --project <project> ...
      Run specific project(s) instead of those in regress.txt. 
+
+   --testPath <test>
+     Run a single test specified by <test>.
+     <test> should be of the form:
+
+       black_box/regress/test_hello/run.pl
+
+     or can be shortened by omitting the word "regress":
+
+       black_box/test_hello/run.pl
+
+   --no_vlan
+     Do not perform any matching on VLAN tags
+
+   --no_slicing
+     Do not run slicing tests
+
+   --no_barrier
+     Do not run barrier tests
+
+   --listener <listener>
+     Specify port that the switch is listening on
      
    --ci <test_tool> --citest <test_name>
      Unsupported; will enable the use of continuous testing tools like
