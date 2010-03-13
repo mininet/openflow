@@ -70,6 +70,7 @@ static void populate_action_set_nw_src(nf2_of_action_wrap *, uint8_t *);
 static void populate_action_set_nw_dst(nf2_of_action_wrap *, uint8_t *);
 static void populate_action_set_tp_src(nf2_of_action_wrap *, uint8_t *);
 static void populate_action_set_tp_dst(nf2_of_action_wrap *, uint8_t *);
+static void populate_action_set_nw_tos(nf2_of_action_wrap *, uint8_t *);
 static void populate_action_set_vlan_vid(nf2_of_action_wrap *, uint8_t *);
 static void populate_action_set_vlan_pcp(nf2_of_action_wrap *, uint8_t *);
 static void populate_action_strip_vlan(nf2_of_action_wrap *);
