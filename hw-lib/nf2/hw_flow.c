@@ -268,8 +268,7 @@ nf2_flow_timeout(struct sw_table *flowtab, struct list *deleted)
 				+ nf2_get_packet_count(dev, nf2flow);
 			flow->byte_count += nf2_get_byte_count(dev, nf2flow);
 		}
-		if (num_forw_packets > flow->packet_count
-		    && flow->idle_timeout != OFP_FLOW_PERMANENT) {
+		if (num_forw_packets > flow->packet_count) {
 			flow->packet_count = num_forw_packets;
 			flow->used = now;
 		}
