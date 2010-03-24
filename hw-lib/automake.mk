@@ -13,8 +13,8 @@ hw_lib_libnf2_a_SOURCES =		\
 	hw-lib/nf2/hw_flow.h	\
 	hw-lib/nf2/nf2_lib.c	\
 	hw-lib/nf2/nf2_lib.h	\
-	hw-lib/nf2/nf2_hwapi.c	\
-	hw-lib/nf2/nf2_hwapi.h	\
+	hw-lib/nf2/nf2_drv.c	\
+	hw-lib/nf2/nf2_drv.h	\
 	hw-lib/nf2/nf2.h	\
 	hw-lib/nf2/debug.h	\
 	hw-lib/nf2/reg_defines_openflow_switch.h	\

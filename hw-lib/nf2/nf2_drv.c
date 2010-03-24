@@ -41,7 +41,7 @@
 #include "nf2.h"
 #include "nf2util.h"
 #include "hw_flow.h"
-#include "nf2_hwapi.h"
+#include "nf2_drv.h"
 #include "nf2_lib.h"
 #include "debug.h"
 
