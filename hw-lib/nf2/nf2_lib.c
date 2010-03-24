@@ -75,6 +75,9 @@ static void populate_action_set_vlan_vid(nf2_of_action_wrap *, uint8_t *);
 static void populate_action_set_vlan_pcp(nf2_of_action_wrap *, uint8_t *);
 static void populate_action_strip_vlan(nf2_of_action_wrap *);
 
+int iface_chk_done = 0;
+int net_iface = 0;
+
 struct nf2device *
 nf2_get_net_device(void)
 {
@@ -82,9 +85,18 @@ nf2_get_net_device(void)
         dev = calloc(1, sizeof(struct nf2device));
         dev->device_name = DEFAULT_IFACE;
 
-        if (check_iface(dev)) {
-                return NULL;
-        }
+	if (iface_chk_done) {
+		dev->net_iface = net_iface;
+	} else {
+		if (check_iface(dev)) {
+			iface_chk_done = 0;
+			return NULL;
+		} else {
+			iface_chk_done = 1;
+			net_iface = dev->net_iface;
+		}
+	}
+
         if (openDescriptor(dev)) {
                 return NULL;
         }

@@ -202,6 +202,10 @@ nf2_uninstall_flow(struct datapath *dpinst, struct sw_table *flowtab,
 	struct list deleted;
 	list_init(&deleted);
 
+	dev = nf2_get_net_device();
+	if (dev == NULL)
+		return 0;
+
 	LIST_FOR_EACH_SAFE (flow, n, struct sw_flow, node, &nf2flowtab->flows) {
 		if (flow_matches_desc(&flow->key, key, strict)
 		    && (!strict || flow->priority == priority)
@@ -209,16 +213,11 @@ nf2_uninstall_flow(struct datapath *dpinst, struct sw_table *flowtab,
 			nf2flow = flow->private;
 
 			if (nf2flow != NULL) {
-				dev = nf2_get_net_device();
-				if (dev == NULL)
-					return 0;
 				flow->packet_count
 					+= nf2_get_packet_count(dev,
 								nf2flow);
 				flow->byte_count += nf2_get_byte_count(dev,
-								nf2flow);
-
-				nf2_free_net_device(dev);
+								       nf2flow);
 			}
 			count += do_uninstall(flow, &deleted);
 			if (keep_flow == KEEP_FLOW) {
@@ -228,6 +227,8 @@ nf2_uninstall_flow(struct datapath *dpinst, struct sw_table *flowtab,
 		}
 	}
 	nf2flowtab->num_flows -= count;
+
+	nf2_free_net_device(dev);
 
 	if (keep_flow == DELETE_FLOW) {
 		/* Notify DP of deleted flows and delete the flow */
@@ -397,6 +398,8 @@ nf2_get_portstats(of_hw_driver_t *hw_drv, int of_port,
 	}
 
 	if (nf2_get_port_info(dev, nf2_port, nf2portinfo)) {
+		nf2_free_net_device(dev);
+		free(nf2portinfo);
 		return 1;
 	}
 
@@ -416,6 +419,8 @@ nf2_get_portstats(of_hw_driver_t *hw_drv, int of_port,
 	stats->rx_crc_err = -1;
 	stats->collisions = -1;
 
+	nf2_free_net_device(dev);
+	free(nf2portinfo);
 	return 0;
 }
 
