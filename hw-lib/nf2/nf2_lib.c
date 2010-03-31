@@ -393,7 +393,7 @@ nf2_populate_of_mask(nf2_of_mask_wrap *mask, struct sw_flow *flow)
 		vlan_vid = VID_BITMASK;
 	}
 	if (OFPFW_DL_VLAN_PCP & flow->key.wildcards) {
-		vlan_pcp = PCP_BITMASK;
+		vlan_pcp = 0xF000;
 	}
 	mask->entry.vlan_id = vlan_pcp | vlan_vid;
 	if (OFPFW_DL_SRC & flow->key.wildcards) {

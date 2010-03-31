@@ -151,7 +151,7 @@ log_mask(nf2_of_mask_wrap *mask)
 	for (i = 5; i > 0; --i) {
 		DBG_VERBOSE("%0X:", mask->entry.eth_src[i]);
 	}
-	DBG_VERBOSE("%0X] ", mask->entry.eth_dst[0]);
+	DBG_VERBOSE("%0X] ", mask->entry.eth_src[0]);
 
 	// Log the link layer dest
 	DBG_VERBOSE("dldst[");
