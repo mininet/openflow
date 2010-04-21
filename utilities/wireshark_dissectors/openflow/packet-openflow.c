@@ -3100,7 +3100,7 @@ static void dissect_openflow_message(tvbuff_t *tvb, packet_info *pinfo, proto_tr
             type_tree = proto_item_add_subtree(type_item, ett_ofp_port_status);
 
             add_child(type_tree, ofp_port_status_reason, tvb, &offset, 1);
-            dissect_pad(type_tree, &offset, 3);
+            dissect_pad(type_tree, &offset, 7);
             dissect_phy_ports(type_tree, type_item, tvb, pinfo, &offset, 1);
             break;
         }
