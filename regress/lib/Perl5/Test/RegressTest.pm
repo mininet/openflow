@@ -33,7 +33,7 @@ my $projectRoot = 'projects';
 my $projectFile = 'projects/regress.txt';
 my $regressRoot = 'regress';
 my $regressFile = 'regress/tests.txt';
-my $run         = 'run';
+my $runFile         = 'run.pl';
 my $commonDir   = 'common';
 my $globalDir   = 'global';
 my $setup       = 'setup';
@@ -171,15 +171,29 @@ sub run_regress_test {
 	    # Split the path into components...
 	    ($project, $regress, $testDir, $testFile) = split(/\//,$testPath);
 
-	    if((!defined($project)) || (!defined($regress)) || (!defined($testDir))) {
+	    if((!defined($project)) || (!defined($regress))) {
 		my_die("Invalid testPath $testPath");
 	    }
 
-	    # Accept shorthand
-	    if(!defined($testFile)) {
-		$testPathShort = $regress.'/'.$testDir;
+	    # Accept various shorthands, or fully qualified path... Jean II
+	    if(!defined($testDir)) {
+		#    => project/testdir
+		$testPathShort = $regress.'/'.$runFile;
 	    } else {
-		$testPathShort = $testDir.'/'.$testFile;
+		if(!defined($testFile)) {
+		    # Two possible shorthands, try to see which one...
+		    if ( -x "$_ROOT_DIR/$projectRoot/$project/$regress/$testDir/$runFile" ) {
+
+			#    => project/regress/testdir
+			$testPathShort = $testDir.'/'.$runFile;
+		    } else {
+			#    => project/testdir/testfile
+			$testPathShort = $regress.'/'.$testDir;
+		    }
+		} else {
+		    #    => project/regress/testdir/testfile
+		    $testPathShort = $testDir.'/'.$testFile;
+		}
 	    }
 	    push @testList, $testPathShort;
 
@@ -327,9 +341,11 @@ OPTIONS
 
        black_box/regress/test_hello/run.pl
 
-     or can be shortened by omitting the word "regress":
+     or can be shortened by omitting the word "regress" and/or "run.pl":
 
        black_box/test_hello/run.pl
+       black_box/regress/test_hello
+       black_box/test_hello
 
    --no_vlan
      Do not perform any matching on VLAN tags
@@ -644,7 +660,7 @@ sub runTest {
 	}
 
 	if ( -d "$_ROOT_DIR/$projectRoot/$project/$regressRoot/$test" ) {
-		return runScript( $project, $test, $run, REQUIRED, $args );
+		return runScript( $project, $test, $runFile, REQUIRED, $args );
 	}
 	else {
 		if ( $test =~ /(.*)\/([^\/]*)/ ) {
