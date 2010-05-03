@@ -103,7 +103,7 @@ sub forward_flow_mod_latency {
 	    # Max in SW is around 5000 pkts/sec
 	    # Note : default rate limiter value is 100 pkts/sec, which is
 	    # one packet every 10s, so you can't run at default value
-	    # Send 10 packets as a short burst over 40ms
+	    # Send 5 packets as a short burst over 20ms
 	    for ($i = 0 ; $i < 5 ; $i++ ) {
 
 		# Wait 4 ms between packets
