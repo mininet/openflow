@@ -67,7 +67,7 @@ if (defined($ENV{'OFT_HP_COMMUNITY'})) {
 `snmpset -v2c -c ${of_hp_community} ${of_hp_switch_ip} iso.org.dod.internet.private.enterprises.11.2.14.11.5.1.7.1.35.1.1.2.${of_hp_vlan} i 2`;
 
 # Make sure the snmp commands don't coalesce
-usleep(300000);
+usleep(200000);
 
 # set OpenFlow Controller string
 `snmpset -v2c -c ${of_hp_community} ${of_hp_switch_ip} iso.org.dod.internet.private.enterprises.11.2.14.11.5.1.7.1.35.1.1.3.${of_hp_vlan} s ${of_hp_controller}`;
@@ -79,3 +79,6 @@ if (defined($of_hp_listener)) {
 
 # enable OpenFlow module
 `snmpset -v2c -c ${of_hp_community} ${of_hp_switch_ip} iso.org.dod.internet.private.enterprises.11.2.14.11.5.1.7.1.35.1.1.2.${of_hp_vlan} i 1`;
+
+# Starting OpenFlow takes time, give switch a bit of time...
+usleep(900000);
