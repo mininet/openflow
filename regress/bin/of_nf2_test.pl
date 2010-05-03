@@ -23,5 +23,6 @@ sub INT_Handler {
 }
 
 push (@ARGV, "--root=$ENV{'OFT_ROOT'}", "--map=$ENV{'OFT_ROOT'}/bin/nf2.map", "--port_base=1", "--common-st-args=nf2");
+push @ARGV, "--no_slicing";
 
 run_regress_test( \&INT_Handler, @ARGV );
