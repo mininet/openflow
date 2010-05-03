@@ -49,15 +49,28 @@ setup_pcap_interfaces();
 my $ovs_dir = $ENV{'OFT_OVS_ROOT'};
 my $of_port = get_of_port();
 
-# create Open vSwitch openflow switch on four ports eth5->eth9
+# Setup the kernel module
 `insmod ${ovs_dir}/datapath/linux-2.6/openvswitch_mod.ko`;
 `${ovs_dir}/utilities/ovs-dpctl add-dp dp0`;
 
-for ( my $i = 5 ; $i <= 8 ; $i++ ) {
-    my $iface = nftest_get_iface("eth$i");
-    `${ovs_dir}/utilities/ovs-dpctl add-if dp0 $iface`;
+# Not needed after 0.99.2
+#for ( my $i = 5 ; $i <= 8 ; $i++ ) {
+#    my $iface = nftest_get_iface("eth$i");
+#    `${ovs_dir}/utilities/ovs-dpctl add-if dp0 $iface`;
+#}
+
+# create command line arguments containing all four ports
+my $if_string = '';
+for ( my $i = 5 ; $i <= 7 ; $i++ ) {
+    $if_string .= nftest_get_iface("eth$i") . ',';
 }
+$if_string .= nftest_get_iface("eth8");
+
+# create Open vSwitch openflow switch on four ports eth5->eth9
+system("${ovs_dir}/utilities/ovs-openflowd dp0 --ports=${if_string} tcp:127.0.0.1:${of_port} --listen=ptcp:6634 --fail=closed --inactivity-probe=999999 &");
+
+# For 0.99.0, you'll need to manually add ports as above
+#system("${ovs_dir}/utilities/ovs-openflowd dp0 tcp:127.0.0.1:${of_port} --listen=ptcp:6634 --fail=closed --inactivity-probe=999999 &");
 
 # Up to 0.90.6, you would use secchan, after that you need to use ovs-openflowd
 #system("${ovs_dir}/secchan/secchan dp0 tcp:127.0.0.1:${of_port} --listen=ptcp:6634 --fail=closed --inactivity-probe=999999 &");
-system("${ovs_dir}/utilities/ovs-openflowd dp0 tcp:127.0.0.1:${of_port} --listen=ptcp:6634 --fail=closed --inactivity-probe=999999 &");

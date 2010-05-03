@@ -33,6 +33,9 @@ push @ARGV, "--root=$ENV{'OFT_ROOT'}", "--common-st-args=ovs_user", "--controlle
 # Use a single random port instead of all four
 push @ARGV, "--less_ports";
 
+# Don't bother with QoS currently, it's broken...
+push @ARGV, "--no_slicing";
+
 # The bother with emergency flow table tests, it's not supported...
 push @ARGV, "--no_emerg";
 

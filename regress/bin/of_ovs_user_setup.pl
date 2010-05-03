@@ -57,4 +57,4 @@ for ( my $i = 5 ; $i <= 7 ; $i++ ) {
 $if_string .= nftest_get_iface("eth8");
 
 # create userspace Open vSwitch openflow switch on four ports
-system("${ovs_dir}/utilities/ovs-openflowd netdev:br0 --ports=${if_string} tcp:127.0.0.1:${of_port} --listen=ptcp:6634 --fail=closed --inactivity-probe=999999 &");
+system("${ovs_dir}/utilities/ovs-openflowd netdev\@br0 --ports=${if_string} tcp:127.0.0.1:${of_port} --listen=ptcp:6634 --fail=closed --inactivity-probe=999999 &");
