@@ -14,10 +14,12 @@ my $of_hp_listener;
 my $of_hp_community;
 
 # Process command line options
-unless ( GetOptions( "map=s" => \$mapFile, ) ) {
-	print "unrecognized option\n";
-	exit 1;
-}
+# Don't fail on unrecognised options, those failures are tricky
+# to diagnose. For example projects/controller_disconnect sets --emerg
+# Jean II
+Getopt::Long::Configure( 'pass_through' );
+GetOptions( "map=s" => \$mapFile, );
+Getopt::Long::Configure( 'default' );
 
 # If not specified on command line, use environment variable.
 # Try specific first, then try generic - Jean II
