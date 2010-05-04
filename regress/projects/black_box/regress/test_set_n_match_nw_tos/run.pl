@@ -55,8 +55,8 @@ sub send_expect_exact {
 
     my $wildcards = 0x0;	# exact match
     my $flags = $enums{'OFPFF_SEND_FLOW_REM'}; # want flow expiry
-    # Set another ECN bit to see if it's filtered out...
-    my $nw_tos = 0x54 | 0x02;
+    # Don't set ECN bits here, OVS reject it as invalid...
+    my $nw_tos = 0x54;
 
     my $flow_mod_pkt = create_flow_mod_from_udp_action($ofp, $test_pkt, $in_port, $out_port, $max_idle, $flags, $wildcards, 'OFPFC_ADD', 'nw_tos', $nw_tos, $vlan_id, $test_nw_tos);
 
