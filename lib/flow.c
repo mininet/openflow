@@ -216,7 +216,7 @@ flow_extract(struct ofpbuf *packet, uint16_t in_port, struct flow *flow)
                     flow->nw_src = arp->ar_spa;
                     flow->nw_dst = arp->ar_tpa;
                 }
-                flow->nw_proto = ntohs(arp->ar_op) && 0xff;
+                flow->nw_proto = ntohs(arp->ar_op) & 0xff;
             }
         }
     }
