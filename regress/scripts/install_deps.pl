@@ -157,7 +157,7 @@ sub install_ubuntu_debian {
 	);
 
 	if ($distro eq UBUNTU) {
-		push (@pkts, 'libconvert-binary-c-perl')
+		push (@pkgs, 'libconvert-binary-c-perl')
 	}
 	else {
 		push (@modules,
