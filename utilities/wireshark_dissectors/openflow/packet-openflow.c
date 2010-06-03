@@ -1947,7 +1947,7 @@ void proto_register_openflow()
 const char* ofp_type_to_string( gint8 type ) {
     static char str_unknown[17];
 
-    if( type <= OFP_TYPE_MAX_VALUE )
+    if(( type <= OFP_TYPE_MAX_VALUE ) && (type >= 0)) 
         return names_ofp_type[type].strptr;
     else {
         snprintf( str_unknown, 17, "Unknown Type %u", type );
