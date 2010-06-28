@@ -334,7 +334,7 @@ usage(void)
            "  --no-slicing            disable slicing\n"
            "\nOther options:\n"
            "  -D, --detach            run in background as daemon\n"
-           "  -P, --pidfile[=FILE]    create pidfile (default: %s/udatapath.pid)\n"
+           "  -P, --pidfile[=FILE]    create pidfile (default: %s/ofdatapath.pid)\n"
            "  -f, --force             with -P, start even if already running\n"
            "  -v, --verbose=MODULE[:FACILITY[:LEVEL]]  set logging levels\n"
            "  -v, --verbose           set maximum verbosity level\n"
