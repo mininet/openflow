@@ -1141,6 +1141,9 @@ void proto_register_openflow()
         { &ofp_table_stats_wildcards[10],
           { "  VLAN priority", "of.wildcard_dl_vlan_pcp" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_DL_VLAN_PCP, "VLAN priority", HFILL }},
 
+        { &ofp_table_stats_wildcards[11],
+            { "  IPv4 DSCP", "of.wildcard_nw_tos" , FT_UINT32, BASE_DEC, VALS(ts_wildcard_choice), OFPFW_NW_TOS, "IPv4 DSCP", HFILL }},
+
         { &ofp_match_in_port,
           { "Input Port", "of.match_in_port", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "Input Port", HFILL }},
 
