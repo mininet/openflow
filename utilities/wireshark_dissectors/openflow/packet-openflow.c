@@ -903,7 +903,7 @@ void proto_register_openflow()
           { "  No physical link present", "of.port_state_link_down", FT_NONE, BASE_NONE, NO_STRINGS, OFPPS_LINK_DOWN, "No physical link present", HFILL }},
 */
         { &ofp_phy_port_state_not_evil,
-          { "  No physical link present", "of.port_state_link_down_not_evil", FT_NONE, BASE_NONE, NO_STRINGS, OFPPS_LINK_DOWN, "No physical link present", HFILL }},
+          { "  No physical link present", "of.port_state_link_down_not_evil", FT_UINT32, BASE_DEC, NO_STRINGS, OFPPS_LINK_DOWN, "No physical link present", HFILL }},
 
         { &ofp_phy_port_state_stp_state,
           { "STP state", "of.port_state_stp_listen", FT_STRING, BASE_NONE, NO_STRINGS, NO_MASK, "STP state", HFILL }},
@@ -1160,10 +1160,10 @@ void proto_register_openflow()
           { "Ethernet Type", "of.match_dl_type", FT_UINT16, BASE_HEX, NO_STRINGS, NO_MASK, "Ethernet Type", HFILL }},
 
         { &ofp_match_nw_src,
-          { "IP Src Addr", "of.match_nw_src", FT_IPv4, BASE_DEC, NO_STRINGS, NO_MASK, "Source IP Address", HFILL }},
+          { "IP Src Addr", "of.match_nw_src", FT_IPv4, BASE_NONE, NO_STRINGS, NO_MASK, "Source IP Address", HFILL }},
 
         { &ofp_match_nw_dst,
-          { "IP Dst Addr", "of.match_nw_dst", FT_IPv4, BASE_DEC, NO_STRINGS, NO_MASK, "Destination IP Address", HFILL }},
+          { "IP Dst Addr", "of.match_nw_dst", FT_IPv4, BASE_NONE, NO_STRINGS, NO_MASK, "Destination IP Address", HFILL }},
 
         { &ofp_match_nw_proto,
           { "IP Protocol", "of.match_nw_proto", FT_UINT8, BASE_HEX, NO_STRINGS, NO_MASK, "IP Protocol", HFILL }},
