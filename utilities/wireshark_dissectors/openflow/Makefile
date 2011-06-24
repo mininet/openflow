@@ -43,7 +43,7 @@ ifeq ($(OSTYPE),SunOS)
 ENDIAN=-D_BIG_ENDIAN_
 endif
 
-INC_GLIB=/usr/include/glib-2.0 #/usr/pubsw/include/glib-2.0/
+INC_GLIB=$(shell pkg-config --cflags glib-2.0)
 INC_OPENFLOW=../../../include
 
 INC_DIRS   = -I. -I$(INC_GLIB) -I$(INC_OPENFLOW)
