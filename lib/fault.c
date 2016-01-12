@@ -40,6 +40,7 @@
 #include <string.h>
 #include <signal.h>
 #include "util.h"
+#include <execinfo.h>
 
 #include "vlog.h"
 #define THIS_MODULE VLM_fault
@@ -59,12 +60,13 @@ fault_handler(int sig_nr)
 void
 log_backtrace(void)
 {
+#define STACK_DEPTH_LIMIT	128
+#ifdef OLD_LOG_BACKTRACE
     /* During the loop:
 
        frame[0] points to the next frame.
        frame[1] points to the return address. */
     void **frame;
-#define STACK_DEPTH_LIMIT	128
     int stack_depth = 0;
     for (frame = __builtin_frame_address(0);
          frame != NULL && frame[0] != NULL
@@ -79,8 +81,16 @@ log_backtrace(void)
                     (char *) frame[1] - (char *) addrinfo.dli_saddr); 
         }
     }
+#else
+    /* Use glibc functions to print backtrace */
+    void *buffer[STACK_DEPTH_LIMIT];
+    backtrace(buffer, STACK_DEPTH_LIMIT);
+    backtrace_symbols_fd(buffer, STACK_DEPTH_LIMIT, fileno(stderr));
+#endif
     fflush(stderr);
 }
+
+
 
 void
 register_fault_handlers(void)

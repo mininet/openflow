@@ -38,6 +38,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "compiler.h"
+#include <execinfo.h>
 
 #define THIS_MODULE VLM_backtrace
 #include "vlog.h"
@@ -106,8 +107,9 @@ in_stack(void *p)
 }
 
 void
-backtrace_capture(struct backtrace *backtrace)
+backtrace_capture(struct backtrace *bt)
 {
+#ifdef OLD_BACKTRACE_CAPTURE
     void **frame;
     size_t n;
 
@@ -117,7 +119,10 @@ backtrace_capture(struct backtrace *backtrace)
              && n < BACKTRACE_MAX_FRAMES;
          frame = frame[0])
     {
-        backtrace->frames[n++] = (uintptr_t) frame[1];
+        bt->frames[n++] = (uintptr_t) frame[1];
     }
-    backtrace->n_frames = n;
+    bt->n_frames = n;
+#else
+    bt->n_frames = backtrace(bt->frames, BACKTRACE_MAX_FRAMES);
+#endif
 }
