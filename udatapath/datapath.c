@@ -73,7 +73,7 @@
 static pthread_mutex_t pkt_q_mutex = PTHREAD_MUTEX_INITIALIZER;
 #define PKT_Q_LOCK pthread_mutex_lock(&pkt_q_mutex)
 #define PKT_Q_UNLOCK pthread_mutex_unlock(&pkt_q_mutex)
-
+// git version test //
 static void
 enqueue_pkt(struct datapath *dp, struct ofpbuf *buffer, of_port_t port_no,
             int reason)
